@@ -13,3 +13,5 @@ export let puzzle = writable([
   [0, 4, 5, 0, 0, 0, 2, 0, 9],
   [0, 0, 0, 0, 3, 0, 0, 7, 0],
 ]);
+
+export let conflictCell = writable([...Array(9)].map(_ => Array(9).fill(false)));
