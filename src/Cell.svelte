@@ -87,4 +87,14 @@
   .focusedNumber {
     background-color: #ffef5c;
   }
+
+  .conflicted {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    right: 4px;
+    bottom: 4px;
+    border-radius: 50%;
+    background-color: #ff4b56;
+  }
 </style>
