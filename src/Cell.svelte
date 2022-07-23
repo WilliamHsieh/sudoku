@@ -1,7 +1,7 @@
 <script>
   import Candidate from './Candidate.svelte';
   import { onMount } from 'svelte';
-  import { puzzle, focusedCellId, conflictCell, shouldCheck } from './store'
+  import { puzzle, focusedCellId, conflictCell, cellUpdate } from './store'
 
   export let cell_id;
   const x = Math.floor(cell_id / 9);
@@ -25,7 +25,7 @@
     const k = event.key;
     if (!prefilled && $focusedCellId == cell_id && k >= '0' && k <= '9') {
       $puzzle[x][y] = k;
-      $shouldCheck = true;
+      $cellUpdate = true;
     }
   }
 
@@ -53,6 +53,7 @@
     width: 51px;
     height: 51px;
     font-size: 30px;
+    position: relative;
 
     border-top: 1px solid black;
     border-left: 1px solid black;

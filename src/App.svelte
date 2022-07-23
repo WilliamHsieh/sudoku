@@ -1,10 +1,41 @@
 <script>
   import Cell from './Cell.svelte';
-  import { puzzle, conflictCell, shouldCheck } from './store'
+  import { onMount } from 'svelte';
+  import { puzzle, conflictCell, cellUpdate, pencilBox } from './store'
 
-  $: if ($shouldCheck) {
+  $: if ($cellUpdate) {
+    updatePencil();
     checkConflict();
-    $shouldCheck = false;
+    $cellUpdate = false;
+  }
+
+  onMount(() => {
+    updatePencil();
+  })
+
+  function updatePencil() {
+    for (let i = 0; i < 9; i++) {
+      for (let j = 0; j < 9; j++) {
+        $pencilBox[i][j].fill(true);
+      }
+    }
+    for (let i = 0; i < 9; i++) {
+      for (let j = 0; j < 9; j++) {
+        if ($puzzle[i][j]) {
+          const idx = $puzzle[i][j] - 1;
+          const bx = 3 * Math.floor(i / 3);
+          const by = 3 * Math.floor(j / 3);
+          for (let k = 0; k < 9; k++) {
+            $pencilBox[i][k][idx] = false;
+            $pencilBox[k][j][idx] = false;
+
+            const bi = Math.floor(k / 3);
+            const bj = k % 3;
+            $pencilBox[bx + bi][by + bj][idx] = false;
+          }
+        }
+      }
+    }
   }
 
   function checkConflict() {
