@@ -2,12 +2,29 @@
   import Candidate from './Candidate.svelte';
   import PenBox from './PenBox.svelte';
   import { onMount } from 'svelte';
-  import { puzzle, focusedCellId } from './store'
+  import { puzzle, userRemovePencil, focusedCellId, prefilled, cellUpdate } from './store'
 
   export let cell_id;
   const x = Math.floor(cell_id / 9);
   const y = cell_id % 9;
   let style = "cell";
+
+  $: filled = $puzzle[x][y] != 0;
+  $: cellStyle = () => {
+    let fg = "black";
+    let bg = "white";
+
+    if ($prefilled[x][y]) bg = "#e6e6e6";
+    if (filled && $focusedCellId != -1 && $puzzle[Math.floor($focusedCellId / 9)][$focusedCellId % 9] == $puzzle[x][y]) {
+      bg = "#ffef5c";
+    }
+    if ($focusedCellId == cell_id) {
+      bg = "#087da1";
+      fg = "white";
+    }
+
+    return `background-color: ${bg}; color: ${fg}`;
+  };
 
   onMount(() => {
     if (x % 3 == 0) style += " top-wall";
@@ -16,13 +33,21 @@
     if (y == 8 && (y + 1) % 3 == 0) style += " right-wall";
   })
 
+  function handleRightClick() {
+    if ($focusedCellId == cell_id) {
+      $userRemovePencil[x][y].fill(false);
+      $puzzle[x][y] = 0;
+      $cellUpdate = true;
+    }
+  }
+
   function handleClick() {
-    $focusedCellId = $focusedCellId == cell_id ? -1 : cell_id;
+    $focusedCellId = cell_id;
   }
 </script>
 
-<div class={style} on:click={handleClick}>
-  {#if $puzzle[x][y] != 0}
+<div class={style} on:click={handleClick} on:contextmenu|preventDefault={handleRightClick} style={cellStyle()}>
+  {#if filled}
     <PenBox cell_id={cell_id} />
   {:else}
     <Candidate cell_id={cell_id} />

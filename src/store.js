@@ -1,10 +1,11 @@
 import { writable, derived } from "svelte/store";
 
 export let focusedCellId = writable(-1)
-export let cellUpdate = writable(false);
+export let cellUpdate = writable(true);
 export let conflictCell = writable([...Array(9)].map(_ => Array(9).fill(false)));
 export let prefilled = writable([...Array(9)].map(_ => Array(9).fill(false)));
 export let pencilBox = writable([...Array(9)].map(_ => [...Array(9)].map(_ => Array(9).fill(true))));
+export let userRemovePencil = writable([...Array(9)].map(_ => [...Array(9)].map(_ => Array(9).fill(false))));
 
 export let puzzle = writable([
   [0, 5, 0, 9, 0, 0, 0, 0, 0],

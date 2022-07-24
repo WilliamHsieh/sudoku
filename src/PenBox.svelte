@@ -1,24 +1,14 @@
 <script>
-  import { puzzle, focusedCellId, conflictCell, prefilled } from './store'
+  import { puzzle, conflictCell } from './store'
 
   export let cell_id;
   const x = Math.floor(cell_id / 9);
   const y = cell_id % 9;
 
   $: conflicted = $conflictCell[x][y];
-
-  $: cell_color = () => {
-    let res = "white";
-    if ($prefilled[x][y]) res = "#e6e6e6";
-    if ($focusedCellId != -1 && $puzzle[Math.floor($focusedCellId / 9)][$focusedCellId % 9] == $puzzle[x][y]) {
-      res = "#ffef5c";
-    }
-    if ($focusedCellId == cell_id) res = "#087da1; color: white";
-    return "background-color:" + res;
-  }
 </script>
 
-<div class="pen-box" style={cell_color()}>
+<div class="pen-box">
   {$puzzle[x][y]}
   <div class:conflicted></div>
 </div>

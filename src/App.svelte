@@ -4,15 +4,27 @@
   import { puzzle, focusedCellId, cellUpdate, prefilled } from './store'
 
   function handleKeydown(event) {
+    if ($focusedCellId == -1) return;
     const x = Math.floor($focusedCellId / 9);
     const y = $focusedCellId % 9;
-    if ($prefilled[x][y]) return;
 
     const k = event.key;
-    if (k >= '0' && k <= '9') {
+    if (k >= '0' && k <= '9' && !$prefilled[x][y]) {
       $puzzle[x][y] = k;
       $cellUpdate = true;
+    } else if (k == 'ArrowLeft' && $focusedCellId % 9) {
+      $focusedCellId -= 1;
+    } else if (k == 'ArrowRight' && ($focusedCellId + 1) % 9) {
+      $focusedCellId += 1;
+    } else if (k == 'ArrowUp' && $focusedCellId >= 9) {
+      $focusedCellId -= 9;
+    } else if (k == 'ArrowDown' && $focusedCellId + 9 < 81) {
+      $focusedCellId += 9;
     }
+  }
+
+  function removeFocus() {
+    $focusedCellId = -1;
   }
 </script>
 
@@ -24,7 +36,7 @@
 
 <main>
   <Api />
-  <h1>Sudoku</h1>
+  <h1 on:click={removeFocus}>Sudoku</h1>
   <div class="board">
     {#each Array(9) as _, row}
       {#each Array(9) as _, col}
