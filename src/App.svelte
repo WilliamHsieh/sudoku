@@ -1,15 +1,8 @@
 <script>
   import Api from './Api.svelte';
   import Cell from './Cell.svelte';
-  import { done, puzzle, focusedCellId, cellUpdate, prefilled } from './store'
-
-  let timer = 0;
-  setInterval(() => {
-    if (!$done) timer += 1;
-  }, 1000);
-
-  $: minutes = Math.floor(timer / 60);
-  $: seconds = timer % 60;
+  import Timer from './Timer.svelte';
+  import { puzzle, focusedCellId, cellUpdate, prefilled } from './store'
 
   function handleKeydown(event) {
     if ($focusedCellId == -1) return;
@@ -53,7 +46,8 @@
       {/each}
     {/each}
   </div>
-  <p>{minutes}{seconds < 10 ? ":0" : ":"}{seconds}</p>
+
+  <Timer />
 </main>
 
 <style>
