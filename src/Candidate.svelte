@@ -1,29 +1,22 @@
 <script>
-  import { focusedCellId, pencilBox } from './store'
+  import PencilBox from './PencilBox.svelte';
+  import { focusedCellId } from './store'
 
   export let cell_id;
-  const x = Math.floor(cell_id / 9);
-  const y = cell_id % 9;
+
+  $: cell_color = $focusedCellId == cell_id ? "color: black; background: #ffef5c" : "color: gray";
 </script>
 
-<div class="cell" style={$focusedCellId == cell_id ? "color:white" : "color:gray"}>
-  {#each Array(3) as _, row}
-    {#each Array(3) as _, col}
-      <div class="candidate" style={$pencilBox[x][y][row * 3 + col] ? "" : "visibility:hidden"}>
-        {row * 3 + col + 1}
-      </div>
-    {/each}
+<div class="cell" style={cell_color}>
+  {#each Array(9) as _, x}
+    <PencilBox
+      cell_id = {cell_id}
+      number = {x}
+    />
   {/each}
 </div>
 
 <style>
-  .candidate {
-    font-size: 1px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-
   .cell {
     height: 100%;
     width: 100%;
