@@ -15,7 +15,9 @@
     let bg = "white";
 
     if ($prefilled[x][y]) bg = "#e6e6e6";
-    if (filled && $focusedCellId != -1 && $puzzle[Math.floor($focusedCellId / 9)][$focusedCellId % 9] == $puzzle[x][y]) {
+    if (!filled) {
+      fg = "gray";
+    } else if ($focusedCellId != -1 && $puzzle[Math.floor($focusedCellId / 9)][$focusedCellId % 9] == $puzzle[x][y]) {
       bg = "#ffef5c";
     }
     if ($focusedCellId == cell_id) {
