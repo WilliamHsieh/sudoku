@@ -39,5 +39,10 @@
     display: grid;
     grid-template-columns: repeat(9, auto);
     grid-auto-rows: auto;
+
+    -webkit-user-select:none;
+    -moz-user-select:none;
+    -o-user-select:none;
+    user-select:none;
   }
 </style>
