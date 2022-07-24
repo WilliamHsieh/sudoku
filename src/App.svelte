@@ -1,11 +1,11 @@
 <script>
   import Api from './Api.svelte';
   import Cell from './Cell.svelte';
-  import { puzzle, focusedCellId, cellUpdate, prefilled } from './store'
+  import { done, puzzle, focusedCellId, cellUpdate, prefilled } from './store'
 
   let timer = 0;
   setInterval(() => {
-    timer += 1;
+    if (!$done) timer += 1;
   }, 1000);
 
   $: minutes = Math.floor(timer / 60);

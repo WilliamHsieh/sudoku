@@ -1,7 +1,8 @@
 import { writable, derived } from "svelte/store";
 
-export let focusedCellId = writable(-1)
+export let done = writable(false);
 export let cellUpdate = writable(true);
+export let focusedCellId = writable(-1)
 export let conflictCell = writable([...Array(9)].map(_ => Array(9).fill(false)));
 export let prefilled = writable([...Array(9)].map(_ => Array(9).fill(false)));
 export let pencilBox = writable([...Array(9)].map(_ => [...Array(9)].map(_ => Array(9).fill(true))));

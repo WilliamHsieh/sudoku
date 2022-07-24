@@ -1,10 +1,11 @@
 <script>
   import { onMount } from 'svelte';
-  import { puzzle, conflictCell, cellUpdate, pencilBox, prefilled } from './store'
+  import { done, puzzle, conflictCell, cellUpdate, pencilBox, prefilled } from './store'
 
   $: if ($cellUpdate) {
     updatePencil();
     checkConflict();
+    checkDone();
     $cellUpdate = false;
   }
 
@@ -21,6 +22,15 @@
     }
     $cellUpdate = true;
   })
+
+  function checkDone() {
+    for (let i = 0; i < 9; i++) {
+      for (let j = 0; j < 9; j++) {
+        if ($conflictCell[i][j] || $puzzle[i][j] == 0) return;
+      }
+    }
+    $done = true;
+  }
 
   function setPuzzle(q) {
     let ok = q.length == 81;
