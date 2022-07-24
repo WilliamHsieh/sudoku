@@ -3,6 +3,14 @@
   import Cell from './Cell.svelte';
   import { puzzle, focusedCellId, cellUpdate, prefilled } from './store'
 
+  let timer = 0;
+  setInterval(() => {
+    timer += 1;
+  }, 1000);
+
+  $: minutes = Math.floor(timer / 60);
+  $: seconds = Math.floor(timer - minutes * 60)
+
   function handleKeydown(event) {
     if ($focusedCellId == -1) return;
     const x = Math.floor($focusedCellId / 9);
@@ -26,6 +34,7 @@
   function removeFocus() {
     $focusedCellId = -1;
   }
+
 </script>
 
 <svelte:window on:keydown={handleKeydown}/>
@@ -44,6 +53,7 @@
       {/each}
     {/each}
   </div>
+  <p>{minutes}{seconds < 10 ? ":0" : ":"}{seconds}</p>
 </main>
 
 <style>
