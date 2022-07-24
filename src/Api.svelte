@@ -9,12 +9,35 @@
   }
 
   onMount(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('q')) {
+      setPuzzle(urlParams.get("q"));
+    }
+
     for (let i = 0; i < 9; i++) {
       for (let j = 0; j < 9; j++) {
         $prefilled[i][j] = $puzzle[i][j] != 0;
       }
     }
+    $cellUpdate = true;
   })
+
+  function setPuzzle(q) {
+    let ok = q.length == 81;
+    for (let i = 0; i < q.length && ok; i++) {
+      ok = q[i] >= '0' && q[i] <= '9';
+    }
+    if (!ok) {
+      alert("incorrect puzzle");
+      return;
+    }
+
+    for (let i = 0; i < 9; i++) {
+      for (let j = 0; j < 9; j++) {
+        $puzzle[i][j] = q[i * 9 + j];
+      }
+    }
+  }
 
   function updatePencil() {
     for (let i = 0; i < 9; i++) {

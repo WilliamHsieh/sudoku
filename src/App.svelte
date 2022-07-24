@@ -9,7 +9,7 @@
   }, 1000);
 
   $: minutes = Math.floor(timer / 60);
-  $: seconds = Math.floor(timer - minutes * 60)
+  $: seconds = timer % 60;
 
   function handleKeydown(event) {
     if ($focusedCellId == -1) return;
