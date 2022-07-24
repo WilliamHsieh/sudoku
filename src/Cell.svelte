@@ -1,6 +1,6 @@
 <script>
-  import Candidate from './Candidate.svelte';
   import PenBox from './PenBox.svelte';
+  import PencilBox from './PencilBox.svelte';
   import { onMount } from 'svelte';
   import { puzzle, userRemovePencil, focusedCellId, prefilled, cellUpdate } from './store'
 
@@ -52,7 +52,11 @@
   {#if filled}
     <PenBox cell_id={cell_id} />
   {:else}
-    <Candidate cell_id={cell_id} />
+    <div class="candidate">
+      {#each Array(9) as _, idx}
+        <PencilBox cell_id={cell_id} idx={idx} />
+      {/each}
+    </div>
   {/if}
 </div>
 
@@ -62,6 +66,14 @@
     height: 51px;
     border-top: 1px solid black;
     border-left: 1px solid black;
+  }
+
+  .candidate {
+    height: 100%;
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, auto);
+    grid-auto-rows: auto;
   }
 
   .top-wall { border-top: 3px solid black; }

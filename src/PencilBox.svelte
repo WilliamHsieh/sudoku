@@ -18,12 +18,12 @@
   }
 </script>
 
-<div class="candidate" class:invisiblePencil on:click|preventDefault={handleClick}>
+<div class="pencil-box" class:invisiblePencil on:click|preventDefault={handleClick}>
   {idx + 1}
 </div>
 
 <style>
-  .candidate {
+  .pencil-box {
     font-size: 33.3%;
     display: flex;
     justify-content: center;

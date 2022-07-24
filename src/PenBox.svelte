@@ -5,12 +5,12 @@
   const x = Math.floor(cell_id / 9);
   const y = cell_id % 9;
 
-  $: conflicted = $conflictCell[x][y];
+  $: conflict = $conflictCell[x][y];
 </script>
 
 <div class="pen-box">
   {$puzzle[x][y]}
-  <div class:conflicted></div>
+  <div class:conflict></div>
 </div>
 
 <style>
@@ -25,7 +25,7 @@
     align-items: center;
   }
 
-  .conflicted {
+  .conflict {
     position: absolute;
     width: 8px;
     height: 8px;
