@@ -9,17 +9,16 @@
     const x = Math.floor($focusedCellId / 9);
     const y = $focusedCellId % 9;
 
-    const k = event.key;
-    if (k >= '0' && k <= '9' && !$prefilled[x][y]) {
-      $puzzle[x][y] = k;
+    if (e.key >= '0' && e.key <= '9' && !$prefilled[x][y]) {
+      $puzzle[x][y] = parseInt(e.key, 10);
       $cellUpdate = true;
-    } else if (k == 'ArrowLeft' && $focusedCellId % 9) {
+    } else if (e.key == 'ArrowLeft' && $focusedCellId % 9) {
       $focusedCellId -= 1;
-    } else if (k == 'ArrowRight' && ($focusedCellId + 1) % 9) {
+    } else if (e.key == 'ArrowRight' && ($focusedCellId + 1) % 9) {
       $focusedCellId += 1;
-    } else if (k == 'ArrowUp' && $focusedCellId >= 9) {
+    } else if (e.key == 'ArrowUp' && $focusedCellId >= 9) {
       $focusedCellId -= 9;
-    } else if (k == 'ArrowDown' && $focusedCellId + 9 < 81) {
+    } else if (e.key == 'ArrowDown' && $focusedCellId + 9 < 81) {
       $focusedCellId += 9;
     }
   }
