@@ -6,10 +6,9 @@
   const x = Math.floor(cell_id / 9);
   const y = cell_id % 9;
 
-  $: invisiblePencil = !$pencilBox[x][y][idx] || $userRemovePencil[x][y][idx];
-
-  function handleClick(event) {
-    if (event.shiftKey) {
+  function handleClick(e) {
+    // TODO: shift click anywhere to auto complete the cell if there's only on pencil mark left
+    if (e.shiftKey) {
       $puzzle[x][y] = idx + 1;
     } else if ($focusedCellId == cell_id) {
       $userRemovePencil[x][y][idx] = !$userRemovePencil[x][y][idx];
@@ -18,7 +17,11 @@
   }
 </script>
 
-<div class="pencil-box" class:invisiblePencil on:click|preventDefault={handleClick}>
+<div
+  class="pencil-box"
+  class:invisible={!$pencilBox[x][y][idx] || $userRemovePencil[x][y][idx]}
+  on:click={handleClick}
+>
   {idx + 1}
 </div>
 
@@ -30,7 +33,7 @@
     align-items: center;
   }
 
-  .invisiblePencil {
+  .invisible {
     color: transparent;
   }
 </style>

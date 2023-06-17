@@ -38,7 +38,7 @@
       ok = q[i] >= '0' && q[i] <= '9';
     }
     if (!ok) {
-      alert("incorrect puzzle");
+      alert("invalid puzzle");
       return;
     }
 

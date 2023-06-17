@@ -1,5 +1,7 @@
 import { writable, derived } from "svelte/store";
 
+// TODO: derive focusedCellId -> focusedX, focusedY
+
 export let done = writable(false);
 export let cellUpdate = writable(true);
 export let focusedCellId = writable(-1)
@@ -19,3 +21,15 @@ export let puzzle = writable([
   [0, 4, 5, 0, 0, 0, 2, 0, 9],
   [0, 0, 0, 0, 3, 0, 0, 7, 0],
 ]);
+
+// 947053100
+// 350004097
+// 000007350
+// 095020071
+// 170095003
+// 000080005
+// 000500700
+// 031600402
+// 729100030
+//
+// 947053100350004097000007350095020071170095003000080005000500700031600402729100030

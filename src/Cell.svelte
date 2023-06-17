@@ -9,13 +9,12 @@
   const y = cell_id % 9;
   let style = "cell";
 
-  $: filled = $puzzle[x][y] != 0;
   $: cellStyle = () => {
     let fg = "black";
     let bg = "white";
 
     if ($prefilled[x][y]) bg = "#e6e6e6";
-    if (!filled) {
+    if ($puzzle[x][y] == 0) {
       fg = "gray";
     } else if ($focusedCellId != -1 && $puzzle[Math.floor($focusedCellId / 9)][$focusedCellId % 9] == $puzzle[x][y]) {
       bg = "#ffef5c";
@@ -48,8 +47,13 @@
   }
 </script>
 
-<div class={style} on:click={handleClick} on:contextmenu|preventDefault={handleRightClick} style={cellStyle()}>
-  {#if filled}
+<div
+  class={style}
+  style={cellStyle()}
+  on:click={handleClick}
+  on:contextmenu|preventDefault={handleRightClick}
+>
+  {#if $puzzle[x][y]}
     <PenBox cell_id={cell_id} />
   {:else}
     <div class="candidate">

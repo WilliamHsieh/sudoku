@@ -4,13 +4,11 @@
   export let cell_id;
   const x = Math.floor(cell_id / 9);
   const y = cell_id % 9;
-
-  $: conflict = $conflictCell[x][y];
 </script>
 
 <div class="pen-box">
   {$puzzle[x][y]}
-  <div class:conflict></div>
+  <div class:conflict={$conflictCell[x][y]}></div>
 </div>
 
 <style>
