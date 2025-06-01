@@ -14,6 +14,49 @@ export let userRemovePencil = writable([...Array(9)].map(_ => [...Array(9)].map(
 export let timer = writable(0);
 export let timerRunning = writable(true);
 
+// Solved puzzles tracking
+function createSolvedPuzzles() {
+  // Load from localStorage
+  const stored = typeof window !== 'undefined' ? localStorage.getItem('sudoku-solved') : null;
+  
+  const initial = stored ? JSON.parse(stored) : {};
+  
+  const { subscribe, set, update } = writable(initial);
+
+  return {
+    subscribe,
+    set,
+    update,
+    markSolved: (dateStr, difficulty, completionTime) => {
+      update(solved => {
+        if (!solved[dateStr]) solved[dateStr] = {};
+        solved[dateStr][difficulty] = {
+          completed: true,
+          time: completionTime,
+          timestamp: Date.now()
+        };
+        
+        // Save to localStorage
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('sudoku-solved', JSON.stringify(solved));
+        }
+        
+        return solved;
+      });
+    },
+    isSolved: (dateStr, difficulty) => {
+      const solved = {};
+      subscribe(value => solved.current = value)();
+      return solved.current?.[dateStr]?.[difficulty]?.completed || false;
+    }
+  };
+}
+
+export const solvedPuzzles = createSolvedPuzzles();
+
+// Current puzzle info
+export let currentPuzzle = writable({ dateStr: null, difficulty: null });
+
 export let puzzle = writable([
   [0, 5, 0, 9, 0, 0, 0, 0, 0],
   [8, 0, 0, 0, 4, 0, 3, 0, 7],
@@ -30,6 +73,13 @@ export let puzzle = writable([
 export function resetTimer() {
   timer.set(0);
   timerRunning.set(true);
+}
+
+// Helper function to format time for display
+export function formatTime(seconds) {
+  const minutes = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${minutes}:${secs < 10 ? '0' : ''}${secs}`;
 }
 
 // 947053100

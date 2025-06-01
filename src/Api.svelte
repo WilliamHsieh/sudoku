@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { done, puzzle, conflictCell, cellUpdate, pencilBox, prefilled } from './store'
+  import { done, puzzle, conflictCell, cellUpdate, pencilBox, prefilled, timer, currentPuzzle, solvedPuzzles } from './store'
   import { resetTimer } from './store.js';
 
   $: if ($cellUpdate) {
@@ -32,6 +32,11 @@
       }
     }
     $done = true;
+    
+    // Mark puzzle as solved if we have puzzle info
+    if ($currentPuzzle.dateStr && $currentPuzzle.difficulty) {
+      solvedPuzzles.markSolved($currentPuzzle.dateStr, $currentPuzzle.difficulty, $timer);
+    }
   }
 
   function setPuzzle(q) {

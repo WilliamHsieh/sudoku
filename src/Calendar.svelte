@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { puzzle, prefilled, cellUpdate } from './store.js';
+  import { puzzle, prefilled, cellUpdate, solvedPuzzles, currentPuzzle } from './store.js';
   import { puzzleData } from './puzzles.js';
   import { resetTimer } from './store.js';
 
@@ -129,6 +129,9 @@
     if (puzzleString) {
       console.log('Loading puzzle:', puzzleString);
       
+      // Set current puzzle info
+      currentPuzzle.set({ dateStr, difficulty });
+      
       // Reset timer for new puzzle
       resetTimer();
       
@@ -232,8 +235,9 @@
               {#if day.puzzles[difficulty]}
                 <span 
                   class="puzzle-dot" 
-                  style="background-color: {difficultyColors[difficulty]}"
-                  title="{difficulty} puzzle available"
+                  class:solved={$solvedPuzzles[day.date]?.[difficulty]?.completed}
+                  style="background-color: {$solvedPuzzles[day.date]?.[difficulty]?.completed ? difficultyColors[difficulty] : '#e5e7eb'}"
+                  title="{difficulty} puzzle {$solvedPuzzles[day.date]?.[difficulty]?.completed ? 'completed' : 'available'}"
                 >
                 </span>
               {/if}
@@ -329,6 +333,13 @@
     transform: translateY(0);
   }
 
+  .puzzle-stats {
+    text-align: center;
+    margin-bottom: 20px;
+    color: #6b7280;
+    font-size: 0.9rem;
+  }
+
   .legend {
     display: flex;
     gap: 20px;
@@ -376,6 +387,8 @@
     transition: all 0.2s ease;
     border: 2px solid transparent;
     cursor: default;
+    display: flex;
+    flex-direction: column;
   }
 
   .calendar-day.today {
@@ -431,71 +444,29 @@
 
   .puzzle-indicators {
     display: flex;
-    gap: 3px;
+    gap: 4px;
     flex-wrap: wrap;
+    justify-content: center;
+    align-items: flex-end;
+    margin-top: 12px;
   }
 
   .puzzle-dot {
-    width: 8px;
-    height: 8px;
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
     border: none;
     cursor: pointer;
-    transition: transform 0.2s;
+    transition: all 0.2s;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
   }
 
   .puzzle-dot:hover {
-    transform: scale(1.3);
-  }
-
-  .puzzle-details {
-    position: absolute;
-    top: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    background: white;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 8px;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    z-index: 10;
-    display: flex;
-    flex-direction: row;
-    gap: 6px;
-    width: 180px;
-    white-space: nowrap;
-  }
-
-  .puzzle-button {
-    padding: 6px 8px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.75rem;
-    font-weight: 500;
-    transition: opacity 0.2s;
-    flex: 1;
-    min-width: 0;
-    text-align: center;
-  }
-
-  .puzzle-button:hover {
-    opacity: 0.8;
-  }
-
-  .puzzle-button.easy {
-    background: #4ade80;
-    color: white;
-  }
-
-  .puzzle-button.medium {
-    background: #fbbf24;
-    color: white;
-  }
-
-  .puzzle-button.hard {
-    background: #f87171;
-    color: white;
+    transform: scale(1.2);
   }
 
   .modal-backdrop {
