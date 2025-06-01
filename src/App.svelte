@@ -2,7 +2,10 @@
   import Api from './Api.svelte';
   import Cell from './Cell.svelte';
   import Timer from './Timer.svelte';
+  import Calendar from './Calendar.svelte';
   import { puzzle, focusedCellId, cellUpdate, prefilled } from './store'
+
+  let showCalendar = false;
 
   function handleKeydown(e) {
     if ($focusedCellId == -1) return;
@@ -26,6 +29,10 @@
   function removeFocus() {
     $focusedCellId = -1;
   }
+
+  function toggleView() {
+    showCalendar = !showCalendar;
+  }
 </script>
 
 <svelte:window on:keydown|preventDefault={handleKeydown}/>
@@ -35,19 +42,54 @@
 </svelte:head>
 
 <main>
-  <Api />
-  <h1 on:click={removeFocus}>Sudoku</h1>
-
-  <div class="board">
-    {#each Array(81) as _, id}
-      <Cell cell_id={id} />
-    {/each}
+  <div class="header">
+    <h1 on:click={removeFocus}>Sudoku</h1>
+    <button class="view-toggle" on:click={toggleView}>
+      {showCalendar ? '🎯 Play' : '📅 Calendar'}
+    </button>
   </div>
 
-  <Timer />
+  {#if showCalendar}
+    <Calendar />
+  {:else}
+    <Api />
+    <div class="board">
+      {#each Array(81) as _, id}
+        <Cell cell_id={id} />
+      {/each}
+    </div>
+    <Timer />
+  {/if}
 </main>
 
 <style>
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+
+  .header h1 {
+    margin: 0;
+  }
+
+  .view-toggle {
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+
+  .view-toggle:hover {
+    background: #2563eb;
+  }
+
   .board {
     display: grid;
     grid-template-columns: repeat(9, auto);
