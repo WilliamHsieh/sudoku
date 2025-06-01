@@ -29,8 +29,26 @@
     e.preventDefault();
   }
 
+  function handleGlobalKeydown(e) {
+    if (e.key === "Escape" && $done) {
+      dismissSuccess();
+    } else {
+      handleKeydown(e);
+    }
+  }
+
   function removeFocus() {
     $focusedCellId = -1;
+  }
+
+  function dismissSuccess() {
+    $done = false;
+  }
+
+  function handleSuccessBackdrop(event) {
+    if (event.target === event.currentTarget) {
+      dismissSuccess();
+    }
   }
 
   function toggleView() {
@@ -53,7 +71,7 @@
   });
 </script>
 
-<svelte:window on:keydown={handleKeydown} />
+<svelte:window on:keydown={handleGlobalKeydown} />
 
 <svelte:head>
   <title>Sudoku</title>
@@ -81,8 +99,11 @@
     </div>
 
     {#if $done}
-      <div class="success-message">
+      <div class="success-message" on:click={handleSuccessBackdrop}>
         <div class="success-card">
+          <button class="success-close" on:click={dismissSuccess}
+            >&times;</button
+          >
           <div class="success-icon">🎉</div>
           <h2>Puzzle Complete!</h2>
           <p>Congratulations! You've successfully solved the Sudoku puzzle.</p>
@@ -199,6 +220,7 @@
     max-width: 400px;
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
     animation: scaleIn 0.4s ease;
+    position: relative;
   }
 
   .success-icon {
@@ -219,6 +241,26 @@
     color: var(--color-gray-600);
     font-size: 1.1rem;
     line-height: 1.6;
+  }
+
+  .success-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #6b7280;
+    padding: 4px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    line-height: 1;
+  }
+
+  .success-close:hover {
+    background: #f3f4f6;
+    color: #374151;
   }
 
   @keyframes fadeIn {
