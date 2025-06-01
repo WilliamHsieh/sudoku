@@ -93,6 +93,15 @@
     modalDate = null; // Clear modal date
   }
 
+  function goToToday() {
+    const today = new Date();
+    currentMonth = today.getMonth();
+    currentYear = today.getFullYear();
+    selectedDate = null; // Clear selection
+    showModal = false; // Ensure modal is closed
+    modalDate = null; // Clear modal date
+  }
+
   function loadPuzzle(puzzleString) {
     // Parse puzzle string into 2D array format matching store.js
     const newPuzzle = [];
@@ -183,7 +192,10 @@
 <div class="calendar-container">
   <div class="calendar-header">
     <button class="nav-button" on:click={previousMonth}>‹</button>
-    <h2>{monthNames[currentMonth]} {currentYear}</h2>
+    <div class="header-center">
+      <h2>{monthNames[currentMonth]} {currentYear}</h2>
+      <button class="today-button" on:click={goToToday}>Today</button>
+    </div>
     <button class="nav-button" on:click={nextMonth}>›</button>
   </div>
 
@@ -310,6 +322,13 @@
     margin-bottom: 20px;
   }
 
+  .header-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
   .calendar-header h2 {
     margin: 0;
     font-size: 1.5rem;
@@ -342,6 +361,31 @@
   }
 
   .nav-button:active {
+    transform: translateY(0);
+  }
+
+  .today-button {
+    background: white;
+    border: 2px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: #374151;
+    font-weight: 500;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .today-button:hover {
+    background: #3b82f6;
+    border-color: #3b82f6;
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(59, 130, 246, 0.3);
+  }
+
+  .today-button:active {
     transform: translateY(0);
   }
 
