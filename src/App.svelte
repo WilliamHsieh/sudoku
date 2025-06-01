@@ -1,9 +1,9 @@
 <script>
-  import Api from './Api.svelte';
-  import Cell from './Cell.svelte';
-  import Timer from './Timer.svelte';
-  import Calendar from './Calendar.svelte';
-  import { puzzle, focusedCellId, cellUpdate, prefilled, done } from './store'
+  import Api from "./Api.svelte";
+  import Cell from "./Cell.svelte";
+  import Timer from "./Timer.svelte";
+  import Calendar from "./Calendar.svelte";
+  import { puzzle, focusedCellId, cellUpdate, prefilled, done } from "./store";
 
   let showCalendar = false;
 
@@ -12,18 +12,21 @@
     const x = Math.floor($focusedCellId / 9);
     const y = $focusedCellId % 9;
 
-    if (e.key >= '0' && e.key <= '9' && !$prefilled[x][y]) {
+    if (e.key >= "0" && e.key <= "9" && !$prefilled[x][y]) {
       $puzzle[x][y] = parseInt(e.key, 10);
       $cellUpdate = true;
-    } else if (e.key == 'ArrowLeft' && $focusedCellId % 9) {
+    } else if (e.key == "ArrowLeft" && $focusedCellId % 9) {
       $focusedCellId -= 1;
-    } else if (e.key == 'ArrowRight' && ($focusedCellId + 1) % 9) {
+    } else if (e.key == "ArrowRight" && ($focusedCellId + 1) % 9) {
       $focusedCellId += 1;
-    } else if (e.key == 'ArrowUp' && $focusedCellId >= 9) {
+    } else if (e.key == "ArrowUp" && $focusedCellId >= 9) {
       $focusedCellId -= 9;
-    } else if (e.key == 'ArrowDown' && $focusedCellId + 9 < 81) {
+    } else if (e.key == "ArrowDown" && $focusedCellId + 9 < 81) {
       $focusedCellId += 9;
+    } else {
+      return;
     }
+    e.preventDefault();
   }
 
   function removeFocus() {
@@ -36,21 +39,21 @@
 
   // Listen for puzzle loading events from calendar
   function handleLoadPuzzle(event) {
-    console.log('Puzzle loaded from calendar:', event.detail);
+    console.log("Puzzle loaded from calendar:", event.detail);
     showCalendar = false; // Switch back to puzzle view
   }
 
   // Add event listener when component mounts
-  import { onMount } from 'svelte';
+  import { onMount } from "svelte";
   onMount(() => {
-    window.addEventListener('loadPuzzle', handleLoadPuzzle);
+    window.addEventListener("loadPuzzle", handleLoadPuzzle);
     return () => {
-      window.removeEventListener('loadPuzzle', handleLoadPuzzle);
+      window.removeEventListener("loadPuzzle", handleLoadPuzzle);
     };
   });
 </script>
 
-<svelte:window on:keydown|preventDefault={handleKeydown}/>
+<svelte:window on:keydown={handleKeydown} />
 
 <svelte:head>
   <title>Sudoku</title>
@@ -63,7 +66,7 @@
       <Timer />
     {/if}
     <button class="view-toggle" on:click={toggleView}>
-      {showCalendar ? '🎯 Play' : '📅 Calendar'}
+      {showCalendar ? "🎯 Play" : "📅 Calendar"}
     </button>
   </div>
 
@@ -76,7 +79,7 @@
         <Cell cell_id={id} />
       {/each}
     </div>
-    
+
     {#if $done}
       <div class="success-message">
         <div class="success-card">
@@ -94,7 +97,8 @@
     width: 100%;
     height: 100vh;
     padding: 20px;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      sans-serif;
     background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
     overflow-x: hidden;
   }
@@ -161,7 +165,9 @@
     margin: 0 auto 32px auto;
     border-radius: 4px;
     overflow: hidden;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    box-shadow:
+      0 20px 25px -5px rgba(0, 0, 0, 0.1),
+      0 10px 10px -5px rgba(0, 0, 0, 0.04);
     background: white;
     padding: 0;
 
@@ -216,23 +222,31 @@
   }
 
   @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
 
   @keyframes scaleIn {
-    from { 
+    from {
       opacity: 0;
       transform: scale(0.9);
     }
-    to { 
+    to {
       opacity: 1;
       transform: scale(1);
     }
   }
 
   @keyframes bounce {
-    0%, 20%, 50%, 80%, 100% {
+    0%,
+    20%,
+    50%,
+    80%,
+    100% {
       transform: translateY(0);
     }
     40% {
@@ -247,16 +261,16 @@
     main {
       padding: 16px;
     }
-    
+
     .header {
       margin-bottom: 24px;
       padding: 16px 0;
     }
-    
+
     .header h1 {
       font-size: 2rem;
     }
-    
+
     .board {
       max-width: 100%;
       margin-bottom: 24px;
@@ -266,11 +280,11 @@
       margin: 16px;
       padding: 32px 24px;
     }
-    
+
     .success-card h2 {
       font-size: 1.75rem;
     }
-    
+
     .success-icon {
       font-size: 3rem;
     }
