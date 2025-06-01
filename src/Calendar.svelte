@@ -406,10 +406,18 @@
   .calendar-day.today {
     background: #dbeafe;
     border-color: #3b82f6;
+    cursor: pointer;
+  }
+
+  .calendar-day.today:hover {
+    background: #bfdbfe;
+    border-color: #2563eb;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   }
 
   .calendar-day.selected {
-    background: #3b82f6;
+    background: #3b82f6 !important;
     color: white;
     border-color: #1d4ed8;
   }
