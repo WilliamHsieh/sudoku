@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { puzzle, prefilled, cellUpdate, solvedPuzzles, currentPuzzle } from './store.js';
   import { puzzleData } from './puzzles.js';
-  import { resetTimer } from './store.js';
+  import { resetTimer, formatTime } from './store.js';
 
   let currentDate = new Date();
   let currentMonth = currentDate.getMonth();
@@ -264,17 +264,29 @@
           {#if modalPuzzles[difficulty]}
             <button 
               class="difficulty-button {difficulty}"
+              class:completed={$solvedPuzzles[modalDate]?.[difficulty]?.completed}
               on:click={() => selectPuzzle(modalDate, difficulty)}
             >
-              <div class="difficulty-icon" style="background-color: {difficultyColors[difficulty]}"></div>
+              <div class="difficulty-icon" style="background-color: {difficultyColors[difficulty]}">
+                {#if $solvedPuzzles[modalDate]?.[difficulty]?.completed}
+                  <span class="completion-check">✓</span>
+                {/if}
+              </div>
               <div class="difficulty-info">
                 <span class="difficulty-name">{difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}</span>
                 <span class="difficulty-desc">
-                  {difficulty === 'easy' ? 'Perfect for beginners' : 
-                   difficulty === 'medium' ? 'Moderately challenging' : 
-                   'Expert level puzzle'}
+                  {#if $solvedPuzzles[modalDate]?.[difficulty]?.completed}
+                    Solved in {formatTime($solvedPuzzles[modalDate][difficulty].time)}
+                  {:else}
+                    {difficulty === 'easy' ? 'Perfect for beginners' : 
+                     difficulty === 'medium' ? 'Moderately challenging' : 
+                     'Expert level puzzle'}
+                  {/if}
                 </span>
               </div>
+              {#if $solvedPuzzles[modalDate]?.[difficulty]?.completed}
+                <span class="completed-badge">Completed</span>
+              {/if}
             </button>
           {/if}
         {/each}
@@ -545,6 +557,7 @@
     gap: 16px;
     transition: all 0.2s;
     text-align: left;
+    position: relative;
   }
 
   .difficulty-button:hover {
@@ -553,11 +566,20 @@
     transform: translateY(-1px);
   }
 
+  .difficulty-button.completed {
+    border-color: #4ade80;
+    background: #f0fdf4;
+  }
+
   .difficulty-icon {
     width: 48px;
     height: 48px;
     border-radius: 50%;
     flex-shrink: 0;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .difficulty-info {
@@ -576,5 +598,33 @@
     display: block;
     font-size: 0.85rem;
     color: #6b7280;
+  }
+
+  .difficulty-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .completed-badge {
+    background-color: #4ade80;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    line-height: 1;
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  .completion-check {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.2rem;
+    color: #4ade80;
   }
 </style> 
