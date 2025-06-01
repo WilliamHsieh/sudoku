@@ -15,11 +15,14 @@
     }
     $cellUpdate = true;
   }
+
+  $: isSelected = $focusedCellId === cell_id;
 </script>
 
 <div
   class="pencil-box"
   class:invisible={!$pencilBox[x][y][idx] || $userRemovePencil[x][y][idx]}
+  class:selected={isSelected}
   on:click={handleClick}
 >
   {idx + 1}
@@ -27,13 +30,34 @@
 
 <style>
   .pencil-box {
-    font-size: 33.3%;
+    font-size: 0.9rem;
     display: flex;
     justify-content: center;
     align-items: center;
+    font-weight: 500;
+    color: #6b7280;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    transition: all 0.15s ease;
+    cursor: pointer;
+    border-radius: 2px;
+    min-height: 20px;
+  }
+
+  .pencil-box.selected {
+    color: white;
+  }
+
+  .pencil-box:hover {
+    background: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+  }
+
+  .pencil-box.selected:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
   }
 
   .invisible {
-    color: transparent;
+    color: transparent !important;
   }
 </style>

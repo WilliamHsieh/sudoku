@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { puzzle, prefilled, cellUpdate } from './store.js';
   import { puzzleData } from './puzzles.js';
+  import { resetTimer } from './store.js';
 
   let currentDate = new Date();
   let currentMonth = currentDate.getMonth();
@@ -127,6 +128,9 @@
     
     if (puzzleString) {
       console.log('Loading puzzle:', puzzleString);
+      
+      // Reset timer for new puzzle
+      resetTimer();
       
       // Load puzzle using the store system
       loadPuzzle(puzzleString);
@@ -297,17 +301,32 @@
   }
 
   .nav-button {
-    background: #f3f4f6;
-    border: none;
+    background: white;
+    border: 2px solid #e5e7eb;
     border-radius: 8px;
-    padding: 8px 12px;
-    font-size: 1.2rem;
+    padding: 12px 16px;
+    font-size: 1.4rem;
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: all 0.2s;
+    color: #374151;
+    font-weight: 600;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    min-width: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .nav-button:hover {
-    background: #e5e7eb;
+    background: #3b82f6;
+    border-color: #3b82f6;
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
+  }
+
+  .nav-button:active {
+    transform: translateY(0);
   }
 
   .legend {

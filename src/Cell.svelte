@@ -10,17 +10,18 @@
   let style = "cell";
 
   $: cellStyle = () => {
-    let fg = "black";
+    let fg = "#374151";
     let bg = "white";
 
-    if ($prefilled[x][y]) bg = "#e6e6e6";
+    if ($prefilled[x][y]) bg = "#e2e8f0";
     if ($puzzle[x][y] == 0) {
-      fg = "gray";
+      fg = "#6b7280";
     } else if ($focusedCellId != -1 && $puzzle[Math.floor($focusedCellId / 9)][$focusedCellId % 9] == $puzzle[x][y]) {
-      bg = "#ffef5c";
+      bg = "#fde047";
+      fg = "#374151";
     }
     if ($focusedCellId == cell_id) {
-      bg = "#087da1";
+      bg = "#3b82f6";
       fg = "white";
     }
 
@@ -66,22 +67,38 @@
 
 <style>
   .cell {
-    width: 51px;
-    height: 51px;
-    border-top: 1px solid black;
-    border-left: 1px solid black;
+    aspect-ratio: 1;
+    border: 1px solid #374151;
+    transition: all 0.15s ease;
+    position: relative;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: white;
+    min-height: 60px;
+    padding: 2px;
   }
 
   .candidate {
     height: 100%;
     width: 100%;
     display: grid;
-    grid-template-columns: repeat(3, auto);
-    grid-auto-rows: auto;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 1px;
   }
 
-  .top-wall { border-top: 3px solid black; }
-  .bottom-wall { border-bottom: 3px solid black; }
-  .left-wall { border-left: 3px solid black; }
-  .right-wall { border-right: 3px solid black; }
+  .top-wall { 
+    border-top: 3px solid #374151; 
+  }
+  .bottom-wall { 
+    border-bottom: 3px solid #374151; 
+  }
+  .left-wall { 
+    border-left: 3px solid #374151; 
+  }
+  .right-wall { 
+    border-right: 3px solid #374151; 
+  }
 </style>

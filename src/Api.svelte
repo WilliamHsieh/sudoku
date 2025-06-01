@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { done, puzzle, conflictCell, cellUpdate, pencilBox, prefilled } from './store'
+  import { resetTimer } from './store.js';
 
   $: if ($cellUpdate) {
     updatePencil();
@@ -12,6 +13,7 @@
   onMount(() => {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has('q')) {
+      resetTimer();
       setPuzzle(urlParams.get("q"));
     }
 

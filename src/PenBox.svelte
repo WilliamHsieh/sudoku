@@ -15,21 +15,35 @@
   .pen-box {
     width: 100%;
     height: 100%;
-    font-size: 30px;
+    font-size: 1.75rem;
     position: relative;
-    font-weight: bold;
+    font-weight: 600;
     display: flex;
     justify-content: center;
     align-items: center;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
 
   .conflict {
     position: absolute;
-    width: 8px;
-    height: 8px;
-    right: 4px;
-    bottom: 4px;
+    width: 10px;
+    height: 10px;
+    right: 6px;
+    bottom: 6px;
     border-radius: 50%;
-    background-color: #ff4b56;
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    box-shadow: 0 2px 4px rgba(239, 68, 68, 0.4);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.1);
+      opacity: 0.8;
+    }
   }
 </style>
