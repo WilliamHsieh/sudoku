@@ -17,7 +17,7 @@
     if ($puzzle[x][y] == 0) {
       fg = "#6b7280";
     } else if ($focusedCellId != -1 && $puzzle[Math.floor($focusedCellId / 9)][$focusedCellId % 9] == $puzzle[x][y]) {
-      bg = "#fde047";
+      bg = "#fde68a";
       fg = "#374151";
     }
     if ($focusedCellId == cell_id) {
@@ -68,7 +68,7 @@
 <style>
   .cell {
     aspect-ratio: 1;
-    border: 1px solid #374151;
+    border: 0.25px solid #6b7280;
     transition: all 0.15s ease;
     position: relative;
     cursor: pointer;
@@ -90,15 +90,15 @@
   }
 
   .top-wall { 
-    border-top: 3px solid #374151; 
+    border-top: 5px solid #374151; 
   }
   .bottom-wall { 
-    border-bottom: 3px solid #374151; 
+    border-bottom: 5px solid #374151; 
   }
   .left-wall { 
-    border-left: 3px solid #374151; 
+    border-left: 5px solid #374151; 
   }
   .right-wall { 
-    border-right: 3px solid #374151; 
+    border-right: 5px solid #374151; 
   }
 </style>

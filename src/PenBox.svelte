@@ -15,9 +15,9 @@
   .pen-box {
     width: 100%;
     height: 100%;
-    font-size: 1.75rem;
+    font-size: 2rem;
     position: relative;
-    font-weight: 600;
+    font-weight: 700;
     display: flex;
     justify-content: center;
     align-items: center;

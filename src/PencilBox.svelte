@@ -35,7 +35,7 @@
     justify-content: center;
     align-items: center;
     font-weight: 500;
-    color: #6b7280;
+    color: #9ca3af;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     transition: all 0.15s ease;
     cursor: pointer;

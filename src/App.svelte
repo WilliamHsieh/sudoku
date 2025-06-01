@@ -163,7 +163,7 @@
     overflow: hidden;
     box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
     background: white;
-    padding: 8px;
+    padding: 0;
 
     -webkit-user-select: none;
     -moz-user-select: none;
