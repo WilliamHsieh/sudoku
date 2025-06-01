@@ -4,6 +4,7 @@
   import Timer from "./Timer.svelte";
   import Calendar from "./Calendar.svelte";
   import { puzzle, focusedCellId, cellUpdate, prefilled, done } from "./store";
+  import { timerRunning } from "./store";
 
   let showCalendar = false;
 
@@ -43,6 +44,7 @@
 
   function dismissSuccess() {
     $done = false;
+    $timerRunning = false;
   }
 
   function handleSuccessBackdrop(event) {
