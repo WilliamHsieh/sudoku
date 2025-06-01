@@ -29,6 +29,9 @@ def read_existing_puzzles():
                     r"'([^']*)'", r'"\1"', obj_str
                 )  # Convert single quotes to double
 
+                # Remove trailing commas (JSON doesn't allow them)
+                obj_str = re.sub(r",(\s*[}\]])", r"\1", obj_str)
+
                 try:
                     puzzle_data = json.loads(obj_str)
                     print(f"📚 Loaded {len(puzzle_data)} existing puzzle dates")
@@ -65,8 +68,7 @@ def generate_puzzles_js(puzzle_data):
     # Sort dates for consistency
     sorted_dates = sorted(puzzle_data.keys())
 
-    js_content = f"// Auto-generated puzzle data - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
-    js_content += "export const puzzleData = {\n"
+    js_content = "export const puzzleData = {\n"
 
     for date in sorted_dates:
         puzzles = puzzle_data[date]
