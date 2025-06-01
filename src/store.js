@@ -10,6 +10,10 @@ export let prefilled = writable([...Array(9)].map(_ => Array(9).fill(false)));
 export let pencilBox = writable([...Array(9)].map(_ => [...Array(9)].map(_ => Array(9).fill(true))));
 export let userRemovePencil = writable([...Array(9)].map(_ => [...Array(9)].map(_ => Array(9).fill(false))));
 
+// Timer state
+export let timer = writable(0);
+export let timerRunning = writable(true);
+
 export let puzzle = writable([
   [0, 5, 0, 9, 0, 0, 0, 0, 0],
   [8, 0, 0, 0, 4, 0, 3, 0, 7],
@@ -21,6 +25,12 @@ export let puzzle = writable([
   [0, 4, 5, 0, 0, 0, 2, 0, 9],
   [0, 0, 0, 0, 3, 0, 0, 7, 0],
 ]);
+
+// Helper function to reset timer when loading new puzzle
+export function resetTimer() {
+  timer.set(0);
+  timerRunning.set(true);
+}
 
 // 947053100
 // 350004097

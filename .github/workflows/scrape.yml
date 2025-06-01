@@ -1,0 +1,26 @@
+name: NYTimes Scraper
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * *"
+
+jobs:
+  scraper:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Generate file
+        run: |
+          pip install requests
+          python scraper.py
+
+      - name: Commit changes
+        run: |
+          git config --global user.name "Github Actions"
+          git config --global user.email "williamhsieh@users.noreply.github.com"
+          git add .
+          git commit -m "chore: update daily puzzles"
+          git push
