@@ -33,6 +33,21 @@
   function toggleView() {
     showCalendar = !showCalendar;
   }
+
+  // Listen for puzzle loading events from calendar
+  function handleLoadPuzzle(event) {
+    console.log('Puzzle loaded from calendar:', event.detail);
+    showCalendar = false; // Switch back to puzzle view
+  }
+
+  // Add event listener when component mounts
+  import { onMount } from 'svelte';
+  onMount(() => {
+    window.addEventListener('loadPuzzle', handleLoadPuzzle);
+    return () => {
+      window.removeEventListener('loadPuzzle', handleLoadPuzzle);
+    };
+  });
 </script>
 
 <svelte:window on:keydown|preventDefault={handleKeydown}/>

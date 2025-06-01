@@ -1,11 +1,13 @@
 <script>
   import { onMount } from 'svelte';
+  import { puzzle, prefilled, cellUpdate } from './store.js';
 
   let currentDate = new Date();
   let currentMonth = currentDate.getMonth();
   let currentYear = currentDate.getFullYear();
-  let puzzleData = {};
   let selectedDate = null;
+  let showModal = false;
+  let modalDate = null;
 
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -19,36 +21,39 @@
     hard: '#f87171'
   };
 
-  onMount(async () => {
-    await loadPuzzleData();
-  });
-
-  async function loadPuzzleData() {
-    puzzleData = {};
-    
-    // Load puzzle data for the current month and previous months
-    const endDate = new Date(currentYear, currentMonth + 1, 0);
-    const startDate = new Date(currentYear, currentMonth - 2, 1); // Load 3 months of data
-    
-    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-      const dateStr = formatDate(d);
-      puzzleData[dateStr] = {};
-      
-      for (const difficulty of difficulties) {
-        try {
-          const response = await fetch(`/board/nytimes/${difficulty}/${dateStr}`);
-          if (response.ok) {
-            const puzzleString = await response.text();
-            puzzleData[dateStr][difficulty] = puzzleString.trim();
-          }
-        } catch (error) {
-          // Puzzle doesn't exist for this date/difficulty
-          console.log(`No puzzle found for ${dateStr} ${difficulty}`);
-        }
-      }
+  // Embedded puzzle data for GitHub Pages
+  const puzzleData = {
+    '2025-01-12': {
+      easy: '159230000800014700400500310060102578002083000980040006005000823700306005093000067',
+      medium: '159230000800014700400500310060102578002083000980040006005000823700306005093000067',
+      hard: '159230000800014700400500310060102578002083000980040006005000823700306005093000067'
+    },
+    '2025-01-13': {
+      easy: '159230000800014700400500310060102578002083000980040006005000823700306005093000067',
+      medium: '159230000800014700400500310060102578002083000980040006005000823700306005093000067',
+      hard: '159230000800014700400500310060102578002083000980040006005000823700306005093000067'
+    },
+    '2025-01-14': {
+      easy: '159230000800014700400500310060102578002083000980040006005000823700306005093000067',
+      medium: '159230000800014700400500310060102578002083000980040006005000823700306005093000067',
+      hard: '159230000800014700400500310060102578002083000980040006005000823700306005093000067'
+    },
+    '2025-01-15': {
+      easy: '159230000800014700400500310060102578002083000980040006005000823700306005093000067',
+      medium: '159230000800014700400500310060102578002083000980040006005000823700306005093000067',
+      hard: '159230000800014700400500310060102578002083000980040006005000823700306005093000067'
+    },
+    '2025-01-16': {
+      easy: '159230000800014700400500310060102578002083000980040006005000823700306005093000067',
+      medium: '159230000800014700400500310060102578002083000980040006005000823700306005093000067',
+      hard: '159230000800014700400500310060102578002083000980040006005000823700306005093000067'
+    },
+    '2025-06-01': {
+      easy: '159230000800014700400500310060102578002083000980040006005000823700306005093000067',
+      medium: '159230000800014700400500310060102578002083000980040006005000823700306005093000067',
+      hard: '159230000800014700400500310060102578002083000980040006005000823700306005093000067'
     }
-    console.log('Loaded puzzle data:', puzzleData);
-  }
+  };
 
   function formatDate(date) {
     const year = date.getFullYear();
@@ -103,7 +108,7 @@
       currentMonth--;
     }
     selectedDate = null; // Clear selection when changing months
-    loadPuzzleData();
+    closeModal();
   }
 
   function nextMonth() {
@@ -114,7 +119,36 @@
       currentMonth++;
     }
     selectedDate = null; // Clear selection when changing months
-    loadPuzzleData();
+    closeModal();
+  }
+
+  function loadPuzzle(puzzleString) {
+    // Parse puzzle string into 2D array format matching store.js
+    const newPuzzle = [];
+    for (let i = 0; i < 9; i++) {
+      const row = [];
+      for (let j = 0; j < 9; j++) {
+        row.push(parseInt(puzzleString[i * 9 + j], 10));
+      }
+      newPuzzle.push(row);
+    }
+    
+    // Update the puzzle store
+    puzzle.set(newPuzzle);
+    
+    // Update prefilled status
+    const newPrefilled = [];
+    for (let i = 0; i < 9; i++) {
+      const row = [];
+      for (let j = 0; j < 9; j++) {
+        row.push(newPuzzle[i][j] !== 0);
+      }
+      newPrefilled.push(row);
+    }
+    prefilled.set(newPrefilled);
+    
+    // Trigger cell update
+    cellUpdate.set(true);
   }
 
   function selectPuzzle(dateStr, difficulty) {
@@ -122,8 +156,15 @@
     if (puzzleData[dateStr] && puzzleData[dateStr][difficulty]) {
       const puzzleString = puzzleData[dateStr][difficulty];
       console.log('Loading puzzle:', puzzleString);
-      // Navigate to the puzzle with the selected puzzle data
-      window.location.href = `/?q=${puzzleString}`;
+      
+      // Load puzzle using the store system
+      loadPuzzle(puzzleString);
+      
+      // Close modal and emit event
+      closeModal();
+      window.dispatchEvent(new CustomEvent('loadPuzzle', { 
+        detail: { dateStr, difficulty, puzzleString } 
+      }));
     } else {
       console.log('No puzzle found for', dateStr, difficulty);
     }
@@ -132,12 +173,32 @@
   function selectDate(day) {
     console.log('Selecting date:', day);
     if (day && day.isPast) {
-      selectedDate = selectedDate === day.date ? null : day.date;
-      console.log('Selected date:', selectedDate);
+      selectedDate = day.date;
+      const hasPuzzles = day.puzzles && Object.keys(day.puzzles).length > 0;
+      
+      if (hasPuzzles) {
+        modalDate = day.date;
+        showModal = true;
+      } else {
+        // Just select the date visually if no puzzles
+        console.log('No puzzles available for this date');
+      }
+    }
+  }
+
+  function closeModal() {
+    showModal = false;
+    modalDate = null;
+  }
+
+  function handleModalBackdropClick(event) {
+    if (event.target === event.currentTarget) {
+      closeModal();
     }
   }
 
   $: calendarDays = generateCalendarDays();
+  $: modalPuzzles = modalDate ? puzzleData[modalDate] || {} : {};
 </script>
 
 <div class="calendar-container">
@@ -188,45 +249,54 @@
           <div class="puzzle-indicators">
             {#each difficulties as difficulty}
               {#if day.puzzles[difficulty]}
-                <button 
+                <span 
                   class="puzzle-dot" 
                   style="background-color: {difficultyColors[difficulty]}"
-                  on:click|stopPropagation={() => selectPuzzle(day.date, difficulty)}
-                  title="Play {difficulty} puzzle from {day.date}"
-                  type="button"
+                  title="{difficulty} puzzle available"
                 >
-                </button>
+                </span>
               {/if}
             {/each}
           </div>
-          
-          {#if selectedDate === day.date && day.puzzles && Object.keys(day.puzzles).length > 0}
-            <div class="puzzle-details">
-              {#each difficulties as difficulty}
-                {#if day.puzzles[difficulty]}
-                  <button 
-                    class="puzzle-button {difficulty}"
-                    on:click|stopPropagation={() => selectPuzzle(day.date, difficulty)}
-                    type="button"
-                  >
-                    {difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}
-                  </button>
-                {/if}
-              {/each}
-            </div>
-          {/if}
         {/if}
       </div>
     {/each}
   </div>
-  
-  <!-- Debug info -->
-  <div style="margin-top: 20px; font-size: 0.8rem; color: #666;">
-    <p>Current month: {monthNames[currentMonth]} {currentYear}</p>
-    <p>Puzzle data loaded: {Object.keys(puzzleData).length} dates</p>
-    <p>Selected date: {selectedDate || 'None'}</p>
-  </div>
 </div>
+
+<!-- Modal for difficulty selection -->
+{#if showModal}
+  <div class="modal-backdrop" on:click={handleModalBackdropClick}>
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Select Difficulty</h3>
+        <p>Choose a puzzle for {modalDate}</p>
+        <button class="modal-close" on:click={closeModal}>&times;</button>
+      </div>
+      
+      <div class="modal-content">
+        {#each difficulties as difficulty}
+          {#if modalPuzzles[difficulty]}
+            <button 
+              class="difficulty-button {difficulty}"
+              on:click={() => selectPuzzle(modalDate, difficulty)}
+            >
+              <div class="difficulty-icon" style="background-color: {difficultyColors[difficulty]}"></div>
+              <div class="difficulty-info">
+                <span class="difficulty-name">{difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}</span>
+                <span class="difficulty-desc">
+                  {difficulty === 'easy' ? 'Perfect for beginners' : 
+                   difficulty === 'medium' ? 'Moderately challenging' : 
+                   'Expert level puzzle'}
+                </span>
+              </div>
+            </button>
+          {/if}
+        {/each}
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .calendar-container {
@@ -383,8 +453,8 @@
   .puzzle-details {
     position: absolute;
     top: 100%;
-    left: 0;
-    right: 0;
+    left: 50%;
+    transform: translateX(-50%);
     background: white;
     border: 1px solid #e5e7eb;
     border-radius: 8px;
@@ -392,18 +462,23 @@
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     z-index: 10;
     display: flex;
-    flex-direction: column;
-    gap: 4px;
+    flex-direction: row;
+    gap: 6px;
+    width: 180px;
+    white-space: nowrap;
   }
 
   .puzzle-button {
-    padding: 6px 12px;
+    padding: 6px 8px;
     border: none;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     font-weight: 500;
     transition: opacity 0.2s;
+    flex: 1;
+    min-width: 0;
+    text-align: center;
   }
 
   .puzzle-button:hover {
@@ -423,5 +498,114 @@
   .puzzle-button.hard {
     background: #f87171;
     color: white;
+  }
+
+  .modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  }
+
+  .modal {
+    background: white;
+    padding: 24px;
+    border-radius: 12px;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  }
+
+  .modal-header {
+    position: relative;
+    margin-bottom: 24px;
+    text-align: center;
+  }
+
+  .modal-header h3 {
+    margin: 0 0 8px 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #111827;
+  }
+
+  .modal-header p {
+    margin: 0;
+    color: #6b7280;
+    font-size: 0.9rem;
+  }
+
+  .modal-close {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #6b7280;
+    padding: 4px;
+    border-radius: 4px;
+  }
+
+  .modal-close:hover {
+    background: #f3f4f6;
+    color: #374151;
+  }
+
+  .modal-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .difficulty-button {
+    background: white;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: all 0.2s;
+    text-align: left;
+  }
+
+  .difficulty-button:hover {
+    border-color: #d1d5db;
+    background: #f9fafb;
+    transform: translateY(-1px);
+  }
+
+  .difficulty-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .difficulty-info {
+    flex: 1;
+  }
+
+  .difficulty-name {
+    display: block;
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: #111827;
+    margin-bottom: 4px;
+  }
+
+  .difficulty-desc {
+    display: block;
+    font-size: 0.85rem;
+    color: #6b7280;
   }
 </style> 
