@@ -37,9 +37,9 @@
     return new Date(year, month, 1).getDay();
   }
 
-  function generateCalendarDays() {
-    const daysInMonth = getDaysInMonth(currentYear, currentMonth);
-    const firstDay = getFirstDayOfMonth(currentYear, currentMonth);
+  function generateCalendarDays(month, year) {
+    const daysInMonth = getDaysInMonth(year, month);
+    const firstDay = getFirstDayOfMonth(year, month);
     const days = [];
 
     // Add empty cells for days before the first day of the month
@@ -49,10 +49,11 @@
 
     // Add days of the month
     for (let day = 1; day <= daysInMonth; day++) {
-      const date = new Date(currentYear, currentMonth, day);
+      const date = new Date(year, month, day);
       const dateStr = formatDate(date);
       const today = new Date();
-      const isToday = dateStr === formatDate(today);
+      const todayStr = formatDate(today);
+      const isToday = dateStr === todayStr;
       const isPast = date < today || isToday; // Include today as clickable
       
       days.push({
@@ -75,7 +76,8 @@
       currentMonth--;
     }
     selectedDate = null; // Clear selection when changing months
-    closeModal();
+    showModal = false; // Ensure modal is closed
+    modalDate = null; // Clear modal date
   }
 
   function nextMonth() {
@@ -86,7 +88,8 @@
       currentMonth++;
     }
     selectedDate = null; // Clear selection when changing months
-    closeModal();
+    showModal = false; // Ensure modal is closed
+    modalDate = null; // Clear modal date
   }
 
   function loadPuzzle(puzzleString) {
@@ -139,7 +142,6 @@
   }
 
   function selectDate(day) {
-    console.log('Selecting date:', day);
     if (day && day.isPast) {
       selectedDate = day.date;
       const hasPuzzles = day.puzzles && Object.keys(day.puzzles).length > 0;
@@ -149,7 +151,8 @@
         showModal = true;
       } else {
         // Just select the date visually if no puzzles
-        console.log('No puzzles available for this date');
+        showModal = false;
+        modalDate = null;
       }
     }
   }
@@ -165,7 +168,7 @@
     }
   }
 
-  $: calendarDays = generateCalendarDays();
+  $: calendarDays = generateCalendarDays(currentMonth, currentYear);
   $: modalPuzzles = modalDate ? puzzleData[modalDate] || {} : {};
   $: totalPuzzles = Object.values(puzzleData).reduce((sum, puzzles) => sum + Object.keys(puzzles).length, 0);
 </script>
@@ -208,6 +211,7 @@
     {#each calendarDays as day}
       <div 
         class="calendar-day"
+        class:empty={!day}
         class:today={day?.isToday}
         class:past={day?.isPast && !day?.isToday}
         class:future={day && !day?.isPast}
@@ -329,10 +333,11 @@
   .calendar-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    gap: 1px;
+    gap: 2px;
     background: #e5e7eb;
-    border-radius: 8px;
+    border-radius: 12px;
     overflow: hidden;
+    border: 1px solid #d1d5db;
   }
 
   .day-header {
@@ -349,59 +354,60 @@
     min-height: 80px;
     padding: 8px;
     position: relative;
-    transition: background-color 0.2s;
+    transition: all 0.2s ease;
+    border: 2px solid transparent;
+    cursor: default;
   }
 
   .calendar-day.today {
     background: #dbeafe;
+    border-color: #3b82f6;
   }
 
   .calendar-day.selected {
     background: #3b82f6;
     color: white;
+    border-color: #1d4ed8;
   }
 
   .calendar-day.selected .day-number {
     color: white;
   }
 
-  .calendar-day.future {
-    background: #f3f4f6;
+  .calendar-day.future,
+  .calendar-day.empty {
+    background: #f9fafb !important;
     color: #9ca3af;
     cursor: not-allowed;
   }
 
-  .calendar-day.future:hover {
-    background: #f3f4f6;
+  .calendar-day.future:hover,
+  .calendar-day.empty:hover {
+    background: #f9fafb;
   }
 
   .calendar-day.past {
     background: white;
     cursor: pointer;
+    border: 1px solid #e5e7eb;
   }
 
   .calendar-day.past:hover {
-    background: #f9fafb;
+    background: #f3f4f6;
+    border-color: #d1d5db;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   }
 
-  .calendar-day.has-puzzles {
-    position: relative;
-  }
-
-  .calendar-day.has-puzzles::after {
-    content: '';
-    position: absolute;
-    top: 2px;
-    right: 2px;
-    width: 6px;
-    height: 6px;
-    background: #10b981;
-    border-radius: 50%;
+  .calendar-day.has-puzzles.past:hover {
+    border-color: #10b981;
   }
 
   .day-number {
     font-weight: 600;
-    margin-bottom: 4px;
+    font-size: 1.1rem;
+    margin-bottom: 6px;
+    line-height: 1;
   }
 
   .puzzle-indicators {
