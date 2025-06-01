@@ -48,21 +48,6 @@ def read_existing_puzzles():
     return puzzle_data
 
 
-def save_puzzle_files(puzzles, date_str):
-    """Save puzzle files in the traditional board structure."""
-    for difficulty in ["easy", "medium", "hard"]:
-        if difficulty in puzzles:
-            # Create directory if it doesn't exist
-            dir_path = Path(f"board/nytimes/{difficulty}")
-            dir_path.mkdir(parents=True, exist_ok=True)
-
-            # Save puzzle file
-            file_path = dir_path / date_str
-            with open(file_path, "w") as f:
-                f.write(puzzles[difficulty])
-            print(f"💾 Saved {difficulty} puzzle to {file_path}")
-
-
 def generate_puzzles_js(puzzle_data):
     """Generate the updated puzzles.js file."""
     # Sort dates for consistency
@@ -125,9 +110,6 @@ def main():
             puzzle_string = "".join(str(p) for p in puzzle)
             today_puzzles[difficulty] = puzzle_string
             print(f"🧩 Scraped {difficulty}: {puzzle_string[:20]}...")
-
-        # Save puzzle files (traditional format)
-        save_puzzle_files(today_puzzles, date_str)
 
         # Add to puzzle data
         puzzle_data[date_str] = today_puzzles
