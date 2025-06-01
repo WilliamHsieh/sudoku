@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { puzzle, prefilled, cellUpdate } from './store.js';
+  import { puzzleData } from './puzzles.js';
 
   let currentDate = new Date();
   let currentMonth = currentDate.getMonth();
@@ -19,40 +20,6 @@
     easy: '#4ade80',
     medium: '#fbbf24', 
     hard: '#f87171'
-  };
-
-  // Embedded puzzle data for GitHub Pages
-  const puzzleData = {
-    '2025-01-12': {
-      easy: '159230000800014700400500310060102578002083000980040006005000823700306005093000067',
-      medium: '159230000800014700400500310060102578002083000980040006005000823700306005093000067',
-      hard: '159230000800014700400500310060102578002083000980040006005000823700306005093000067'
-    },
-    '2025-01-13': {
-      easy: '159230000800014700400500310060102578002083000980040006005000823700306005093000067',
-      medium: '159230000800014700400500310060102578002083000980040006005000823700306005093000067',
-      hard: '159230000800014700400500310060102578002083000980040006005000823700306005093000067'
-    },
-    '2025-01-14': {
-      easy: '159230000800014700400500310060102578002083000980040006005000823700306005093000067',
-      medium: '159230000800014700400500310060102578002083000980040006005000823700306005093000067',
-      hard: '159230000800014700400500310060102578002083000980040006005000823700306005093000067'
-    },
-    '2025-01-15': {
-      easy: '159230000800014700400500310060102578002083000980040006005000823700306005093000067',
-      medium: '159230000800014700400500310060102578002083000980040006005000823700306005093000067',
-      hard: '159230000800014700400500310060102578002083000980040006005000823700306005093000067'
-    },
-    '2025-01-16': {
-      easy: '159230000800014700400500310060102578002083000980040006005000823700306005093000067',
-      medium: '159230000800014700400500310060102578002083000980040006005000823700306005093000067',
-      hard: '159230000800014700400500310060102578002083000980040006005000823700306005093000067'
-    },
-    '2025-06-01': {
-      easy: '159230000800014700400500310060102578002083000980040006005000823700306005093000067',
-      medium: '159230000800014700400500310060102578002083000980040006005000823700306005093000067',
-      hard: '159230000800014700400500310060102578002083000980040006005000823700306005093000067'
-    }
   };
 
   function formatDate(date) {
@@ -153,8 +120,9 @@
 
   function selectPuzzle(dateStr, difficulty) {
     console.log('Selecting puzzle:', dateStr, difficulty);
-    if (puzzleData[dateStr] && puzzleData[dateStr][difficulty]) {
-      const puzzleString = puzzleData[dateStr][difficulty];
+    const puzzleString = puzzleData[dateStr]?.[difficulty];
+    
+    if (puzzleString) {
       console.log('Loading puzzle:', puzzleString);
       
       // Load puzzle using the store system
@@ -199,6 +167,7 @@
 
   $: calendarDays = generateCalendarDays();
   $: modalPuzzles = modalDate ? puzzleData[modalDate] || {} : {};
+  $: totalPuzzles = Object.values(puzzleData).reduce((sum, puzzles) => sum + Object.keys(puzzles).length, 0);
 </script>
 
 <div class="calendar-container">
@@ -206,6 +175,10 @@
     <button class="nav-button" on:click={previousMonth}>‹</button>
     <h2>{monthNames[currentMonth]} {currentYear}</h2>
     <button class="nav-button" on:click={nextMonth}>›</button>
+  </div>
+
+  <div class="puzzle-stats">
+    <p>{totalPuzzles} puzzles across {Object.keys(puzzleData).length} dates</p>
   </div>
 
   <div class="legend">
