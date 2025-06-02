@@ -29,3 +29,5 @@ jobs:
             git commit -m "chore: update daily puzzles"
             git push
           fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.TRIGGER_WORKFLOW }}
