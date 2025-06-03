@@ -280,9 +280,6 @@
               on:click={() => selectPuzzle(modalDate, difficulty)}
             >
               <div class="difficulty-icon" style="background-color: {difficultyColors[difficulty]}">
-                {#if $solvedPuzzles[modalDate]?.[difficulty]?.completed}
-                  <span class="completion-check">✓</span>
-                {/if}
               </div>
               <div class="difficulty-info">
                 <span class="difficulty-name">{difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}</span>
