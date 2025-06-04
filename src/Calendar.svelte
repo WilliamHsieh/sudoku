@@ -524,10 +524,22 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   }
 
   .puzzle-dot:hover {
     transform: scale(1.2);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+  }
+
+  /* Ensure dots are visible on selected (blue) backgrounds */
+  .calendar-day.selected .puzzle-dot {
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  }
+
+  /* Ensure dots are visible on today (light blue) backgrounds */
+  .calendar-day.today .puzzle-dot {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
   }
 
   .modal-backdrop {
