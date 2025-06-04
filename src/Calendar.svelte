@@ -185,6 +185,7 @@
   }
 
   $: calendarDays = generateCalendarDays(currentMonth, currentYear);
+  $: console.log('Calendar days:', calendarDays.slice(0, 7)); // Debug first week
   $: modalPuzzles = modalDate ? puzzleData[modalDate] || {} : {};
   $: totalPuzzles = Object.values(puzzleData).reduce((sum, puzzles) => sum + Object.keys(puzzles).length, 0);
 </script>
@@ -416,7 +417,7 @@
   .calendar-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    gap: 2px;
+    gap: 1px;
     background: #e5e7eb;
     border-radius: 12px;
     overflow: hidden;
@@ -438,7 +439,7 @@
     padding: 8px;
     position: relative;
     transition: all 0.2s ease;
-    border: 2px solid transparent;
+    border: 1px solid #e5e7eb;
     cursor: default;
     display: flex;
     flex-direction: column;
@@ -446,7 +447,7 @@
 
   .calendar-day.today {
     background: #dbeafe;
-    border-color: #3b82f6;
+    border: 1px solid #3b82f6;
     cursor: pointer;
   }
 
@@ -460,23 +461,18 @@
   .calendar-day.selected {
     background: #3b82f6 !important;
     color: white;
-    border-color: #1d4ed8;
+    border: 1px solid #1d4ed8;
   }
 
   .calendar-day.selected .day-number {
     color: white;
   }
 
-  .calendar-day.future,
-  .calendar-day.empty {
-    background: #f9fafb !important;
+  .calendar-day.future {
+    background: #f3f4f6 !important;
     color: #9ca3af;
     cursor: not-allowed;
-  }
-
-  .calendar-day.future:hover,
-  .calendar-day.empty:hover {
-    background: #f9fafb;
+    border: 1px solid #e5e7eb;
   }
 
   .calendar-day.past {
@@ -492,8 +488,9 @@
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   }
 
-  .calendar-day.has-puzzles.past:hover {
-    border-color: #10b981;
+  /* Debug: temporary bright color for empty cells */
+  .calendar-day.empty {
+    background: #e5e7eb;
   }
 
   .day-number {
