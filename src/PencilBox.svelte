@@ -19,11 +19,15 @@
   function handleClick(e) {
     // TODO: shift click anywhere to auto complete the cell if there's only on pencil mark left
     if (e.shiftKey) {
-      $puzzle[x][y] = idx + 1;
+      // Only fill if this pencil mark is actually visible (possible to fill)
+      if ($pencilBox[x][y][idx] && !$userRemovePencil[x][y][idx]) {
+        $puzzle[x][y] = idx + 1;
+        $cellUpdate = true;
+      }
     } else if ($focusedCellId == cell_id) {
       $userRemovePencil[x][y][idx] = !$userRemovePencil[x][y][idx];
+      $cellUpdate = true;
     }
-    $cellUpdate = true;
   }
 
   function handleKeyDown(e) {
@@ -40,6 +44,28 @@
 
   $: isSelected = $focusedCellId === cell_id;
   $: showShiftCursor = isShiftPressed || localShiftPressed;
+
+  let isMatchingNumber = false;
+  $: {
+    // Highlight pencil marks that match the focused cell's number
+    let focusedCellNumber = 0;
+
+    if ($focusedCellId !== -1) {
+      const focusedX = Math.floor($focusedCellId / 9);
+      const focusedY = $focusedCellId % 9;
+      focusedCellNumber = $puzzle[focusedX][focusedY];
+    }
+
+    // Only highlight if:
+    // 1. Selected cell has a number
+    // 2. This pencil mark shows that same number
+    // 3. This pencil mark is actually visible
+    isMatchingNumber =
+      focusedCellNumber !== 0 &&
+      idx + 1 === focusedCellNumber &&
+      $pencilBox[x][y][idx] &&
+      !$userRemovePencil[x][y][idx];
+  }
 </script>
 
 <svelte:window on:keydown={handleKeyDown} on:keyup={handleKeyUp} />
@@ -50,6 +76,7 @@
   class:selected={isSelected}
   class:shift-hover={showShiftCursor}
   class:snapped={isClosest && showShiftCursor}
+  class:matching-number={isMatchingNumber}
   on:click={handleClick}
 >
   {idx + 1}
@@ -109,6 +136,19 @@
     box-shadow: 0 0 8px rgba(34, 197, 94, 0.3);
     z-index: 10;
     position: relative;
+  }
+
+  .pencil-box.matching-number {
+    background: rgba(253, 230, 138, 0.3);
+    color: #b45309;
+    border: 1px solid rgba(253, 230, 138, 0.6);
+    border-radius: 3px;
+  }
+
+  .pencil-box.matching-number.selected {
+    background: rgba(253, 230, 138, 0.15);
+    color: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(253, 230, 138, 0.4);
   }
 
   .invisible {
