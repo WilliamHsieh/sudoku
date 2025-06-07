@@ -9,10 +9,12 @@
 
   export let cell_id;
   export let idx;
+  export let isShiftPressed = false;
+  export let isClosest = false;
   const x = Math.floor(cell_id / 9);
   const y = cell_id % 9;
 
-  let isShiftPressed = false;
+  let localShiftPressed = false;
 
   function handleClick(e) {
     // TODO: shift click anywhere to auto complete the cell if there's only on pencil mark left
@@ -26,17 +28,18 @@
 
   function handleKeyDown(e) {
     if (e.key === "Shift") {
-      isShiftPressed = true;
+      localShiftPressed = true;
     }
   }
 
   function handleKeyUp(e) {
     if (e.key === "Shift") {
-      isShiftPressed = false;
+      localShiftPressed = false;
     }
   }
 
   $: isSelected = $focusedCellId === cell_id;
+  $: showShiftCursor = isShiftPressed || localShiftPressed;
 </script>
 
 <svelte:window on:keydown={handleKeyDown} on:keyup={handleKeyUp} />
@@ -45,7 +48,8 @@
   class="pencil-box"
   class:invisible={!$pencilBox[x][y][idx] || $userRemovePencil[x][y][idx]}
   class:selected={isSelected}
-  class:shift-hover={isShiftPressed}
+  class:shift-hover={showShiftCursor}
+  class:snapped={isClosest && showShiftCursor}
   on:click={handleClick}
 >
   {idx + 1}
@@ -95,6 +99,16 @@
       url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='M8 2v12M2 8h12' stroke='%23ef4444' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")
         8 8,
       crosshair;
+  }
+
+  .pencil-box.snapped {
+    background: rgba(34, 197, 94, 0.2) !important;
+    color: #22c55e !important;
+    transform: scale(1.1);
+    border: 1px solid #22c55e;
+    box-shadow: 0 0 8px rgba(34, 197, 94, 0.3);
+    z-index: 10;
+    position: relative;
   }
 
   .invisible {
