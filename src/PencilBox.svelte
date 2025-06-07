@@ -6,6 +6,7 @@
     focusedCellId,
     cellUpdate,
   } from "./store";
+  import { onDestroy } from "svelte";
 
   export let cell_id;
   export let idx;
@@ -15,6 +16,11 @@
   const y = cell_id % 9;
 
   let localShiftPressed = false;
+
+  // Clean up timers when component is destroyed
+  onDestroy(() => {
+    clearTimers();
+  });
 
   function handleClick(e) {
     // TODO: shift click anywhere to auto complete the cell if there's only on pencil mark left
@@ -46,6 +52,38 @@
   $: showShiftCursor = isShiftPressed || localShiftPressed;
 
   let isMatchingNumber = false;
+  let isOnlyCandidate = false;
+  let showOnlyCandidateHint = false;
+  let hintTimer = null;
+
+  function startHintCycle() {
+    clearTimers();
+    startRepeatingCycle();
+  }
+
+  function startRepeatingCycle() {
+    hintTimer = setTimeout(() => {
+      showHint();
+      startRepeatingCycle();
+    }, 15000);
+  }
+
+  function showHint() {
+    showOnlyCandidateHint = true;
+    // Hide after 1.5 second
+    setTimeout(() => {
+      showOnlyCandidateHint = false;
+    }, 1500);
+  }
+
+  function clearTimers() {
+    if (hintTimer) {
+      clearTimeout(hintTimer);
+      hintTimer = null;
+    }
+    showOnlyCandidateHint = false;
+  }
+
   $: {
     // Highlight pencil marks that match the focused cell's number
     let focusedCellNumber = 0;
@@ -65,6 +103,34 @@
       idx + 1 === focusedCellNumber &&
       $pencilBox[x][y][idx] &&
       !$userRemovePencil[x][y][idx];
+
+    // Check if this is the only candidate left in this cell
+    let wasOnlyCandidate = isOnlyCandidate;
+
+    if ($puzzle[x][y] === 0) {
+      // Only for empty cells
+      let visibleCandidates = 0;
+      for (let i = 0; i < 9; i++) {
+        if ($pencilBox[x][y][i] && !$userRemovePencil[x][y][i]) {
+          visibleCandidates++;
+        }
+      }
+      isOnlyCandidate =
+        visibleCandidates === 1 &&
+        $pencilBox[x][y][idx] &&
+        !$userRemovePencil[x][y][idx];
+    } else {
+      isOnlyCandidate = false;
+    }
+
+    // Start hint cycle when becoming only candidate
+    if (isOnlyCandidate && !wasOnlyCandidate) {
+      startHintCycle();
+    }
+    // Clear timers when no longer only candidate
+    else if (!isOnlyCandidate && wasOnlyCandidate) {
+      clearTimers();
+    }
   }
 </script>
 
@@ -77,6 +143,7 @@
   class:shift-hover={showShiftCursor}
   class:snapped={isClosest && showShiftCursor}
   class:matching-number={isMatchingNumber}
+  class:only-candidate={showOnlyCandidateHint}
   on:click={handleClick}
 >
   {idx + 1}
@@ -149,6 +216,33 @@
     background: rgba(253, 230, 138, 0.15);
     color: rgba(255, 255, 255, 0.9);
     border: 1px solid rgba(253, 230, 138, 0.4);
+  }
+
+  .pencil-box.only-candidate {
+    background: rgba(34, 197, 94, 0.2);
+    color: #15803d;
+    border: 2px solid #22c55e;
+    border-radius: 4px;
+    font-weight: 600;
+    animation: pulse-glow 2s ease-in-out infinite;
+    position: relative;
+    z-index: 5;
+  }
+
+  .pencil-box.only-candidate.selected {
+    background: rgba(34, 197, 94, 0.15);
+    color: rgba(255, 255, 255, 0.95);
+    border: 2px solid rgba(34, 197, 94, 0.6);
+  }
+
+  @keyframes pulse-glow {
+    0%,
+    100% {
+      box-shadow: 0 0 5px rgba(34, 197, 94, 0.3);
+    }
+    50% {
+      box-shadow: 0 0 15px rgba(34, 197, 94, 0.6);
+    }
   }
 
   .invisible {
