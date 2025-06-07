@@ -1,13 +1,13 @@
 <script>
-  import { onMount, onDestroy } from 'svelte';
-  import { done, timer, timerRunning } from './store'
+  import { onMount, onDestroy } from "svelte";
+  import { done, timer, timerRunning } from "./store";
 
   let interval;
 
   onMount(() => {
     interval = setInterval(() => {
       if ($timerRunning && !$done) {
-        timer.update(t => t + 1);
+        timer.update((t) => t + 1);
       }
     }, 1000);
   });
@@ -36,7 +36,8 @@
     border-radius: 8px;
     padding: 6px 12px;
     border: 1px solid rgba(255, 255, 255, 0.2);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      sans-serif;
   }
 
   .timer-icon {
@@ -56,11 +57,11 @@
     .timer {
       padding: 4px 8px;
     }
-    
+
     .time {
       font-size: 0.9rem;
     }
-    
+
     .timer-icon {
       font-size: 0.9rem;
     }

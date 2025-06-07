@@ -91,7 +91,7 @@
     if (y % 3 == 0) style += " left-wall";
     if (x == 8 && (x + 1) % 3 == 0) style += " bottom-wall";
     if (y == 8 && (y + 1) % 3 == 0) style += " right-wall";
-  })
+  });
 
   function handleRightClick() {
     if ($focusedCellId == cell_id) {
@@ -157,16 +157,16 @@
     gap: 1px;
   }
 
-  .top-wall { 
-    border-top: 5px solid #374151; 
+  .top-wall {
+    border-top: 5px solid #374151;
   }
-  .bottom-wall { 
-    border-bottom: 5px solid #374151; 
+  .bottom-wall {
+    border-bottom: 5px solid #374151;
   }
-  .left-wall { 
-    border-left: 5px solid #374151; 
+  .left-wall {
+    border-left: 5px solid #374151;
   }
-  .right-wall { 
-    border-right: 5px solid #374151; 
+  .right-wall {
+    border-right: 5px solid #374151;
   }
 </style>

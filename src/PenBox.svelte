@@ -1,5 +1,5 @@
 <script>
-  import { puzzle, conflictCell } from './store'
+  import { puzzle, conflictCell } from "./store";
 
   export let cell_id;
   const x = Math.floor(cell_id / 9);
@@ -21,7 +21,8 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      sans-serif;
   }
 
   .conflict {
@@ -37,7 +38,8 @@
   }
 
   @keyframes pulse {
-    0%, 100% {
+    0%,
+    100% {
       transform: scale(1);
       opacity: 1;
     }

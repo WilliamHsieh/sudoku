@@ -1,7 +1,17 @@
 <script>
-  import { onMount } from 'svelte';
-  import { done, puzzle, conflictCell, cellUpdate, pencilBox, prefilled, timer, currentPuzzle, solvedPuzzles } from './store'
-  import { resetTimer } from './store.js';
+  import { onMount } from "svelte";
+  import {
+    done,
+    puzzle,
+    conflictCell,
+    cellUpdate,
+    pencilBox,
+    prefilled,
+    timer,
+    currentPuzzle,
+    solvedPuzzles,
+  } from "./store";
+  import { resetTimer } from "./store.js";
 
   $: if ($cellUpdate) {
     updatePencil();
@@ -12,7 +22,7 @@
 
   onMount(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.has('q')) {
+    if (urlParams.has("q")) {
       resetTimer();
       setPuzzle(urlParams.get("q"));
     }
@@ -23,7 +33,7 @@
       }
     }
     $cellUpdate = true;
-  })
+  });
 
   function checkDone() {
     for (let i = 0; i < 9; i++) {
@@ -32,17 +42,21 @@
       }
     }
     $done = true;
-    
+
     // Mark puzzle as solved if we have puzzle info
     if ($currentPuzzle.dateStr && $currentPuzzle.difficulty) {
-      solvedPuzzles.markSolved($currentPuzzle.dateStr, $currentPuzzle.difficulty, $timer);
+      solvedPuzzles.markSolved(
+        $currentPuzzle.dateStr,
+        $currentPuzzle.difficulty,
+        $timer,
+      );
     }
   }
 
   function setPuzzle(q) {
     let ok = q.length == 81;
     for (let i = 0; i < q.length && ok; i++) {
-      ok = q[i] >= '0' && q[i] <= '9';
+      ok = q[i] >= "0" && q[i] <= "9";
     }
     if (!ok) {
       alert("invalid puzzle");
@@ -118,7 +132,8 @@
       }
       for (let dx = 0; dx < 3; dx++) {
         for (let dy = 0; dy < 3; dy++) {
-          let xx = x + dx, yy = y + dy;
+          let xx = x + dx,
+            yy = y + dy;
           if ($puzzle[xx][yy] > 0 && mp[$puzzle[xx][yy]] > 1) {
             $conflictCell[xx][yy] = true;
           }
