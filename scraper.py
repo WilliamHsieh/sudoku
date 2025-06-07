@@ -109,7 +109,7 @@ def main():
             puzzle = data[difficulty]["puzzle_data"]["puzzle"]
             puzzle_string = "".join(str(p) for p in puzzle)
             today_puzzles[difficulty] = puzzle_string
-            print(f"🧩 Scraped {difficulty}: {puzzle_string[:20]}...")
+            print(f"🧩 Scraped {difficulty}: {puzzle_string}")
 
         # Add to puzzle data
         puzzle_data[date_str] = today_puzzles
