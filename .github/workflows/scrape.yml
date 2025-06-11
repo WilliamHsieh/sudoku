@@ -20,14 +20,6 @@ jobs:
           python scraper.py
 
       - name: Commit changes
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          if git diff --quiet; then
-            echo "No changes to commit"
-            exit 0
-          else
-            git add .
-            git commit -m "chore: update daily puzzles"
-            git push
-          fi
+        uses: stefanzweifel/git-auto-commit-action@v6
+        with:
+          commit_message: "chore: update daily puzzles"
