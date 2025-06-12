@@ -6,7 +6,7 @@
   import { puzzle, focusedCellId, cellUpdate, prefilled, done } from "./store";
   import { timerRunning } from "./store";
 
-  let showCalendar = false;
+  let showCalendar = true;
 
   function handleKeydown(e) {
     if ($focusedCellId == -1) return;
