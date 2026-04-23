@@ -20,6 +20,6 @@ jobs:
           python scraper.py
 
       - name: Commit changes
-        uses: stefanzweifel/git-auto-commit-action@v6
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "chore: update daily puzzles"
