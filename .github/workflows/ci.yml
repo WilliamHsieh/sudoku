@@ -1,0 +1,28 @@
+# Build check for pull requests — gate that dependency-bump PRs (Dependabot)
+# don't break the build before they reach master. No deploy, no secrets.
+name: CI
+
+on:
+  pull_request:
+    branches: ['master']
+
+# Read-only; a build needs nothing more (also what Dependabot PRs get by default)
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Build
+        run: npm run build
