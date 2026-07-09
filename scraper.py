@@ -94,8 +94,11 @@ def main():
         print(f"📅 Adding new puzzles for {date_str}")
 
     # Scrape puzzles from NY Times
-    url = "https://www.nytimes.com/puzzles/sudoku/hard"
+    # 查證事實（2026-07-09）：/puzzles/sudoku/<difficulty> 已 404；
+    # 父頁面一次帶齊 easy/medium/hard 的 gameData。
+    url = "https://www.nytimes.com/puzzles/sudoku"
     response = requests.get(url)
+    response.raise_for_status()
 
     pattern = r'<script type="text\/javascript">window\.gameData = (.+)<\/script><\/div><div id="portal-editorial-content">'
     match = re.search(pattern, response.text)
