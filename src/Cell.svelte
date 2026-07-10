@@ -94,7 +94,8 @@
   });
 
   function handleRightClick() {
-    if ($focusedCellId == cell_id) {
+    // 不要清掉題目給定（prefilled）的格子——與 App 填數字的 !prefilled 守則一致
+    if ($focusedCellId == cell_id && !$prefilled[x][y]) {
       $userRemovePencil[x][y].fill(false);
       $puzzle[x][y] = 0;
       $cellUpdate = true;
