@@ -81,6 +81,7 @@
 
 <main>
   <div class="header">
+    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
     <h1 on:click={removeFocus}>Sudoku</h1>
     {#if !showCalendar}
       <Timer />
@@ -101,6 +102,7 @@
     </div>
 
     {#if $done}
+      <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
       <div class="success-message" on:click={handleSuccessBackdrop}>
         <div class="success-card">
           <button class="success-close" on:click={dismissSuccess}

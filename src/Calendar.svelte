@@ -266,6 +266,7 @@
           day.puzzles &&
           Object.keys(day.puzzles).length > 0}
         on:click={() => selectDate(day)}
+        on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectDate(day); } }}
         role="button"
         tabindex="0"
       >
@@ -301,6 +302,7 @@
 
 <!-- Modal for difficulty selection -->
 {#if showModal}
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
   <div class="modal-backdrop" on:click={handleModalBackdropClick}>
     <div class="modal">
       <div class="modal-header">
