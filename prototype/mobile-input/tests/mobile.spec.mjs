@@ -40,19 +40,28 @@ test.describe('selection highlight', () => {
     await expect(cell(page, 14)).toHaveClass(/same/);
     const fives = await page.locator('.cell[data-value="5"]').count();
     await expect(page.locator('.cell.same')).toHaveCount(fives - 1);
-    expect(await cell(page, 14).evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(219, 230, 251)');
+    expect(await cell(page, 14).evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(250, 236, 180)');
+    expect(await cell(page, 0).evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 255, 255)');
+    expect(await cell(page, 0).evaluate((el) => getComputedStyle(el).boxShadow)).toContain('rgb(42, 86, 198)');
     await peerFree(page);
 
     // Candidate 5 in r5c5 (cell 40) and r2c3 etc. are emphasised; others are not.
     const n5 = cell(page, 40).locator('.n[data-d="5"]');
     await expect(n5).toHaveClass(/match/);
-    const st = await n5.evaluate((el) => {
+    const style = (el) => {
       const cs = getComputedStyle(el);
-      return { w: cs.fontWeight, c: cs.color, tr: cs.transform, bg: getComputedStyle(el.closest('.cell')).backgroundColor };
-    });
-    expect(Number(st.w)).toBeGreaterThanOrEqual(700);
-    expect(st.c).toBe('rgb(47, 91, 211)');
-    expect(st.tr).not.toBe('none');
+      return { w: cs.fontWeight, size: cs.fontSize, c: cs.color, tr: cs.transform, chip: cs.backgroundColor,
+        line: cs.boxShadow, bg: getComputedStyle(el.closest('.cell')).backgroundColor };
+    };
+    const st = await n5.evaluate(style);
+    const plain = await cell(page, 37).locator('.n.on[data-d="2"]').evaluate(style);
+    expect(st.w).toBe(plain.w);
+    expect(Number(st.w)).toBeLessThan(600);
+    expect(st.size).toBe(plain.size);
+    expect(st.tr).toBe('none');
+    expect(st.c).toBe('rgb(115, 71, 10)');
+    expect(st.chip).toBe('rgb(252, 239, 184)');
+    expect(st.line).toContain('rgb(230, 207, 122)');
     expect(st.bg).toBe('rgb(255, 255, 255)');
     const matched = await page.locator('.n.match').evaluateAll((els) => els.map((el) => el.dataset.d));
     expect(matched.length).toBeGreaterThan(3);
@@ -786,7 +795,7 @@ test.describe('undo / redo animation', () => {
 
     // Step one: ring on the affected cell, board unchanged, selection not yet moved.
     await expect(cell(page, EMPTY)).toHaveClass(/undo-target/);
-    expect(await ringOf(page, EMPTY)).toEqual({ anim: 'undo-target', border: 'rgb(217, 138, 11)', content: '""' });
+    expect(await ringOf(page, EMPTY)).toEqual({ anim: 'undo-target', border: 'rgb(217, 84, 30)', content: '""' });
     await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '4');
     await expect(cell(page, 40)).toHaveClass(/selected/);
 
@@ -859,7 +868,7 @@ test.describe('undo / redo animation', () => {
     await t.tap(page.locator('#undo'));
     expect(await cell(page, EMPTY).getAttribute('data-value')).toBe('');
     await expect(cell(page, EMPTY)).toHaveClass(/undo-target/);
-    expect(await ringOf(page, EMPTY)).toEqual({ anim: 'none', border: 'rgb(217, 138, 11)', content: '""' });
+    expect(await ringOf(page, EMPTY)).toEqual({ anim: 'none', border: 'rgb(217, 84, 30)', content: '""' });
     await expect(page.locator('.undo-in, .undo-out')).toHaveCount(0);
   });
 });

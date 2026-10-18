@@ -6,7 +6,7 @@ input model. It does not touch the main app.
 - Tap a key: write that digit as the answer (tap the same key again to clear).
 - Swipe up on a key (~28px arms, below ~22px disarms): toggle that digit as a
   candidate in the selected cell.
-- Tools: Undo, Redo (two-step: an amber ring lands on each affected cell, then
+- Tools: Undo, Redo (two-step: a red-orange ring lands on each affected cell, then
   the change applies), Erase, Notes Auto/Manual switch, More.
 - Erase: disabled on givens. Clears the answer first (the cell's notes come back).
   On an empty cell it resets Auto overrides (Auto mode) or clears manual notes
@@ -15,7 +15,9 @@ input model. It does not touch the main app.
   every 30s (override with `?cueMs=3000` or `window.__sudoku.setCueInterval(ms)`).
   Double-tapping a cell writes the digit that was highlighted before the first tap
   if it is one of the cell's candidates, else the cell's lone candidate.
-- Emphasised-candidate colour is the `--cand-emph` custom property.
+- Selection: the selected cell stays white with a blue ring; cells with the same
+  digit get a yellow tint and matching candidates sit on a pale yellow chip
+  (`--same`, `--cand-emph`, `--cand-chip`). Blue is reserved for answers and the ring.
 - Timer with pause/resume; pauses itself when the page is hidden.
 - Desktop: click to select, arrows move, `1`-`9` answer, `Shift`+`1`-`9` candidate,
   `0`/`Backspace`/right-click clear, `Ctrl`/`Cmd`+`Z` undo,

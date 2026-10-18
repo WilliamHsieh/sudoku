@@ -4,17 +4,19 @@
   --ink: #1d2433;
   --ink-soft: #5b6475;
   --given: #1d2433;
-  --entered: #2f5bd3;
+  --entered: #2a56c6;
   --line: #c9cdd6;
   --line-strong: #1d2433;
-  --same: #dbe6fb;
-  --selected: #eef3fd;
+  --same: #faecb4;
   --conflict: #d63b3b;
   --conflict-bg: #fbe4e4;
   --single: #2f9e5a;
-  --accent: #2f5bd3;
-  --cand-emph: var(--accent);
-  --undo-ring: #d98a0b;
+  --accent: #2a56c6;
+  --cand-emph: #73470a;
+  --cand-chip: #fcefb8;
+  --cand-chip-line: #e6cf7a;
+  /* >= 3:1 against both the cell and --same */
+  --undo-ring: #d9541e;
   --key: #ffffff;
   --key-pressed: #eef1f7;
   --radius: 12px;
@@ -166,7 +168,7 @@ html, body {
 
 .cell.same { background: var(--same); }
 .cell.selected {
-  background: var(--selected);
+  background: var(--surface);
   box-shadow: inset 0 0 0 2px var(--accent);
   z-index: 1;
 }
@@ -207,9 +209,13 @@ html, body {
 }
 .n.on { opacity: 1; }
 .n.on.match {
+  place-self: center;
+  width: calc(var(--cell) * 0.32);
+  height: calc(var(--cell) * 0.32);
   color: var(--cand-emph);
-  font-weight: 800;
-  transform: scale(1.18);
+  background: var(--cand-chip);
+  box-shadow: 0 0 0 0.5px var(--cand-chip-line);
+  border-radius: 3.5px;
 }
 .n.hidden-pending { opacity: 0 !important; }
 .n.preview-add { opacity: 0.45; color: var(--accent); }
