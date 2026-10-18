@@ -5,7 +5,7 @@ import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const OUT = process.argv[2] || 'recordings';
-const URL = process.env.URL || 'http://localhost:5180/';
+const URL = process.env.URL || 'http://localhost:5180/?cueMs=3600000';
 await mkdir(OUT, { recursive: true });
 
 const browser = await chromium.launch();

@@ -424,6 +424,8 @@ html, body {
 .sheet .row.disabled .only-auto { display: block; }
 .opt-switch {
   appearance: none;
+  flex: none;
+  display: grid;
   border: none;
   background: none;
   padding: 4px;
@@ -431,8 +433,8 @@ html, body {
   touch-action: manipulation;
 }
 .opt-switch:disabled { cursor: default; }
-.opt-switch:disabled .switch { background: #e3e5ea; }
-.opt-switch:disabled .knob { box-shadow: 0 0 0 1px rgb(0 0 0 / 0.08); }
+.opt-switch:disabled .switch { background: #dfe2e8; }
+.opt-switch:disabled .knob { background: #f4f5f7; box-shadow: 0 0 0 1px rgb(0 0 0 / 0.1); }
 .text-btn {
   appearance: none;
   border: none;
