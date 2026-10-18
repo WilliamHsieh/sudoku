@@ -62,7 +62,17 @@ await tap('#pause', 500);
 await shot(`${NAME}-paused.png`);
 await tap(key(5), 1200);
 await caption('Resume continues the same time');
-await tap('#resume', 1500);
+await tap('#resume', 1300);
+
+await caption('Manual notes: cue setting greyed out, no flashes');
+await tap('#notes-mode', 600);
+await tap('#more', 500);
+await shot(`${NAME}-manual-setting-disabled.png`);
+await wait(1500);
+await tap('#sheet-close', 500);
+await caption('Manual: double-tap only selects');
+await tap(cell(62), 110);
+await tap(cell(62), 1300);
 await caption('');
 await wait(300);
 
