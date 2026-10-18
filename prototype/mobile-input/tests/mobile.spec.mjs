@@ -112,6 +112,30 @@ test.describe('selection highlight', () => {
     await expect(cell(page, 0)).toHaveCSS('background-color', 'rgb(250, 236, 180)');
   });
 
+  test('answers are dark ink at regular weight; givens are bold on grey; conflict red still wins', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(cell(page, EMPTY));
+    await t.tap(key(page, 7));
+    const look = (i) => cell(page, i).evaluate((el) => {
+      const v = getComputedStyle(el.querySelector('.v'));
+      return { color: v.color, weight: v.fontWeight, size: v.fontSize, bg: getComputedStyle(el).backgroundColor };
+    });
+    const answer = await look(EMPTY);
+    const given = await look(0);
+    expect(answer).toMatchObject({ color: 'rgb(31, 29, 26)', weight: '400', bg: SELECTED_BG });
+    expect(given).toMatchObject({ color: 'rgb(31, 29, 26)', weight: '600', bg: GIVEN_BG });
+    expect(answer.size).toBe(given.size);
+    await t.tap(cell(page, 76));
+    expect(await look(EMPTY)).toMatchObject({ color: 'rgb(31, 29, 26)', weight: '400', bg: 'rgb(255, 255, 255)' });
+    await t.tap(cell(page, 0)); // given 3: the answer cell stays ink on white, not blue
+    await t.tap(cell(page, EMPTY));
+    await t.tap(key(page, 4)); // conflicts with the given 4 at 79
+    expect(await look(EMPTY)).toMatchObject({ color: 'rgb(214, 59, 59)', weight: '400', bg: 'rgb(251, 228, 228)' });
+    const blueText = await page.locator('.cell .v').evaluateAll((els) =>
+      els.filter((el) => getComputedStyle(el).color === 'rgb(42, 86, 198)').length);
+    expect(blueText).toBe(0);
+  });
+
   test('empty cell: only that cell is marked', async ({ page }) => {
     const t = await touchDriver(page);
     await t.tap(page.locator('#notes-mode'));

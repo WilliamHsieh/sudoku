@@ -8,9 +8,10 @@
   --given: #1f1d1a;
   /* warm grey: 13.4:1 under --given, dE00 6.9 from white, 14.0 from --same */
   --given-bg: #e9e5dc;
-  /* selected cell fill: answers 4.87:1, givens 12.6:1, candidates 5.32:1 */
+  /* selected cell fill: answers and givens 12.6:1, candidates 5.32:1 */
   --selected-bg: #d3e0f8;
-  --entered: #2a56c6;
+  /* answers: dark ink at regular weight; givens are told apart by weight and fill */
+  --entered: #1f1d1a;
   --line: #c9cdd6;
   --line-strong: #1d2433;
   --same: #faecb4;
@@ -185,7 +186,7 @@ html, body {
 .cell .v { line-height: 1; }
 .cell.given.selected { background: var(--selected-bg); }
 .cell.given .v { color: var(--given); font-weight: 600; }
-.cell.user .v { color: var(--entered); }
+.cell.user .v { color: var(--entered); font-weight: 400; }
 
 .cell.conflict .v { color: var(--conflict); }
 .board .cell.conflict { background: var(--conflict-bg); }
