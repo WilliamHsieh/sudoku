@@ -7,6 +7,9 @@ input model. It does not touch the main app.
 - Swipe up on a key (~28px arms, below ~22px disarms): toggle that digit as a
   candidate in the selected cell.
 - Tools: Undo, Erase, Notes Auto/Manual switch, More (single-candidate cue setting).
+- Single-candidate cue (same behavior as `src/PencilBox.svelte`): once a cell has
+  exactly one candidate, that note flashes green for 1.5s every 15s. Override the
+  interval with `?cueMs=3000` or `window.__sudoku.setCueInterval(ms)`.
 - Desktop: click to select, arrows move, `1`-`9` answer, `Shift`+`1`-`9` candidate,
   `0`/`Backspace`/right-click clear, `Ctrl`/`Cmd`+`Z` undo.
 

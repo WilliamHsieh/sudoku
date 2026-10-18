@@ -7,6 +7,9 @@ const DISARM_PX = 22;
 const FLY_MS = 260;
 const RETURN_MS = 200;
 const EASE_OUT = 'cubic-bezier(0.22, 1, 0.36, 1)';
+const CUE_FLASH_MS = 1500;
+const params = new URLSearchParams(location.search);
+let cueIntervalMs = Number(params.get('cueMs')) || 15000;
 
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
@@ -185,6 +188,56 @@ function conflicts() {
   return bad;
 }
 
+/* ---------------- single-candidate cue ---------------- */
+
+// Mirrors src/PencilBox.svelte: once a cell is down to one candidate, that
+// note flashes for CUE_FLASH_MS every cueIntervalMs (first flash after one
+// full interval). Any change to the lone digit restarts the cycle.
+const lone = Array.from({ length: 81 }, () => ({ d: 0, timer: 0, hide: 0 }));
+
+function stopLoneCue(i) {
+  const s = lone[i];
+  clearTimeout(s.timer);
+  clearTimeout(s.hide);
+  s.timer = s.hide = 0;
+  for (const n of cells[i].notes) n.classList.remove('lone-flash');
+}
+
+function scheduleLoneCue(i) {
+  const s = lone[i];
+  s.timer = setTimeout(() => {
+    const n = cells[i].notes[s.d - 1];
+    n.classList.add('lone-flash');
+    s.hide = setTimeout(() => n.classList.remove('lone-flash'), CUE_FLASH_MS);
+    scheduleLoneCue(i);
+  }, cueIntervalMs);
+}
+
+function updateLoneCue(i, d) {
+  const s = lone[i];
+  const want = state.singleCue ? d : 0;
+  cells[i].el.dataset.lone = want || '';
+  if (want === s.d) return;
+  stopLoneCue(i);
+  s.d = want;
+  if (want) scheduleLoneCue(i);
+}
+
+function restartLoneCues() {
+  for (let i = 0; i < 81; i++) {
+    stopLoneCue(i);
+    lone[i].d = 0;
+  }
+  render();
+}
+
+window.__sudoku = {
+  setCueInterval(ms) {
+    cueIntervalMs = ms;
+    restartLoneCues();
+  },
+};
+
 function render() {
   const sel = state.selected;
   const selV = sel >= 0 ? value(sel) : 0;
@@ -210,8 +263,8 @@ function render() {
     el.classList.toggle('peer', sel >= 0 && i !== sel && PEERS[sel].includes(i));
     el.classList.toggle('same', !!selV && i !== sel && val === selV);
     el.classList.toggle('conflict', bad.has(i));
-    el.classList.toggle('single-cue', state.singleCue && !val && digits.length === 1);
     el.setAttribute('aria-selected', i === sel ? 'true' : 'false');
+    updateLoneCue(i, digits.length === 1 ? digits[0] : 0);
   }
   const sw = document.getElementById('notes-mode');
   sw.setAttribute('aria-checked', String(state.autoNotes));

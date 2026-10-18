@@ -177,25 +177,121 @@ test('auto notes compute from entered digits; manual starts empty', async ({ pag
   await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '');
 });
 
-test('single-candidate cue defaults on and can be turned off', async ({ page }) => {
+test.describe('single-candidate cue', () => {
+  const note = (page, i, d) => cell(page, i).locator(`.n[data-d="${d}"]`);
+
+  test('lone candidate flashes after 15s for 1.5s, every 15s; no cell tint', async ({ page }) => {
+    await page.clock.install();
+    await page.goto('/');
+    const t = await touchDriver(page);
+    await t.tap(cell(page, EMPTY));
+    await page.keyboard.press('Shift+Digit4');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-lone', '4');
+    const bgBefore = await cell(page, EMPTY).evaluate((el) => getComputedStyle(el).backgroundColor);
+
+    await page.clock.runFor(14_900);
+    await expect(note(page, EMPTY, 4)).not.toHaveClass(/lone-flash/);
+    await page.clock.runFor(200);
+    await expect(note(page, EMPTY, 4)).toHaveClass(/lone-flash/);
+    const s = await note(page, EMPTY, 4).evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return { bg: cs.backgroundColor, ring: cs.boxShadow, color: cs.color };
+    });
+    expect(s.bg).toBe('rgba(34, 197, 94, 0.2)');
+    expect(s.ring).toContain('rgb(34, 197, 94)');
+    expect(s.color).toBe('rgb(21, 128, 61)');
+    expect(await cell(page, EMPTY).evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(bgBefore);
+
+    await page.clock.runFor(1_450);
+    await expect(note(page, EMPTY, 4)).not.toHaveClass(/lone-flash/);
+    await page.clock.runFor(13_400);
+    await expect(note(page, EMPTY, 4)).not.toHaveClass(/lone-flash/);
+    await page.clock.runFor(200);
+    await expect(note(page, EMPTY, 4)).toHaveClass(/lone-flash/);
+  });
+
+  test('cycle restarts when the cell stops and starts being single', async ({ page }) => {
+    await page.clock.install();
+    await page.goto('/');
+    const t = await touchDriver(page);
+    await t.tap(cell(page, EMPTY));
+    await page.keyboard.press('Shift+Digit4');
+    await page.clock.runFor(10_000);
+    await page.keyboard.press('Shift+Digit2');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-lone', '');
+    await page.clock.runFor(2_000);
+    await page.keyboard.press('Shift+Digit2');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-lone', '4');
+    await page.clock.runFor(14_000);
+    await expect(page.locator('.lone-flash')).toHaveCount(0);
+    await page.clock.runFor(1_100);
+    await expect(note(page, EMPTY, 4)).toHaveClass(/lone-flash/);
+  });
+
+  test('interval is overridable by URL param; setting defaults on and can be turned off', async ({ page }) => {
+    await page.goto('/?cueMs=1500');
+    const t = await touchDriver(page);
+    await t.tap(page.locator('#notes-mode'));
+    await expect(cell(page, 40)).toHaveAttribute('data-lone', '5'); // only 5 fits r5c5
+    await expect(note(page, 40, 5)).toHaveClass(/lone-flash/, { timeout: 3000 });
+
+    await t.tap(page.locator('#more'));
+    const opt = page.locator('#opt-single');
+    await expect(opt).toBeChecked();
+    await t.tap(opt);
+    await expect(opt).not.toBeChecked();
+    await t.tap(page.locator('#sheet-close'));
+    await expect(page.locator('.lone-flash')).toHaveCount(0);
+    await page.waitForTimeout(3500);
+    await expect(page.locator('.lone-flash')).toHaveCount(0);
+    await expect(page.locator('.cell[data-lone="5"]')).toHaveCount(0);
+
+    await t.tap(page.locator('#more'));
+    await t.tap(opt);
+    await t.tap(page.locator('#sheet-close'));
+    await expect(note(page, 40, 5)).toHaveClass(/lone-flash/, { timeout: 3000 });
+  });
+
+  test('interval is overridable by test hook', async ({ page }) => {
+    await page.evaluate(() => window.__sudoku.setCueInterval(500));
+    const t = await touchDriver(page);
+    await t.tap(cell(page, EMPTY));
+    await page.keyboard.press('Shift+Digit1');
+    await expect(note(page, EMPTY, 1)).toHaveClass(/lone-flash/, { timeout: 1500 });
+  });
+});
+
+test('below-threshold release glides straight back with no overshoot', async ({ page }) => {
   const t = await touchDriver(page);
   await t.tap(cell(page, EMPTY));
-  await t.swipeUp(key(page, 4), 60);
-  await expect(cell(page, EMPTY)).toHaveClass(/single-cue/);
-  await page.waitForTimeout(300);
-  await t.swipeUp(key(page, 2), 60);
-  await expect(cell(page, EMPTY)).not.toHaveClass(/single-cue/);
-
-  await t.tap(page.locator('#notes-mode'));
-  await expect(cell(page, 40)).toHaveClass(/single-cue/); // only 5 fits r5c5
-
-  await t.tap(page.locator('#more'));
-  const opt = page.locator('#opt-single');
-  await expect(opt).toBeChecked();
-  await t.tap(opt);
-  await expect(opt).not.toBeChecked();
-  await t.tap(page.locator('#sheet-close'));
-  await expect(page.locator('.cell.single-cue')).toHaveCount(0);
+  const k = key(page, 6);
+  const p = await t.center(k);
+  const home = await k.locator('.digit').evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return r.top + r.height / 2;
+  });
+  await t.start(p.x, p.y);
+  for (let s = 1; s <= 6; s++) await t.move(p.x, p.y - s * 3.5);
+  await expect(page.locator('.lift')).toHaveCount(1);
+  await page.evaluate(() => {
+    window.__samples = [];
+    const lift = document.querySelector('.lift');
+    const tick = () => {
+      if (!lift.isConnected) return;
+      const r = lift.getBoundingClientRect();
+      window.__samples.push(r.top + r.height / 2);
+      requestAnimationFrame(tick);
+    };
+    tick();
+  });
+  await t.end(p.x, p.y - 21);
+  await expect(page.locator('.lift')).toHaveCount(0);
+  const ys = await page.evaluate(() => window.__samples);
+  expect(ys.length).toBeGreaterThan(5);
+  expect(ys[0]).toBeLessThan(home - 10);
+  for (let i = 1; i < ys.length; i++) expect(ys[i]).toBeGreaterThanOrEqual(ys[i - 1] - 0.01);
+  expect(Math.max(...ys)).toBeLessThanOrEqual(home + 0.5);
+  await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '');
 });
 
 test('undo reverts answers and candidates', async ({ page }) => {

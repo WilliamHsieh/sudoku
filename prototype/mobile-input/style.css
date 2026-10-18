@@ -103,14 +103,6 @@ html, body {
   background: var(--conflict);
 }
 
-.cell.single-cue:not(.selected) {
-  background: color-mix(in srgb, var(--single) 12%, var(--surface));
-}
-.cell.single-cue {
-  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--single) 55%, transparent);
-}
-.cell.single-cue .n.on { color: var(--single); font-weight: 700; }
-
 .notes {
   position: absolute;
   inset: 1px;
@@ -133,6 +125,19 @@ html, body {
 .n.preview-add { opacity: 0.45; color: var(--accent); }
 .n.preview-remove { opacity: 0.55; color: var(--conflict); text-decoration: line-through; }
 .n.flash { animation: note-flash 220ms ease-out; }
+.n.on.lone-flash {
+  position: relative;
+  z-index: 1;
+  background: rgb(34 197 94 / 0.2);
+  color: #15803d;
+  font-weight: 600;
+  box-shadow: 0 0 0 1px #22c55e, 0 0 5px rgb(34 197 94 / 0.3);
+  animation: lone-glow 1.5s ease-in-out;
+}
+@keyframes lone-glow {
+  0%, 100% { box-shadow: 0 0 0 1px #22c55e, 0 0 4px rgb(34 197 94 / 0.3); }
+  50% { box-shadow: 0 0 0 1px #22c55e, 0 0 10px rgb(34 197 94 / 0.6); }
+}
 @keyframes note-flash {
   from { background: color-mix(in srgb, var(--accent) 40%, transparent); }
   to { background: transparent; }
@@ -323,5 +328,5 @@ html, body {
   .n { transition: opacity 150ms linear; }
   .key, .key::before, .key .label, .switch, .knob { transition: none; }
   .key.pressed { transform: none; }
-  .n.flash, .key.flash { animation: none; }
+  .n.flash, .key.flash, .n.on.lone-flash { animation: none; }
 }
