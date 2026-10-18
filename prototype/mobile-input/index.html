@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Sudoku — mobile input prototype</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -25,7 +25,8 @@
     <div class="board-wrap">
       <div class="board" id="board" role="grid" aria-label="Sudoku board"></div>
       <div class="paused-cover" id="paused-cover" hidden>
-        <p>Paused</p>
+        <p class="paused-label">Paused</p>
+        <p class="paused-time" id="paused-time">0:00</p>
         <button type="button" class="resume" id="resume">Resume</button>
       </div>
     </div>
@@ -56,16 +57,30 @@
   <div class="sheet-backdrop" id="sheet-backdrop" hidden></div>
   <section class="sheet" id="sheet" role="dialog" aria-label="More options" hidden>
     <h2>Options</h2>
-    <label class="row" id="opt-single-row">
+    <div class="row" id="opt-single-row">
       <span>
-        <b>Single-candidate cue</b>
-        <small>Flash lone candidates every 15s</small>
-        <small class="only-auto" id="opt-single-hint">Only works with Auto notes</small>
+        <b id="opt-single-title">Single-candidate cue</b>
+        <small id="opt-single-desc">Flash lone candidates every 15s</small>
+        <small class="only-auto" id="opt-single-hint">Only available with Auto notes</small>
       </span>
-      <input type="checkbox" id="opt-single" checked aria-describedby="opt-single-hint" />
-    </label>
-    <button type="button" class="row-btn" id="opt-reset">Restart puzzle</button>
+      <button type="button" class="opt-switch" id="opt-single" role="switch" aria-checked="true"
+        aria-labelledby="opt-single-title" aria-describedby="opt-single-desc opt-single-hint">
+        <span class="switch" aria-hidden="true"><span class="knob"></span></span>
+      </button>
+    </div>
     <button type="button" class="row-btn primary" id="sheet-close">Done</button>
+    <button type="button" class="text-btn" id="opt-reset">Restart puzzle</button>
+  </section>
+
+  <div class="confirm-backdrop" id="confirm-backdrop" hidden></div>
+  <section class="confirm" id="confirm-restart" role="alertdialog" aria-modal="true"
+    aria-labelledby="confirm-title" aria-describedby="confirm-body" hidden>
+    <h2 id="confirm-title">Restart puzzle?</h2>
+    <p id="confirm-body">Your progress will be lost.</p>
+    <div class="confirm-actions">
+      <button type="button" class="row-btn" id="confirm-cancel">Cancel</button>
+      <button type="button" class="row-btn danger" id="confirm-ok">Restart</button>
+    </div>
   </section>
 
   <script type="module" src="app.js"></script>

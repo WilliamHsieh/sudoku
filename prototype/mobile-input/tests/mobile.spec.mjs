@@ -21,18 +21,59 @@ test('board fits a 390px-wide screen', async ({ page }) => {
   expect(scrollW).toBeLessThanOrEqual(390);
 });
 
-test('tap selects a cell and highlights row, column, box and same digit', async ({ page }) => {
-  const t = await touchDriver(page);
-  await t.tap(cell(page, 0)); // given 5 at r1c1
-  await expect(cell(page, 0)).toHaveClass(/selected/);
-  await expect(cell(page, 8)).toHaveClass(/peer/); // same row
-  await expect(cell(page, 72)).toHaveClass(/peer/); // same column
-  await expect(cell(page, 20)).toHaveClass(/peer/); // same box
-  await expect(cell(page, 40)).not.toHaveClass(/peer/);
-  await expect(cell(page, 14)).toHaveClass(/same/); // given 5 at r2c6
-  const sameCount = await page.locator('.cell.same').count();
-  const fives = await page.locator('.cell[data-value="5"]').count();
-  expect(sameCount).toBe(fives - 1);
+test.describe('selection highlight', () => {
+  const peerFree = async (page) => {
+    // No row/column/box wash: every unselected, non-matching cell keeps the plain surface.
+    const bgs = await page.locator('.cell:not(.selected):not(.same):not(.conflict)').evaluateAll((els) =>
+      [...new Set(els.map((el) => getComputedStyle(el).backgroundColor))]);
+    expect(bgs).toEqual(['rgb(255, 255, 255)']);
+  };
+
+  test('filled cell: ring on it, soft tint on same digits, emphasised matching candidates', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(page.locator('#notes-mode'));
+    await t.tap(cell(page, 0)); // given 5 at r1c1
+    await expect(cell(page, 0)).toHaveClass(/selected/);
+    const ring = await cell(page, 0).evaluate((el) => getComputedStyle(el).boxShadow);
+    expect(ring).toContain('inset');
+    await expect(page.locator('.cell.peer')).toHaveCount(0);
+    await expect(cell(page, 14)).toHaveClass(/same/);
+    const fives = await page.locator('.cell[data-value="5"]').count();
+    await expect(page.locator('.cell.same')).toHaveCount(fives - 1);
+    expect(await cell(page, 14).evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(219, 230, 251)');
+    await peerFree(page);
+
+    // Candidate 5 in r5c5 (cell 40) and r2c3 etc. are emphasised; others are not.
+    const n5 = cell(page, 40).locator('.n[data-d="5"]');
+    await expect(n5).toHaveClass(/match/);
+    const st = await n5.evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return { w: cs.fontWeight, c: cs.color, tr: cs.transform, bg: getComputedStyle(el.closest('.cell')).backgroundColor };
+    });
+    expect(Number(st.w)).toBeGreaterThanOrEqual(700);
+    expect(st.c).toBe('rgb(47, 91, 211)');
+    expect(st.tr).not.toBe('none');
+    expect(st.bg).toBe('rgb(255, 255, 255)');
+    const matched = await page.locator('.n.match').evaluateAll((els) => els.map((el) => el.dataset.d));
+    expect(matched.length).toBeGreaterThan(3);
+    expect(new Set(matched)).toEqual(new Set(['5']));
+  });
+
+  test('answer works like a given', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(cell(page, EMPTY));
+    await t.tap(key(page, 4));
+    await expect(page.locator('.cell.same')).toHaveCount(await page.locator('.cell[data-value="4"]').count() - 1);
+  });
+
+  test('empty cell: only that cell is marked', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(page.locator('#notes-mode'));
+    await t.tap(cell(page, EMPTY));
+    await expect(cell(page, EMPTY)).toHaveClass(/selected/);
+    await expect(page.locator('.cell.same, .cell.peer, .n.match')).toHaveCount(0);
+    await peerFree(page);
+  });
 });
 
 test('tap on key writes the answer; tapping the same key clears it', async ({ page }) => {
@@ -266,20 +307,22 @@ test.describe('single-candidate cue', () => {
     expect(await lit(page)).toEqual([]);
   });
 
-  test('Manual mode: the setting is greyed out with a hint, and keeps its value', async ({ page }) => {
+  test('Manual mode: the setting is a disabled switch shown off, and keeps its saved value', async ({ page }) => {
     const t = await touchDriver(page);
     const opt = page.locator('#opt-single');
     await t.tap(page.locator('#more'));
+    await expect(opt).toHaveAttribute('role', 'switch');
     await expect(opt).toBeDisabled();
-    await expect(opt).toBeChecked();
+    await expect(opt).not.toBeChecked(); // saved value is on, but never shown checked while disabled
     await expect(page.locator('#opt-single-hint')).toBeVisible();
-    await expect(page.locator('#opt-single-hint')).toHaveText('Only works with Auto notes');
-    expect(await page.locator('#opt-single-row').evaluate((el) => getComputedStyle(el).opacity)).toBe('0.55');
+    await expect(page.locator('#opt-single-hint')).toHaveText('Only available with Auto notes');
+    await t.tap(opt);
     await t.tap(page.locator('#sheet-close'));
 
     await t.tap(page.locator('#notes-mode'));
     await t.tap(page.locator('#more'));
     await expect(opt).toBeEnabled();
+    await expect(opt).toBeChecked(); // the tap while disabled changed nothing
     await expect(page.locator('#opt-single-hint')).toBeHidden();
     await t.tap(opt);
     await expect(opt).not.toBeChecked();
@@ -294,6 +337,8 @@ test.describe('single-candidate cue', () => {
     await t.tap(page.locator('#more'));
     await expect(opt).toBeEnabled();
     await expect(opt).not.toBeChecked();
+    await t.tap(opt);
+    await expect(opt).toBeChecked();
   });
 
   test('interval is overridable by URL param; setting defaults on and can be turned off', async ({ page }) => {
@@ -671,6 +716,9 @@ test.describe('timer and pause', () => {
     await t.tap(page.locator('#pause'));
     await expect(page.locator('#pause')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('#paused-cover')).toBeVisible();
+    await expect(page.locator('#paused-time')).toHaveText('1:05');
+    await expect(page.locator('#paused-cover button')).toHaveCount(1);
+    expect(await page.locator('#paused-cover').evaluate((el) => getComputedStyle(el).backgroundColor)).not.toBe('rgb(255, 255, 255)');
     const board = await page.locator('#board').boundingBox();
     const cover = await page.locator('#paused-cover').boundingBox();
     expect(cover).toEqual(board);
@@ -920,5 +968,66 @@ test.describe('Erase semantics', () => {
     await expect(erase(page)).toBeEnabled();
     await t.tap(cell(page, EMPTY));
     await expect(erase(page)).toBeDisabled();
+  });
+});
+
+test.describe('restart puzzle', () => {
+  test('asks for confirmation; Cancel keeps progress, Restart clears it', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(cell(page, EMPTY));
+    await t.tap(key(page, 4));
+    await t.tap(page.locator('#more'));
+    const btn = page.locator('#opt-reset');
+    expect(await btn.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
+    await t.tap(btn);
+    await expect(page.locator('#confirm-restart')).toBeVisible();
+    await expect(page.locator('#confirm-title')).toHaveText('Restart puzzle?');
+    await expect(page.locator('#confirm-body')).toHaveText('Your progress will be lost.');
+    await t.tap(page.locator('#confirm-cancel'));
+    await expect(page.locator('#confirm-restart')).toBeHidden();
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '4');
+
+    await t.tap(btn);
+    await t.tap(page.locator('#confirm-ok'));
+    await expect(page.locator('#confirm-restart')).toBeHidden();
+    await expect(page.locator('#sheet')).toBeHidden();
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '');
+    await expect(page.locator('#time')).toHaveText('0:00');
+  });
+});
+
+test.describe('no double-tap zoom', () => {
+  test('pinch zoom stays allowed by the viewport meta', async ({ page }) => {
+    const meta = await page.locator('meta[name="viewport"]').getAttribute('content');
+    expect(meta).not.toMatch(/user-scalable\s*=\s*no|maximum-scale/);
+  });
+
+  test('cells, board and keys opt out of double-tap zoom', async ({ page }) => {
+    const ta = await page.evaluate(() => ({
+      board: getComputedStyle(document.querySelector('#board')).touchAction,
+      cell: getComputedStyle(document.querySelector('.cell')).touchAction,
+      key: getComputedStyle(document.querySelector('.key')).touchAction,
+      keypad: getComputedStyle(document.querySelector('#keypad')).touchAction,
+    }));
+    expect(ta).toEqual({ board: 'manipulation', cell: 'manipulation', key: 'none', keypad: 'none' });
+  });
+
+  test('single-finger touchend on board and keypad is cancelled; double-tap still fills; scale stays 1', async ({ page }) => {
+    const t = await touchDriver(page);
+    await page.evaluate(() => {
+      window.__ends = [];
+      addEventListener('touchend', (e) => window.__ends.push(e.defaultPrevented), false);
+    });
+    await t.tap(page.locator('#notes-mode'));
+    await t.tap(cell(page, 40), { holdMs: 40 });
+    await page.waitForTimeout(100);
+    await t.tap(cell(page, 40), { holdMs: 40 });
+    await expect(cell(page, 40)).toHaveAttribute('data-value', '5');
+    await t.tap(cell(page, 0)); // a given, so the key tap below writes nothing
+    await t.tap(key(page, 1));
+    const ends = await page.evaluate(() => window.__ends);
+    // First entry is the Notes switch (not cancelled, it needs its click).
+    expect(ends).toEqual([false, true, true, true, true]);
+    expect(await page.evaluate(() => window.visualViewport.scale)).toBe(1);
   });
 });

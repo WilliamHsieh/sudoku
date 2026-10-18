@@ -253,6 +253,7 @@ const timeEl = document.getElementById('time');
 const timerEl = document.getElementById('timer');
 const pauseBtn = document.getElementById('pause');
 const coverEl = document.getElementById('paused-cover');
+const pausedTimeEl = document.getElementById('paused-time');
 let paused = false;
 let complete = false;
 let elapsedMs = 0;
@@ -270,7 +271,15 @@ function formatTime(ms) {
 }
 
 function showTime() {
-  timeEl.textContent = formatTime(elapsed());
+  const text = formatTime(elapsed());
+  timeEl.textContent = text;
+  pausedTimeEl.textContent = text;
+}
+
+function resetTimer() {
+  elapsedMs = 0;
+  runStart = Date.now();
+  showTime();
 }
 
 function setRunning(update) {
@@ -373,8 +382,8 @@ function render() {
     el.classList.toggle('given', !!givens[i]);
     el.classList.toggle('user', !givens[i] && !!val);
     el.classList.toggle('selected', i === sel);
-    el.classList.toggle('peer', sel >= 0 && i !== sel && PEERS[sel].includes(i));
     el.classList.toggle('same', !!selV && i !== sel && val === selV);
+    for (let d = 1; d <= 9; d++) notes[d - 1].classList.toggle('match', d === selV && digits.includes(d));
     el.classList.toggle('conflict', bad.has(i));
     el.setAttribute('aria-selected', i === sel ? 'true' : 'false');
     updateLoneCue(i, digits.length === 1 ? digits[0] : 0);
@@ -383,7 +392,9 @@ function render() {
   sw.setAttribute('aria-checked', String(state.autoNotes));
   document.getElementById('notes-mode-label').textContent = state.autoNotes ? 'Auto' : 'Manual';
   eraseBtn.disabled = !eraseAction(sel);
+  // In Manual mode the switch reads as off; state.singleCue keeps the saved value.
   singleOpt.disabled = !state.autoNotes;
+  singleOpt.setAttribute('aria-checked', String(state.autoNotes && state.singleCue));
   singleRow.classList.toggle('disabled', !state.autoNotes);
   setComplete(filled === 81 && bad.size === 0);
 }
@@ -432,6 +443,10 @@ boardEl.addEventListener('contextmenu', (e) => {
 
 document.addEventListener('keydown', (e) => {
   if (paused) return;
+  if (!confirmEl.hidden) {
+    if (e.key === 'Escape') setConfirm(false);
+    return;
+  }
   if (!document.getElementById('sheet').hidden) {
     if (e.key === 'Escape') closeSheet();
     return;
@@ -485,17 +500,31 @@ function closeSheet() { sheet.hidden = true; backdrop.hidden = true; }
 document.getElementById('more').addEventListener('click', openSheet);
 document.getElementById('sheet-close').addEventListener('click', closeSheet);
 backdrop.addEventListener('click', closeSheet);
-singleOpt.checked = state.singleCue;
-singleOpt.addEventListener('change', () => {
-  state.singleCue = singleOpt.checked;
+singleOpt.addEventListener('click', () => {
+  if (singleOpt.disabled) return;
+  state.singleCue = !state.singleCue;
   render();
 });
-document.getElementById('opt-reset').addEventListener('click', () => {
-  snapshot();
+
+const confirmEl = document.getElementById('confirm-restart');
+const confirmBackdrop = document.getElementById('confirm-backdrop');
+function setConfirm(open) {
+  confirmEl.hidden = !open;
+  confirmBackdrop.hidden = !open;
+  if (open) document.getElementById('confirm-cancel').focus();
+}
+document.getElementById('opt-reset').addEventListener('click', () => setConfirm(true));
+document.getElementById('confirm-cancel').addEventListener('click', () => setConfirm(false));
+confirmBackdrop.addEventListener('click', () => setConfirm(false));
+document.getElementById('confirm-ok').addEventListener('click', () => {
   state.values.fill(0);
   state.manual.fill(0);
   state.autoAdded.fill(0);
   state.autoRemoved.fill(0);
+  state.selected = -1;
+  history.length = 0;
+  resetTimer();
+  setConfirm(false);
   closeSheet();
   render();
 });
@@ -776,6 +805,15 @@ keypadEl.addEventListener('contextmenu', (e) => e.preventDefault());
 keypadEl.addEventListener('touchstart', (e) => {
   if (e.target.closest('.key')) e.preventDefault();
 }, { passive: false });
+// iOS Safari can still double-tap-zoom despite touch-action: manipulation.
+// Cancelling a single-finger touchend stops the zoom (and the synthesized
+// click, which the board doesn't use: selection runs on pointerdown) while
+// leaving two-finger pinch zoom alone.
+for (const el of [boardEl, keypadEl]) {
+  el.addEventListener('touchend', (e) => {
+    if (e.touches.length === 0 && e.changedTouches.length === 1) e.preventDefault();
+  }, { passive: false });
+}
 
 render();
 startCueClock();
