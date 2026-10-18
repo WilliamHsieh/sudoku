@@ -13,6 +13,7 @@
     "screens:v4": "node scripts/screens-v4.mjs recordings",
     "screens:v5": "node scripts/screens-v5.mjs recordings",
     "screens:v6": "node scripts/screens-v6.mjs recordings",
+    "screens:v7": "node scripts/screens-v7.mjs recordings",
     "record:v4": "node scripts/record-v4.mjs recordings",
     "record:v6": "node scripts/record-v6.mjs recordings"
   },
