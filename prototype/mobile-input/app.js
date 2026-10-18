@@ -77,12 +77,50 @@ function snapshot() {
   redoStack.length = 0;
 }
 
-// Undo/redo are two-step: an amber ring lands on every affected cell first
-// (RING_IN_MS), then the change is applied with the digit fade/scale. Anything
-// that reads or edits the board flushes a pending step first.
-const RING_IN_MS = 240;
+// Undo/redo are two-step: a ring travels from the current selection to the
+// changed cell (longer trips take longer), then the change is applied with the
+// digit fade/scale. Anything that reads or edits the board flushes a pending step.
+// A repeat while one is running, or shortly after, plays at half speed.
+const RING = { near: 300, far: 450, inPlace: 150, apply: 200, fade: 250, rapidGap: 400, still: 600 };
 const RING_MS = 620;
+const MAX_DIST = Math.hypot(8, 8);
+const ringEl = document.getElementById('undo-ring');
 let pending = null;
+let ringEndsAt = -Infinity;
+let lastRingCell = -1;
+let lastRing = null;
+
+function ringTiming(from, to, rapid) {
+  const dist = Math.hypot(Math.floor(from / 9) - Math.floor(to / 9), (from % 9) - (to % 9));
+  const travel = dist === 0
+    ? RING.inPlace
+    : RING.near + ((RING.far - RING.near) * (dist - 1)) / (MAX_DIST - 1);
+  const k = rapid ? 0.5 : 1;
+  return { dist, travel: Math.round(travel * k), apply: RING.apply * k, fade: RING.fade * k };
+}
+
+function moveRing(from, to, t) {
+  const wrap = ringEl.parentElement.getBoundingClientRect();
+  const box = (i) => {
+    const r = cells[i].el.getBoundingClientRect();
+    return { x: r.left - wrap.left, y: r.top - wrap.top, w: r.width, h: r.height };
+  };
+  const a = box(from);
+  const b = box(to);
+  const at = (p, s = 1) => `translate(${p.x}px, ${p.y}px) scale(${s})`;
+  const total = t.travel + t.apply + t.fade;
+  ringEl.style.width = `${b.w}px`;
+  ringEl.style.height = `${b.h}px`;
+  for (const anim of ringEl.getAnimations()) anim.cancel();
+  ringEl.animate([
+    from === to
+      ? { transform: at(b, 1.4), opacity: 0, easing: EASE_OUT }
+      : { transform: at(a), opacity: 1, easing: EASE_OUT },
+    { transform: at(b), opacity: 1, offset: t.travel / total },
+    { transform: at(b), opacity: 1, offset: (t.travel + t.apply) / total },
+    { transform: at(b), opacity: 0 },
+  ], { duration: total });
+}
 
 function flushPending() {
   if (!pending) return;
@@ -92,7 +130,14 @@ function flushPending() {
   p.apply();
 }
 
+function ringCell(i, ms) {
+  cells[i].el.style.setProperty('--ring-ms', `${ms}ms`);
+  restartClass(cells[i].el, 'undo-target', ms);
+}
+
 function travel(from, to) {
+  const now = performance.now();
+  const rapid = !!pending || now < ringEndsAt + RING.rapidGap;
   flushPending();
   const target = from.pop();
   if (!target) return;
@@ -101,37 +146,56 @@ function travel(from, to) {
   for (let i = 0; i < 81; i++) {
     if (USER_STATE.some((k) => state[k][i] !== target[k][i])) changed.push(i);
   }
+  const start = state.selected >= 0 ? state.selected : lastRingCell >= 0 ? lastRingCell : 40;
+  const first = changed.includes(state.selected) ? state.selected : changed[0];
   const apply = () => {
     const before = boardSnapshot();
     Object.assign(state, target);
-    if (changed.length) {
-      state.selected = changed.includes(state.selected) ? state.selected : changed[0];
-    }
+    if (changed.length) state.selected = first;
     render();
     animateChange([], before);
   };
-  for (const i of changed) restartClass(cells[i].el, 'undo-target', RING_MS);
-  if (changed.length) quietHighlights();
-  if (reducedMotion.matches || !changed.length) {
+  if (!changed.length) {
     apply();
-  } else {
-    pending = { apply, timer: setTimeout(flushPending, RING_IN_MS) };
-    renderHistoryButtons();
+    return;
   }
+  lastRingCell = first;
+  if (reducedMotion.matches) {
+    for (const i of changed) ringCell(i, RING.still);
+    quietHighlights(RING.still);
+    ringEndsAt = now + RING.still;
+    lastRing = { from: first, to: first, dist: 0, travel: 0, apply: 0, fade: 0, rapid };
+    apply();
+    return;
+  }
+  const t = ringTiming(start, first, rapid);
+  const total = t.travel + t.apply + t.fade;
+  lastRing = { from: start, to: first, ...t, rapid };
+  moveRing(start, first, t);
+  quietHighlights(total);
+  ringEndsAt = now + total;
+  pending = {
+    apply() {
+      apply();
+      for (const i of changed) if (i !== first) ringCell(i, t.fade);
+    },
+    timer: setTimeout(flushPending, t.travel + t.apply),
+  };
+  renderHistoryButtons();
 }
 
 // Same-digit tints and candidate chips stay off while any undo/redo ring is
 // running; each travel restarts the window so rapid repeats never flicker them.
 const HL_IN_MS = 150;
 let quietTimer = 0;
-function quietHighlights() {
+function quietHighlights(ms) {
   clearTimeout(quietTimer);
   boardEl.classList.remove('hl-in');
   boardEl.classList.add('quiet');
   quietTimer = setTimeout(() => {
     boardEl.classList.remove('quiet');
     if (!reducedMotion.matches) restartClass(boardEl, 'hl-in', HL_IN_MS);
-  }, RING_MS);
+  }, ms);
 }
 
 const undo = () => travel(history, redoStack);
@@ -216,9 +280,24 @@ function clearCell(i) {
   animateChange([i], before);
 }
 
+// Cells in i's row, column or box already holding d (givens or answers).
+const blockersOf = (i, d) => PEERS[i].filter((p) => value(p) === d);
+const isAdd = (i, d) => (state.autoNotes ? !hasCandidate(i, d) : !(state.manual[i] & bit(d)));
+
+// New candidates that clash with a digit on the board are refused; the blocking
+// cells flash. Removing is always allowed and existing notes are never touched.
+function refusedAdd(i, d) {
+  if (!isAdd(i, d)) return false;
+  const blockers = blockersOf(i, d);
+  for (const p of blockers) restartClass(cells[p].el, 'blocked', BLOCKED_MS);
+  return blockers.length > 0;
+}
+const BLOCKED_MS = 300;
+
 function toggleCandidate(i, d) {
   flushPending();
   if (!editable(i) || state.values[i]) return false;
+  if (refusedAdd(i, d)) return false;
   snapshot();
   const b = bit(d);
   if (state.autoNotes) {
@@ -411,6 +490,9 @@ window.__sudoku = {
   },
   get cueInterval() {
     return cueIntervalMs;
+  },
+  get lastRing() {
+    return lastRing;
   },
 };
 
@@ -842,6 +924,8 @@ function endGesture(cancelled) {
   if (isTap) {
     g.lift?.remove();
     if (state.selected >= 0) setAnswer(state.selected, g.d);
+  } else if (commit && g.mode === 'add' && editable(g.cell) && !state.values[g.cell] && refusedAdd(g.cell, g.d)) {
+    if (g.lift) flyHome(g);
   } else if (commit) {
     if (g.mode === 'add') commitAdd(g);
     else commitRemove(g);

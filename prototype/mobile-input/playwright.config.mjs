@@ -28,7 +28,7 @@ export default defineConfig({
     },
     {
       name: 'desktop',
-      testMatch: /desktop\.spec\.mjs/,
+      testMatch: /(desktop|puzzle)\.spec\.mjs/,
       use: { ...devices['Desktop Chrome'] },
     },
   ],
