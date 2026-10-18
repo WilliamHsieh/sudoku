@@ -549,12 +549,47 @@ function select(i) {
 const DOUBLE_TAP_MS = 300;
 let lastTap = { i: -1, t: -Infinity, hl: 0 };
 
+// Desktop mouse extras (from the main app). Touch keeps the tap model above.
+let lastPointerType = 'mouse';
+document.addEventListener('pointerdown', (e) => { lastPointerType = e.pointerType; }, true);
+const isMouse = (e) => (e.pointerType || lastPointerType) === 'mouse';
+
+// The candidate slot (1-9) under the pointer, from the cell's 3x3 grid.
+function slotAt(e, el) {
+  const r = el.getBoundingClientRect();
+  const col = Math.min(2, Math.max(0, Math.floor(((e.clientX - r.left) * 3) / r.width)));
+  const row = Math.min(2, Math.max(0, Math.floor(((e.clientY - r.top) * 3) / r.height)));
+  return row * 3 + col + 1;
+}
+
+// A mouse click on a candidate slot of the selected cell toggles it at once. If that
+// click turns out to be the first half of a double-click, the toggle is taken back
+// (no undo entry is left) so the double-click only ever fills.
+let mouseToggle = null;
+function takeBackMouseToggle(i) {
+  const t = mouseToggle;
+  mouseToggle = null;
+  if (!t || t.i !== i || history.length !== t.depth) return;
+  const prev = history.pop();
+  for (const k of USER_STATE) state[k] = prev[k];
+  render();
+}
+
 boardEl.addEventListener('pointerdown', (e) => {
   if (paused || (e.button !== undefined && e.button > 0)) return;
   const c = e.target.closest('.cell');
   if (!c) return;
   const i = Number(c.dataset.i);
   flushPending();
+  const mouse = isMouse(e);
+  if (mouse && e.shiftKey) {
+    lastTap = { i: -1, t: -Infinity, hl: 0 };
+    select(i);
+    const d = slotAt(e, c);
+    if (hasCandidate(i, d)) setAnswer(i, d);
+    return;
+  }
+  const wasSelected = state.selected === i;
   const now = performance.now();
   // The first tap moves the selection (and so the highlight); remember which
   // digit was highlighted before it, for the second tap to use.
@@ -563,7 +598,12 @@ boardEl.addEventListener('pointerdown', (e) => {
   const hl = lastTap.hl;
   lastTap = isDouble ? { i: -1, t: -Infinity, hl: 0 } : { i, t: now, hl: highlighted };
   select(i);
-  if (isDouble) doubleTapFill(i, hl);
+  if (isDouble) {
+    if (mouse) takeBackMouseToggle(i);
+    doubleTapFill(i, hl);
+  } else if (mouse && wasSelected && editable(i) && !state.values[i]) {
+    mouseToggle = toggleCandidate(i, slotAt(e, c)) ? { i, depth: history.length } : null;
+  }
 });
 
 // Auto notes only: the highlighted digit if it is one of the cell's candidates,
@@ -585,8 +625,34 @@ boardEl.addEventListener('contextmenu', (e) => {
   if (paused) return;
   e.preventDefault();
   const i = Number(c.dataset.i);
-  select(i);
-  clearCell(i);
+  if (!isMouse(e)) {
+    select(i);
+    clearCell(i);
+    return;
+  }
+  // Mouse right-click needs no selection: an answer goes (with its Auto
+  // overrides, so the candidates come back); an empty cell gets Erase.
+  if (!editable(i)) return;
+  if (state.values[i]) clearAnswerAndOverrides(i);
+  else clearCell(i);
+});
+
+function clearAnswerAndOverrides(i) {
+  flushPending();
+  const before = boardSnapshot();
+  snapshot();
+  state.values[i] = 0;
+  if (state.autoNotes) {
+    state.autoRemoved[i] = 0;
+    state.autoAdded[i] = 0;
+  }
+  render();
+  animateChange([i], before);
+}
+
+document.querySelector('.top h1').addEventListener('click', (e) => {
+  if (paused || !isMouse(e) || state.selected < 0) return;
+  select(-1);
 });
 
 document.addEventListener('keydown', (e) => {

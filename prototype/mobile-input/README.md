@@ -34,6 +34,12 @@ singles alone; checked by `tests/puzzle.spec.mjs`).
 - Desktop: click to select, arrows move, `1`-`9` answer, `Shift`+`1`-`9` candidate,
   `0`/`Backspace`/right-click clear, `Ctrl`/`Cmd`+`Z` undo,
   `Ctrl`/`Cmd`+`Shift`+`Z` or `Ctrl`+`Y` redo.
+- Mouse only (from the main app): click the title to deselect. In the selected empty
+  cell, click a candidate's slot to hide it or an empty slot to restore/add it (illegal
+  adds are refused). `Shift`+click a visible candidate to enter it. Right-click a
+  non-given cell: an answer is cleared together with its Auto overrides; an empty
+  cell gets Erase. A double-click only ever fills: if its first click toggled a
+  slot, that toggle is taken back.
 
 ## Run
 

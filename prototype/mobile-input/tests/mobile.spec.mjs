@@ -1659,6 +1659,26 @@ test.describe('restart puzzle', () => {
   });
 });
 
+test('desktop mouse extras stay off for touch: title tap, slot taps and Shift', async ({ page }) => {
+  const t = await touchDriver(page);
+  await t.tap(page.locator('#notes-mode'));
+  await t.tap(cell(page, EMPTY));
+  await page.waitForTimeout(400);
+  await t.tap(page.locator('.top h1'));
+  await expect(cell(page, EMPTY)).toHaveClass(/selected/);
+  await t.tap(cell(page, EMPTY)); // a second tap on the selected cell toggles nothing
+  await page.waitForTimeout(400);
+  await t.tap(cell(page, EMPTY));
+  await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1379');
+  await expect(page.locator('#undo')).toBeDisabled();
+  await page.keyboard.down('Shift');
+  await page.waitForTimeout(400);
+  await t.tap(cell(page, 55)); // Shift held: still a plain select
+  await page.keyboard.up('Shift');
+  await expect(cell(page, 55)).toHaveAttribute('data-value', '');
+  await expect(cell(page, 55)).toHaveClass(/selected/);
+});
+
 test.describe('no double-tap zoom', () => {
   test('pinch zoom stays allowed by the viewport meta', async ({ page }) => {
     const meta = await page.locator('meta[name="viewport"]').getAttribute('content');

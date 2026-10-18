@@ -62,6 +62,7 @@ html, body {
   padding: 4px 4px 0;
 }
 .top h1 { font-size: 20px; margin: 0; letter-spacing: 0.2px; }
+@media (hover: hover) and (pointer: fine) { .top h1 { cursor: pointer; } }
 .top { align-items: center; }
 .clock { display: flex; align-items: center; gap: 6px; }
 .timer {
