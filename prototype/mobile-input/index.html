@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Sudoku — mobile input prototype</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="top">
+      <h1>Sudoku</h1>
+      <span class="status" id="status" aria-live="polite"></span>
+    </header>
+
+    <div class="board" id="board" role="grid" aria-label="Sudoku board"></div>
+
+    <div class="tools" role="toolbar" aria-label="Tools">
+      <button class="tool" id="undo" type="button" aria-label="Undo">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></svg>
+        <span>Undo</span>
+      </button>
+      <button class="tool" id="erase" type="button" aria-label="Erase">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 21-4.3-4.3a1 1 0 0 1 0-1.4l10-10a1 1 0 0 1 1.4 0l5.6 5.6a1 1 0 0 1 0 1.4L13 19" /><path d="M22 21H7" /><path d="m5 11 9 9" /></svg>
+        <span>Erase</span>
+      </button>
+      <button class="tool notes-switch" id="notes-mode" type="button" role="switch" aria-checked="false" aria-label="Auto notes">
+        <span class="switch" aria-hidden="true"><span class="knob"></span></span>
+        <span class="notes-label">Notes: <b id="notes-mode-label">Manual</b></span>
+      </button>
+      <button class="tool" id="more" type="button" aria-label="More" aria-haspopup="dialog">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.4" /><circle cx="12" cy="12" r="1.4" /><circle cx="19" cy="12" r="1.4" /></svg>
+        <span>More</span>
+      </button>
+    </div>
+
+    <div class="keypad" id="keypad" aria-label="Number keypad"></div>
+    <p class="hint">Tap = answer · Swipe up = candidate</p>
+  </main>
+
+  <div class="sheet-backdrop" id="sheet-backdrop" hidden></div>
+  <section class="sheet" id="sheet" role="dialog" aria-label="More options" hidden>
+    <h2>Options</h2>
+    <label class="row">
+      <span>
+        <b>Single-candidate cue</b>
+        <small>Tint cells that have exactly one candidate left</small>
+      </span>
+      <input type="checkbox" id="opt-single" checked />
+    </label>
+    <button type="button" class="row-btn" id="opt-reset">Restart puzzle</button>
+    <button type="button" class="row-btn primary" id="sheet-close">Done</button>
+  </section>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
