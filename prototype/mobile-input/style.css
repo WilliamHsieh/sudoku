@@ -230,6 +230,21 @@ html, body {
   border-radius: 3.5px;
 }
 .n.hidden-pending { opacity: 0 !important; }
+.board.shift-aim, .board.shift-aim .cell { cursor: crosshair; }
+/* Shift-hover snap: bold ink with an ink outline; on a yellow chip the chip keeps its fill. */
+.n.on.aim {
+  position: relative;
+  z-index: 2;
+  place-self: center;
+  width: calc(var(--cell) * 0.32);
+  height: calc(var(--cell) * 0.32);
+  border-radius: 3.5px;
+  color: var(--given);
+  font-weight: 700;
+  box-shadow: 0 0 0 1.5px var(--given);
+  animation: none;
+}
+.n.on.aim:not(.match) { background: transparent; }
 .n.preview-add { opacity: 0.45; color: var(--accent); }
 .n.preview-remove { opacity: 0.55; color: var(--conflict); text-decoration: line-through; }
 .n.flash { animation: note-flash 220ms ease-out; }

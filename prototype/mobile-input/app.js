@@ -437,6 +437,7 @@ function setPaused(value) {
   pauseBtn.setAttribute('aria-pressed', String(paused));
   pauseBtn.setAttribute('aria-label', paused ? 'Resume' : 'Pause');
   if (paused) clearLoneFlashes();
+  refreshAim();
 }
 
 pauseBtn.addEventListener('click', () => setPaused(!paused));
@@ -534,6 +535,7 @@ function render() {
   singleOpt.setAttribute('aria-checked', String(state.autoNotes && state.singleCue));
   singleRow.classList.toggle('disabled', !state.autoNotes);
   setComplete(filled === 81 && bad.size === 0);
+  refreshAim();
 }
 
 function select(i) {
@@ -562,34 +564,26 @@ function slotAt(e, el) {
   return row * 3 + col + 1;
 }
 
-// A mouse click on a candidate slot of the selected cell toggles it at once. If that
-// click turns out to be the first half of a double-click, the toggle is taken back
-// (no undo entry is left) so the double-click only ever fills.
-let mouseToggle = null;
-function takeBackMouseToggle(i) {
-  const t = mouseToggle;
-  mouseToggle = null;
-  if (!t || t.i !== i || history.length !== t.depth) return;
-  const prev = history.pop();
-  for (const k of USER_STATE) state[k] = prev[k];
-  render();
-}
-
 boardEl.addEventListener('pointerdown', (e) => {
   if (paused || (e.button !== undefined && e.button > 0)) return;
   const c = e.target.closest('.cell');
   if (!c) return;
   const i = Number(c.dataset.i);
   flushPending();
-  const mouse = isMouse(e);
-  if (mouse && e.shiftKey) {
+  if (isMouse(e)) {
+    // Mouse: no double-click fill. Shift+click enters the candidate under the
+    // pointer; a plain click on the selected empty cell toggles that slot.
     lastTap = { i: -1, t: -Infinity, hl: 0 };
+    const wasSelected = state.selected === i;
     select(i);
     const d = slotAt(e, c);
-    if (hasCandidate(i, d)) setAnswer(i, d);
+    if (e.shiftKey) {
+      if (hasCandidate(i, d)) setAnswer(i, d);
+    } else if (wasSelected && editable(i) && !state.values[i]) {
+      toggleCandidate(i, d);
+    }
     return;
   }
-  const wasSelected = state.selected === i;
   const now = performance.now();
   // The first tap moves the selection (and so the highlight); remember which
   // digit was highlighted before it, for the second tap to use.
@@ -598,13 +592,47 @@ boardEl.addEventListener('pointerdown', (e) => {
   const hl = lastTap.hl;
   lastTap = isDouble ? { i: -1, t: -Infinity, hl: 0 } : { i, t: now, hl: highlighted };
   select(i);
-  if (isDouble) {
-    if (mouse) takeBackMouseToggle(i);
-    doubleTapFill(i, hl);
-  } else if (mouse && wasSelected && editable(i) && !state.values[i]) {
-    mouseToggle = toggleCandidate(i, slotAt(e, c)) ? { i, depth: history.length } : null;
-  }
+  if (isDouble) doubleTapFill(i, hl);
 });
+
+// Shift-hover (mouse only): a crosshair over the board, and the visible candidate
+// that Shift+click would enter is snapped. Re-evaluated on every redraw.
+const aim = { shift: false, x: 0, y: 0, over: false, el: null };
+function aimTarget() {
+  if (!aim.shift || !aim.over || paused || gesture) return null;
+  const c = document.elementFromPoint(aim.x, aim.y)?.closest('.cell');
+  if (!c || !boardEl.contains(c)) return null;
+  const i = Number(c.dataset.i);
+  const d = slotAt({ clientX: aim.x, clientY: aim.y }, c);
+  return hasCandidate(i, d) ? cells[i].notes[d - 1] : null;
+}
+function refreshAim() {
+  const el = aimTarget();
+  if (el !== aim.el) {
+    aim.el?.classList.remove('aim');
+    el?.classList.add('aim');
+    aim.el = el;
+  }
+  boardEl.classList.toggle('shift-aim', aim.shift && aim.over && !paused);
+}
+boardEl.addEventListener('pointermove', (e) => {
+  if (!isMouse(e) || gesture) return;
+  Object.assign(aim, { x: e.clientX, y: e.clientY, over: true, shift: e.shiftKey });
+  refreshAim();
+});
+boardEl.addEventListener('pointerleave', (e) => {
+  if (!isMouse(e)) return;
+  aim.over = false;
+  refreshAim();
+});
+const setShift = (on) => {
+  if (aim.shift === on) return;
+  aim.shift = on;
+  refreshAim();
+};
+window.addEventListener('keydown', (e) => { if (e.key === 'Shift') setShift(true); });
+window.addEventListener('keyup', (e) => { if (e.key === 'Shift') setShift(false); });
+window.addEventListener('blur', () => setShift(false));
 
 // Auto notes only: the highlighted digit if it is one of the cell's candidates,
 // otherwise the cell's lone candidate.

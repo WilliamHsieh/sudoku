@@ -38,8 +38,13 @@ singles alone; checked by `tests/puzzle.spec.mjs`).
   cell, click a candidate's slot to hide it or an empty slot to restore/add it (illegal
   adds are refused). `Shift`+click a visible candidate to enter it. Right-click a
   non-given cell: an answer is cleared together with its Auto overrides; an empty
-  cell gets Erase. A double-click only ever fills: if its first click toggled a
-  slot, that toggle is taken back.
+  cell gets Erase. There is no mouse double-click fill (that is touch only): each click
+  is just a click, so a double-click on a slot toggles it twice.
+- Shift-hover (mouse only): while `Shift` is held the board shows a crosshair and the
+  visible candidate under the pointer, the one `Shift`+click would enter, is drawn in
+  bold ink with an ink outline (on a yellow chip, the chip keeps its fill). It follows
+  redraws (e.g. `Shift`+digit), and clears on `Shift` up, window blur, leaving the
+  board, pause and keypad drags.
 
 ## Run
 

@@ -1674,9 +1674,17 @@ test('desktop mouse extras stay off for touch: title tap, slot taps and Shift', 
   await page.keyboard.down('Shift');
   await page.waitForTimeout(400);
   await t.tap(cell(page, 55)); // Shift held: still a plain select
-  await page.keyboard.up('Shift');
   await expect(cell(page, 55)).toHaveAttribute('data-value', '');
   await expect(cell(page, 55)).toHaveClass(/selected/);
+  // No Shift-hover for touch: dragging a finger over candidates snaps nothing.
+  const b = await cell(page, EMPTY).boundingBox();
+  await t.start(b.x + b.width / 6, b.y + b.height / 6);
+  await t.move(b.x + b.width / 2, b.y + b.height / 6);
+  await expect(page.locator('.n.aim')).toHaveCount(0);
+  await expect(page.locator('.board')).not.toHaveClass(/shift-aim/);
+  await t.end(b.x + b.width / 2, b.y + b.height / 6);
+  await expect(page.locator('.n.aim')).toHaveCount(0);
+  await page.keyboard.up('Shift');
 });
 
 test.describe('no double-tap zoom', () => {

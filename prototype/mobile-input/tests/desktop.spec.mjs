@@ -4,6 +4,12 @@ const cell = (page, i) => page.locator(`.cell[data-i="${i}"]`);
 // Cell 41 (row 5, col 6) is empty; candidates 1379.
 const EMPTY = 41;
 
+// Centre of candidate slot d (1-9) inside a cell, for `click({ position })`.
+async function slot(page, i, d) {
+  const b = await cell(page, i).boundingBox();
+  const col = (d - 1) % 3, row = Math.floor((d - 1) / 3);
+  return { x: ((col + 0.5) * b.width) / 3, y: ((row + 0.5) * b.height) / 3 };
+}
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
 });
@@ -100,9 +106,9 @@ test('solution is not shipped to the client', async ({ page }) => {
   for (const src of sources) expect(src).not.toContain('387495216');
 });
 
-test('double-click fills a single-candidate cell; pause blocks keys', async ({ page }) => {
+test('Shift+click fills a candidate; pause blocks keys', async ({ page }) => {
   await page.locator('#notes-mode').click();
-  await cell(page, 55).dblclick();
+  await cell(page, 55).click({ position: await slot(page, 55, 9), modifiers: ['Shift'] });
   await expect(cell(page, 55)).toHaveAttribute('data-value', '9');
   await page.locator('#pause').click();
   await cell(page, EMPTY).click({ force: true });
@@ -125,12 +131,6 @@ test('redo shortcuts: Ctrl/Cmd+Shift+Z and Ctrl+Y', async ({ page }) => {
   await expect(page.locator('#redo')).toBeDisabled();
 });
 
-// Centre of candidate slot d (1-9) inside a cell, for `click({ position })`.
-async function slot(page, i, d) {
-  const b = await cell(page, i).boundingBox();
-  const col = (d - 1) % 3, row = Math.floor((d - 1) / 3);
-  return { x: ((col + 0.5) * b.width) / 3, y: ((row + 0.5) * b.height) / 3 };
-}
 const notes = (page, i) => cell(page, i).getAttribute('data-notes');
 
 test.describe('mouse extras from the main app', () => {
@@ -190,25 +190,26 @@ test.describe('mouse extras from the main app', () => {
     await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '19');
   });
 
-  test('(b) a double-click on the selected cell never leaves a toggle behind and still fills', async ({ page }) => {
-    await page.locator('#notes-mode').click();
-    await cell(page, 55).click(); // lone candidate 9
-    await page.waitForTimeout(350);
-    await cell(page, 55).dblclick({ position: await slot(page, 55, 9) });
-    await expect(cell(page, 55)).toHaveAttribute('data-value', '9');
-    await page.keyboard.press('Control+z');
-    await expect(cell(page, 55)).toHaveAttribute('data-value', '');
-    await expect(cell(page, 55)).toHaveAttribute('data-notes', '9');
-    await expect(page.locator('#undo')).toBeDisabled();
-
-    // Manual mode: a double-click neither fills nor toggles.
+  test('(b) a mouse double-click never fills: on the selected cell it toggles the slot twice', async ({ page }) => {
     await page.locator('#notes-mode').click();
     await cell(page, EMPTY).click();
-    await page.keyboard.press('Shift+Digit1');
-    await page.waitForTimeout(350);
-    await cell(page, EMPTY).dblclick({ position: await slot(page, EMPTY, 1) });
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1');
+    await cell(page, EMPTY).dblclick({ position: await slot(page, EMPTY, 3) });
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1379');
     await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '');
+    await page.keyboard.press('Control+z');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '179');
+    await page.keyboard.press('Control+z');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1379');
+    await expect(page.locator('#undo')).toBeDisabled();
+
+    // Lone candidate on an unselected cell: the first click selects, the second toggles.
+    await cell(page, 42).click();
+    await cell(page, 55).dblclick({ position: await slot(page, 55, 9) });
+    await expect(cell(page, 55)).toHaveAttribute('data-value', '');
+    await expect(cell(page, 55)).toHaveAttribute('data-notes', '');
+    await page.keyboard.press('Control+z');
+    await expect(cell(page, 55)).toHaveAttribute('data-notes', '9');
+    await expect(page.locator('#undo')).toBeDisabled();
   });
 
   test('(c) Shift+click on a visible candidate enters it, selected or not, as one undo step', async ({ page }) => {
@@ -278,5 +279,118 @@ test.describe('mouse extras from the main app', () => {
     await expect(cell(page, EMPTY)).toHaveClass(/selected/);
     expect(await page.locator('#undo').isEnabled()).toBe(depth);
     expect(await page.evaluate(() => window.__menus)).toEqual([true, true, true, true]);
+  });
+});
+
+async function hover(page, i, d) {
+  const b = await cell(page, i).boundingBox();
+  const p = await slot(page, i, d);
+  await page.mouse.move(b.x + p.x, b.y + p.y);
+}
+const note = (page, i, d) => cell(page, i).locator(`.n:nth-child(${d})`);
+const INK = 'rgb(31, 29, 26)';
+const boardCursor = (page, i) => cell(page, i).evaluate((el) => getComputedStyle(el).cursor);
+
+test.describe('Shift-hover', () => {
+  test('snaps the visible candidate under the pointer, with a crosshair only while Shift is held', async ({ page }) => {
+    await page.locator('#notes-mode').click();
+    await hover(page, EMPTY, 3);
+    await expect(page.locator('.n.aim')).toHaveCount(0);
+    expect(await boardCursor(page, EMPTY)).not.toBe('crosshair');
+
+    await page.keyboard.down('Shift');
+    await expect(page.locator('.n.aim')).toHaveCount(1);
+    await expect(note(page, EMPTY, 3)).toHaveClass(/aim/);
+    await expect(page.locator('.board')).toHaveClass(/shift-aim/);
+    expect(await boardCursor(page, EMPTY)).toBe('crosshair');
+    const look = await note(page, EMPTY, 3).evaluate((el) => {
+      const s = getComputedStyle(el);
+      return { color: s.color, weight: s.fontWeight, ring: s.boxShadow };
+    });
+    expect(look.color).toBe(INK);
+    expect(look.weight).toBe('700');
+    expect(look.ring).toContain(INK);
+
+    await hover(page, EMPTY, 4); // not a candidate
+    await expect(page.locator('.n.aim')).toHaveCount(0);
+    expect(await boardCursor(page, EMPTY)).toBe('crosshair');
+    await hover(page, 0, 5); // given
+    await expect(page.locator('.n.aim')).toHaveCount(0);
+
+    await hover(page, EMPTY, 3);
+    await expect(note(page, EMPTY, 3)).toHaveClass(/aim/);
+    await page.keyboard.up('Shift');
+    await expect(page.locator('.n.aim')).toHaveCount(0);
+    await expect(page.locator('.board')).not.toHaveClass(/shift-aim/);
+    expect(await boardCursor(page, EMPTY)).not.toBe('crosshair');
+
+    await page.keyboard.down('Shift');
+    await expect(note(page, EMPTY, 3)).toHaveClass(/aim/);
+    await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+    await expect(page.locator('.n.aim')).toHaveCount(0);
+    await expect(page.locator('.board')).not.toHaveClass(/shift-aim/);
+    await page.keyboard.up('Shift');
+  });
+
+  test('on a yellow chip the outline goes on the chip and the text turns ink', async ({ page }) => {
+    await page.locator('#notes-mode').click();
+    await cell(page, 1).click(); // given 8 lights up the 8 chips
+    await hover(page, 36, 8);
+    await page.keyboard.down('Shift');
+    const chip = note(page, 36, 8);
+    await expect(chip).toHaveClass(/match/);
+    await expect(chip).toHaveClass(/aim/);
+    const look = await chip.evaluate((el) => {
+      const s = getComputedStyle(el);
+      return { color: s.color, bg: s.backgroundColor, ring: s.boxShadow, weight: s.fontWeight };
+    });
+    expect(look.color).toBe(INK);
+    expect(look.bg).toBe('rgb(252, 239, 184)');
+    expect(look.ring).toContain(INK);
+    expect(look.weight).toBe('700');
+    await page.keyboard.up('Shift');
+  });
+
+  test('follows Shift+digit changes, and Shift+click enters the snapped digit', async ({ page }) => {
+    await cell(page, EMPTY).click(); // Manual notes: none yet
+    await hover(page, EMPTY, 1);
+    await page.keyboard.down('Shift');
+    await expect(page.locator('.n.aim')).toHaveCount(0);
+    await page.keyboard.press('Digit1');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1');
+    await expect(note(page, EMPTY, 1)).toHaveClass(/aim/);
+    await page.keyboard.press('Digit1');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '');
+    await expect(page.locator('.n.aim')).toHaveCount(0);
+    await page.keyboard.press('Digit1');
+    await expect(note(page, EMPTY, 1)).toHaveClass(/aim/);
+
+    await page.mouse.down();
+    await page.mouse.up();
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '1');
+    await expect(page.locator('.n.aim')).toHaveCount(0);
+    await page.keyboard.up('Shift');
+    await page.keyboard.press('Control+z');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '');
+    await expect(page.locator('.n.aim')).toHaveCount(0);
+    await page.keyboard.down('Shift');
+    await expect(note(page, EMPTY, 1)).toHaveClass(/aim/);
+    await page.keyboard.up('Shift');
+  });
+
+  test('clears when the pointer leaves the board and while paused', async ({ page }) => {
+    await page.locator('#notes-mode').click();
+    await hover(page, EMPTY, 3);
+    await page.keyboard.down('Shift');
+    await expect(note(page, EMPTY, 3)).toHaveClass(/aim/);
+    await page.mouse.move(2, 2);
+    await expect(page.locator('.n.aim')).toHaveCount(0);
+    await expect(page.locator('.board')).not.toHaveClass(/shift-aim/);
+    await hover(page, EMPTY, 3);
+    await expect(note(page, EMPTY, 3)).toHaveClass(/aim/);
+    await page.evaluate(() => document.querySelector('#pause').click());
+    await expect(page.locator('.n.aim')).toHaveCount(0);
+    await expect(page.locator('.board')).not.toHaveClass(/shift-aim/);
+    await page.keyboard.up('Shift');
   });
 });
