@@ -38,6 +38,13 @@ export async function touchDriver(page) {
     start: (x, y) => send('touchStart', x, y),
     move: (x, y) => send('touchMove', x, y),
     end: (x, y) => send('touchEnd', x, y),
+    cancel: () => cdp.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] }),
+    /** Raw multi-touch: points = [{ x, y, id }]. */
+    raw: (type, points) =>
+      cdp.send('Input.dispatchTouchEvent', {
+        type,
+        touchPoints: points.map((p) => ({ radiusX: 6, radiusY: 6, force: 1, ...p })),
+      }),
     center,
   };
 }

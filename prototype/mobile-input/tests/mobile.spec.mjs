@@ -180,19 +180,33 @@ test('auto notes compute from entered digits; manual starts empty', async ({ pag
 test.describe('single-candidate cue', () => {
   const note = (page, i, d) => cell(page, i).locator(`.n[data-d="${d}"]`);
 
-  test('lone candidate flashes after 15s for 1.5s, every 15s; no cell tint', async ({ page }) => {
+  // Fake clock, paused, with the global cue clock restarted at a known instant.
+  async function frozenClock(page) {
     await page.clock.install();
     await page.goto('/');
-    const t = await touchDriver(page);
-    await t.tap(cell(page, EMPTY));
-    await page.keyboard.press('Shift+Digit4');
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-lone', '4');
-    const bgBefore = await cell(page, EMPTY).evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(await page.evaluate(() => window.__sudoku.cueInterval)).toBe(15000);
+    await page.clock.pauseAt(Date.now() + 2000);
+    await page.evaluate(() => window.__sudoku.setCueInterval(15000));
+  }
+  const lit = (page) => page.evaluate(() =>
+    [...document.querySelectorAll('.n.lone-flash')].map((n) => `${n.closest('.cell').dataset.i}:${n.dataset.d}`).sort());
+  async function makeSingle(page, t, i, d) {
+    await t.tap(cell(page, i));
+    await page.keyboard.press(`Shift+Digit${d}`);
+    await expect(cell(page, i)).toHaveAttribute('data-lone', String(d));
+  }
 
-    await page.clock.runFor(14_900);
-    await expect(note(page, EMPTY, 4)).not.toHaveClass(/lone-flash/);
-    await page.clock.runFor(200);
-    await expect(note(page, EMPTY, 4)).toHaveClass(/lone-flash/);
+  test('one global clock: cells that became single at different times flash in the same frame', async ({ page }) => {
+    await frozenClock(page);
+    const t = await touchDriver(page);
+    await makeSingle(page, t, EMPTY, 4);
+    await page.clock.runFor(6_000);
+    await makeSingle(page, t, 40, 5);
+    await page.clock.runFor(8_900); // t = 14.9s
+    expect(await lit(page)).toEqual([]);
+    await page.clock.runFor(200); // t = 15.1s
+    expect(await lit(page)).toEqual(['2:4', '40:5']);
+
     const s = await note(page, EMPTY, 4).evaluate((el) => {
       const cs = getComputedStyle(el);
       return { bg: cs.backgroundColor, ring: cs.boxShadow, color: cs.color };
@@ -200,32 +214,32 @@ test.describe('single-candidate cue', () => {
     expect(s.bg).toBe('rgba(34, 197, 94, 0.2)');
     expect(s.ring).toContain('rgb(34, 197, 94)');
     expect(s.color).toBe('rgb(21, 128, 61)');
-    expect(await cell(page, EMPTY).evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(bgBefore);
+    await t.tap(cell(page, 70));
+    expect(await cell(page, EMPTY).evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 255, 255)');
 
-    await page.clock.runFor(1_450);
-    await expect(note(page, EMPTY, 4)).not.toHaveClass(/lone-flash/);
-    await page.clock.runFor(13_400);
-    await expect(note(page, EMPTY, 4)).not.toHaveClass(/lone-flash/);
+    // Becoming single mid-flash waits for the next tick.
+    await makeSingle(page, t, 70, 3);
+    expect(await lit(page)).toEqual(['2:4', '40:5']);
+    await page.clock.runFor(1_450); // t = 16.55s
+    expect(await lit(page)).toEqual([]);
+    await page.clock.runFor(13_400); // t = 29.95s
+    expect(await lit(page)).toEqual([]);
     await page.clock.runFor(200);
-    await expect(note(page, EMPTY, 4)).toHaveClass(/lone-flash/);
+    expect(await lit(page)).toEqual(['2:4', '40:5', '70:3']);
   });
 
-  test('cycle restarts when the cell stops and starts being single', async ({ page }) => {
-    await page.clock.install();
-    await page.goto('/');
+  test('board changes never restart the clock', async ({ page }) => {
+    await frozenClock(page);
     const t = await touchDriver(page);
-    await t.tap(cell(page, EMPTY));
-    await page.keyboard.press('Shift+Digit4');
+    await makeSingle(page, t, EMPTY, 4);
     await page.clock.runFor(10_000);
     await page.keyboard.press('Shift+Digit2');
     await expect(cell(page, EMPTY)).toHaveAttribute('data-lone', '');
     await page.clock.runFor(2_000);
     await page.keyboard.press('Shift+Digit2');
     await expect(cell(page, EMPTY)).toHaveAttribute('data-lone', '4');
-    await page.clock.runFor(14_000);
-    await expect(page.locator('.lone-flash')).toHaveCount(0);
-    await page.clock.runFor(1_100);
-    await expect(note(page, EMPTY, 4)).toHaveClass(/lone-flash/);
+    await page.clock.runFor(3_100); // t = 15.1s, not 12s + 15s
+    expect(await lit(page)).toEqual(['2:4']);
   });
 
   test('interval is overridable by URL param; setting defaults on and can be turned off', async ({ page }) => {
@@ -341,5 +355,368 @@ test.describe('reduced motion', () => {
     await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '8');
     const tr = await cell(page, EMPTY).locator('.n[data-d="8"]').evaluate((el) => getComputedStyle(el).transitionProperty);
     expect(tr).toBe('opacity');
+  });
+});
+
+test.describe('erase in Auto notes resets the cell', () => {
+  test.beforeEach(async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(page.locator('#notes-mode'));
+    await t.tap(cell(page, EMPTY));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '124');
+  });
+
+  test('after removing a candidate', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.swipeUp(key(page, 2), 60);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '14');
+    await t.tap(page.locator('#erase'));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '124');
+    await t.tap(page.locator('#undo'));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '14');
+  });
+
+  test('after adding a candidate', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.swipeUp(key(page, 7), 60);
+    await t.swipeUp(key(page, 4), 60);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '127');
+    await t.tap(page.locator('#erase'));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '124');
+    await t.tap(page.locator('#undo'));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '127');
+  });
+
+  test('answer first, then overrides; never blanks the cell', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.swipeUp(key(page, 2), 60);
+    await t.tap(key(page, 4));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '4');
+    await t.tap(page.locator('#erase'));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '14');
+    await t.tap(page.locator('#erase'));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '124');
+    await t.tap(page.locator('#erase'));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '124');
+  });
+
+  test('keyboard 0 does the same reset', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.swipeUp(key(page, 1), 60);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '24');
+    await page.keyboard.press('0');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '124');
+  });
+});
+
+test.describe('gesture always ends cleanly', () => {
+  async function expectIdle(page) {
+    await expect(page.locator('.lift')).toHaveCount(0);
+    await expect(page.locator('.key.pressed, .key.armed, .key.lifted, .key.show-label')).toHaveCount(0);
+  }
+
+  test('release far outside the keypad (over the board) still commits', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(cell(page, EMPTY));
+    const p = await t.center(key(page, 3));
+    await t.start(p.x, p.y);
+    for (let s = 1; s <= 10; s++) await t.move(p.x, p.y - s * 30);
+    await t.end(p.x, p.y - 300);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '3');
+    await expectIdle(page);
+    await t.swipeUp(key(page, 5), 60);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '35');
+  });
+
+  test('pointer capture lost mid-swipe, pointerup outside the keypad: next swipe works', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(cell(page, EMPTY));
+    const k = key(page, 3);
+    const p = await t.center(k);
+    await t.start(p.x, p.y);
+    await t.move(p.x, p.y - 20);
+    await t.move(p.x, p.y - 40);
+    await expect(k).toHaveClass(/armed/);
+    // What iOS Safari can do: drop capture, so the rest of the touch goes to
+    // whatever is under the finger (tools row / board), not the key.
+    await k.evaluate((el) => {
+      for (let id = 0; id < 50; id++) if (el.hasPointerCapture(id)) el.releasePointerCapture(id);
+    });
+    await t.move(p.x, p.y - 120);
+    await t.end(p.x, p.y - 120);
+    await expectIdle(page);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '');
+
+    await t.swipeUp(key(page, 5), 60);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '5');
+    await t.tap(key(page, 4));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '4');
+  });
+
+  test('pointerup delivered only outside the keypad (no capture)', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(cell(page, EMPTY));
+    const k = key(page, 8);
+    const box = await k.boundingBox();
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    await page.evaluate(({ x, y }) => {
+      const key = document.querySelector('.key[data-d="8"]');
+      const opts = (cy) => ({ bubbles: true, cancelable: true, pointerId: 77, pointerType: 'touch', isPrimary: true, clientX: x, clientY: cy });
+      key.dispatchEvent(new PointerEvent('pointerdown', opts(y)));
+      key.dispatchEvent(new PointerEvent('pointermove', opts(y - 40)));
+      document.querySelector('#board').dispatchEvent(new PointerEvent('pointerup', opts(y - 200)));
+    }, { x, y });
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '8');
+    await expectIdle(page);
+    await t.swipeUp(key(page, 9), 60);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '89');
+  });
+
+  test('pointercancel mid-swipe glides back, writes nothing, next swipe works', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(cell(page, EMPTY));
+    const k = key(page, 2);
+    const p = await t.center(k);
+    await t.start(p.x, p.y);
+    await t.move(p.x, p.y - 20);
+    await t.move(p.x, p.y - 45);
+    await expect(k).toHaveClass(/armed/);
+    await t.cancel();
+    await expectIdle(page);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '');
+    await t.swipeUp(key(page, 2), 60);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '2');
+  });
+
+  test('a new press is never blocked by an unfinished gesture', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(cell(page, EMPTY));
+    const a = await t.center(key(page, 5));
+    const b = await t.center(key(page, 6));
+    await t.raw('touchStart', [{ x: a.x, y: a.y, id: 1 }]);
+    await t.raw('touchMove', [{ x: a.x, y: a.y - 40, id: 1 }]);
+    await expect(key(page, 5)).toHaveClass(/armed/);
+    await t.raw('touchStart', [{ x: a.x, y: a.y - 40, id: 1 }, { x: b.x, y: b.y, id: 2 }]);
+    for (let s = 1; s <= 6; s++) {
+      await t.raw('touchMove', [{ x: a.x, y: a.y - 40, id: 1 }, { x: b.x, y: b.y - s * 10, id: 2 }]);
+    }
+    await t.raw('touchEnd', [{ x: a.x, y: a.y - 40, id: 1 }]);
+    await t.raw('touchEnd', []);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '6');
+    await expectIdle(page);
+  });
+
+  test('rapid back-to-back swipes all land and leave nothing stranded', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(cell(page, EMPTY));
+    const fast = { steps: 4, stepMs: 8, holdMs: 0 };
+    for (const d of [1, 2, 3, 2, 4, 1, 1]) await t.swipeUp(key(page, d), 50, fast);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '134');
+    await expectIdle(page);
+    await expect(page.locator('.n.hidden-pending')).toHaveCount(0);
+    const digitsVisible = await page.locator('.key .digit').evaluateAll((els) =>
+      els.every((el) => getComputedStyle(el).opacity === '1'));
+    expect(digitsVisible).toBe(true);
+  });
+
+  test('sideways drag is neither a tap nor a swipe', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(cell(page, EMPTY));
+    const p = await t.center(key(page, 5));
+    await t.start(p.x, p.y);
+    for (let s = 1; s <= 6; s++) await t.move(p.x + s * 8, p.y - s * 3);
+    await expect(page.locator('.lift')).toHaveCount(0);
+    await t.end(p.x + 48, p.y - 18);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '');
+    await expectIdle(page);
+  });
+});
+
+test.describe('double-tap fills a single-candidate cell', () => {
+  async function doubleTap(page, t, i, gap = 120) {
+    await t.tap(cell(page, i), { holdMs: 40 });
+    await page.waitForTimeout(gap);
+    await t.tap(cell(page, i), { holdMs: 40 });
+  }
+
+  test('manual note: fills the lone candidate as one undo step', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(cell(page, EMPTY));
+    await expect(cell(page, EMPTY)).toHaveClass(/selected/); // selection is immediate
+    await page.keyboard.press('Shift+Digit4');
+    await page.waitForTimeout(350);
+    await doubleTap(page, t, EMPTY);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '4');
+    await t.tap(page.locator('#undo'));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '4');
+  });
+
+  test('auto notes: uses the candidates currently shown', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(page.locator('#notes-mode'));
+    await doubleTap(page, t, 40);
+    await expect(cell(page, 40)).toHaveAttribute('data-value', '5');
+  });
+
+  test('multi-candidate cell: double-tap only selects', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(page.locator('#notes-mode'));
+    await doubleTap(page, t, EMPTY);
+    await expect(cell(page, EMPTY)).toHaveClass(/selected/);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '124');
+  });
+
+  test('taps further apart than ~300ms do not fill', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(page.locator('#notes-mode'));
+    await doubleTap(page, t, 40, 450);
+    await expect(cell(page, 40)).toHaveAttribute('data-value', '');
+  });
+
+  test('works right after a swipe, and the board allows no double-tap zoom', async ({ page }) => {
+    const t = await touchDriver(page);
+    expect(await page.locator('#board').evaluate((el) => getComputedStyle(el).touchAction)).toBe('manipulation');
+    await t.tap(page.locator('#notes-mode'));
+    await t.tap(cell(page, EMPTY));
+    await t.swipeUp(key(page, 2), 60, { holdMs: 0 });
+    await doubleTap(page, t, 40, 80);
+    await expect(cell(page, 40)).toHaveAttribute('data-value', '5');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '14');
+  });
+});
+
+test.describe('timer and pause', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.clock.install();
+    await page.goto('/');
+  });
+
+  test('advances, pause freezes it and blocks input, resume continues', async ({ page }) => {
+    const t = await touchDriver(page);
+    await expect(page.locator('#time')).toHaveText('0:00');
+    await t.tap(cell(page, EMPTY));
+    await page.clock.runFor(65_000);
+    await expect(page.locator('#time')).toHaveText('1:05');
+
+    await t.tap(page.locator('#pause'));
+    await expect(page.locator('#pause')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#paused-cover')).toBeVisible();
+    const board = await page.locator('#board').boundingBox();
+    const cover = await page.locator('#paused-cover').boundingBox();
+    expect(cover).toEqual(board);
+    const topAtCell = await page.evaluate(() => {
+      const r = document.querySelector('.cell[data-i="0"]').getBoundingClientRect();
+      return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2).closest('#paused-cover') !== null;
+    });
+    expect(topAtCell).toBe(true);
+
+    await page.clock.runFor(30_000);
+    await expect(page.locator('#time')).toHaveText('1:05');
+    await t.tap(key(page, 4));
+    await t.swipeUp(key(page, 4), 60);
+    await page.keyboard.press('7');
+    await page.keyboard.press('Shift+Digit7');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '');
+    await expect(page.locator('.lift')).toHaveCount(0);
+
+    await t.tap(page.locator('#resume'));
+    await expect(page.locator('#paused-cover')).toBeHidden();
+    await page.clock.runFor(5_000);
+    await expect(page.locator('#time')).toHaveText('1:10');
+    await t.tap(key(page, 4));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '4');
+  });
+
+  test('shows h:mm:ss past an hour', async ({ page }) => {
+    await page.clock.fastForward(3_725_000);
+    await expect(page.locator('#time')).toHaveText('1:02:05');
+  });
+
+  test('pauses when the page is hidden and stays paused when visible again', async ({ page }) => {
+    await page.clock.runFor(3_000);
+    const setHidden = (hidden) => page.evaluate((h) => {
+      Object.defineProperty(document, 'hidden', { value: h, configurable: true });
+      Object.defineProperty(document, 'visibilityState', { value: h ? 'hidden' : 'visible', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    }, hidden);
+    await setHidden(true);
+    await expect(page.locator('#paused-cover')).toBeVisible();
+    await page.clock.runFor(10_000);
+    await setHidden(false);
+    await page.clock.runFor(10_000);
+    await expect(page.locator('#paused-cover')).toBeVisible();
+    await expect(page.locator('#time')).toHaveText('0:03');
+  });
+});
+
+test.describe('undo animation', () => {
+  test('undo selects the changed cell and fades the removed answer out', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(cell(page, EMPTY));
+    await t.tap(key(page, 4));
+    await t.tap(cell(page, 40));
+    await t.tap(page.locator('#undo'));
+    await expect(cell(page, EMPTY)).toHaveClass(/selected/);
+    await expect(cell(page, EMPTY)).toHaveClass(/undo-pulse/);
+    await expect(cell(page, EMPTY).locator('.v')).toHaveClass(/undo-out/);
+    await expect(cell(page, EMPTY).locator('.v')).toHaveText('4');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '');
+    const anim = await cell(page, EMPTY).evaluate((el) => getComputedStyle(el).animationName);
+    expect(anim).toBe('undo-ring');
+    await page.waitForTimeout(450);
+    await expect(cell(page, EMPTY)).not.toHaveClass(/undo-pulse/);
+    await expect(cell(page, EMPTY).locator('.v')).toHaveText('');
+  });
+
+  test('restored answer and candidates animate in', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(cell(page, EMPTY));
+    await t.tap(key(page, 4));
+    await t.tap(page.locator('#erase'));
+    await t.tap(page.locator('#undo'));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '4');
+    await expect(cell(page, EMPTY).locator('.v')).toHaveClass(/undo-in/);
+
+    await t.swipeUp(key(page, 4), 60); // no-op: cell has an answer
+    await t.tap(page.locator('#erase'));
+    await t.swipeUp(key(page, 7), 60);
+    await page.waitForTimeout(350);
+    await t.tap(page.locator('#undo'));
+    await expect(cell(page, EMPTY).locator('.n[data-d="7"]')).toHaveClass(/undo-out/);
+  });
+
+  test('Erase-reset in Auto: undo animates the cell and its restored overrides', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(page.locator('#notes-mode'));
+    await t.tap(cell(page, EMPTY));
+    await t.swipeUp(key(page, 2), 60);
+    await t.swipeUp(key(page, 8), 60);
+    await page.waitForTimeout(350);
+    await t.tap(page.locator('#erase'));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '124');
+    await t.tap(cell(page, 40));
+    await t.tap(page.locator('#undo'));
+    await expect(cell(page, EMPTY)).toHaveClass(/selected/);
+    await expect(cell(page, EMPTY)).toHaveClass(/undo-pulse/);
+    await expect(cell(page, EMPTY).locator('.n[data-d="2"]')).toHaveClass(/undo-out/);
+    await expect(cell(page, EMPTY).locator('.n[data-d="8"]')).toHaveClass(/undo-in/);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '148');
+  });
+
+  test('reduced motion: color flash only', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const t = await touchDriver(page);
+    await t.tap(cell(page, EMPTY));
+    await t.tap(key(page, 4));
+    await t.tap(page.locator('#undo'));
+    await expect(cell(page, EMPTY)).toHaveClass(/undo-pulse/);
+    expect(await cell(page, EMPTY).evaluate((el) => getComputedStyle(el).animationName)).toBe('undo-flash');
+    await expect(page.locator('.undo-in, .undo-out')).toHaveCount(0);
   });
 });

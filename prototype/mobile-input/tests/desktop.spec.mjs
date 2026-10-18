@@ -85,3 +85,16 @@ test('solution is not shipped to the client', async ({ page }) => {
   });
   for (const src of sources) expect(src).not.toContain('534678912');
 });
+
+test('double-click fills a single-candidate cell; pause blocks keys', async ({ page }) => {
+  await page.locator('#notes-mode').click();
+  await cell(page, 40).dblclick();
+  await expect(cell(page, 40)).toHaveAttribute('data-value', '5');
+  await page.locator('#pause').click();
+  await cell(page, EMPTY).click({ force: true });
+  await page.keyboard.press('Control+z');
+  await expect(cell(page, 40)).toHaveAttribute('data-value', '5');
+  await page.locator('#resume').click();
+  await page.keyboard.press('Control+z');
+  await expect(cell(page, 40)).toHaveAttribute('data-value', '');
+});

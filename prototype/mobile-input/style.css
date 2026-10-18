@@ -50,8 +50,72 @@ html, body {
   padding: 4px 4px 0;
 }
 .top h1 { font-size: 20px; margin: 0; letter-spacing: 0.2px; }
-.status { font-size: 13px; color: var(--ink-soft); }
-.status.done { color: var(--single); font-weight: 600; }
+.top { align-items: center; }
+.clock { display: flex; align-items: center; gap: 6px; }
+.timer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgb(255 255 255 / 0.7);
+  border: 1px solid rgb(0 0 0 / 0.08);
+  border-radius: 8px;
+  padding: 4px 8px;
+}
+.timer-icon { font-size: 0.9rem; opacity: 0.8; }
+.time {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #374151;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  min-width: 2.6em;
+}
+.timer.done .time { color: var(--single); }
+.pause {
+  appearance: none;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgb(0 0 0 / 0.08);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.7);
+  color: #374151;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.pause svg { width: 16px; height: 16px; fill: currentColor; }
+.pause .icon-play, .paused .pause .icon-pause { display: none; }
+.paused .pause .icon-play { display: block; }
+
+.board-wrap { position: relative; }
+.paused-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  border-radius: 6px;
+  background: var(--surface);
+  border: 2px solid var(--line-strong);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+.paused-cover[hidden] { display: none; }
+.paused-cover p { margin: 0; font-size: 20px; font-weight: 600; color: var(--ink-soft); }
+.resume {
+  appearance: none;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 28px;
+  font: inherit;
+  font-weight: 600;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+.paused .tools, .paused .keypad { opacity: 0.4; pointer-events: none; }
 
 /* ---------- board ---------- */
 .board {
@@ -134,6 +198,21 @@ html, body {
   box-shadow: 0 0 0 1px #22c55e, 0 0 5px rgb(34 197 94 / 0.3);
   animation: lone-glow 1.5s ease-in-out;
 }
+.cell.undo-pulse { animation: undo-ring 360ms ease-out; z-index: 2; }
+@keyframes undo-ring {
+  0% { box-shadow: inset 0 0 0 3px var(--accent); background-color: color-mix(in srgb, var(--accent) 28%, var(--surface)); }
+  100% { box-shadow: inset 0 0 0 0 transparent; }
+}
+.v.undo-in, .n.undo-in { animation: undo-in 360ms cubic-bezier(0.22, 1, 0.36, 1); }
+@keyframes undo-in {
+  from { opacity: 0; transform: scale(1.6); }
+  to { opacity: 1; transform: scale(1); }
+}
+.v.undo-out, .n.undo-out { animation: undo-out 360ms ease-out forwards; }
+@keyframes undo-out {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.5); }
+}
 @keyframes lone-glow {
   0%, 100% { box-shadow: 0 0 0 1px #22c55e, 0 0 4px rgb(34 197 94 / 0.3); }
   50% { box-shadow: 0 0 0 1px #22c55e, 0 0 10px rgb(34 197 94 / 0.6); }
@@ -203,6 +282,7 @@ html, body {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
+  touch-action: none;
 }
 .key {
   position: relative;
@@ -329,4 +409,8 @@ html, body {
   .key, .key::before, .key .label, .switch, .knob { transition: none; }
   .key.pressed { transform: none; }
   .n.flash, .key.flash, .n.on.lone-flash { animation: none; }
+  .cell.undo-pulse { animation: undo-flash 220ms linear; }
+  @keyframes undo-flash {
+    from { background-color: color-mix(in srgb, var(--accent) 30%, var(--surface)); }
+  }
 }

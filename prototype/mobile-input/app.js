@@ -75,11 +75,59 @@ function snapshot() {
   if (history.length > 500) history.shift();
 }
 
+const USER_STATE = ['values', 'manual', 'autoAdded', 'autoRemoved'];
+
 function undo() {
   const prev = history.pop();
   if (!prev) return;
+  const before = Array.from({ length: 81 }, (_, i) => ({ v: value(i), n: candidates(i) }));
+  const changed = [];
+  for (let i = 0; i < 81; i++) {
+    if (USER_STATE.some((k) => state[k][i] !== prev[k][i])) changed.push(i);
+  }
   Object.assign(state, prev);
+  if (changed.length) {
+    state.selected = changed.includes(state.selected) ? state.selected : changed[0];
+  }
   render();
+  animateUndo(changed, before);
+}
+
+// Cells whose stored state changed get a ring pulse; every digit that appears
+// or disappears (including auto candidates in peers) fades/scales in or out.
+const UNDO_MS = 360;
+function animateUndo(changed, before) {
+  const reduce = reducedMotion.matches;
+  for (const i of changed) restartClass(cells[i].el, 'undo-pulse');
+  if (reduce) return;
+  for (let i = 0; i < 81; i++) {
+    const { v, notes } = cells[i];
+    const was = before[i];
+    const now = value(i);
+    if (now && now !== was.v) restartClass(v, 'undo-in');
+    else if (!now && was.v) {
+      v.textContent = was.v;
+      restartClass(v, 'undo-out', () => { if (!value(i)) v.textContent = ''; });
+    }
+    const cand = candidates(i);
+    for (let d = 1; d <= 9; d++) {
+      const had = (was.n & bit(d)) !== 0;
+      const has = (cand & bit(d)) !== 0;
+      if (has && !had) restartClass(notes[d - 1], 'undo-in');
+      else if (!has && had) restartClass(notes[d - 1], 'undo-out');
+    }
+  }
+}
+
+function restartClass(el, cls, after) {
+  el.classList.remove(cls);
+  void el.offsetWidth;
+  el.classList.add(cls);
+  clearTimeout(el[`_${cls}`]);
+  el[`_${cls}`] = setTimeout(() => {
+    el.classList.remove(cls);
+    after?.();
+  }, UNDO_MS);
 }
 
 function editable(i) {
@@ -99,14 +147,13 @@ function clearCell(i) {
   if (state.values[i]) {
     snapshot();
     state.values[i] = 0;
-  } else if (candidates(i)) {
+  } else if (state.autoNotes && (state.autoRemoved[i] || state.autoAdded[i])) {
     snapshot();
-    if (state.autoNotes) {
-      state.autoRemoved[i] = 0b1111111110;
-      state.autoAdded[i] = 0;
-    } else {
-      state.manual[i] = 0;
-    }
+    state.autoRemoved[i] = 0;
+    state.autoAdded[i] = 0;
+  } else if (!state.autoNotes && state.manual[i]) {
+    snapshot();
+    state.manual[i] = 0;
   } else {
     return;
   }
@@ -138,7 +185,6 @@ function toggleCandidate(i, d) {
 
 const boardEl = document.getElementById('board');
 const keypadEl = document.getElementById('keypad');
-const statusEl = document.getElementById('status');
 const cells = [];
 
 for (let i = 0; i < 81; i++) {
@@ -188,53 +234,107 @@ function conflicts() {
   return bad;
 }
 
-/* ---------------- single-candidate cue ---------------- */
+/* ---------------- timer / pause ---------------- */
 
-// Mirrors src/PencilBox.svelte: once a cell is down to one candidate, that
-// note flashes for CUE_FLASH_MS every cueIntervalMs (first flash after one
-// full interval). Any change to the lone digit restarts the cycle.
-const lone = Array.from({ length: 81 }, () => ({ d: 0, timer: 0, hide: 0 }));
+const timeEl = document.getElementById('time');
+const timerEl = document.getElementById('timer');
+const pauseBtn = document.getElementById('pause');
+const coverEl = document.getElementById('paused-cover');
+let paused = false;
+let complete = false;
+let elapsedMs = 0;
+let runStart = Date.now();
 
-function stopLoneCue(i) {
-  const s = lone[i];
-  clearTimeout(s.timer);
-  clearTimeout(s.hide);
-  s.timer = s.hide = 0;
-  for (const n of cells[i].notes) n.classList.remove('lone-flash');
+const running = () => !paused && !complete;
+const elapsed = () => elapsedMs + (running() ? Date.now() - runStart : 0);
+
+function formatTime(ms) {
+  const total = Math.floor(ms / 1000);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const sec = String(total % 60).padStart(2, '0');
+  return h ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
 }
 
-function scheduleLoneCue(i) {
-  const s = lone[i];
-  s.timer = setTimeout(() => {
-    const n = cells[i].notes[s.d - 1];
-    n.classList.add('lone-flash');
-    s.hide = setTimeout(() => n.classList.remove('lone-flash'), CUE_FLASH_MS);
-    scheduleLoneCue(i);
-  }, cueIntervalMs);
+function showTime() {
+  timeEl.textContent = formatTime(elapsed());
+}
+
+function setRunning(update) {
+  if (running()) elapsedMs += Date.now() - runStart;
+  update();
+  runStart = Date.now();
+  showTime();
+}
+
+function setComplete(value) {
+  if (value === complete) return;
+  setRunning(() => { complete = value; });
+  timerEl.classList.toggle('done', complete);
+}
+
+function setPaused(value) {
+  if (value === paused) return;
+  if (value && gesture) endGesture(true);
+  setRunning(() => { paused = value; });
+  document.body.classList.toggle('paused', paused);
+  coverEl.hidden = !paused;
+  pauseBtn.setAttribute('aria-pressed', String(paused));
+  pauseBtn.setAttribute('aria-label', paused ? 'Resume' : 'Pause');
+  if (paused) clearLoneFlashes();
+}
+
+pauseBtn.addEventListener('click', () => setPaused(!paused));
+document.getElementById('resume').addEventListener('click', () => setPaused(false));
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) setPaused(true);
+});
+setInterval(showTime, 250);
+
+/* ---------------- single-candidate cue ---------------- */
+
+// One global clock: every cueIntervalMs, every cell that has exactly one
+// candidate at that moment flashes it once for CUE_FLASH_MS. Board changes
+// never restart the clock; a newly single cell just joins the next tick.
+const lone = new Array(81).fill(0);
+let cueClock = 0;
+let cueHide = 0;
+
+function clearLoneFlashes() {
+  clearTimeout(cueHide);
+  for (const n of boardEl.querySelectorAll('.n.lone-flash')) n.classList.remove('lone-flash');
+}
+
+function cueTick() {
+  clearLoneFlashes();
+  if (!state.singleCue || paused) return;
+  for (let i = 0; i < 81; i++) {
+    if (lone[i]) cells[i].notes[lone[i] - 1].classList.add('lone-flash');
+  }
+  cueHide = setTimeout(clearLoneFlashes, CUE_FLASH_MS);
+}
+
+function startCueClock() {
+  clearInterval(cueClock);
+  clearLoneFlashes();
+  cueClock = setInterval(cueTick, cueIntervalMs);
 }
 
 function updateLoneCue(i, d) {
-  const s = lone[i];
   const want = state.singleCue ? d : 0;
   cells[i].el.dataset.lone = want || '';
-  if (want === s.d) return;
-  stopLoneCue(i);
-  s.d = want;
-  if (want) scheduleLoneCue(i);
-}
-
-function restartLoneCues() {
-  for (let i = 0; i < 81; i++) {
-    stopLoneCue(i);
-    lone[i].d = 0;
-  }
-  render();
+  if (want === lone[i]) return;
+  lone[i] = want;
+  for (const n of cells[i].notes) n.classList.remove('lone-flash');
 }
 
 window.__sudoku = {
   setCueInterval(ms) {
     cueIntervalMs = ms;
-    restartLoneCues();
+    startCueClock();
+  },
+  get cueInterval() {
+    return cueIntervalMs;
   },
 };
 
@@ -269,9 +369,7 @@ function render() {
   const sw = document.getElementById('notes-mode');
   sw.setAttribute('aria-checked', String(state.autoNotes));
   document.getElementById('notes-mode-label').textContent = state.autoNotes ? 'Auto' : 'Manual';
-  const complete = filled === 81 && bad.size === 0;
-  statusEl.textContent = complete ? 'Complete' : `${81 - filled} left`;
-  statusEl.classList.toggle('done', complete);
+  setComplete(filled === 81 && bad.size === 0);
 }
 
 function select(i) {
@@ -281,13 +379,35 @@ function select(i) {
 
 /* ---------------- board input ---------------- */
 
-boardEl.addEventListener('click', (e) => {
+// Selection happens on pointerdown (no click delay, and iOS can't swallow it as
+// part of its own double-tap handling). The second tap is detected here too.
+const DOUBLE_TAP_MS = 300;
+let lastTap = { i: -1, t: -Infinity };
+
+boardEl.addEventListener('pointerdown', (e) => {
+  if (paused || (e.button !== undefined && e.button > 0)) return;
   const c = e.target.closest('.cell');
-  if (c) select(Number(c.dataset.i));
+  if (!c) return;
+  const i = Number(c.dataset.i);
+  const now = performance.now();
+  const isDouble = lastTap.i === i && now - lastTap.t <= DOUBLE_TAP_MS;
+  lastTap = isDouble ? { i: -1, t: -Infinity } : { i, t: now };
+  select(i);
+  if (isDouble) fillSingle(i);
 });
+
+function fillSingle(i) {
+  if (!editable(i) || state.values[i]) return;
+  const cand = candidates(i);
+  if (popcount(cand) !== 1) return;
+  setAnswer(i, Math.log2(cand));
+  restartClass(cells[i].v, 'undo-in');
+}
+
 boardEl.addEventListener('contextmenu', (e) => {
   const c = e.target.closest('.cell');
   if (!c) return;
+  if (paused) return;
   e.preventDefault();
   const i = Number(c.dataset.i);
   select(i);
@@ -295,6 +415,7 @@ boardEl.addEventListener('contextmenu', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
+  if (paused) return;
   if (!document.getElementById('sheet').hidden) {
     if (e.key === 'Escape') closeSheet();
     return;
@@ -333,9 +454,10 @@ document.addEventListener('keydown', (e) => {
 
 /* ---------------- tools ---------------- */
 
-document.getElementById('undo').addEventListener('click', undo);
-document.getElementById('erase').addEventListener('click', () => clearCell(state.selected));
+document.getElementById('undo').addEventListener('click', () => { if (!paused) undo(); });
+document.getElementById('erase').addEventListener('click', () => { if (!paused) clearCell(state.selected); });
 document.getElementById('notes-mode').addEventListener('click', () => {
+  if (paused) return;
   state.autoNotes = !state.autoNotes;
   render();
 });
@@ -454,7 +576,7 @@ function moveGesture(e) {
   const dx = e.clientX - g.startX;
   const up = g.startY - e.clientY;
   g.maxTravel = Math.max(g.maxTravel, Math.hypot(dx, up));
-  if (!g.lifting && g.maxTravel >= TAP_MAX_TRAVEL) g.lifting = true;
+  if (!g.lifting && up > TAP_MAX_TRAVEL && up > Math.abs(dx) * 0.75) g.lifting = true;
   if (!g.lifting) return;
 
   if (g.mode) {
@@ -481,27 +603,56 @@ function moveGesture(e) {
 }
 
 function resetKey(g) {
-  g.key.classList.remove('pressed', 'armed', 'show-label', 'lifted', 'remove');
+  g.key.classList.remove('pressed', 'armed', 'show-label', 'remove');
+  releaseKey(g.key);
 }
 
-function animate(el, from, to, ms) {
-  if (!el.animate) return Promise.resolve();
-  const anim = el.animate([{ transform: from }, { transform: to }], {
+// The key's own digit stays hidden while a lifted copy belongs to it: either
+// the live gesture's lift or a flight that is still travelling back into it.
+function releaseKey(key) {
+  const held = (gesture && gesture.key === key && gesture.lift) ||
+    [...flights].some((f) => f.key === key && f.hidesKey);
+  if (!held) key.classList.remove('lifted');
+}
+
+// Every in-flight animation is registered so it can be settled synchronously
+// (jumped to its end state) when a new gesture starts on the same key.
+const flights = new Set();
+
+function fly(el, from, to, ms, { key, hidesKey = false, done }) {
+  const f = { key, hidesKey, settled: false, anim: null };
+  f.settle = () => {
+    if (f.settled) return;
+    f.settled = true;
+    flights.delete(f);
+    f.anim?.cancel();
+    el.remove();
+    done?.();
+    releaseKey(key);
+  };
+  flights.add(f);
+  if (!el.animate) {
+    f.settle();
+    return;
+  }
+  f.anim = el.animate([{ transform: from }, { transform: to }], {
     duration: ms,
     easing: EASE_OUT,
     fill: 'forwards',
   });
-  return anim.finished.catch(() => {});
+  f.anim.onfinish = f.settle;
+  f.anim.oncancel = f.settle;
+}
+
+function settleFlights(key) {
+  for (const f of [...flights]) if (f.key === key) f.settle();
 }
 
 function flyHome(g) {
-  const lift = g.lift;
-  const key = g.key;
-  const from = lift.style.transform;
-  const to = liftTransform(g.origin.x, g.origin.y);
-  animate(lift, from, to, RETURN_MS).then(() => {
-    lift.remove();
-    if (gesture?.key !== key) key.classList.remove('lifted');
+  g.key.classList.add('lifted');
+  fly(g.lift, g.lift.style.transform, liftTransform(g.origin.x, g.origin.y), RETURN_MS, {
+    key: g.key,
+    hidesKey: true,
   });
 }
 
@@ -519,13 +670,12 @@ function commitAdd(g) {
   }
   slot.classList.add('hidden-pending');
   const target = center(slot);
-  const lift = g.lift;
-  const from = lift.style.transform;
-  const to = liftTransform(target.x, target.y, noteScale(slot));
-  animate(lift, from, to, FLY_MS).then(() => {
-    lift.remove();
-    slot.classList.remove('hidden-pending');
-    flash(slot);
+  fly(g.lift, g.lift.style.transform, liftTransform(target.x, target.y, noteScale(slot)), FLY_MS, {
+    key: g.key,
+    done: () => {
+      slot.classList.remove('hidden-pending');
+      flash(slot);
+    },
   });
 }
 
@@ -534,23 +684,20 @@ function commitRemove(g) {
   const start = center(slot);
   const scale = noteScale(slot);
   toggleCandidate(g.cell, g.d);
-  if (reducedMotion.matches || !g.lift) {
-    g.lift?.remove();
-    return;
-  }
-  g.lift.remove();
+  g.lift?.remove();
+  if (reducedMotion.matches || !g.lift) return;
   const key = g.key;
   key.classList.add('lifted');
-  const fly = document.createElement('div');
-  fly.className = 'lift remove';
-  fly.textContent = g.d;
-  document.body.appendChild(fly);
+  const el = document.createElement('div');
+  el.className = 'lift remove';
+  el.textContent = g.d;
+  document.body.appendChild(el);
   const from = liftTransform(start.x, start.y, scale);
-  fly.style.transform = from;
-  animate(fly, from, liftTransform(g.origin.x, g.origin.y), FLY_MS).then(() => {
-    fly.remove();
-    if (gesture?.key !== key) key.classList.remove('lifted');
-    flash(key);
+  el.style.transform = from;
+  fly(el, from, liftTransform(g.origin.x, g.origin.y), FLY_MS, {
+    key,
+    hidesKey: true,
+    done: () => flash(key),
   });
 }
 
@@ -561,48 +708,52 @@ function flash(el) {
   setTimeout(() => el.classList.remove('flash'), 260);
 }
 
-function endGesture(e, cancelled) {
+function endGesture(cancelled) {
   const g = gesture;
   gesture = null;
   clearPreview(g);
+  if (g.key.hasPointerCapture?.(g.id)) g.key.releasePointerCapture(g.id);
   const elapsed = performance.now() - g.t0;
   const isTap = !cancelled && g.maxTravel < TAP_MAX_TRAVEL && elapsed < TAP_MAX_MS;
   const commit = !cancelled && g.armed && g.mode;
-  const mode = g.mode;
   resetKey(g);
 
   if (isTap) {
-    if (g.lift) g.lift.remove();
+    g.lift?.remove();
     if (state.selected >= 0) setAnswer(state.selected, g.d);
-    return;
-  }
-  if (commit) {
-    if (mode === 'add') commitAdd(g);
+  } else if (commit) {
+    if (g.mode === 'add') commitAdd(g);
     else commitRemove(g);
-    return;
-  }
-  if (g.lift) {
-    g.key.classList.add('lifted');
+  } else if (g.lift) {
     flyHome(g);
   }
 }
 
-keypadEl.addEventListener('pointerdown', (e) => {
-  const key = e.target.closest('.key');
-  if (!key || gesture) return;
-  if (e.button !== undefined && e.button > 0) return;
-  e.preventDefault();
-  key.setPointerCapture?.(e.pointerId);
-  gesture = startGesture(e, key);
-});
-keypadEl.addEventListener('pointermove', (e) => {
-  if (gesture && e.pointerId === gesture.id) moveGesture(e);
-});
-keypadEl.addEventListener('pointerup', (e) => {
-  if (gesture && e.pointerId === gesture.id) endGesture(e, false);
-});
-keypadEl.addEventListener('pointercancel', (e) => {
-  if (gesture && e.pointerId === gesture.id) endGesture(e, true);
+const ours = (e) => gesture && e.pointerId === gesture.id;
+
+for (const key of keys) {
+  key.addEventListener('pointerdown', (e) => {
+    if (paused || (e.button !== undefined && e.button > 0)) return;
+    e.preventDefault();
+    // A gesture still open here never received its end event (or this is a
+    // second finger); it must not block the new press.
+    if (gesture) endGesture(true);
+    settleFlights(key);
+    gesture = startGesture(e, key);
+    try { key.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
+  });
+  // Spec order is pointerup/pointercancel, then lostpointercapture, so a gesture
+  // still open at this point lost its pointer without a proper end.
+  key.addEventListener('lostpointercapture', (e) => {
+    if (ours(e) && gesture.key === key) endGesture(true);
+  });
+}
+window.addEventListener('pointermove', (e) => { if (ours(e)) moveGesture(e); });
+window.addEventListener('pointerup', (e) => { if (ours(e)) endGesture(false); });
+window.addEventListener('pointercancel', (e) => { if (ours(e)) endGesture(true); });
+window.addEventListener('blur', () => { if (gesture) endGesture(true); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && gesture) endGesture(true);
 });
 keypadEl.addEventListener('contextmenu', (e) => e.preventDefault());
 // Keeps the browser's own gesture recognizer out of keypad touches; otherwise
@@ -612,3 +763,4 @@ keypadEl.addEventListener('touchstart', (e) => {
 }, { passive: false });
 
 render();
+startCueClock();
