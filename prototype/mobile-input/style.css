@@ -3,10 +3,12 @@
   --surface: #ffffff;
   --ink: #1d2433;
   --ink-soft: #5b6475;
+  /* candidates: 7.08:1 on white, 5.32:1 on --selected-bg */
+  --cand: #5c5850;
   --given: #1f1d1a;
   /* warm grey: 13.4:1 under --given, dE00 6.9 from white, 14.0 from --same */
   --given-bg: #e9e5dc;
-  /* selected cell fill: answers 4.87:1, givens 12.6:1, candidates (--ink-soft) 4.48:1 */
+  /* selected cell fill: answers 4.87:1, givens 12.6:1, candidates 5.32:1 */
   --selected-bg: #d3e0f8;
   --entered: #2a56c6;
   --line: #c9cdd6;
@@ -211,7 +213,7 @@ html, body {
   place-items: center;
   font-size: calc(var(--cell) * 0.26);
   line-height: 1;
-  color: var(--ink-soft);
+  color: var(--cand);
   opacity: 0;
   border-radius: 3px;
 }
@@ -281,7 +283,7 @@ html, body {
 .board.quiet .cell.same:not(.conflict) { background: var(--surface); }
 .board.quiet .cell.same.given:not(.conflict) { background: var(--given-bg); }
 .board.quiet .n.on.match:not(.lone-flash) {
-  color: var(--ink-soft);
+  color: var(--cand);
   background: transparent;
   box-shadow: none;
 }
@@ -291,7 +293,7 @@ html, body {
 .board.hl-in .n.on.match:not(.lone-flash) { animation: chip-in 150ms ease-out; }
 @keyframes same-in { from { background-color: var(--surface); } }
 @keyframes chip-in {
-  from { color: var(--ink-soft); background-color: transparent; box-shadow: 0 0 0 0.5px transparent; }
+  from { color: var(--cand); background-color: transparent; box-shadow: 0 0 0 0.5px transparent; }
 }
 .v.undo-in, .n.undo-in { animation: undo-in 360ms cubic-bezier(0.22, 1, 0.36, 1); }
 @keyframes undo-in {

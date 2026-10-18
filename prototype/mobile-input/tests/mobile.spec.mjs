@@ -122,6 +122,34 @@ test.describe('selection highlight', () => {
     await peerFree(page);
   });
 
+  test('candidates on the selected fill are warm grey and pass AA (>= 4.5:1)', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(page.locator('#notes-mode'));
+    await t.tap(cell(page, EMPTY));
+    const { fg, bg } = await cell(page, EMPTY).locator('.n.on').first().evaluate((el) => ({
+      fg: getComputedStyle(el).color,
+      bg: getComputedStyle(el.closest('.cell')).backgroundColor,
+    }));
+    expect(fg).toBe('rgb(92, 88, 80)');
+    expect(bg).toBe(SELECTED_BG);
+    const lum = (rgb) => {
+      const [r, g, b] = rgb.match(/\d+/g).map((v) => {
+        const c = Number(v) / 255;
+        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const [hi, lo] = [lum(fg), lum(bg)].sort((a, b) => b - a);
+    const ratio = (hi + 0.05) / (lo + 0.05);
+    expect(ratio).toBeGreaterThanOrEqual(4.5);
+    expect(ratio).toBeCloseTo(5.32, 2);
+    // Every visible candidate on the board uses the same colour.
+    const colours = await page.locator('.n.on:not(.match):not(.lone-flash)').evaluateAll((els) =>
+      [...new Set(els.map((el) => getComputedStyle(el).color))]);
+    expect(colours).toEqual(['rgb(92, 88, 80)']);
+    await expect(page.locator('.hint')).toHaveCSS('color', 'rgb(91, 100, 117)');
+  });
+
   test('selection fill sits under the refusal flash and the drag tint', async ({ page }) => {
     const t = await touchDriver(page);
     await t.tap(cell(page, 21));
