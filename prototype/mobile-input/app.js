@@ -80,7 +80,7 @@ const USER_STATE = ['values', 'manual', 'autoAdded', 'autoRemoved'];
 function undo() {
   const prev = history.pop();
   if (!prev) return;
-  const before = Array.from({ length: 81 }, (_, i) => ({ v: value(i), n: candidates(i) }));
+  const before = boardSnapshot();
   const changed = [];
   for (let i = 0; i < 81; i++) {
     if (USER_STATE.some((k) => state[k][i] !== prev[k][i])) changed.push(i);
@@ -90,13 +90,16 @@ function undo() {
     state.selected = changed.includes(state.selected) ? state.selected : changed[0];
   }
   render();
-  animateUndo(changed, before);
+  animateChange(changed, before);
 }
 
-// Cells whose stored state changed get a ring pulse; every digit that appears
-// or disappears (including auto candidates in peers) fades/scales in or out.
+const boardSnapshot = () => Array.from({ length: 81 }, (_, i) => ({ v: value(i), n: candidates(i) }));
+
+// Used by Undo and Erase. Cells whose stored state changed get a ring pulse;
+// every digit that appears or disappears (including auto candidates in peers)
+// fades/scales in or out.
 const UNDO_MS = 360;
-function animateUndo(changed, before) {
+function animateChange(changed, before) {
   const reduce = reducedMotion.matches;
   for (const i of changed) restartClass(cells[i].el, 'undo-pulse');
   if (reduce) return;
@@ -142,22 +145,29 @@ function setAnswer(i, d) {
   return true;
 }
 
+// Erase only ever touches the answer or the active mode's own note set.
+function eraseAction(i) {
+  if (!editable(i)) return null;
+  if (state.values[i]) return 'answer';
+  if (state.autoNotes) return state.autoRemoved[i] || state.autoAdded[i] ? 'auto-overrides' : null;
+  return state.manual[i] ? 'manual-notes' : null;
+}
+
 function clearCell(i) {
-  if (!editable(i)) return;
-  if (state.values[i]) {
-    snapshot();
+  const action = eraseAction(i);
+  if (!action) return;
+  const before = boardSnapshot();
+  snapshot();
+  if (action === 'answer') {
     state.values[i] = 0;
-  } else if (state.autoNotes && (state.autoRemoved[i] || state.autoAdded[i])) {
-    snapshot();
+  } else if (action === 'auto-overrides') {
     state.autoRemoved[i] = 0;
     state.autoAdded[i] = 0;
-  } else if (!state.autoNotes && state.manual[i]) {
-    snapshot();
-    state.manual[i] = 0;
   } else {
-    return;
+    state.manual[i] = 0;
   }
   render();
+  animateChange([i], before);
 }
 
 function toggleCandidate(i, d) {
@@ -186,6 +196,9 @@ function toggleCandidate(i, d) {
 const boardEl = document.getElementById('board');
 const keypadEl = document.getElementById('keypad');
 const cells = [];
+const singleOpt = document.getElementById('opt-single');
+const eraseBtn = document.getElementById('erase');
+const singleRow = document.getElementById('opt-single-row');
 
 for (let i = 0; i < 81; i++) {
   const el = document.createElement('div');
@@ -321,7 +334,7 @@ function startCueClock() {
 }
 
 function updateLoneCue(i, d) {
-  const want = state.singleCue ? d : 0;
+  const want = state.singleCue && state.autoNotes ? d : 0;
   cells[i].el.dataset.lone = want || '';
   if (want === lone[i]) return;
   lone[i] = want;
@@ -369,6 +382,9 @@ function render() {
   const sw = document.getElementById('notes-mode');
   sw.setAttribute('aria-checked', String(state.autoNotes));
   document.getElementById('notes-mode-label').textContent = state.autoNotes ? 'Auto' : 'Manual';
+  eraseBtn.disabled = !eraseAction(sel);
+  singleOpt.disabled = !state.autoNotes;
+  singleRow.classList.toggle('disabled', !state.autoNotes);
   setComplete(filled === 81 && bad.size === 0);
 }
 
@@ -397,7 +413,7 @@ boardEl.addEventListener('pointerdown', (e) => {
 });
 
 function fillSingle(i) {
-  if (!editable(i) || state.values[i]) return;
+  if (!state.autoNotes || !editable(i) || state.values[i]) return;
   const cand = candidates(i);
   if (popcount(cand) !== 1) return;
   setAnswer(i, Math.log2(cand));
@@ -455,7 +471,7 @@ document.addEventListener('keydown', (e) => {
 /* ---------------- tools ---------------- */
 
 document.getElementById('undo').addEventListener('click', () => { if (!paused) undo(); });
-document.getElementById('erase').addEventListener('click', () => { if (!paused) clearCell(state.selected); });
+eraseBtn.addEventListener('click', () => { if (!paused) clearCell(state.selected); });
 document.getElementById('notes-mode').addEventListener('click', () => {
   if (paused) return;
   state.autoNotes = !state.autoNotes;
@@ -469,7 +485,6 @@ function closeSheet() { sheet.hidden = true; backdrop.hidden = true; }
 document.getElementById('more').addEventListener('click', openSheet);
 document.getElementById('sheet-close').addEventListener('click', closeSheet);
 backdrop.addEventListener('click', closeSheet);
-const singleOpt = document.getElementById('opt-single');
 singleOpt.checked = state.singleCue;
 singleOpt.addEventListener('change', () => {
   state.singleCue = singleOpt.checked;

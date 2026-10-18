@@ -180,66 +180,120 @@ test('auto notes compute from entered digits; manual starts empty', async ({ pag
 test.describe('single-candidate cue', () => {
   const note = (page, i, d) => cell(page, i).locator(`.n[data-d="${d}"]`);
 
-  // Fake clock, paused, with the global cue clock restarted at a known instant.
+  // Fake clock, paused, Auto notes on, global cue clock restarted at a known instant.
+  // Auto singles from the start: 40:5, 59:7, 62:4, 70:3.
+  const INITIAL = ['40:5', '59:7', '62:4', '70:3'];
   async function frozenClock(page) {
     await page.clock.install();
     await page.goto('/');
     expect(await page.evaluate(() => window.__sudoku.cueInterval)).toBe(15000);
     await page.clock.pauseAt(Date.now() + 2000);
+    const t = await touchDriver(page);
+    await t.tap(page.locator('#notes-mode'));
     await page.evaluate(() => window.__sudoku.setCueInterval(15000));
+    return t;
   }
   const lit = (page) => page.evaluate(() =>
     [...document.querySelectorAll('.n.lone-flash')].map((n) => `${n.closest('.cell').dataset.i}:${n.dataset.d}`).sort());
-  async function makeSingle(page, t, i, d) {
+  // Removes candidate `drop` from cell i so only `left` remains.
+  async function makeSingle(page, t, i, drop, left) {
     await t.tap(cell(page, i));
-    await page.keyboard.press(`Shift+Digit${d}`);
-    await expect(cell(page, i)).toHaveAttribute('data-lone', String(d));
+    await page.keyboard.press(`Shift+Digit${drop}`);
+    await expect(cell(page, i)).toHaveAttribute('data-lone', String(left));
   }
+  const sorted = (a) => [...a].sort();
 
   test('one global clock: cells that became single at different times flash in the same frame', async ({ page }) => {
-    await frozenClock(page);
-    const t = await touchDriver(page);
-    await makeSingle(page, t, EMPTY, 4);
+    const t = await frozenClock(page);
+    await makeSingle(page, t, 18, 1, 2);
     await page.clock.runFor(6_000);
-    await makeSingle(page, t, 40, 5);
+    await makeSingle(page, t, 21, 2, 3);
     await page.clock.runFor(8_900); // t = 14.9s
     expect(await lit(page)).toEqual([]);
     await page.clock.runFor(200); // t = 15.1s
-    expect(await lit(page)).toEqual(['2:4', '40:5']);
+    expect(await lit(page)).toEqual(sorted(['18:2', '21:3', ...INITIAL]));
 
-    const s = await note(page, EMPTY, 4).evaluate((el) => {
+    const s = await note(page, 18, 2).evaluate((el) => {
       const cs = getComputedStyle(el);
       return { bg: cs.backgroundColor, ring: cs.boxShadow, color: cs.color };
     });
     expect(s.bg).toBe('rgba(34, 197, 94, 0.2)');
     expect(s.ring).toContain('rgb(34, 197, 94)');
     expect(s.color).toBe('rgb(21, 128, 61)');
-    await t.tap(cell(page, 70));
-    expect(await cell(page, EMPTY).evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 255, 255)');
+    expect(await cell(page, 40).evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 255, 255)');
 
     // Becoming single mid-flash waits for the next tick.
-    await makeSingle(page, t, 70, 3);
-    expect(await lit(page)).toEqual(['2:4', '40:5']);
+    await makeSingle(page, t, 3, 6, 2);
+    expect(await lit(page)).not.toContain('3:2');
     await page.clock.runFor(1_450); // t = 16.55s
     expect(await lit(page)).toEqual([]);
     await page.clock.runFor(13_400); // t = 29.95s
     expect(await lit(page)).toEqual([]);
     await page.clock.runFor(200);
-    expect(await lit(page)).toEqual(['2:4', '40:5', '70:3']);
+    expect(await lit(page)).toEqual(sorted(['18:2', '21:3', '3:2', ...INITIAL]));
   });
 
   test('board changes never restart the clock', async ({ page }) => {
-    await frozenClock(page);
-    const t = await touchDriver(page);
-    await makeSingle(page, t, EMPTY, 4);
+    const t = await frozenClock(page);
+    await makeSingle(page, t, 18, 1, 2);
     await page.clock.runFor(10_000);
-    await page.keyboard.press('Shift+Digit2');
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-lone', '');
+    await page.keyboard.press('Shift+Digit1');
+    await expect(cell(page, 18)).toHaveAttribute('data-lone', '');
     await page.clock.runFor(2_000);
-    await page.keyboard.press('Shift+Digit2');
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-lone', '4');
+    await page.keyboard.press('Shift+Digit1');
+    await expect(cell(page, 18)).toHaveAttribute('data-lone', '2');
     await page.clock.runFor(3_100); // t = 15.1s, not 12s + 15s
-    expect(await lit(page)).toEqual(['2:4']);
+    expect(await lit(page)).toContain('18:2');
+  });
+
+  test('Manual mode: no cue, and none of its single notes flash', async ({ page }) => {
+    await page.clock.install();
+    await page.goto('/');
+    await page.clock.pauseAt(Date.now() + 2000);
+    const t = await touchDriver(page);
+    await t.tap(cell(page, EMPTY));
+    await page.keyboard.press('Shift+Digit4');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '4');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-lone', '');
+    for (let k = 0; k < 4; k++) {
+      await page.clock.runFor(8_000);
+      expect(await lit(page)).toEqual([]);
+    }
+    await t.tap(page.locator('#notes-mode'));
+    for (let k = 0; k < 40 && (await lit(page)).length === 0; k++) await page.clock.runFor(500);
+    expect(await lit(page)).toEqual(INITIAL);
+    await t.tap(page.locator('#notes-mode')); // back to Manual mid-flash: cleared at once
+    expect(await lit(page)).toEqual([]);
+  });
+
+  test('Manual mode: the setting is greyed out with a hint, and keeps its value', async ({ page }) => {
+    const t = await touchDriver(page);
+    const opt = page.locator('#opt-single');
+    await t.tap(page.locator('#more'));
+    await expect(opt).toBeDisabled();
+    await expect(opt).toBeChecked();
+    await expect(page.locator('#opt-single-hint')).toBeVisible();
+    await expect(page.locator('#opt-single-hint')).toHaveText('Only works with Auto notes');
+    expect(await page.locator('#opt-single-row').evaluate((el) => getComputedStyle(el).opacity)).toBe('0.55');
+    await t.tap(page.locator('#sheet-close'));
+
+    await t.tap(page.locator('#notes-mode'));
+    await t.tap(page.locator('#more'));
+    await expect(opt).toBeEnabled();
+    await expect(page.locator('#opt-single-hint')).toBeHidden();
+    await t.tap(opt);
+    await expect(opt).not.toBeChecked();
+    await t.tap(page.locator('#sheet-close'));
+
+    await t.tap(page.locator('#notes-mode'));
+    await t.tap(page.locator('#more'));
+    await expect(opt).toBeDisabled();
+    await expect(opt).not.toBeChecked();
+    await t.tap(page.locator('#sheet-close'));
+    await t.tap(page.locator('#notes-mode'));
+    await t.tap(page.locator('#more'));
+    await expect(opt).toBeEnabled();
+    await expect(opt).not.toBeChecked();
   });
 
   test('interval is overridable by URL param; setting defaults on and can be turned off', async ({ page }) => {
@@ -269,9 +323,8 @@ test.describe('single-candidate cue', () => {
   test('interval is overridable by test hook', async ({ page }) => {
     await page.evaluate(() => window.__sudoku.setCueInterval(500));
     const t = await touchDriver(page);
-    await t.tap(cell(page, EMPTY));
-    await page.keyboard.press('Shift+Digit1');
-    await expect(note(page, EMPTY, 1)).toHaveClass(/lone-flash/, { timeout: 1500 });
+    await t.tap(page.locator('#notes-mode'));
+    await expect(note(page, 40, 5)).toHaveClass(/lone-flash/, { timeout: 1500 });
   });
 });
 
@@ -542,17 +595,29 @@ test.describe('double-tap fills a single-candidate cell', () => {
     await t.tap(cell(page, i), { holdMs: 40 });
   }
 
-  test('manual note: fills the lone candidate as one undo step', async ({ page }) => {
+  test('Manual mode: double-tap on a single-note cell only selects', async ({ page }) => {
     const t = await touchDriver(page);
     await t.tap(cell(page, EMPTY));
-    await expect(cell(page, EMPTY)).toHaveClass(/selected/); // selection is immediate
     await page.keyboard.press('Shift+Digit4');
     await page.waitForTimeout(350);
     await doubleTap(page, t, EMPTY);
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '4');
-    await t.tap(page.locator('#undo'));
+    await expect(cell(page, EMPTY)).toHaveClass(/selected/);
     await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '');
     await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '4');
+  });
+
+  test('Auto mode: fills as one undo step, selection stays immediate', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(page.locator('#notes-mode'));
+    await t.tap(cell(page, 18));
+    await expect(cell(page, 18)).toHaveClass(/selected/);
+    await page.keyboard.press('Shift+Digit1'); // auto override leaves only 2
+    await page.waitForTimeout(350);
+    await doubleTap(page, t, 18);
+    await expect(cell(page, 18)).toHaveAttribute('data-value', '2');
+    await t.tap(page.locator('#undo'));
+    await expect(cell(page, 18)).toHaveAttribute('data-value', '');
+    await expect(cell(page, 18)).toHaveAttribute('data-notes', '2');
   });
 
   test('auto notes: uses the candidates currently shown', async ({ page }) => {
@@ -718,5 +783,142 @@ test.describe('undo animation', () => {
     await expect(cell(page, EMPTY)).toHaveClass(/undo-pulse/);
     expect(await cell(page, EMPTY).evaluate((el) => getComputedStyle(el).animationName)).toBe('undo-flash');
     await expect(page.locator('.undo-in, .undo-out')).toHaveCount(0);
+  });
+});
+
+test.describe('Erase semantics', () => {
+  const erase = (page) => page.locator('#erase');
+  const autoBtn = (page) => page.locator('#notes-mode');
+
+  test('nothing selected or a given cell: Erase is disabled and does nothing', async ({ page }) => {
+    const t = await touchDriver(page);
+    await expect(erase(page)).toBeDisabled();
+    await t.tap(cell(page, 0));
+    await expect(erase(page)).toBeDisabled();
+    await t.tap(erase(page));
+    await page.keyboard.press('0');
+    await page.keyboard.press('Backspace');
+    await expect(cell(page, 0)).toHaveAttribute('data-value', '5');
+    await t.tap(autoBtn(page));
+    await expect(erase(page)).toBeDisabled();
+  });
+
+  test('answer in Manual: clears only the answer, manual notes come back; second Erase clears them', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(cell(page, EMPTY));
+    await page.keyboard.press('Shift+Digit1');
+    await page.keyboard.press('Shift+Digit4');
+    await t.tap(key(page, 4));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '');
+    await expect(erase(page)).toBeEnabled();
+    await t.tap(erase(page));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '14');
+    await expect(erase(page)).toBeEnabled();
+    await t.tap(erase(page));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '');
+    await expect(erase(page)).toBeDisabled();
+  });
+
+  test('answer in Auto: clears only the answer, overrides come back; second Erase resets them', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(autoBtn(page));
+    await t.tap(cell(page, EMPTY));
+    await page.keyboard.press('Shift+Digit2');
+    await t.tap(key(page, 1));
+    await t.tap(erase(page));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '14');
+    await t.tap(erase(page));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '124');
+    await expect(erase(page)).toBeDisabled();
+  });
+
+  test('Auto, empty cell: disabled without overrides, enabled with them', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(autoBtn(page));
+    await t.tap(cell(page, EMPTY));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '124');
+    await expect(erase(page)).toBeDisabled();
+    await t.tap(erase(page));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '124');
+    await page.keyboard.press('Shift+Digit9');
+    await expect(erase(page)).toBeEnabled();
+    await t.tap(erase(page));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '124');
+    await expect(erase(page)).toBeDisabled();
+  });
+
+  test('Manual, empty cell: disabled without notes, enabled with them', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(cell(page, EMPTY));
+    await expect(erase(page)).toBeDisabled();
+    await page.keyboard.press('Shift+Digit3');
+    await expect(erase(page)).toBeEnabled();
+    await t.tap(erase(page));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '');
+    await expect(erase(page)).toBeDisabled();
+  });
+
+  test('erasing in Manual leaves Auto overrides intact', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(autoBtn(page));
+    await t.tap(cell(page, EMPTY));
+    await page.keyboard.press('Shift+Digit1');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '24');
+    await t.tap(autoBtn(page));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '');
+    await expect(erase(page)).toBeDisabled();
+    await page.keyboard.press('Shift+Digit7');
+    await t.tap(erase(page));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '');
+    await t.tap(autoBtn(page));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '24');
+  });
+
+  test('erasing in Auto leaves Manual notes intact', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(cell(page, EMPTY));
+    await page.keyboard.press('Shift+Digit7');
+    await page.keyboard.press('Shift+Digit8');
+    await t.tap(autoBtn(page));
+    await expect(erase(page)).toBeDisabled();
+    await page.keyboard.press('Shift+Digit2');
+    await t.tap(erase(page));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '124');
+    await t.tap(autoBtn(page));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '78');
+  });
+
+  test('each Erase is one undo step and animates', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(cell(page, EMPTY));
+    await page.keyboard.press('Shift+Digit1');
+    await t.tap(key(page, 4));
+    await t.tap(erase(page));
+    await expect(cell(page, EMPTY)).toHaveClass(/undo-pulse/);
+    await expect(cell(page, EMPTY).locator('.v')).toHaveClass(/undo-out/);
+    await expect(cell(page, EMPTY).locator('.n[data-d="1"]')).toHaveClass(/undo-in/);
+    await page.waitForTimeout(400);
+    await t.tap(erase(page));
+    await expect(cell(page, EMPTY).locator('.n[data-d="1"]')).toHaveClass(/undo-out/);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '');
+    await t.tap(page.locator('#undo'));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '');
+    await t.tap(page.locator('#undo'));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '4');
+  });
+
+  test('button state follows the selected cell', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(cell(page, 18));
+    await page.keyboard.press('Shift+Digit5');
+    await t.tap(cell(page, 0));
+    await expect(erase(page)).toBeDisabled();
+    await t.tap(cell(page, 18));
+    await expect(erase(page)).toBeEnabled();
+    await t.tap(cell(page, EMPTY));
+    await expect(erase(page)).toBeDisabled();
   });
 });

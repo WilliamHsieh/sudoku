@@ -245,6 +245,7 @@ html, body {
   touch-action: manipulation;
 }
 .tool:active { background: var(--key-pressed); }
+.tool:disabled { opacity: 0.35; cursor: default; background: transparent; }
 .tool svg {
   width: 22px;
   height: 22px;
@@ -392,6 +393,9 @@ html, body {
   padding: 8px 0;
 }
 .sheet .row small { display: block; color: var(--ink-soft); font-size: 12px; margin-top: 2px; }
+.sheet .row .only-auto { display: none; }
+.sheet .row.disabled { color: var(--ink-soft); opacity: 0.55; }
+.sheet .row.disabled .only-auto { display: block; color: var(--ink); font-weight: 600; }
 .sheet input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent); }
 .row-btn {
   appearance: none;

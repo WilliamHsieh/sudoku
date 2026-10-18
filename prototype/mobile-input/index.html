@@ -56,12 +56,13 @@
   <div class="sheet-backdrop" id="sheet-backdrop" hidden></div>
   <section class="sheet" id="sheet" role="dialog" aria-label="More options" hidden>
     <h2>Options</h2>
-    <label class="row">
+    <label class="row" id="opt-single-row">
       <span>
         <b>Single-candidate cue</b>
-        <small>Flash a cell's lone candidate every 15s</small>
+        <small>Flash lone candidates every 15s</small>
+        <small class="only-auto" id="opt-single-hint">Only works with Auto notes</small>
       </span>
-      <input type="checkbox" id="opt-single" checked />
+      <input type="checkbox" id="opt-single" checked aria-describedby="opt-single-hint" />
     </label>
     <button type="button" class="row-btn" id="opt-reset">Restart puzzle</button>
     <button type="button" class="row-btn primary" id="sheet-close">Done</button>
