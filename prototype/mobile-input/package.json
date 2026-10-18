@@ -9,7 +9,9 @@
     "test": "playwright test",
     "record": "node scripts/record.mjs recordings",
     "record:v2": "node scripts/record-v2.mjs recordings",
-    "screens:v3": "node scripts/screens-v3.mjs recordings"
+    "screens:v3": "node scripts/screens-v3.mjs recordings",
+    "screens:v4": "node scripts/screens-v4.mjs recordings",
+    "record:v4": "node scripts/record-v4.mjs recordings"
   },
   "devDependencies": {
     "@playwright/test": "1.48"
