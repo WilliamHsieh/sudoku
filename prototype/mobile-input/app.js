@@ -9,7 +9,7 @@ const RETURN_MS = 200;
 const EASE_OUT = 'cubic-bezier(0.22, 1, 0.36, 1)';
 const CUE_FLASH_MS = 1500;
 const params = new URLSearchParams(location.search);
-let cueIntervalMs = Number(params.get('cueMs')) || 15000;
+let cueIntervalMs = Number(params.get('cueMs')) || 30000;
 
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
@@ -65,43 +65,71 @@ function popcount(m) {
   return n;
 }
 
+const USER_STATE = ['values', 'manual', 'autoAdded', 'autoRemoved'];
+const redoStack = [];
+
+const capture = () => Object.fromEntries(USER_STATE.map((k) => [k, state[k].slice()]));
+
 function snapshot() {
-  history.push({
-    values: state.values.slice(),
-    manual: state.manual.slice(),
-    autoAdded: state.autoAdded.slice(),
-    autoRemoved: state.autoRemoved.slice(),
-  });
+  flushPending();
+  history.push(capture());
   if (history.length > 500) history.shift();
+  redoStack.length = 0;
 }
 
-const USER_STATE = ['values', 'manual', 'autoAdded', 'autoRemoved'];
+// Undo/redo are two-step: an amber ring lands on every affected cell first
+// (RING_IN_MS), then the change is applied with the digit fade/scale. Anything
+// that reads or edits the board flushes a pending step first.
+const RING_IN_MS = 240;
+const RING_MS = 620;
+let pending = null;
 
-function undo() {
-  const prev = history.pop();
-  if (!prev) return;
-  const before = boardSnapshot();
+function flushPending() {
+  if (!pending) return;
+  const p = pending;
+  pending = null;
+  clearTimeout(p.timer);
+  p.apply();
+}
+
+function travel(from, to) {
+  flushPending();
+  const target = from.pop();
+  if (!target) return;
+  to.push(capture());
   const changed = [];
   for (let i = 0; i < 81; i++) {
-    if (USER_STATE.some((k) => state[k][i] !== prev[k][i])) changed.push(i);
+    if (USER_STATE.some((k) => state[k][i] !== target[k][i])) changed.push(i);
   }
-  Object.assign(state, prev);
-  if (changed.length) {
-    state.selected = changed.includes(state.selected) ? state.selected : changed[0];
+  const apply = () => {
+    const before = boardSnapshot();
+    Object.assign(state, target);
+    if (changed.length) {
+      state.selected = changed.includes(state.selected) ? state.selected : changed[0];
+    }
+    render();
+    animateChange([], before);
+  };
+  for (const i of changed) restartClass(cells[i].el, 'undo-target', RING_MS);
+  if (reducedMotion.matches || !changed.length) {
+    apply();
+  } else {
+    pending = { apply, timer: setTimeout(flushPending, RING_IN_MS) };
+    renderHistoryButtons();
   }
-  render();
-  animateChange(changed, before);
 }
+
+const undo = () => travel(history, redoStack);
+const redo = () => travel(redoStack, history);
 
 const boardSnapshot = () => Array.from({ length: 81 }, (_, i) => ({ v: value(i), n: candidates(i) }));
 
-// Used by Undo and Erase. Cells whose stored state changed get a ring pulse;
-// every digit that appears or disappears (including auto candidates in peers)
-// fades/scales in or out.
+// Digits that appear or disappear (including auto candidates in peers) fade/scale
+// in or out; `ringed` cells also get the amber ring. Used by undo/redo and Erase.
 const UNDO_MS = 360;
-function animateChange(changed, before) {
+function animateChange(ringed, before) {
   const reduce = reducedMotion.matches;
-  for (const i of changed) restartClass(cells[i].el, 'undo-pulse');
+  for (const i of ringed) restartClass(cells[i].el, 'undo-target', RING_MS);
   if (reduce) return;
   for (let i = 0; i < 81; i++) {
     const { v, notes } = cells[i];
@@ -122,7 +150,8 @@ function animateChange(changed, before) {
   }
 }
 
-function restartClass(el, cls, after) {
+function restartClass(el, cls, ms = UNDO_MS, after) {
+  if (typeof ms === 'function') [ms, after] = [UNDO_MS, ms];
   el.classList.remove(cls);
   void el.offsetWidth;
   el.classList.add(cls);
@@ -130,7 +159,7 @@ function restartClass(el, cls, after) {
   el[`_${cls}`] = setTimeout(() => {
     el.classList.remove(cls);
     after?.();
-  }, UNDO_MS);
+  }, ms);
 }
 
 function editable(i) {
@@ -138,6 +167,7 @@ function editable(i) {
 }
 
 function setAnswer(i, d) {
+  flushPending();
   if (!editable(i)) return false;
   snapshot();
   state.values[i] = state.values[i] === d ? 0 : d;
@@ -154,6 +184,7 @@ function eraseAction(i) {
 }
 
 function clearCell(i) {
+  flushPending();
   const action = eraseAction(i);
   if (!action) return;
   const before = boardSnapshot();
@@ -171,6 +202,7 @@ function clearCell(i) {
 }
 
 function toggleCandidate(i, d) {
+  flushPending();
   if (!editable(i) || state.values[i]) return false;
   snapshot();
   const b = bit(d);
@@ -198,6 +230,13 @@ const keypadEl = document.getElementById('keypad');
 const cells = [];
 const singleOpt = document.getElementById('opt-single');
 const eraseBtn = document.getElementById('erase');
+const undoBtn = document.getElementById('undo');
+const redoBtn = document.getElementById('redo');
+
+function renderHistoryButtons() {
+  undoBtn.disabled = history.length === 0;
+  redoBtn.disabled = redoStack.length === 0;
+}
 const singleRow = document.getElementById('opt-single-row');
 
 for (let i = 0; i < 81; i++) {
@@ -392,6 +431,7 @@ function render() {
   sw.setAttribute('aria-checked', String(state.autoNotes));
   document.getElementById('notes-mode-label').textContent = state.autoNotes ? 'Auto' : 'Manual';
   eraseBtn.disabled = !eraseAction(sel);
+  renderHistoryButtons();
   // In Manual mode the switch reads as off; state.singleCue keeps the saved value.
   singleOpt.disabled = !state.autoNotes;
   singleOpt.setAttribute('aria-checked', String(state.autoNotes && state.singleCue));
@@ -400,6 +440,7 @@ function render() {
 }
 
 function select(i) {
+  flushPending();
   state.selected = i;
   render();
 }
@@ -409,25 +450,35 @@ function select(i) {
 // Selection happens on pointerdown (no click delay, and iOS can't swallow it as
 // part of its own double-tap handling). The second tap is detected here too.
 const DOUBLE_TAP_MS = 300;
-let lastTap = { i: -1, t: -Infinity };
+let lastTap = { i: -1, t: -Infinity, hl: 0 };
 
 boardEl.addEventListener('pointerdown', (e) => {
   if (paused || (e.button !== undefined && e.button > 0)) return;
   const c = e.target.closest('.cell');
   if (!c) return;
   const i = Number(c.dataset.i);
+  flushPending();
   const now = performance.now();
+  // The first tap moves the selection (and so the highlight); remember which
+  // digit was highlighted before it, for the second tap to use.
+  const highlighted = state.selected >= 0 ? value(state.selected) : 0;
   const isDouble = lastTap.i === i && now - lastTap.t <= DOUBLE_TAP_MS;
-  lastTap = isDouble ? { i: -1, t: -Infinity } : { i, t: now };
+  const hl = lastTap.hl;
+  lastTap = isDouble ? { i: -1, t: -Infinity, hl: 0 } : { i, t: now, hl: highlighted };
   select(i);
-  if (isDouble) fillSingle(i);
+  if (isDouble) doubleTapFill(i, hl);
 });
 
-function fillSingle(i) {
+// Auto notes only: the highlighted digit if it is one of the cell's candidates,
+// otherwise the cell's lone candidate.
+function doubleTapFill(i, highlighted) {
   if (!state.autoNotes || !editable(i) || state.values[i]) return;
   const cand = candidates(i);
-  if (popcount(cand) !== 1) return;
-  setAnswer(i, Math.log2(cand));
+  let d = 0;
+  if (highlighted && cand & bit(highlighted)) d = highlighted;
+  else if (popcount(cand) === 1) d = Math.log2(cand);
+  if (!d) return;
+  setAnswer(i, d);
   restartClass(cells[i].v, 'undo-in');
 }
 
@@ -451,7 +502,13 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeSheet();
     return;
   }
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+  const mod = e.ctrlKey || e.metaKey;
+  if (mod && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) {
+    e.preventDefault();
+    redo();
+    return;
+  }
+  if (mod && e.key.toLowerCase() === 'z') {
     e.preventDefault();
     undo();
     return;
@@ -485,10 +542,12 @@ document.addEventListener('keydown', (e) => {
 
 /* ---------------- tools ---------------- */
 
-document.getElementById('undo').addEventListener('click', () => { if (!paused) undo(); });
+undoBtn.addEventListener('click', () => { if (!paused) undo(); });
+redoBtn.addEventListener('click', () => { if (!paused) redo(); });
 eraseBtn.addEventListener('click', () => { if (!paused) clearCell(state.selected); });
 document.getElementById('notes-mode').addEventListener('click', () => {
   if (paused) return;
+  flushPending();
   state.autoNotes = !state.autoNotes;
   render();
 });
@@ -522,7 +581,9 @@ document.getElementById('confirm-ok').addEventListener('click', () => {
   state.autoAdded.fill(0);
   state.autoRemoved.fill(0);
   state.selected = -1;
+  flushPending();
   history.length = 0;
+  redoStack.length = 0;
   resetTimer();
   setConfirm(false);
   closeSheet();
@@ -566,6 +627,7 @@ function applyArmVisual(g) {
 }
 
 function startGesture(e, key) {
+  flushPending();
   const d = Number(key.dataset.d);
   const i = state.selected;
   const canNote = editable(i) && !state.values[i];

@@ -227,7 +227,7 @@ test.describe('single-candidate cue', () => {
   async function frozenClock(page) {
     await page.clock.install();
     await page.goto('/');
-    expect(await page.evaluate(() => window.__sudoku.cueInterval)).toBe(15000);
+    expect(await page.evaluate(() => window.__sudoku.cueInterval)).toBe(30000);
     await page.clock.pauseAt(Date.now() + 2000);
     const t = await touchDriver(page);
     await t.tap(page.locator('#notes-mode'));
@@ -301,7 +301,7 @@ test.describe('single-candidate cue', () => {
       expect(await lit(page)).toEqual([]);
     }
     await t.tap(page.locator('#notes-mode'));
-    for (let k = 0; k < 40 && (await lit(page)).length === 0; k++) await page.clock.runFor(500);
+    for (let k = 0; k < 80 && (await lit(page)).length === 0; k++) await page.clock.runFor(500);
     expect(await lit(page)).toEqual(INITIAL);
     await t.tap(page.locator('#notes-mode')); // back to Manual mid-flash: cleared at once
     expect(await lit(page)).toEqual([]);
@@ -768,23 +768,52 @@ test.describe('timer and pause', () => {
   });
 });
 
-test.describe('undo animation', () => {
-  test('undo selects the changed cell and fades the removed answer out', async ({ page }) => {
+test.describe('undo / redo animation', () => {
+  const ringOf = (page, i) => cell(page, i).evaluate((el) => {
+    const cs = getComputedStyle(el, '::before');
+    return { anim: cs.animationName, border: cs.borderTopColor, content: cs.content };
+  });
+
+  test('two steps: amber ring lands first, then the change applies and the cell is selected', async ({ page }) => {
+    await page.clock.install();
+    await page.goto('/');
+    await page.clock.pauseAt(Date.now() + 2000);
     const t = await touchDriver(page);
     await t.tap(cell(page, EMPTY));
     await t.tap(key(page, 4));
     await t.tap(cell(page, 40));
     await t.tap(page.locator('#undo'));
+
+    // Step one: ring on the affected cell, board unchanged, selection not yet moved.
+    await expect(cell(page, EMPTY)).toHaveClass(/undo-target/);
+    expect(await ringOf(page, EMPTY)).toEqual({ anim: 'undo-target', border: 'rgb(217, 138, 11)', content: '""' });
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '4');
+    await expect(cell(page, 40)).toHaveClass(/selected/);
+
+    // Step two at ~240ms: change applied with the fade-out, cell selected.
+    await page.clock.runFor(250);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '');
     await expect(cell(page, EMPTY)).toHaveClass(/selected/);
-    await expect(cell(page, EMPTY)).toHaveClass(/undo-pulse/);
     await expect(cell(page, EMPTY).locator('.v')).toHaveClass(/undo-out/);
     await expect(cell(page, EMPTY).locator('.v')).toHaveText('4');
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '');
-    const anim = await cell(page, EMPTY).evaluate((el) => getComputedStyle(el).animationName);
-    expect(anim).toBe('undo-ring');
-    await page.waitForTimeout(450);
-    await expect(cell(page, EMPTY)).not.toHaveClass(/undo-pulse/);
+    await page.clock.runFor(400); // ~650ms total
+    await expect(cell(page, EMPTY)).not.toHaveClass(/undo-target/);
     await expect(cell(page, EMPTY).locator('.v')).toHaveText('');
+  });
+
+  test('an edit during step one applies the pending undo first', async ({ page }) => {
+    await page.clock.install();
+    await page.goto('/');
+    await page.clock.pauseAt(Date.now() + 2000);
+    const t = await touchDriver(page);
+    await t.tap(cell(page, EMPTY));
+    await t.tap(key(page, 4));
+    await t.tap(page.locator('#undo'));
+    await t.tap(key(page, 2)); // before the 240ms step
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '2');
+    await t.tap(page.locator('#undo'));
+    await page.clock.runFor(300);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '');
   });
 
   test('restored answer and candidates animate in', async ({ page }) => {
@@ -796,7 +825,7 @@ test.describe('undo animation', () => {
     await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '4');
     await expect(cell(page, EMPTY).locator('.v')).toHaveClass(/undo-in/);
 
-    await t.swipeUp(key(page, 4), 60); // no-op: cell has an answer
+    await page.waitForTimeout(400);
     await t.tap(page.locator('#erase'));
     await t.swipeUp(key(page, 7), 60);
     await page.waitForTimeout(350);
@@ -804,7 +833,7 @@ test.describe('undo animation', () => {
     await expect(cell(page, EMPTY).locator('.n[data-d="7"]')).toHaveClass(/undo-out/);
   });
 
-  test('Erase-reset in Auto: undo animates the cell and its restored overrides', async ({ page }) => {
+  test('Erase-reset in Auto: undo rings the cell and animates its restored overrides', async ({ page }) => {
     const t = await touchDriver(page);
     await t.tap(page.locator('#notes-mode'));
     await t.tap(cell(page, EMPTY));
@@ -815,23 +844,141 @@ test.describe('undo animation', () => {
     await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '124');
     await t.tap(cell(page, 40));
     await t.tap(page.locator('#undo'));
-    await expect(cell(page, EMPTY)).toHaveClass(/selected/);
-    await expect(cell(page, EMPTY)).toHaveClass(/undo-pulse/);
+    await expect(cell(page, EMPTY)).toHaveClass(/undo-target/);
     await expect(cell(page, EMPTY).locator('.n[data-d="2"]')).toHaveClass(/undo-out/);
     await expect(cell(page, EMPTY).locator('.n[data-d="8"]')).toHaveClass(/undo-in/);
+    await expect(cell(page, EMPTY)).toHaveClass(/selected/);
     await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '148');
   });
 
-  test('reduced motion: color flash only', async ({ page }) => {
+  test('reduced motion: static ring, instant change', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     const t = await touchDriver(page);
     await t.tap(cell(page, EMPTY));
     await t.tap(key(page, 4));
     await t.tap(page.locator('#undo'));
-    await expect(cell(page, EMPTY)).toHaveClass(/undo-pulse/);
-    expect(await cell(page, EMPTY).evaluate((el) => getComputedStyle(el).animationName)).toBe('undo-flash');
+    expect(await cell(page, EMPTY).getAttribute('data-value')).toBe('');
+    await expect(cell(page, EMPTY)).toHaveClass(/undo-target/);
+    expect(await ringOf(page, EMPTY)).toEqual({ anim: 'none', border: 'rgb(217, 138, 11)', content: '""' });
     await expect(page.locator('.undo-in, .undo-out')).toHaveCount(0);
   });
+});
+
+test.describe('redo', () => {
+  const undoBtn = (page) => page.locator('#undo');
+  const redoBtn = (page) => page.locator('#redo');
+
+  test('disabled with nothing to redo; redo after undo restores and animates', async ({ page }) => {
+    const t = await touchDriver(page);
+    await expect(undoBtn(page)).toBeDisabled();
+    await expect(redoBtn(page)).toBeDisabled();
+    await t.tap(cell(page, EMPTY));
+    await t.tap(key(page, 4));
+    await t.tap(cell(page, 18));
+    await page.keyboard.press('Shift+Digit2');
+    await expect(redoBtn(page)).toBeDisabled();
+    await t.tap(undoBtn(page));
+    await t.tap(undoBtn(page));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '');
+    await expect(undoBtn(page)).toBeDisabled();
+    await expect(redoBtn(page)).toBeEnabled();
+
+    await t.tap(cell(page, 40));
+    await t.tap(redoBtn(page));
+    await expect(cell(page, EMPTY)).toHaveClass(/undo-target/);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '4');
+    await expect(cell(page, EMPTY)).toHaveClass(/selected/);
+    await expect(cell(page, EMPTY).locator('.v')).toHaveClass(/undo-in/);
+    await t.tap(redoBtn(page));
+    await expect(cell(page, 18)).toHaveAttribute('data-notes', '2');
+    await expect(redoBtn(page)).toBeDisabled();
+    await expect(undoBtn(page)).toBeEnabled();
+  });
+
+  test('a new edit clears the redo stack', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(cell(page, EMPTY));
+    await t.tap(key(page, 4));
+    await t.tap(undoBtn(page));
+    await expect(redoBtn(page)).toBeEnabled();
+    await t.swipeUp(key(page, 1), 60);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1');
+    await expect(redoBtn(page)).toBeDisabled();
+    await t.tap(redoBtn(page));
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '');
+  });
+});
+
+test.describe('double-tap: highlighted digit', () => {
+  async function doubleTap(page, t, i) {
+    await t.tap(cell(page, i), { holdMs: 40 });
+    await page.waitForTimeout(110);
+    await t.tap(cell(page, i), { holdMs: 40 });
+  }
+
+  test('fills the highlighted digit on a multi-candidate cell, one undo step', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(page.locator('#notes-mode'));
+    await t.tap(cell(page, 0)); // given 5 highlighted
+    await expect(cell(page, 37).locator('.n[data-d="5"]')).toHaveClass(/match/);
+    await expect(cell(page, 37)).toHaveAttribute('data-notes', '25');
+    await page.waitForTimeout(350);
+    await doubleTap(page, t, 37);
+    await expect(cell(page, 37)).toHaveAttribute('data-value', '5');
+    await t.tap(page.locator('#undo'));
+    await expect(cell(page, 37)).toHaveAttribute('data-value', '');
+    await expect(cell(page, 37)).toHaveAttribute('data-notes', '25');
+  });
+
+  test('a highlighted digit that is not a candidate falls back to the lone candidate', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(page.locator('#notes-mode'));
+    await t.tap(cell(page, 4)); // given 7 highlighted; r5c5 can only be 5
+    await page.waitForTimeout(350);
+    await doubleTap(page, t, 40);
+    await expect(cell(page, 40)).toHaveAttribute('data-value', '5');
+  });
+
+  test('no highlighted digit: lone candidate fills, multi-candidate only selects', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(page.locator('#notes-mode'));
+    await t.tap(cell(page, 3)); // empty, nothing highlighted
+    await page.waitForTimeout(350);
+    await doubleTap(page, t, 37);
+    await expect(cell(page, 37)).toHaveAttribute('data-value', '');
+    await page.waitForTimeout(350);
+    await doubleTap(page, t, 40);
+    await expect(cell(page, 40)).toHaveAttribute('data-value', '5');
+  });
+
+  test('Manual mode: highlighted digit does not fill', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(cell(page, 37));
+    await page.keyboard.press('Shift+Digit2');
+    await page.keyboard.press('Shift+Digit5');
+    await t.tap(cell(page, 0));
+    await expect(cell(page, 37).locator('.n[data-d="5"]')).toHaveClass(/match/);
+    await page.waitForTimeout(350);
+    await doubleTap(page, t, 37);
+    await expect(cell(page, 37)).toHaveClass(/selected/);
+    await expect(cell(page, 37)).toHaveAttribute('data-value', '');
+  });
+});
+
+test('pause card hides the board border entirely', async ({ page }) => {
+  const t = await touchDriver(page);
+  await t.tap(page.locator('#pause'));
+  expect(await page.locator('#board').evaluate((el) => getComputedStyle(el).visibility)).toBe('hidden');
+  const r = await page.locator('#paused-cover').evaluate((el) => getComputedStyle(el).borderRadius);
+  expect(r).toBe(await page.locator('#board').evaluate((el) => getComputedStyle(el).borderRadius));
+});
+
+test('emphasised-candidate colour comes from --cand-emph', async ({ page }) => {
+  const t = await touchDriver(page);
+  await t.tap(page.locator('#notes-mode'));
+  await page.evaluate(() => document.documentElement.style.setProperty('--cand-emph', 'rgb(180, 83, 9)'));
+  await t.tap(cell(page, 0));
+  expect(await cell(page, 37).locator('.n[data-d="5"]').evaluate((el) => getComputedStyle(el).color)).toBe('rgb(180, 83, 9)');
 });
 
 test.describe('Erase semantics', () => {
@@ -944,7 +1091,7 @@ test.describe('Erase semantics', () => {
     await page.keyboard.press('Shift+Digit1');
     await t.tap(key(page, 4));
     await t.tap(erase(page));
-    await expect(cell(page, EMPTY)).toHaveClass(/undo-pulse/);
+    await expect(cell(page, EMPTY)).toHaveClass(/undo-target/);
     await expect(cell(page, EMPTY).locator('.v')).toHaveClass(/undo-out/);
     await expect(cell(page, EMPTY).locator('.n[data-d="1"]')).toHaveClass(/undo-in/);
     await page.waitForTimeout(400);

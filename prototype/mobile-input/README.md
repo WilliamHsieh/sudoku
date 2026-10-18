@@ -6,17 +6,20 @@ input model. It does not touch the main app.
 - Tap a key: write that digit as the answer (tap the same key again to clear).
 - Swipe up on a key (~28px arms, below ~22px disarms): toggle that digit as a
   candidate in the selected cell.
-- Tools: Undo (animates the cells it changed), Erase, Notes Auto/Manual switch,
-  More (single-candidate cue setting).
+- Tools: Undo, Redo (two-step: an amber ring lands on each affected cell, then
+  the change applies), Erase, Notes Auto/Manual switch, More.
 - Erase: disabled on givens. Clears the answer first (the cell's notes come back).
   On an empty cell it resets Auto overrides (Auto mode) or clears manual notes
   (Manual mode), never the other mode's set. Disabled when there is nothing to erase.
 - Auto notes only: one global clock flashes every single-candidate note for 1.5s
-  every 15s (override with `?cueMs=3000` or `window.__sudoku.setCueInterval(ms)`),
-  and double-tapping a single-candidate cell fills it.
+  every 30s (override with `?cueMs=3000` or `window.__sudoku.setCueInterval(ms)`).
+  Double-tapping a cell writes the digit that was highlighted before the first tap
+  if it is one of the cell's candidates, else the cell's lone candidate.
+- Emphasised-candidate colour is the `--cand-emph` custom property.
 - Timer with pause/resume; pauses itself when the page is hidden.
 - Desktop: click to select, arrows move, `1`-`9` answer, `Shift`+`1`-`9` candidate,
-  `0`/`Backspace`/right-click clear, `Ctrl`/`Cmd`+`Z` undo.
+  `0`/`Backspace`/right-click clear, `Ctrl`/`Cmd`+`Z` undo,
+  `Ctrl`/`Cmd`+`Shift`+`Z` or `Ctrl`+`Y` redo.
 
 ## Run
 

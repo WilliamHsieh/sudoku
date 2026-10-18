@@ -13,6 +13,8 @@
   --conflict-bg: #fbe4e4;
   --single: #2f9e5a;
   --accent: #2f5bd3;
+  --cand-emph: var(--accent);
+  --undo-ring: #d98a0b;
   --key: #ffffff;
   --key-pressed: #eef1f7;
   --radius: 12px;
@@ -92,7 +94,7 @@ html, body {
   position: absolute;
   inset: 0;
   z-index: 20;
-  border-radius: 10px;
+  border-radius: 6px;
   background: #ebe8e1;
   display: flex;
   flex-direction: column;
@@ -128,6 +130,7 @@ html, body {
   color: #fff;
   cursor: pointer;
 }
+.paused .board { visibility: hidden; }
 .paused .tools, .paused .keypad { opacity: 0.4; pointer-events: none; }
 
 /* ---------- board ---------- */
@@ -204,7 +207,7 @@ html, body {
 }
 .n.on { opacity: 1; }
 .n.on.match {
-  color: var(--accent);
+  color: var(--cand-emph);
   font-weight: 800;
   transform: scale(1.18);
 }
@@ -221,10 +224,22 @@ html, body {
   box-shadow: 0 0 0 1px #22c55e, 0 0 5px rgb(34 197 94 / 0.3);
   animation: lone-glow 1.5s ease-in-out;
 }
-.cell.undo-pulse { animation: undo-ring 360ms ease-out; z-index: 2; }
-@keyframes undo-ring {
-  0% { box-shadow: inset 0 0 0 3px var(--accent); background-color: color-mix(in srgb, var(--accent) 28%, var(--surface)); }
-  100% { box-shadow: inset 0 0 0 0 transparent; }
+.cell.undo-target { z-index: 3; }
+.cell.undo-target::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border: 2.5px solid var(--undo-ring);
+  border-radius: 4px;
+  box-shadow: 0 0 0 3px rgb(217 138 11 / 0.18);
+  pointer-events: none;
+  animation: undo-target 620ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes undo-target {
+  0% { opacity: 0; transform: scale(1.9); }
+  38% { opacity: 1; transform: scale(1); }
+  75% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1); }
 }
 .v.undo-in, .n.undo-in { animation: undo-in 360ms cubic-bezier(0.22, 1, 0.36, 1); }
 @keyframes undo-in {
@@ -248,7 +263,7 @@ html, body {
 /* ---------- tools ---------- */
 .tools {
   display: grid;
-  grid-template-columns: 1fr 1fr 1.6fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr 1.5fr 1fr;
   gap: 6px;
 }
 .tool {
@@ -488,8 +503,5 @@ html, body {
   .key, .key::before, .key .label, .switch, .knob { transition: none; }
   .key.pressed { transform: none; }
   .n.flash, .key.flash, .n.on.lone-flash { animation: none; }
-  .cell.undo-pulse { animation: undo-flash 220ms linear; }
-  @keyframes undo-flash {
-    from { background-color: color-mix(in srgb, var(--accent) 30%, var(--surface)); }
-  }
+  .cell.undo-target::before { animation: none; }
 }

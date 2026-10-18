@@ -36,6 +36,10 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></svg>
         <span>Undo</span>
       </button>
+      <button class="tool" id="redo" type="button" aria-label="Redo">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 14 5-5-5-5" /><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" /></svg>
+        <span>Redo</span>
+      </button>
       <button class="tool" id="erase" type="button" aria-label="Erase">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 21-4.3-4.3a1 1 0 0 1 0-1.4l10-10a1 1 0 0 1 1.4 0l5.6 5.6a1 1 0 0 1 0 1.4L13 19" /><path d="M22 21H7" /><path d="m5 11 9 9" /></svg>
         <span>Erase</span>
@@ -60,7 +64,7 @@
     <div class="row" id="opt-single-row">
       <span>
         <b id="opt-single-title">Single-candidate cue</b>
-        <small id="opt-single-desc">Flash lone candidates every 15s</small>
+        <small id="opt-single-desc">Flash lone candidates every 30s</small>
         <small class="only-auto" id="opt-single-hint">Only available with Auto notes</small>
       </span>
       <button type="button" class="opt-switch" id="opt-single" role="switch" aria-checked="true"

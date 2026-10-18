@@ -98,3 +98,15 @@ test('double-click fills a single-candidate cell; pause blocks keys', async ({ p
   await page.keyboard.press('Control+z');
   await expect(cell(page, 40)).toHaveAttribute('data-value', '');
 });
+
+test('redo shortcuts: Ctrl/Cmd+Shift+Z and Ctrl+Y', async ({ page }) => {
+  await cell(page, EMPTY).click();
+  await page.keyboard.press('4');
+  for (const combo of ['Control+Shift+z', 'Meta+Shift+z', 'Control+y']) {
+    await page.keyboard.press('Control+z');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '');
+    await page.keyboard.press(combo);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '4');
+  }
+  await expect(page.locator('#redo')).toBeDisabled();
+});
