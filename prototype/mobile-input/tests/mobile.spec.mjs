@@ -1607,4 +1607,72 @@ test.describe('no double-tap zoom', () => {
     expect(ends).toEqual([false, true, true, true, true]);
     expect(await page.evaluate(() => window.visualViewport.scale)).toBe(1);
   });
+
+  const recordEnds = (page) => page.evaluate(() => {
+    window.__ends = [];
+    addEventListener('touchend', (e) => window.__ends.push(e.defaultPrevented), false);
+  });
+  const ends = (page) => page.evaluate(() => window.__ends);
+  async function doubleTap(t, loc) {
+    await t.tap(loc, { holdMs: 40 });
+    await loc.page().waitForTimeout(90);
+    await t.tap(loc, { holdMs: 40 });
+  }
+
+  test('every control and the page itself opt into touch-action: manipulation, disabled ones too', async ({ page }) => {
+    const ta = await page.evaluate(() => Object.fromEntries(
+      ['html', 'body', '#pause', '#undo', '#redo', '#erase', '#notes-mode', '#more', '#opt-single', '#opt-reset', '#sheet-close', '#confirm-ok']
+        .map((s) => [s, getComputedStyle(document.querySelector(s)).touchAction])));
+    for (const [sel, v] of Object.entries(ta)) expect(v, sel).toBe('manipulation');
+    await expect(page.locator('#redo')).toBeDisabled();
+    expect(await page.locator('#redo').evaluate((el) => getComputedStyle(el).pointerEvents)).toBe('none');
+  });
+
+  test('double-tap on disabled Undo, Redo and Erase is cancelled, does nothing, and never zooms', async ({ page }) => {
+    const t = await touchDriver(page);
+    await recordEnds(page);
+    for (const id of ['#undo', '#redo', '#erase']) {
+      await expect(page.locator(id)).toBeDisabled();
+      // The touch lands on the toolbar, not the disabled button.
+      const hit = await page.locator(id).evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2).closest('.tools') !== null;
+      });
+      expect(hit).toBe(true);
+      await doubleTap(t, page.locator(id));
+      await page.waitForTimeout(400);
+    }
+    expect(await ends(page)).toEqual([false, true, false, true, false, true]);
+    expect(await page.evaluate(() => window.visualViewport.scale)).toBe(1);
+    await expect(page.locator('#undo')).toBeDisabled();
+  });
+
+  test('double-tap on an enabled Undo is cancelled too, and both presses still undo', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(cell(page, EMPTY));
+    await t.tap(key(page, 4));
+    await t.tap(key(page, 4));
+    await page.waitForTimeout(400);
+    await recordEnds(page);
+    await doubleTap(t, page.locator('#undo'));
+    expect(await ends(page)).toEqual([false, true]);
+    await expect(page.locator('#undo')).toBeDisabled();
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '');
+    expect(await page.evaluate(() => window.visualViewport.scale)).toBe(1);
+  });
+
+  test('top bar, settings sheet and restart dialog: quick second taps are cancelled', async ({ page }) => {
+    const t = await touchDriver(page);
+    await recordEnds(page);
+    await doubleTap(t, page.locator('.top h1, .top .title').first());
+    await page.waitForTimeout(400);
+    await t.tap(page.locator('#more'));
+    await page.waitForTimeout(400);
+    await doubleTap(t, page.locator('#opt-single')); // disabled in Manual mode
+    await page.waitForTimeout(400);
+    await doubleTap(t, page.locator('#opt-reset'));
+    await expect(page.locator('#confirm-restart')).toBeVisible();
+    expect(await ends(page)).toEqual([false, true, false, false, true, false, true]);
+    expect(await page.evaluate(() => window.visualViewport.scale)).toBe(1);
+  });
 });

@@ -994,5 +994,21 @@ for (const el of [boardEl, keypadEl]) {
   }, { passive: false });
 }
 
+// Everywhere else (tools, top bar, sheet, dialogs, gaps between them): cancel the
+// second touchend of a quick double tap so iOS cannot zoom, and replay the click
+// that cancelling swallows so rapid presses on enabled buttons still count.
+const ZOOM_TAP_MS = 350;
+let lastZoomTouch = { t: -Infinity, x: 0, y: 0 };
+document.addEventListener('touchend', (e) => {
+  if (e.touches.length || e.changedTouches.length !== 1) return;
+  const { clientX: x, clientY: y } = e.changedTouches[0];
+  const quick = e.timeStamp - lastZoomTouch.t < ZOOM_TAP_MS && Math.hypot(x - lastZoomTouch.x, y - lastZoomTouch.y) < 40;
+  lastZoomTouch = { t: e.timeStamp, x, y };
+  if (!quick || e.defaultPrevented) return;
+  e.preventDefault();
+  const btn = e.target.closest?.('button');
+  if (btn && !btn.disabled) btn.click();
+}, { passive: false });
+
 render();
 startCueClock();

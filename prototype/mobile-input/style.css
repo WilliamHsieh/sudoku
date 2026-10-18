@@ -33,6 +33,7 @@
 
 html, body {
   margin: 0;
+  touch-action: manipulation;
   height: 100%;
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
@@ -333,6 +334,10 @@ html, body {
 }
 .tool:active { background: var(--key-pressed); }
 .tool:disabled { opacity: 0.35; cursor: default; background: transparent; }
+/* Disabled controls drop out of hit testing so a tap lands on their container,
+   whose touch-action and the document touchend guard still apply. */
+button, [role="switch"] { touch-action: manipulation; }
+button:disabled { pointer-events: none; }
 .tool svg {
   width: 22px;
   height: 22px;
