@@ -1176,6 +1176,64 @@ test.describe('illegal candidates are refused', () => {
     await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '5');
   });
 
+  test('drag-time hint: no ghost, "Not allowed" label, blockers tinted while dragging', async ({ page }) => {
+    const t = await frozen(page);
+    await t.tap(cell(page, EMPTY));
+    const k = key(page, 3);
+    const p = await t.center(k);
+    await t.start(p.x, p.y);
+    await t.move(p.x, p.y - 15);
+    await expect(k.locator('.label')).toHaveText('Not allowed');
+    await expect(k.locator('.label')).toHaveCSS('color', 'rgb(217, 84, 30)');
+    await expect(page.locator('.n.preview-add, .n.preview-remove')).toHaveCount(0);
+    const tinted = () => page.locator('.cell.blocking').evaluateAll((els) => els.map((el) => el.dataset.i).sort());
+    expect(await tinted()).toEqual(BLOCKERS);
+    const tint = await cell(page, 78).evaluate((el) => getComputedStyle(el).boxShadow);
+    expect(tint).toContain('inset');
+    await t.move(p.x, p.y - 40); // the arm threshold can still be crossed
+    await expect(k).toHaveClass(/armed/);
+    await page.clock.runFor(2000); // the tint lasts as long as the drag
+    expect(await tinted()).toEqual(BLOCKERS);
+    await t.end(p.x, p.y - 40);
+    expect(await tinted()).toEqual([]);
+    expect(await blocked(page)).toEqual(BLOCKERS); // release turns it into the flash
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '');
+    await expect(page.locator('#undo')).toBeDisabled();
+
+    // Below the threshold it still glides back and flashes.
+    await page.clock.runFor(400);
+    await t.start(p.x, p.y);
+    await t.move(p.x, p.y - 15);
+    await t.end(p.x, p.y - 15);
+    expect(await blocked(page)).toEqual(BLOCKERS);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '');
+
+    // Removing is unchanged: a legal digit added, then dragged again, shows "− candidate".
+    await page.clock.runFor(400);
+    await t.swipeUp(key(page, 5), 60);
+    const k5 = key(page, 5);
+    const p5 = await t.center(k5);
+    await t.start(p5.x, p5.y);
+    await t.move(p5.x, p5.y - 15);
+    await expect(k5.locator('.label')).toHaveText('\u2212 candidate');
+    await expect(cell(page, EMPTY).locator('.n[data-d="5"]')).toHaveClass(/preview-remove/);
+    expect(await tinted()).toEqual([]);
+    await t.end(p5.x, p5.y - 15);
+  });
+
+  test('drag-time hint under reduced motion is the same static tint', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const t = await frozen(page);
+    await t.tap(cell(page, EMPTY));
+    const p = await t.center(key(page, 3));
+    await t.start(p.x, p.y);
+    await t.move(p.x, p.y - 40);
+    await expect(cell(page, 78)).toHaveClass(/blocking/);
+    expect(await cell(page, 78).evaluate((el) => getComputedStyle(el).animationName)).toBe('none');
+    await t.end(p.x, p.y - 40);
+    await expect(cell(page, 78)).not.toHaveClass(/blocking/);
+  });
+
   test('Auto: a refused swipe leaves the computed candidates and history alone', async ({ page }) => {
     const t = await frozen(page);
     await t.tap(page.locator('#notes-mode'));

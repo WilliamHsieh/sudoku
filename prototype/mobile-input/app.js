@@ -729,6 +729,7 @@ function startGesture(e, key) {
   const i = state.selected;
   const canNote = editable(i) && !state.values[i];
   const mode = canNote ? (hasCandidate(i, d) ? 'remove' : 'add') : null;
+  const blockers = mode === 'add' && isAdd(i, d) ? blockersOf(i, d) : [];
   const g = {
     id: e.pointerId,
     key,
@@ -745,18 +746,21 @@ function startGesture(e, key) {
     origin: center(key.querySelector('.digit')),
     offset: { x: 0, y: 0 },
     previewEl: null,
+    blockers,
+    hinting: false,
   };
   key.classList.add('pressed');
   key.classList.toggle('remove', mode === 'remove');
-  key.querySelector('.label').textContent =
-    mode === 'remove' ? '\u2212 candidate' : mode === 'add' ? '+ candidate' : '';
+  key.classList.toggle('illegal', blockers.length > 0);
+  key.querySelector('.label').textContent = blockers.length ? 'Not allowed'
+    : mode === 'remove' ? '\u2212 candidate' : mode === 'add' ? '+ candidate' : '';
   return g;
 }
 
 function ensureLift(g) {
   if (g.lift) return;
   const lift = document.createElement('div');
-  lift.className = `lift ${g.mode || ''}`;
+  lift.className = `lift ${g.blockers.length ? 'illegal' : g.mode || ''}`;
   lift.textContent = g.d;
   document.body.appendChild(lift);
   g.lift = lift;
@@ -784,7 +788,10 @@ function moveGesture(e) {
 
   if (g.mode) {
     g.key.classList.add('show-label');
-    if (!g.previewEl) {
+    if (g.blockers.length) {
+      if (!g.hinting) for (const p of g.blockers) cells[p].el.classList.add('blocking');
+      g.hinting = true;
+    } else if (!g.previewEl) {
       g.previewEl = noteEl(g.cell, g.d);
       g.previewEl.classList.add(g.mode === 'add' ? 'preview-add' : 'preview-remove');
     }
@@ -805,8 +812,18 @@ function moveGesture(e) {
   }
 }
 
+// An illegal add tints its blockers for the whole drag; a real release turns
+// the tint into the usual refusal flash.
+function endHint(g, flash) {
+  if (!g.hinting) return;
+  for (const p of g.blockers) {
+    cells[p].el.classList.remove('blocking');
+    if (flash) restartClass(cells[p].el, 'blocked', BLOCKED_MS);
+  }
+}
+
 function resetKey(g) {
-  g.key.classList.remove('pressed', 'armed', 'show-label', 'remove');
+  g.key.classList.remove('pressed', 'armed', 'show-label', 'remove', 'illegal');
   releaseKey(g.key);
 }
 
@@ -919,12 +936,13 @@ function endGesture(cancelled) {
   const elapsed = performance.now() - g.t0;
   const isTap = !cancelled && g.maxTravel < TAP_MAX_TRAVEL && elapsed < TAP_MAX_MS;
   const commit = !cancelled && g.armed && g.mode;
+  endHint(g, !cancelled);
   resetKey(g);
 
   if (isTap) {
     g.lift?.remove();
     if (state.selected >= 0) setAnswer(state.selected, g.d);
-  } else if (commit && g.mode === 'add' && editable(g.cell) && !state.values[g.cell] && refusedAdd(g.cell, g.d)) {
+  } else if (commit && g.blockers.length) {
     if (g.lift) flyHome(g);
   } else if (commit) {
     if (g.mode === 'add') commitAdd(g);

@@ -242,6 +242,10 @@ html, body {
   animation: undo-target var(--ring-ms, 620ms) cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 .cell.blocked { animation: blocked 300ms ease-out; }
+.cell.blocking {
+  background-color: color-mix(in srgb, var(--undo-ring) 24%, var(--surface));
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--undo-ring) 70%, transparent);
+}
 @keyframes blocked {
   from {
     background-color: color-mix(in srgb, var(--undo-ring) 24%, var(--surface));
@@ -389,6 +393,7 @@ html, body {
 .key.pressed { transform: scale(0.95); background: var(--key-pressed); }
 .key.armed::before { background: var(--accent); }
 .key.armed.remove::before { background: var(--conflict); }
+.key.armed.illegal::before { background: var(--undo-ring); }
 .key .digit {
   font-size: 28px;
   font-weight: 500;
@@ -409,6 +414,7 @@ html, body {
   transition: opacity 80ms ease-out;
 }
 .key.remove .label { color: var(--conflict); }
+.key.illegal .label { color: var(--undo-ring); }
 .key.show-label .label { opacity: 1; }
 .key.flash { animation: key-flash 220ms ease-out; }
 @keyframes key-flash {
@@ -430,6 +436,7 @@ html, body {
 }
 .lift.add { color: var(--accent); }
 .lift.remove { color: var(--conflict); }
+.lift.illegal { color: var(--undo-ring); }
 
 .hint {
   margin: 0;
