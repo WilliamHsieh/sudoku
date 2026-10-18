@@ -1,0 +1,12 @@
+{
+  "name": "sudoku-mobile-input",
+  "private": true,
+  "scripts": {
+    "start": "python3 -m http.server 4173 --bind 127.0.0.1",
+    "test": "playwright test",
+    "demo": "node demo.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1"
+  }
+}

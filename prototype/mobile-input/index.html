@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Sudoku</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header>
+        <h1>Sudoku</h1>
+        <p class="hint">Tap a number to answer. Swipe up to toggle a note.</p>
+      </header>
+      <div id="board" class="board" role="grid" aria-label="Sudoku board"></div>
+      <div class="spacer" aria-hidden="true"></div>
+      <div class="tools" role="toolbar" aria-label="Tools">
+        <button type="button" class="tool" id="undo" disabled>
+          <span class="tool-label">Undo</span>
+        </button>
+        <button type="button" class="tool" id="erase" disabled>
+          <span class="tool-label">Erase</span>
+        </button>
+        <button type="button" class="tool mode" id="mode" data-mode="auto" aria-pressed="true">
+          <span class="tool-label" id="mode-label">Auto</span>
+          <span class="tool-sub">notes</span>
+        </button>
+        <button type="button" class="tool" id="more" aria-expanded="false" aria-controls="sheet">
+          <span class="tool-label">More</span>
+        </button>
+      </div>
+      <div id="keys" class="keys" aria-label="Digits"></div>
+    </div>
+
+    <div id="sheet" class="sheet" hidden>
+      <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+        <h2 id="sheet-title">More</h2>
+        <label class="switch-row">
+          <input type="checkbox" id="cue-toggle" checked />
+          <span class="switch-ui" aria-hidden="true"></span>
+          <span class="switch-copy">
+            <span class="switch-name">Single-candidate cue</span>
+            <span class="switch-help">When a cell has one candidate left, that small digit flashes green for a moment every 15 seconds. It uses your notes, never the solution.</span>
+          </span>
+        </label>
+        <button type="button" class="sheet-done" id="sheet-close">Done</button>
+      </div>
+    </div>
+
+    <div id="finger" class="finger" hidden></div>
+    <script src="app.js"></script>
+  </body>
+</html>
