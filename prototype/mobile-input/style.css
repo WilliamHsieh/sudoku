@@ -6,6 +6,8 @@
   --given: #1f1d1a;
   /* warm grey: 13.4:1 under --given, dE00 6.9 from white, 14.0 from --same */
   --given-bg: #e9e5dc;
+  /* selected cell fill: answers 4.87:1, givens 12.6:1, candidates (--ink-soft) 4.48:1 */
+  --selected-bg: #d3e0f8;
   --entered: #2a56c6;
   --line: #c9cdd6;
   --line-strong: #1d2433;
@@ -173,18 +175,18 @@ html, body {
 .cell.given { background: var(--given-bg); }
 .cell.same { background: var(--same); }
 .cell.selected {
-  background: var(--surface);
+  background: var(--selected-bg);
   box-shadow: inset 0 0 0 2px var(--accent);
   z-index: 1;
 }
 
 .cell .v { line-height: 1; }
-.cell.given.selected { background: var(--given-bg); }
+.cell.given.selected { background: var(--selected-bg); }
 .cell.given .v { color: var(--given); font-weight: 600; }
 .cell.user .v { color: var(--entered); }
 
 .cell.conflict .v { color: var(--conflict); }
-.cell.conflict:not(.selected) { background: var(--conflict-bg); }
+.board .cell.conflict { background: var(--conflict-bg); }
 .cell.conflict::after {
   content: "";
   position: absolute;

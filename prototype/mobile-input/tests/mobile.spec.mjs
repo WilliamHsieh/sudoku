@@ -8,6 +8,7 @@ const key = (page, d) => page.locator(`.key[data-d="${d}"]`);
 // 4 is illegal there (row, column and box), as are 2, 5, 6 and 8.
 const EMPTY = 75;
 const GIVEN_BG = 'rgb(233, 229, 220)';
+const SELECTED_BG = 'rgb(211, 224, 248)';
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
@@ -46,7 +47,7 @@ test.describe('selection highlight', () => {
     const eights = await page.locator('.cell[data-value="8"]').count();
     await expect(page.locator('.cell.same')).toHaveCount(eights - 1);
     expect(await cell(page, 21).evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(250, 236, 180)');
-    expect(await cell(page, 1).evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(GIVEN_BG);
+    expect(await cell(page, 1).evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(SELECTED_BG);
     expect(await cell(page, 1).evaluate((el) => getComputedStyle(el).boxShadow)).toContain('rgb(42, 86, 198)');
     await peerFree(page);
 
@@ -73,7 +74,7 @@ test.describe('selection highlight', () => {
     expect(new Set(matched)).toEqual(new Set(['8']));
   });
 
-  test('given cells: warm grey fill; yellow, selection ring, conflict and flashes take precedence', async ({ page }) => {
+  test('given cells: warm grey fill; yellow, selection fill, conflict and flashes take precedence', async ({ page }) => {
     await page.clock.install();
     await page.goto('/');
     await page.clock.pauseAt(Date.now() + 2000);
@@ -83,16 +84,19 @@ test.describe('selection highlight', () => {
     await expect(cell(page, 1).locator('.v')).toHaveCSS('color', 'rgb(31, 29, 26)');
     expect(await bg(EMPTY)).toBe('rgb(255, 255, 255)');
 
-    await t.tap(cell(page, 21)); // given 8: the selected given keeps its grey under the blue ring
-    expect(await bg(21)).toBe(GIVEN_BG);
+    await t.tap(cell(page, 21)); // given 8: the selected given turns blue under the blue ring
+    expect(await bg(21)).toBe(SELECTED_BG);
     expect(await cell(page, 21).evaluate((el) => getComputedStyle(el).boxShadow)).toContain('rgb(42, 86, 198)');
     expect(await bg(1)).toBe('rgb(250, 236, 180)'); // same digit: yellow replaces grey
     expect(await bg(77)).toBe('rgb(250, 236, 180)');
 
     await t.tap(cell(page, 9));
+    expect(await bg(9)).toBe(SELECTED_BG);
     await t.tap(key(page, 8)); // conflicts with the given 8 at cell 1
     expect(await bg(1)).toBe('rgb(251, 228, 228)');
+    expect(await bg(9)).toBe('rgb(251, 228, 228)'); // conflict wins over the selection fill
     await t.tap(key(page, 8));
+    expect(await bg(9)).toBe(SELECTED_BG);
 
     await t.tap(cell(page, EMPTY));
     await page.keyboard.press('Shift+Digit4'); // refused: given 4 at 79 flashes
@@ -104,6 +108,8 @@ test.describe('selection highlight', () => {
     await t.tap(cell(page, EMPTY));
     await t.tap(key(page, 3));
     await expect(page.locator('.cell.same')).toHaveCount(await page.locator('.cell[data-value="3"]').count() - 1);
+    await expect(cell(page, EMPTY)).toHaveCSS('background-color', SELECTED_BG);
+    await expect(cell(page, 0)).toHaveCSS('background-color', 'rgb(250, 236, 180)');
   });
 
   test('empty cell: only that cell is marked', async ({ page }) => {
@@ -111,8 +117,33 @@ test.describe('selection highlight', () => {
     await t.tap(page.locator('#notes-mode'));
     await t.tap(cell(page, EMPTY));
     await expect(cell(page, EMPTY)).toHaveClass(/selected/);
+    await expect(cell(page, EMPTY)).toHaveCSS('background-color', SELECTED_BG);
     await expect(page.locator('.cell.same, .cell.peer, .n.match')).toHaveCount(0);
     await peerFree(page);
+  });
+
+  test('selection fill sits under the refusal flash and the drag tint', async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(cell(page, 21));
+    const tint = 'color-mix(in srgb, rgb(217, 84, 30) 24%, rgb(255, 255, 255))';
+    const probe = (cls) => cell(page, 21).evaluate((el, c) => {
+      el.classList.add(c);
+      const out = getComputedStyle(el).backgroundColor;
+      el.classList.remove(c);
+      return out;
+    }, cls);
+    const expected = await page.evaluate((c) => {
+      const el = document.createElement('div');
+      el.style.backgroundColor = c;
+      document.body.append(el);
+      const out = getComputedStyle(el).backgroundColor;
+      el.remove();
+      return out;
+    }, tint);
+    expect(await probe('blocking')).toBe(expected);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    expect(await probe('blocked')).toBe(expected);
+    await expect(cell(page, 21)).toHaveCSS('background-color', SELECTED_BG);
   });
 });
 
@@ -1071,10 +1102,13 @@ test.describe('highlights pause during undo / redo', () => {
     await t.tap(page.locator('#undo')); // 0 -> 18: travel 315, apply at 515, ring gone at 765
     await page.clock.runFor(100); // travelling
     await expectAbsent(page);
+    await expect(cell(page, 0)).toHaveCSS('background-color', SELECTED_BG); // the selection's resting fill
     await page.clock.runFor(450); // applied: 1 restored and selected
     await expect(cell(page, 18)).toHaveAttribute('data-value', '1');
     await expect(cell(page, 18)).toHaveClass(/selected/);
     await expectAbsent(page);
+    await expect(cell(page, 18)).toHaveCSS('background-color', SELECTED_BG);
+    await expect(cell(page, 0)).toHaveCSS('background-color', GIVEN_BG);
     await expect(cell(page, 45).locator('.v')).toHaveCSS('color', 'rgb(31, 29, 26)');
     await page.clock.runFor(250); // 800ms
     await expect(page.locator('#board')).not.toHaveClass(/quiet/);

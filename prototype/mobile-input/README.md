@@ -24,10 +24,11 @@ singles alone; checked by `tests/puzzle.spec.mjs`).
   every 30s (override with `?cueMs=3000` or `window.__sudoku.setCueInterval(ms)`).
   Double-tapping a cell writes the digit that was highlighted before the first tap
   if it is one of the cell's candidates, else the cell's lone candidate.
-- Given cells sit on a warm grey (`--given-bg`). Selection: the selected cell keeps
-  its fill (white, or grey for a given) under a blue ring; cells with the same
-  digit get a yellow tint and matching candidates sit on a pale yellow chip
-  (`--same`, `--cand-emph`, `--cand-chip`). Blue is reserved for answers and the ring.
+- Given cells sit on a warm grey (`--given-bg`). Selection: the selected cell gets a
+  light blue fill (`--selected-bg`, replacing white or grey) under a blue ring; other
+  cells with the same digit get a yellow tint and matching candidates sit on a pale
+  yellow chip (`--same`, `--cand-emph`, `--cand-chip`). Conflict red, the refusal
+  flash and drag tint, and the undo ring all show over the blue fill.
 - Timer with pause/resume; pauses itself when the page is hidden.
 - Desktop: click to select, arrows move, `1`-`9` answer, `Shift`+`1`-`9` candidate,
   `0`/`Backspace`/right-click clear, `Ctrl`/`Cmd`+`Z` undo,
