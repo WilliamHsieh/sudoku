@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
 
 const cell = (page, i) => page.locator(`.cell[data-i="${i}"]`);
-// Cell 2 (row 1, col 3) is empty; candidates 1239.
-const EMPTY = 2;
+// Cell 41 (row 5, col 6) is empty; candidates 1379.
+const EMPTY = 41;
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
@@ -12,9 +12,9 @@ test('click selects; arrows move the selection', async ({ page }) => {
   await cell(page, EMPTY).click();
   await expect(cell(page, EMPTY)).toHaveClass(/selected/);
   await page.keyboard.press('ArrowRight');
-  await expect(cell(page, 3)).toHaveClass(/selected/);
+  await expect(cell(page, 42)).toHaveClass(/selected/);
   await page.keyboard.press('ArrowDown');
-  await expect(cell(page, 12)).toHaveClass(/selected/);
+  await expect(cell(page, 51)).toHaveClass(/selected/);
   await page.keyboard.press('ArrowLeft');
   await page.keyboard.press('ArrowUp');
   await expect(cell(page, EMPTY)).toHaveClass(/selected/);
@@ -49,12 +49,12 @@ test('Shift+digit refuses an illegal candidate and flashes the blockers', async 
   await page.goto('/');
   await page.clock.pauseAt(Date.now() + 2000);
   await cell(page, EMPTY).click();
-  await page.keyboard.press('Shift+Digit4'); // given 4 at r1c5
+  await page.keyboard.press('Shift+Digit4'); // given 4 at r5c3
   await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '');
-  await expect(cell(page, 4)).toHaveClass(/blocked/);
+  await expect(cell(page, 38)).toHaveClass(/blocked/);
   await expect(page.locator('#undo')).toBeDisabled();
   await page.clock.runFor(320);
-  await expect(cell(page, 4)).not.toHaveClass(/blocked/);
+  await expect(cell(page, 38)).not.toHaveClass(/blocked/);
 });
 
 test('right-click clears the cell', async ({ page }) => {
@@ -66,12 +66,12 @@ test('right-click clears the cell', async ({ page }) => {
 
 test('Ctrl+Z and Meta+Z undo', async ({ page }) => {
   await cell(page, EMPTY).click();
-  await page.keyboard.press('Shift+Digit2');
+  await page.keyboard.press('Shift+Digit7');
   await page.keyboard.press('4');
   await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '4');
   await page.keyboard.press('Control+z');
   await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '');
-  await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '2');
+  await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '7');
   await page.keyboard.press('Meta+z');
   await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '');
 });
@@ -97,20 +97,20 @@ test('solution is not shipped to the client', async ({ page }) => {
     const urls = ['/app.js', '/puzzle.js', '/index.html'];
     return Promise.all(urls.map((u) => fetch(u).then((r) => r.text())));
   });
-  for (const src of sources) expect(src).not.toContain('893741562');
+  for (const src of sources) expect(src).not.toContain('387495216');
 });
 
 test('double-click fills a single-candidate cell; pause blocks keys', async ({ page }) => {
   await page.locator('#notes-mode').click();
-  await cell(page, 36).dblclick();
-  await expect(cell(page, 36)).toHaveAttribute('data-value', '3');
+  await cell(page, 55).dblclick();
+  await expect(cell(page, 55)).toHaveAttribute('data-value', '9');
   await page.locator('#pause').click();
   await cell(page, EMPTY).click({ force: true });
   await page.keyboard.press('Control+z');
-  await expect(cell(page, 36)).toHaveAttribute('data-value', '3');
+  await expect(cell(page, 55)).toHaveAttribute('data-value', '9');
   await page.locator('#resume').click();
   await page.keyboard.press('Control+z');
-  await expect(cell(page, 36)).toHaveAttribute('data-value', '');
+  await expect(cell(page, 55)).toHaveAttribute('data-value', '');
 });
 
 test('redo shortcuts: Ctrl/Cmd+Shift+Z and Ctrl+Y', async ({ page }) => {

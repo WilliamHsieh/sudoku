@@ -1,4 +1,4 @@
-// Records the v6 demo: the travelling undo/redo ring (near, far, rapid) on the hard puzzle.
+// Records the v6 demo: the travelling undo/redo ring (near, far, rapid) on the easy puzzle.
 // Usage: node scripts/record-v6.mjs [outDir]   (server must be running on :5180)
 import { openDemo } from './demo-kit.mjs';
 
@@ -15,7 +15,7 @@ await caption('Notes: Auto');
 await tap('#notes-mode', 600);
 
 await caption('Near undo: the ring travels one cell');
-await tap(cell(77), 300);
+await tap(cell(75), 300);
 await tap(key(7), 500);
 await tap(cell(76), 600);
 await tap('#undo', 1500);
@@ -27,7 +27,7 @@ await tap(cell(72), 600);
 await tap('#undo', 1700);
 
 await caption('Fill five cells');
-for (const [i, d] of [[36, 3], [45, 2], [47, 9], [33, 4], [2, 3]]) {
+for (const [i, d] of [[55, 9], [5, 5], [11, 9], [27, 6], [18, 1]]) {
   await tap(cell(i), 250);
   await tap(key(d), 400);
 }

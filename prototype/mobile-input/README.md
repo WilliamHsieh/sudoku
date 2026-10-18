@@ -1,9 +1,9 @@
 # Mobile input prototype
 
 Standalone, dependency-free (plain HTML/CSS/JS) prototype of the mobile Sudoku
-input model. It does not touch the main app. The demo puzzle is NYT Hard
-2025-06-01 from the main app's bank (25 givens, one solution, needs more than
-singles; checked by `tests/puzzle.spec.mjs`).
+input model. It does not touch the main app. The demo puzzle is NYT Easy
+2025-08-05 from the main app's bank (38 givens, one solution, solvable by
+singles alone; checked by `tests/puzzle.spec.mjs`).
 
 - Tap a key: write that digit as the answer (tap the same key again to clear).
 - Swipe up on a key (~28px arms, below ~22px disarms): toggle that digit as a

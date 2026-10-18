@@ -19,10 +19,10 @@ await wait(400);
 await caption('Notes: Auto');
 await tap('#notes-mode', 600);
 await caption('Fill two cells');
-await tap(cell(33), 350);
-await tap(key(4), 600);
-await tap(cell(2), 350);
-await tap(key(3), 900);
+await tap(cell(5), 350);
+await tap(key(5), 600);
+await tap(cell(11), 350);
+await tap(key(9), 900);
 
 await caption('Undo: a ring lands on the cell, then the change applies');
 await tap('#undo', 1300);
@@ -36,15 +36,15 @@ await tap('#redo', 1500);
 
 await caption('A new edit clears redo');
 await tap('#undo', 1200);
-await tap(cell(21), 350);
-await tap(key(6), 1600);
+await tap(cell(7), 350);
+await tap(key(1), 1600);
 
 await caption('Highlight 8, then double-tap a cell with 8 as a candidate');
-await tap(cell(0), 1000);
-await doubleTap(cell(37), 1600);
+await tap(cell(1), 1000);
+await doubleTap(cell(36), 1600);
 await caption('No highlighted digit: double-tap fills a lone candidate');
 await tap(cell(9), 800);
-await doubleTap(cell(36), 1600);
+await doubleTap(cell(55), 1600);
 await caption('');
 await wait(600);
 

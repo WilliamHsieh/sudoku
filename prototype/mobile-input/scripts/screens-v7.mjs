@@ -30,7 +30,7 @@ const shot = (name) => page.screenshot({ path: join(OUT, name) });
 const cdp = await context.newCDPSession(page);
 
 await tap('#notes-mode');
-for (const [i, d] of [[36, 3], [45, 2], [47, 9], [33, 4], [2, 3]]) {
+for (const [i, d] of [[55, 9], [5, 5], [11, 9], [27, 6], [18, 1]]) {
   await tap(cell(i));
   await tap(key(d));
 }
@@ -41,10 +41,10 @@ await tap(cell(50));
 await page.waitForTimeout(400);
 await shot('v7-given-selected.png');
 
-// Mid-drag of an illegal 3 in r9c6: "Not allowed", no ghost, blockers tinted.
-await tap(cell(77));
+// Mid-drag of an illegal 4 in r9c4: "Not allowed", no ghost, blockers tinted.
+await tap(cell(75));
 await page.waitForTimeout(300);
-const k = await page.locator(key(3)).boundingBox();
+const k = await page.locator(key(4)).boundingBox();
 const x = k.x + k.width / 2;
 const y = k.y + k.height / 2;
 const touch = (type, ty) => cdp.send('Input.dispatchTouchEvent', {

@@ -14,9 +14,9 @@ const { page, wait, caption, cell, key, tap, swipe, shot, finish } = await openD
 await wait(400);
 await caption('Notes: Auto');
 await tap('#notes-mode', 700);
-await caption('Edit the auto candidates: swipe 2 and 9 out');
-await tap(cell(2), 500);
-await swipe(key(2), 70, { after: 450 });
+await caption('Edit the auto candidates: swipe 3 and 9 out');
+await tap(cell(41), 500);
+await swipe(key(3), 70, { after: 450 });
 await swipe(key(9), 72, { hold: 160, after: 700, shot: `${OUT}/${NAME}-armed-swipe.png` });
 await shot(`${NAME}-erase-before.png`);
 await caption('Erase resets the cell to its auto candidates');
@@ -33,22 +33,22 @@ await wait(1200);
 await tap('#undo', 1300);
 
 await caption('Quick back-to-back swipes');
-await tap(cell(19), 400);
+await tap(cell(65), 400);
 const quick = { ms: 130, pre: 30, hold: 20, after: 90 };
-for (const d of [3, 6, 2, 3, 9, 6, 2, 3]) await swipe(key(d), 58, quick);
+for (const d of [1, 6, 8, 1, 9, 6, 8, 1]) await swipe(key(d), 58, quick);
 await wait(1000);
 
 await caption('Double-tap a single-candidate cell → fills it');
-await tap(cell(36), 110);
-await tap(cell(36), 500);
+await tap(cell(55), 110);
+await tap(cell(55), 500);
 await shot(`${NAME}-double-tap-fill.png`);
 await wait(800);
 await caption('Double-tap a cell with several candidates → just selects');
-await tap(cell(37), 110);
-await tap(cell(37), 1300);
+await tap(cell(36), 110);
+await tap(cell(36), 1300);
 
 await caption('Fill a few cells: every single-candidate cell flashes together');
-for (const [i, d] of [[45, 2], [47, 9], [33, 4], [2, 3]]) {
+for (const [i, d] of [[5, 5], [11, 9], [27, 6], [18, 1]]) {
   await tap(cell(i), 250);
   await tap(key(d), 350);
 }
@@ -75,8 +75,8 @@ await shot(`${NAME}-manual-setting-disabled.png`);
 await wait(1500);
 await tap('#sheet-close', 500);
 await caption('Manual: double-tap only selects');
-await tap(cell(62), 110);
-await tap(cell(62), 1300);
+await tap(cell(7), 110);
+await tap(cell(7), 1300);
 await caption('');
 await wait(300);
 

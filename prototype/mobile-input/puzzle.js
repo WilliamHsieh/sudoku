@@ -1,12 +1,12 @@
-// NYT Hard, 2025-06-01, from the main app's bank (src/puzzles.js). 25 givens;
-// unique solution and not solvable by singles alone (see tests/puzzle.spec.mjs).
+// NYT Easy, 2025-08-05, from the main app's bank (src/puzzles.js). 38 givens;
+// unique solution and solvable by singles alone (see tests/puzzle.spec.mjs).
 export const PUZZLE =
-  '800740500' +
-  '000000001' +
-  '700000800' +
-  '610500090' +
-  '004090210' +
-  '050003008' +
-  '007306100' +
-  '006000020' +
-  '000000300';
+  '387490000' +
+  '050630804' +
+  '040800593' +
+  '070080451' +
+  '004500000' +
+  '905006700' +
+  '000064105' +
+  '430002007' +
+  '502008040';

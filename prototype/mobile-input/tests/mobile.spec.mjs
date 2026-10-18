@@ -4,9 +4,9 @@ import { touchDriver } from './touch.mjs';
 const cell = (page, i) => page.locator(`.cell[data-i="${i}"]`);
 const key = (page, d) => page.locator(`.key[data-d="${d}"]`);
 
-// Cell 77 (row 9, col 6) is empty; its row/col/box candidates are 1245789.
-// 3 (row) and 6 (box) are illegal there.
-const EMPTY = 77;
+// Cell 75 (row 9, col 4) is empty; its row/col/box candidates are 1379.
+// 4 is illegal there (row, column and box), as are 2, 5, 6 and 8.
+const EMPTY = 75;
 const GIVEN_BG = 'rgb(233, 229, 220)';
 
 test.beforeEach(async ({ page }) => {
@@ -37,21 +37,21 @@ test.describe('selection highlight', () => {
   test('filled cell: ring on it, soft tint on same digits, emphasised matching candidates', async ({ page }) => {
     const t = await touchDriver(page);
     await t.tap(page.locator('#notes-mode'));
-    await t.tap(cell(page, 0)); // given 8 at r1c1
-    await expect(cell(page, 0)).toHaveClass(/selected/);
-    const ring = await cell(page, 0).evaluate((el) => getComputedStyle(el).boxShadow);
+    await t.tap(cell(page, 1)); // given 8 at r1c2
+    await expect(cell(page, 1)).toHaveClass(/selected/);
+    const ring = await cell(page, 1).evaluate((el) => getComputedStyle(el).boxShadow);
     expect(ring).toContain('inset');
     await expect(page.locator('.cell.peer')).toHaveCount(0);
-    await expect(cell(page, 24)).toHaveClass(/same/);
+    await expect(cell(page, 21)).toHaveClass(/same/);
     const eights = await page.locator('.cell[data-value="8"]').count();
     await expect(page.locator('.cell.same')).toHaveCount(eights - 1);
-    expect(await cell(page, 24).evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(250, 236, 180)');
-    expect(await cell(page, 0).evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(GIVEN_BG);
-    expect(await cell(page, 0).evaluate((el) => getComputedStyle(el).boxShadow)).toContain('rgb(42, 86, 198)');
+    expect(await cell(page, 21).evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(250, 236, 180)');
+    expect(await cell(page, 1).evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(GIVEN_BG);
+    expect(await cell(page, 1).evaluate((el) => getComputedStyle(el).boxShadow)).toContain('rgb(42, 86, 198)');
     await peerFree(page);
 
-    // Candidate 8 in r5c2 (cell 37) and elsewhere is emphasised; others are not.
-    const n5 = cell(page, 37).locator('.n[data-d="8"]');
+    // Candidate 8 in r5c1 (cell 36) and elsewhere is emphasised; others are not.
+    const n5 = cell(page, 36).locator('.n[data-d="8"]');
     await expect(n5).toHaveClass(/match/);
     const style = (el) => {
       const cs = getComputedStyle(el);
@@ -59,7 +59,7 @@ test.describe('selection highlight', () => {
         line: cs.boxShadow, bg: getComputedStyle(el.closest('.cell')).backgroundColor };
     };
     const st = await n5.evaluate(style);
-    const plain = await cell(page, 37).locator('.n.on[data-d="3"]').evaluate(style);
+    const plain = await cell(page, 36).locator('.n.on[data-d="2"]').evaluate(style);
     expect(st.w).toBe(plain.w);
     expect(Number(st.w)).toBeLessThan(600);
     expect(st.size).toBe(plain.size);
@@ -79,31 +79,31 @@ test.describe('selection highlight', () => {
     await page.clock.pauseAt(Date.now() + 2000);
     const t = await touchDriver(page);
     const bg = (i) => cell(page, i).evaluate((el) => getComputedStyle(el).backgroundColor);
-    expect(await bg(0)).toBe(GIVEN_BG);
-    await expect(cell(page, 0).locator('.v')).toHaveCSS('color', 'rgb(31, 29, 26)');
+    expect(await bg(1)).toBe(GIVEN_BG);
+    await expect(cell(page, 1).locator('.v')).toHaveCSS('color', 'rgb(31, 29, 26)');
     expect(await bg(EMPTY)).toBe('rgb(255, 255, 255)');
 
-    await t.tap(cell(page, 24)); // given 8: the selected given keeps its grey under the blue ring
-    expect(await bg(24)).toBe(GIVEN_BG);
-    expect(await cell(page, 24).evaluate((el) => getComputedStyle(el).boxShadow)).toContain('rgb(42, 86, 198)');
-    expect(await bg(0)).toBe('rgb(250, 236, 180)'); // same digit: yellow replaces grey
-    expect(await bg(53)).toBe('rgb(250, 236, 180)');
+    await t.tap(cell(page, 21)); // given 8: the selected given keeps its grey under the blue ring
+    expect(await bg(21)).toBe(GIVEN_BG);
+    expect(await cell(page, 21).evaluate((el) => getComputedStyle(el).boxShadow)).toContain('rgb(42, 86, 198)');
+    expect(await bg(1)).toBe('rgb(250, 236, 180)'); // same digit: yellow replaces grey
+    expect(await bg(77)).toBe('rgb(250, 236, 180)');
 
     await t.tap(cell(page, 9));
-    await t.tap(key(page, 8)); // conflicts with the given 8 at cell 0
-    expect(await bg(0)).toBe('rgb(251, 228, 228)');
+    await t.tap(key(page, 8)); // conflicts with the given 8 at cell 1
+    expect(await bg(1)).toBe('rgb(251, 228, 228)');
     await t.tap(key(page, 8));
 
     await t.tap(cell(page, EMPTY));
-    await page.keyboard.press('Shift+Digit3'); // refused: given 3 at 78 flashes
-    expect(await cell(page, 78).evaluate((el) => getComputedStyle(el).animationName)).toBe('blocked');
+    await page.keyboard.press('Shift+Digit4'); // refused: given 4 at 79 flashes
+    expect(await cell(page, 79).evaluate((el) => getComputedStyle(el).animationName)).toBe('blocked');
   });
 
   test('answer works like a given', async ({ page }) => {
     const t = await touchDriver(page);
     await t.tap(cell(page, EMPTY));
-    await t.tap(key(page, 4));
-    await expect(page.locator('.cell.same')).toHaveCount(await page.locator('.cell[data-value="4"]').count() - 1);
+    await t.tap(key(page, 3));
+    await expect(page.locator('.cell.same')).toHaveCount(await page.locator('.cell[data-value="3"]').count() - 1);
   });
 
   test('empty cell: only that cell is marked', async ({ page }) => {
@@ -119,12 +119,12 @@ test.describe('selection highlight', () => {
 test('tap on key writes the answer; tapping the same key clears it', async ({ page }) => {
   const t = await touchDriver(page);
   await t.tap(cell(page, EMPTY));
-  await t.tap(key(page, 4));
-  await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '4');
+  await t.tap(key(page, 3));
+  await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '3');
   await expect(cell(page, EMPTY)).toHaveClass(/user/);
-  await t.tap(key(page, 2));
-  await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '2');
-  await t.tap(key(page, 2));
+  await t.tap(key(page, 1));
+  await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '1');
+  await t.tap(key(page, 1));
   await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '');
 });
 
@@ -132,7 +132,7 @@ test('tap does not overwrite a given', async ({ page }) => {
   const t = await touchDriver(page);
   await t.tap(cell(page, 0));
   await t.tap(key(page, 9));
-  await expect(cell(page, 0)).toHaveAttribute('data-value', '8');
+  await expect(cell(page, 0)).toHaveAttribute('data-value', '3');
 });
 
 test('swipe up past threshold adds a candidate; swiping again removes it', async ({ page }) => {
@@ -157,14 +157,14 @@ test('swipe up past threshold adds a candidate; swiping again removes it', async
 test('drag shows label, preview and arms at ~28px with hysteresis', async ({ page }) => {
   const t = await touchDriver(page);
   await t.tap(cell(page, EMPTY));
-  const k = key(page, 5);
+  const k = key(page, 3);
   const p = await t.center(k);
   await t.start(p.x, p.y);
   await t.move(p.x, p.y - 12);
   await expect(k).toHaveClass(/pressed/);
   await expect(k).toHaveClass(/show-label/);
   await expect(k.locator('.label')).toHaveText('+ candidate');
-  await expect(cell(page, EMPTY).locator('.n[data-d="5"]')).toHaveClass(/preview-add/);
+  await expect(cell(page, EMPTY).locator('.n[data-d="3"]')).toHaveClass(/preview-add/);
   await expect(k).not.toHaveClass(/armed/);
   await expect(page.locator('.lift')).toHaveCount(1);
 
@@ -218,9 +218,9 @@ test('long press without movement is not a tap', async ({ page }) => {
 test('conflicting digits turn red with a steady dot', async ({ page }) => {
   const t = await touchDriver(page);
   await t.tap(cell(page, EMPTY));
-  await t.tap(key(page, 3)); // row already has a given 3 at cell 78
+  await t.tap(key(page, 4)); // row already has a given 4 at cell 79
   await expect(cell(page, EMPTY)).toHaveClass(/conflict/);
-  await expect(cell(page, 78)).toHaveClass(/conflict/);
+  await expect(cell(page, 79)).toHaveClass(/conflict/);
   const color = await cell(page, EMPTY).locator('.v').evaluate((el) => getComputedStyle(el).color);
   expect(color).toBe('rgb(214, 59, 59)');
   const dot = await cell(page, EMPTY).evaluate((el) => {
@@ -233,7 +233,7 @@ test('conflicting digits turn red with a steady dot', async ({ page }) => {
   // A wrong-but-legal digit is never marked.
   await t.tap(key(page, 1));
   await expect(cell(page, EMPTY)).not.toHaveClass(/conflict/);
-  await expect(cell(page, 78)).not.toHaveClass(/conflict/);
+  await expect(cell(page, 79)).not.toHaveClass(/conflict/);
 });
 
 test('auto notes compute from entered digits; manual starts empty', async ({ page }) => {
@@ -241,17 +241,17 @@ test('auto notes compute from entered digits; manual starts empty', async ({ pag
   await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '');
   await t.tap(page.locator('#notes-mode'));
   await expect(page.locator('#notes-mode')).toHaveAttribute('aria-checked', 'true');
-  await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1245789');
+  await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1379');
 
-  // A wrong answer (1 at r9c4, solution is 9) still feeds the auto candidates.
-  await t.tap(cell(page, 75));
+  // A wrong answer (1 at r9c2, solution is 6) still feeds the auto candidates.
+  await t.tap(cell(page, 73));
   await t.tap(key(page, 1));
-  await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '245789');
+  await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '379');
 
   // Swipe toggles still work in auto mode.
   await t.tap(cell(page, EMPTY));
-  await t.swipeUp(key(page, 2), 60);
-  await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '45789');
+  await t.swipeUp(key(page, 3), 60);
+  await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '79');
 
   await t.tap(page.locator('#notes-mode'));
   await expect(page.locator('#notes-mode')).toHaveAttribute('aria-checked', 'false');
@@ -262,8 +262,8 @@ test.describe('single-candidate cue', () => {
   const note = (page, i, d) => cell(page, i).locator(`.n[data-d="${d}"]`);
 
   // Fake clock, paused, Auto notes on, global cue clock restarted at a known instant.
-  // The only Auto single from the start: 36:3.
-  const INITIAL = ['36:3'];
+  // The only Auto single from the start: 55:9.
+  const INITIAL = ['55:9'];
   async function frozenClock(page) {
     await page.clock.install();
     await page.goto('/');
@@ -286,45 +286,45 @@ test.describe('single-candidate cue', () => {
 
   test('one global clock: cells that became single at different times flash in the same frame', async ({ page }) => {
     const t = await frozenClock(page);
-    await makeSingle(page, t, 33, 4, 7);
+    await makeSingle(page, t, 5, 1, 5);
     await page.clock.runFor(6_000);
-    await makeSingle(page, t, 39, 6, 8);
+    await makeSingle(page, t, 11, 1, 9);
     await page.clock.runFor(8_900); // t = 14.9s
     expect(await lit(page)).toEqual([]);
     await page.clock.runFor(200); // t = 15.1s
-    expect(await lit(page)).toEqual(sorted(['33:7', '39:8', ...INITIAL]));
+    expect(await lit(page)).toEqual(sorted(['5:5', '11:9', ...INITIAL]));
 
-    const s = await note(page, 33, 7).evaluate((el) => {
+    const s = await note(page, 5, 5).evaluate((el) => {
       const cs = getComputedStyle(el);
       return { bg: cs.backgroundColor, ring: cs.boxShadow, color: cs.color };
     });
     expect(s.bg).toBe('rgba(34, 197, 94, 0.2)');
     expect(s.ring).toContain('rgb(34, 197, 94)');
     expect(s.color).toBe('rgb(21, 128, 61)');
-    expect(await cell(page, 36).evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 255, 255)');
+    expect(await cell(page, 55).evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 255, 255)');
 
     // Becoming single mid-flash waits for the next tick.
-    await makeSingle(page, t, 7, 3, 6);
-    expect(await lit(page)).not.toContain('7:6');
+    await makeSingle(page, t, 27, 2, 6);
+    expect(await lit(page)).not.toContain('27:6');
     await page.clock.runFor(1_450); // t = 16.55s
     expect(await lit(page)).toEqual([]);
     await page.clock.runFor(13_400); // t = 29.95s
     expect(await lit(page)).toEqual([]);
     await page.clock.runFor(200);
-    expect(await lit(page)).toEqual(sorted(['33:7', '39:8', '7:6', ...INITIAL]));
+    expect(await lit(page)).toEqual(sorted(['5:5', '11:9', '27:6', ...INITIAL]));
   });
 
   test('board changes never restart the clock', async ({ page }) => {
     const t = await frozenClock(page);
-    await makeSingle(page, t, 33, 4, 7);
+    await makeSingle(page, t, 5, 1, 5);
     await page.clock.runFor(10_000);
-    await page.keyboard.press('Shift+Digit4');
-    await expect(cell(page, 33)).toHaveAttribute('data-lone', '');
+    await page.keyboard.press('Shift+Digit1');
+    await expect(cell(page, 5)).toHaveAttribute('data-lone', '');
     await page.clock.runFor(2_000);
-    await page.keyboard.press('Shift+Digit4');
-    await expect(cell(page, 33)).toHaveAttribute('data-lone', '7');
+    await page.keyboard.press('Shift+Digit1');
+    await expect(cell(page, 5)).toHaveAttribute('data-lone', '5');
     await page.clock.runFor(3_100); // t = 15.1s, not 12s + 15s
-    expect(await lit(page)).toContain('33:7');
+    expect(await lit(page)).toContain('5:5');
   });
 
   test('Manual mode: no cue, and none of its single notes flash', async ({ page }) => {
@@ -333,8 +333,8 @@ test.describe('single-candidate cue', () => {
     await page.clock.pauseAt(Date.now() + 2000);
     const t = await touchDriver(page);
     await t.tap(cell(page, EMPTY));
-    await page.keyboard.press('Shift+Digit4');
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '4');
+    await page.keyboard.press('Shift+Digit3');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '3');
     await expect(cell(page, EMPTY)).toHaveAttribute('data-lone', '');
     for (let k = 0; k < 4; k++) {
       await page.clock.runFor(8_000);
@@ -385,8 +385,8 @@ test.describe('single-candidate cue', () => {
     await page.goto('/?cueMs=1500');
     const t = await touchDriver(page);
     await t.tap(page.locator('#notes-mode'));
-    await expect(cell(page, 36)).toHaveAttribute('data-lone', '3'); // only 3 fits r5c1
-    await expect(note(page, 36, 3)).toHaveClass(/lone-flash/, { timeout: 3000 });
+    await expect(cell(page, 55)).toHaveAttribute('data-lone', '9'); // only 9 fits r7c2
+    await expect(note(page, 55, 9)).toHaveClass(/lone-flash/, { timeout: 3000 });
 
     await t.tap(page.locator('#more'));
     const opt = page.locator('#opt-single');
@@ -397,19 +397,19 @@ test.describe('single-candidate cue', () => {
     await expect(page.locator('.lone-flash')).toHaveCount(0);
     await page.waitForTimeout(3500);
     await expect(page.locator('.lone-flash')).toHaveCount(0);
-    await expect(page.locator('.cell[data-lone="3"]')).toHaveCount(0);
+    await expect(page.locator('.cell[data-lone="9"]')).toHaveCount(0);
 
     await t.tap(page.locator('#more'));
     await t.tap(opt);
     await t.tap(page.locator('#sheet-close'));
-    await expect(note(page, 36, 3)).toHaveClass(/lone-flash/, { timeout: 3000 });
+    await expect(note(page, 55, 9)).toHaveClass(/lone-flash/, { timeout: 3000 });
   });
 
   test('interval is overridable by test hook', async ({ page }) => {
     await page.evaluate(() => window.__sudoku.setCueInterval(500));
     const t = await touchDriver(page);
     await t.tap(page.locator('#notes-mode'));
-    await expect(note(page, 36, 3)).toHaveClass(/lone-flash/, { timeout: 1500 });
+    await expect(note(page, 55, 9)).toHaveClass(/lone-flash/, { timeout: 1500 });
   });
 });
 
@@ -483,15 +483,15 @@ test.describe('reduced motion', () => {
     expect(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches)).toBe(true);
     const t = await touchDriver(page);
     await t.tap(cell(page, EMPTY));
-    const k = key(page, 8);
+    const k = key(page, 9);
     const p = await t.center(k);
     await t.start(p.x, p.y);
     await t.move(p.x, p.y - 40);
     await expect(k).toHaveClass(/armed/);
     await expect(page.locator('.lift')).toHaveCount(0);
     await t.end(p.x, p.y - 40);
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '8');
-    const tr = await cell(page, EMPTY).locator('.n[data-d="8"]').evaluate((el) => getComputedStyle(el).transitionProperty);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '9');
+    const tr = await cell(page, EMPTY).locator('.n[data-d="9"]').evaluate((el) => getComputedStyle(el).transitionProperty);
     expect(tr).toBe('opacity');
   });
 });
@@ -501,51 +501,51 @@ test.describe('erase in Auto notes resets the cell', () => {
     const t = await touchDriver(page);
     await t.tap(page.locator('#notes-mode'));
     await t.tap(cell(page, EMPTY));
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1245789');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1379');
   });
 
   test('after removing a candidate', async ({ page }) => {
     const t = await touchDriver(page);
-    await t.swipeUp(key(page, 2), 60);
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '145789');
+    await t.swipeUp(key(page, 3), 60);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '179');
     await t.tap(page.locator('#erase'));
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1245789');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1379');
     await t.tap(page.locator('#undo'));
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '145789');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '179');
   });
 
   test('after restoring one candidate and removing another', async ({ page }) => {
     const t = await touchDriver(page);
     await t.swipeUp(key(page, 7), 60);
-    await t.swipeUp(key(page, 4), 60);
+    await t.swipeUp(key(page, 1), 60);
     await t.swipeUp(key(page, 7), 60);
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '125789');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '379');
     await t.tap(page.locator('#erase'));
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1245789');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1379');
     await t.tap(page.locator('#undo'));
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '125789');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '379');
   });
 
   test('answer first, then overrides; never blanks the cell', async ({ page }) => {
     const t = await touchDriver(page);
-    await t.swipeUp(key(page, 2), 60);
+    await t.swipeUp(key(page, 3), 60);
     await t.tap(key(page, 4));
     await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '4');
     await t.tap(page.locator('#erase'));
     await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '');
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '145789');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '179');
     await t.tap(page.locator('#erase'));
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1245789');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1379');
     await t.tap(page.locator('#erase'));
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1245789');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1379');
   });
 
   test('keyboard 0 does the same reset', async ({ page }) => {
     const t = await touchDriver(page);
     await t.swipeUp(key(page, 1), 60);
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '245789');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '379');
     await page.keyboard.press('0');
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1245789');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1379');
   });
 });
 
@@ -564,8 +564,8 @@ test.describe('gesture always ends cleanly', () => {
     await t.end(p.x, p.y - 300);
     await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1');
     await expectIdle(page);
-    await t.swipeUp(key(page, 5), 60);
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '15');
+    await t.swipeUp(key(page, 3), 60);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '13');
   });
 
   test('pointer capture lost mid-swipe, pointerup outside the keypad: next swipe works', async ({ page }) => {
@@ -587,8 +587,8 @@ test.describe('gesture always ends cleanly', () => {
     await expectIdle(page);
     await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '');
 
-    await t.swipeUp(key(page, 5), 60);
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '5');
+    await t.swipeUp(key(page, 3), 60);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '3');
     await t.tap(key(page, 4));
     await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '4');
   });
@@ -596,27 +596,27 @@ test.describe('gesture always ends cleanly', () => {
   test('pointerup delivered only outside the keypad (no capture)', async ({ page }) => {
     const t = await touchDriver(page);
     await t.tap(cell(page, EMPTY));
-    const k = key(page, 8);
+    const k = key(page, 9);
     const box = await k.boundingBox();
     const x = box.x + box.width / 2;
     const y = box.y + box.height / 2;
     await page.evaluate(({ x, y }) => {
-      const key = document.querySelector('.key[data-d="8"]');
+      const key = document.querySelector('.key[data-d="9"]');
       const opts = (cy) => ({ bubbles: true, cancelable: true, pointerId: 77, pointerType: 'touch', isPrimary: true, clientX: x, clientY: cy });
       key.dispatchEvent(new PointerEvent('pointerdown', opts(y)));
       key.dispatchEvent(new PointerEvent('pointermove', opts(y - 40)));
       document.querySelector('#board').dispatchEvent(new PointerEvent('pointerup', opts(y - 200)));
     }, { x, y });
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '8');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '9');
     await expectIdle(page);
-    await t.swipeUp(key(page, 9), 60);
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '89');
+    await t.swipeUp(key(page, 7), 60);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '79');
   });
 
   test('pointercancel mid-swipe glides back, writes nothing, next swipe works', async ({ page }) => {
     const t = await touchDriver(page);
     await t.tap(cell(page, EMPTY));
-    const k = key(page, 2);
+    const k = key(page, 3);
     const p = await t.center(k);
     await t.start(p.x, p.y);
     await t.move(p.x, p.y - 20);
@@ -625,18 +625,18 @@ test.describe('gesture always ends cleanly', () => {
     await t.cancel();
     await expectIdle(page);
     await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '');
-    await t.swipeUp(key(page, 2), 60);
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '2');
+    await t.swipeUp(key(page, 3), 60);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '3');
   });
 
   test('a new press is never blocked by an unfinished gesture', async ({ page }) => {
     const t = await touchDriver(page);
     await t.tap(cell(page, EMPTY));
-    const a = await t.center(key(page, 5));
+    const a = await t.center(key(page, 3));
     const b = await t.center(key(page, 7));
     await t.raw('touchStart', [{ x: a.x, y: a.y, id: 1 }]);
     await t.raw('touchMove', [{ x: a.x, y: a.y - 40, id: 1 }]);
-    await expect(key(page, 5)).toHaveClass(/armed/);
+    await expect(key(page, 3)).toHaveClass(/armed/);
     await t.raw('touchStart', [{ x: a.x, y: a.y - 40, id: 1 }, { x: b.x, y: b.y, id: 2 }]);
     for (let s = 1; s <= 6; s++) {
       await t.raw('touchMove', [{ x: a.x, y: a.y - 40, id: 1 }, { x: b.x, y: b.y - s * 10, id: 2 }]);
@@ -651,8 +651,8 @@ test.describe('gesture always ends cleanly', () => {
     const t = await touchDriver(page);
     await t.tap(cell(page, EMPTY));
     const fast = { steps: 4, stepMs: 8, holdMs: 0 };
-    for (const d of [1, 2, 5, 2, 4, 1, 1]) await t.swipeUp(key(page, d), 50, fast);
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '145');
+    for (const d of [1, 3, 7, 3, 9, 1, 1]) await t.swipeUp(key(page, d), 50, fast);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '179');
     await expectIdle(page);
     await expect(page.locator('.n.hidden-pending')).toHaveCount(0);
     const digitsVisible = await page.locator('.key .digit').evaluateAll((els) =>
@@ -663,7 +663,7 @@ test.describe('gesture always ends cleanly', () => {
   test('sideways drag is neither a tap nor a swipe', async ({ page }) => {
     const t = await touchDriver(page);
     await t.tap(cell(page, EMPTY));
-    const p = await t.center(key(page, 5));
+    const p = await t.center(key(page, 3));
     await t.start(p.x, p.y);
     for (let s = 1; s <= 6; s++) await t.move(p.x + s * 8, p.y - s * 3);
     await expect(page.locator('.lift')).toHaveCount(0);
@@ -684,33 +684,33 @@ test.describe('double-tap fills a single-candidate cell', () => {
   test('Manual mode: double-tap on a single-note cell only selects', async ({ page }) => {
     const t = await touchDriver(page);
     await t.tap(cell(page, EMPTY));
-    await page.keyboard.press('Shift+Digit4');
+    await page.keyboard.press('Shift+Digit3');
     await page.waitForTimeout(350);
     await doubleTap(page, t, EMPTY);
     await expect(cell(page, EMPTY)).toHaveClass(/selected/);
     await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '');
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '4');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '3');
   });
 
   test('Auto mode: fills as one undo step, selection stays immediate', async ({ page }) => {
     const t = await touchDriver(page);
     await t.tap(page.locator('#notes-mode'));
-    await t.tap(cell(page, 33));
-    await expect(cell(page, 33)).toHaveClass(/selected/);
-    await page.keyboard.press('Shift+Digit4'); // auto override leaves only 7
+    await t.tap(cell(page, 5));
+    await expect(cell(page, 5)).toHaveClass(/selected/);
+    await page.keyboard.press('Shift+Digit1'); // auto override leaves only 5
     await page.waitForTimeout(350);
-    await doubleTap(page, t, 33);
-    await expect(cell(page, 33)).toHaveAttribute('data-value', '7');
+    await doubleTap(page, t, 5);
+    await expect(cell(page, 5)).toHaveAttribute('data-value', '5');
     await t.tap(page.locator('#undo'));
-    await expect(cell(page, 33)).toHaveAttribute('data-value', '');
-    await expect(cell(page, 33)).toHaveAttribute('data-notes', '7');
+    await expect(cell(page, 5)).toHaveAttribute('data-value', '');
+    await expect(cell(page, 5)).toHaveAttribute('data-notes', '5');
   });
 
   test('auto notes: uses the candidates currently shown', async ({ page }) => {
     const t = await touchDriver(page);
     await t.tap(page.locator('#notes-mode'));
-    await doubleTap(page, t, 36);
-    await expect(cell(page, 36)).toHaveAttribute('data-value', '3');
+    await doubleTap(page, t, 55);
+    await expect(cell(page, 55)).toHaveAttribute('data-value', '9');
   });
 
   test('multi-candidate cell: double-tap only selects', async ({ page }) => {
@@ -719,14 +719,14 @@ test.describe('double-tap fills a single-candidate cell', () => {
     await doubleTap(page, t, EMPTY);
     await expect(cell(page, EMPTY)).toHaveClass(/selected/);
     await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '');
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1245789');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1379');
   });
 
   test('taps further apart than ~300ms do not fill', async ({ page }) => {
     const t = await touchDriver(page);
     await t.tap(page.locator('#notes-mode'));
-    await doubleTap(page, t, 36, 450);
-    await expect(cell(page, 36)).toHaveAttribute('data-value', '');
+    await doubleTap(page, t, 55, 450);
+    await expect(cell(page, 55)).toHaveAttribute('data-value', '');
   });
 
   test('works right after a swipe, and the board allows no double-tap zoom', async ({ page }) => {
@@ -734,10 +734,10 @@ test.describe('double-tap fills a single-candidate cell', () => {
     expect(await page.locator('#board').evaluate((el) => getComputedStyle(el).touchAction)).toBe('manipulation');
     await t.tap(page.locator('#notes-mode'));
     await t.tap(cell(page, EMPTY));
-    await t.swipeUp(key(page, 2), 60, { holdMs: 0 });
-    await doubleTap(page, t, 36, 80);
-    await expect(cell(page, 36)).toHaveAttribute('data-value', '3');
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '145789');
+    await t.swipeUp(key(page, 3), 60, { holdMs: 0 });
+    await doubleTap(page, t, 55, 80);
+    await expect(cell(page, 55)).toHaveAttribute('data-value', '9');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '179');
   });
 });
 
@@ -848,7 +848,7 @@ test.describe('undo / redo animation', () => {
     const t = await frozen(page);
     await t.tap(cell(page, EMPTY));
     await t.tap(key(page, 4));
-    await t.tap(cell(page, 76)); // adjacent, left of EMPTY
+    await t.tap(cell(page, 76)); // adjacent, right of EMPTY
     await t.tap(page.locator('#undo'));
 
     expect(await lastRing(page)).toMatchObject({ from: 76, to: EMPTY, dist: 1, travel: 300, apply: 200, rapid: false });
@@ -867,19 +867,19 @@ test.describe('undo / redo animation', () => {
 
   test('travel time scales with distance; a ring on the selected cell shows in place', async ({ page }) => {
     const t = await frozen(page);
-    // Answers at the far corner (8) and at 64, a diagonal neighbour of 72, then undo them.
+    // Answers at the top-right corner (8) and at 70, a diagonal neighbour of 80, then undo them.
     await t.tap(cell(page, 8));
     await t.tap(key(page, 2));
-    await t.tap(cell(page, 64));
+    await t.tap(cell(page, 70));
     await t.tap(key(page, 3));
-    await t.tap(cell(page, 72));
-    await t.tap(page.locator('#undo')); // 72 -> 64: diagonal neighbour
+    await t.tap(cell(page, 80));
+    await t.tap(page.locator('#undo')); // 80 -> 70: diagonal neighbour
     const near = await lastRing(page);
     await page.clock.runFor(2000);
     await t.tap(cell(page, 72));
-    await t.tap(page.locator('#undo')); // 72 -> 8: across the board
+    await t.tap(page.locator('#undo')); // 72 (a given) -> 8: across the board
     const far = await lastRing(page);
-    expect(near).toMatchObject({ from: 72, to: 64, rapid: false });
+    expect(near).toMatchObject({ from: 80, to: 70, rapid: false });
     expect(far).toMatchObject({ from: 72, to: 8, dist: Math.hypot(8, 8), travel: 450, apply: 200, rapid: false });
     expect(near.travel).toBeGreaterThan(300);
     expect(near.travel).toBeLessThan(330);
@@ -907,25 +907,25 @@ test.describe('undo / redo animation', () => {
     const t = await frozen(page);
     await t.tap(cell(page, 8));
     await t.tap(key(page, 2));
-    await t.tap(cell(page, 72));
+    await t.tap(cell(page, 80));
     await t.tap(key(page, 1));
     await t.tap(cell(page, EMPTY));
     await t.tap(key(page, 4));
     await t.tap(cell(page, 40));
-    await t.tap(page.locator('#undo')); // 40 -> 77
+    await t.tap(page.locator('#undo')); // 40 -> 75
     const first = await lastRing(page);
     expect(first.rapid).toBe(false);
     await page.clock.runFor(100);
     await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '4');
 
-    await t.tap(page.locator('#undo')); // while animating: 77 is applied at once
+    await t.tap(page.locator('#undo')); // while animating: 75 is applied at once
     await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '');
     const second = await lastRing(page);
     const full = (d) => Math.round(300 + (150 * (d - 1)) / (Math.hypot(8, 8) - 1));
-    expect(second).toMatchObject({ from: EMPTY, to: 72, rapid: true, apply: 100, fade: 125 });
+    expect(second).toMatchObject({ from: EMPTY, to: 80, rapid: true, apply: 100, fade: 125 });
     expect(second.travel).toBe(Math.round(full(second.dist) * 0.5));
     await page.clock.runFor(second.travel + second.apply + 5);
-    await expect(cell(page, 72)).toHaveAttribute('data-value', '');
+    await expect(cell(page, 80)).toHaveAttribute('data-value', '');
 
     // Within ~400ms of the last one finishing still counts as rapid; later does not.
     await page.clock.runFor(second.fade + 300);
@@ -938,7 +938,7 @@ test.describe('undo / redo animation', () => {
 
   test('five quick undos end in the right state, five quick redos restore it', async ({ page }) => {
     const t = await frozen(page);
-    const edits = [[8, 2], [72, 1], [EMPTY, 4], [44, 5], [2, 9]];
+    const edits = [[8, 2], [80, 1], [EMPTY, 4], [44, 5], [5, 9]];
     for (const [i, d] of edits) {
       await t.tap(cell(page, i));
       await t.tap(key(page, d));
@@ -960,7 +960,7 @@ test.describe('undo / redo animation', () => {
     await page.clock.runFor(1000);
     for (const [i, d] of edits) await expect(cell(page, i)).toHaveAttribute('data-value', String(d));
     await expect(page.locator('#redo')).toBeDisabled();
-    await expect(cell(page, 2)).toHaveClass(/selected/);
+    await expect(cell(page, 5)).toHaveClass(/selected/);
   });
 
   test('an edit during the travel applies the pending undo first', async ({ page }) => {
@@ -996,18 +996,18 @@ test.describe('undo / redo animation', () => {
     const t = await touchDriver(page);
     await t.tap(page.locator('#notes-mode'));
     await t.tap(cell(page, EMPTY));
-    await t.swipeUp(key(page, 2), 60);
-    await t.swipeUp(key(page, 8), 60);
+    await t.swipeUp(key(page, 3), 60);
+    await t.swipeUp(key(page, 9), 60);
     await page.waitForTimeout(350);
     await t.tap(page.locator('#erase'));
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1245789');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1379');
     await t.tap(cell(page, 40));
     await t.tap(page.locator('#undo'));
     expect(await lastRing(page)).toMatchObject({ from: 40, to: EMPTY });
-    await expect(cell(page, EMPTY).locator('.n[data-d="2"]')).toHaveClass(/undo-out/);
-    await expect(cell(page, EMPTY).locator('.n[data-d="8"]')).toHaveClass(/undo-out/);
+    await expect(cell(page, EMPTY).locator('.n[data-d="3"]')).toHaveClass(/undo-out/);
+    await expect(cell(page, EMPTY).locator('.n[data-d="9"]')).toHaveClass(/undo-out/);
     await expect(cell(page, EMPTY)).toHaveClass(/selected/);
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '14579');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '17');
   });
 
   test('reduced motion: no travel, static ring, instant change', async ({ page }) => {
@@ -1044,7 +1044,7 @@ test.describe('highlights pause during undo / redo', () => {
   const tinted = (h) => h.same.length > 0 && h.same.every((s) => s.endsWith(TINT)) && h.chips.join() === CHIP;
   const expectPresent = (page) => expect.poll(async () => tinted(await highlights(page))).toBe(true);
 
-  // Answers 9 (cell 2) and 1 (cell 72), then erases both: each undo restores a digit
+  // Answers 1 (cell 18) and 9 (cell 80), then erases both: each undo restores a digit
   // that has same-digit cells and matching candidates elsewhere.
   async function setup(page, reduce = false) {
     if (reduce) await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -1053,12 +1053,12 @@ test.describe('highlights pause during undo / redo', () => {
     await page.clock.pauseAt(Date.now() + 2000);
     const t = await touchDriver(page);
     await t.tap(page.locator('#notes-mode'));
-    await t.tap(cell(page, 2));
-    await t.tap(key(page, 9));
-    await t.tap(cell(page, 72));
+    await t.tap(cell(page, 18));
     await t.tap(key(page, 1));
+    await t.tap(cell(page, 80));
+    await t.tap(key(page, 9));
     await t.tap(page.locator('#erase'));
-    await t.tap(cell(page, 2));
+    await t.tap(cell(page, 18));
     await t.tap(page.locator('#erase'));
     await page.clock.runFor(1000);
     return t;
@@ -1066,16 +1066,16 @@ test.describe('highlights pause during undo / redo', () => {
 
   test('absent through both steps, back with a fade once the ring ends', async ({ page }) => {
     const t = await setup(page);
-    await t.tap(cell(page, 0)); // given 8: tints and chips on
+    await t.tap(cell(page, 0)); // given 3: tints and chips on
     await expectPresent(page);
-    await t.tap(page.locator('#undo')); // 0 -> 2: travel 315, apply at 515, ring gone at 765
+    await t.tap(page.locator('#undo')); // 0 -> 18: travel 315, apply at 515, ring gone at 765
     await page.clock.runFor(100); // travelling
     await expectAbsent(page);
-    await page.clock.runFor(450); // applied: 9 restored and selected
-    await expect(cell(page, 2)).toHaveAttribute('data-value', '9');
-    await expect(cell(page, 2)).toHaveClass(/selected/);
+    await page.clock.runFor(450); // applied: 1 restored and selected
+    await expect(cell(page, 18)).toHaveAttribute('data-value', '1');
+    await expect(cell(page, 18)).toHaveClass(/selected/);
     await expectAbsent(page);
-    await expect(cell(page, 40).locator('.v')).toHaveCSS('color', 'rgb(31, 29, 26)');
+    await expect(cell(page, 45).locator('.v')).toHaveCSS('color', 'rgb(31, 29, 26)');
     await page.clock.runFor(250); // 800ms
     await expect(page.locator('#board')).not.toHaveClass(/quiet/);
     await expect(page.locator('#board')).toHaveClass(/hl-in/);
@@ -1088,12 +1088,12 @@ test.describe('highlights pause during undo / redo', () => {
 
   test('two quick undos keep highlights off until the last ring ends', async ({ page }) => {
     const t = await setup(page);
-    await t.tap(page.locator('#undo')); // in place on 2: applied at 350, done at 600
+    await t.tap(page.locator('#undo')); // in place on 18: applied at 350, done at 600
     await page.clock.runFor(400);
-    await expect(cell(page, 2)).toHaveAttribute('data-value', '9');
-    await t.tap(page.locator('#undo')); // still animating: half speed, 2 -> 72, done at ~430
+    await expect(cell(page, 18)).toHaveAttribute('data-value', '1');
+    await t.tap(page.locator('#undo')); // still animating: half speed, 18 -> 80, done at ~430
     await page.clock.runFor(350); // 750ms after the first undo
-    await expect(cell(page, 72)).toHaveAttribute('data-value', '1');
+    await expect(cell(page, 80)).toHaveAttribute('data-value', '9');
     await expect(page.locator('#board')).toHaveClass(/quiet/);
     await expectAbsent(page);
     await page.clock.runFor(200);
@@ -1104,7 +1104,7 @@ test.describe('highlights pause during undo / redo', () => {
   test('redo behaves the same; conflict red stays visible', async ({ page }) => {
     const t = await setup(page);
     await t.tap(cell(page, 9));
-    await t.tap(key(page, 8)); // conflicts with the given 8 at cell 0
+    await t.tap(key(page, 8)); // conflicts with the given 8 at cell 1
     await expect(cell(page, 9)).toHaveClass(/conflict/);
     await t.tap(page.locator('#undo'));
     await page.clock.runFor(1500);
@@ -1112,7 +1112,7 @@ test.describe('highlights pause during undo / redo', () => {
     await page.clock.runFor(400);
     await expect(cell(page, 9)).toHaveAttribute('data-value', '8');
     await expectAbsent(page);
-    await expect(cell(page, 0)).toHaveCSS('background-color', 'rgb(251, 228, 228)');
+    await expect(cell(page, 1)).toHaveCSS('background-color', 'rgb(251, 228, 228)');
     await page.clock.runFor(300);
     await expectPresent(page);
   });
@@ -1120,7 +1120,7 @@ test.describe('highlights pause during undo / redo', () => {
   test('reduced motion: suppressed during the ring, back without a fade', async ({ page }) => {
     const t = await setup(page, true);
     await t.tap(page.locator('#undo'));
-    await expect(cell(page, 2)).toHaveAttribute('data-value', '9');
+    await expect(cell(page, 18)).toHaveAttribute('data-value', '1');
     await expectAbsent(page);
     await page.clock.runFor(700);
     await expect(page.locator('#board')).not.toHaveClass(/quiet|hl-in/);
@@ -1138,8 +1138,8 @@ test.describe('redo', () => {
     await expect(redoBtn(page)).toBeDisabled();
     await t.tap(cell(page, EMPTY));
     await t.tap(key(page, 4));
-    await t.tap(cell(page, 33));
-    await page.keyboard.press('Shift+Digit4');
+    await t.tap(cell(page, 5));
+    await page.keyboard.press('Shift+Digit1');
     await expect(redoBtn(page)).toBeDisabled();
     await t.tap(undoBtn(page));
     await t.tap(undoBtn(page));
@@ -1154,7 +1154,7 @@ test.describe('redo', () => {
     await expect(cell(page, EMPTY)).toHaveClass(/selected/);
     await expect(cell(page, EMPTY).locator('.v')).toHaveClass(/undo-in/);
     await t.tap(redoBtn(page));
-    await expect(cell(page, 33)).toHaveAttribute('data-notes', '4');
+    await expect(cell(page, 5)).toHaveAttribute('data-notes', '1');
     await expect(redoBtn(page)).toBeDisabled();
     await expect(undoBtn(page)).toBeEnabled();
   });
@@ -1174,8 +1174,8 @@ test.describe('redo', () => {
 });
 
 test.describe('illegal candidates are refused', () => {
-  // 3 is illegal in EMPTY (77): given 3s at 78 (row), 50 (column) and 57 (box).
-  const BLOCKERS = ['50', '57', '78'];
+  // 4 is illegal in EMPTY (75): given 4s at 79 (row), 3 (column) and 59 (box).
+  const BLOCKERS = ['3', '59', '79'];
   const blocked = (page) => page.locator('.cell.blocked').evaluateAll((els) => els.map((el) => el.dataset.i).sort());
   async function frozen(page) {
     await page.clock.install();
@@ -1198,9 +1198,9 @@ test.describe('illegal candidates are refused', () => {
   test('Manual: a refused swipe glides back, writes nothing, adds no undo step, flashes every blocker', async ({ page }) => {
     const t = await frozen(page);
     await t.tap(cell(page, EMPTY));
-    await swipeAndWatch(page, t, 3);
+    await swipeAndWatch(page, t, 4);
     expect(await blocked(page)).toEqual(BLOCKERS);
-    const flash = await cell(page, 78).evaluate((el) => {
+    const flash = await cell(page, 79).evaluate((el) => {
       const cs = getComputedStyle(el);
       return { name: cs.animationName, ms: cs.animationDuration, easing: cs.animationTimingFunction };
     });
@@ -1213,14 +1213,14 @@ test.describe('illegal candidates are refused', () => {
     await expectIdle(page);
     await expect(page.locator('.n.hidden-pending')).toHaveCount(0);
 
-    await t.swipeUp(key(page, 5), 60); // a legal add right after still works
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '5');
+    await t.swipeUp(key(page, 3), 60); // a legal add right after still works
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '3');
   });
 
   test('drag-time hint: no ghost, "Not allowed" label, blockers tinted while dragging', async ({ page }) => {
     const t = await frozen(page);
     await t.tap(cell(page, EMPTY));
-    const k = key(page, 3);
+    const k = key(page, 4);
     const p = await t.center(k);
     await t.start(p.x, p.y);
     await t.move(p.x, p.y - 15);
@@ -1229,12 +1229,12 @@ test.describe('illegal candidates are refused', () => {
     await expect(page.locator('.n.preview-add, .n.preview-remove')).toHaveCount(0);
     const tinted = () => page.locator('.cell.blocking').evaluateAll((els) => els.map((el) => el.dataset.i).sort());
     expect(await tinted()).toEqual(BLOCKERS);
-    const tint = await cell(page, 78).evaluate((el) => getComputedStyle(el).boxShadow);
+    const tint = await cell(page, 79).evaluate((el) => getComputedStyle(el).boxShadow);
     expect(tint).toContain('inset');
     await t.move(p.x, p.y - 40); // the arm threshold can still be crossed
     await expect(k).toHaveClass(/armed/);
     await expect(k).toHaveCSS('background-color', 'rgb(236, 233, 226)'); // neutral, not blue or red-orange
-    expect(await k.evaluate((el) => getComputedStyle(el, '::before').backgroundColor)).toBe('rgb(217, 84, 30)');
+    await expect.poll(() => k.evaluate((el) => getComputedStyle(el, '::before').backgroundColor)).toBe('rgb(217, 84, 30)');
     await page.clock.runFor(2000); // the tint lasts as long as the drag
     expect(await tinted()).toEqual(BLOCKERS);
     await t.end(p.x, p.y - 40);
@@ -1253,14 +1253,14 @@ test.describe('illegal candidates are refused', () => {
 
     // Removing is unchanged: a legal digit added, then dragged again, shows "− candidate".
     await page.clock.runFor(400);
-    await t.swipeUp(key(page, 5), 60);
-    const k5 = key(page, 5);
+    await t.swipeUp(key(page, 3), 60);
+    const k5 = key(page, 3);
     const p5 = await t.center(k5);
     await t.start(p5.x, p5.y);
     await t.move(p5.x, p5.y - 15);
     await expect(k5.locator('.label')).toHaveText('\u2212 candidate');
     await expect(k5).toHaveCSS('background-color', 'rgb(238, 241, 247)'); // legal drags keep the pressed surface
-    await expect(cell(page, EMPTY).locator('.n[data-d="5"]')).toHaveClass(/preview-remove/);
+    await expect(cell(page, EMPTY).locator('.n[data-d="3"]')).toHaveClass(/preview-remove/);
     expect(await tinted()).toEqual([]);
     await t.end(p5.x, p5.y - 15);
   });
@@ -1269,41 +1269,41 @@ test.describe('illegal candidates are refused', () => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     const t = await frozen(page);
     await t.tap(cell(page, EMPTY));
-    const p = await t.center(key(page, 3));
+    const p = await t.center(key(page, 4));
     await t.start(p.x, p.y);
     await t.move(p.x, p.y - 40);
-    await expect(cell(page, 78)).toHaveClass(/blocking/);
-    expect(await cell(page, 78).evaluate((el) => getComputedStyle(el).animationName)).toBe('none');
+    await expect(cell(page, 79)).toHaveClass(/blocking/);
+    expect(await cell(page, 79).evaluate((el) => getComputedStyle(el).animationName)).toBe('none');
     await t.end(p.x, p.y - 40);
-    await expect(cell(page, 78)).not.toHaveClass(/blocking/);
+    await expect(cell(page, 79)).not.toHaveClass(/blocking/);
   });
 
   test('Auto: a refused swipe leaves the computed candidates and history alone', async ({ page }) => {
     const t = await frozen(page);
     await t.tap(page.locator('#notes-mode'));
     await t.tap(cell(page, EMPTY));
-    await swipeAndWatch(page, t, 3);
+    await swipeAndWatch(page, t, 4);
     expect(await blocked(page)).toEqual(BLOCKERS);
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1245789');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1379');
     await expect(page.locator('#undo')).toBeDisabled();
     await expect(page.locator('#erase')).toBeDisabled();
 
     // Restoring a candidate removed earlier is a legal add.
     await page.clock.runFor(400);
-    await t.swipeUp(key(page, 2), 60);
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '145789');
-    await t.swipeUp(key(page, 2), 60);
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1245789');
+    await t.swipeUp(key(page, 3), 60);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '179');
+    await t.swipeUp(key(page, 3), 60);
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1379');
     expect(await blocked(page)).toEqual([]);
   });
 
   test('judged only against the board: an answer blocks, a wrong-but-legal digit does not', async ({ page }) => {
     const t = await frozen(page);
-    await t.tap(cell(page, 72));
+    await t.tap(cell(page, 76));
     await t.tap(key(page, 7)); // answer 7 in the row (solution is 1)
     await t.tap(cell(page, EMPTY));
     await page.keyboard.press('Shift+Digit7');
-    expect(await blocked(page)).toEqual(['72']);
+    expect(await blocked(page)).toEqual(['76']);
     await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '');
     await page.keyboard.press('Shift+Digit1'); // 1 is not EMPTY's solution (7), but legal
     await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1');
@@ -1312,17 +1312,17 @@ test.describe('illegal candidates are refused', () => {
   test('removal is always allowed; notes made illegal later are left alone', async ({ page }) => {
     const t = await frozen(page);
     await t.tap(cell(page, EMPTY));
-    await page.keyboard.press('Shift+Digit5');
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '5');
-    await t.tap(cell(page, 72));
-    await t.tap(key(page, 5)); // now 5 sits in EMPTY's row
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '5');
+    await page.keyboard.press('Shift+Digit1');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1');
+    await t.tap(cell(page, 76));
+    await t.tap(key(page, 1)); // now 1 sits in EMPTY's row
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1');
     await t.tap(cell(page, EMPTY));
-    await t.swipeUp(key(page, 5), 60);
+    await t.swipeUp(key(page, 1), 60);
     await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '');
     expect(await blocked(page)).toEqual([]);
-    await page.keyboard.press('Shift+Digit5'); // adding it back is refused
-    expect(await blocked(page)).toEqual(['72']);
+    await page.keyboard.press('Shift+Digit1'); // adding it back is refused
+    expect(await blocked(page)).toEqual(['76']);
     await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '');
   });
 
@@ -1330,12 +1330,12 @@ test.describe('illegal candidates are refused', () => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     const t = await frozen(page);
     await t.tap(cell(page, EMPTY));
-    await page.keyboard.press('Shift+Digit3');
-    const s = await cell(page, 78).evaluate((el) => ({ name: getComputedStyle(el).animationName, bg: getComputedStyle(el).backgroundColor }));
+    await page.keyboard.press('Shift+Digit4');
+    const s = await cell(page, 79).evaluate((el) => ({ name: getComputedStyle(el).animationName, bg: getComputedStyle(el).backgroundColor }));
     expect(s.name).toBe('none');
     expect(s.bg).not.toBe('rgb(255, 255, 255)');
     await page.clock.runFor(320);
-    await expect(cell(page, 78)).toHaveCSS('background-color', GIVEN_BG);
+    await expect(cell(page, 79)).toHaveCSS('background-color', GIVEN_BG);
   });
 });
 
@@ -1349,24 +1349,24 @@ test.describe('double-tap: highlighted digit', () => {
   test('fills the highlighted digit on a multi-candidate cell, one undo step', async ({ page }) => {
     const t = await touchDriver(page);
     await t.tap(page.locator('#notes-mode'));
-    await t.tap(cell(page, 0)); // given 8 highlighted
-    await expect(cell(page, 37).locator('.n[data-d="8"]')).toHaveClass(/match/);
-    await expect(cell(page, 37)).toHaveAttribute('data-notes', '378');
+    await t.tap(cell(page, 1)); // given 8 highlighted
+    await expect(cell(page, 36).locator('.n[data-d="8"]')).toHaveClass(/match/);
+    await expect(cell(page, 36)).toHaveAttribute('data-notes', '1268');
     await page.waitForTimeout(350);
-    await doubleTap(page, t, 37);
-    await expect(cell(page, 37)).toHaveAttribute('data-value', '8');
+    await doubleTap(page, t, 36);
+    await expect(cell(page, 36)).toHaveAttribute('data-value', '8');
     await t.tap(page.locator('#undo'));
-    await expect(cell(page, 37)).toHaveAttribute('data-value', '');
-    await expect(cell(page, 37)).toHaveAttribute('data-notes', '378');
+    await expect(cell(page, 36)).toHaveAttribute('data-value', '');
+    await expect(cell(page, 36)).toHaveAttribute('data-notes', '1268');
   });
 
   test('a highlighted digit that is not a candidate falls back to the lone candidate', async ({ page }) => {
     const t = await touchDriver(page);
     await t.tap(page.locator('#notes-mode'));
-    await t.tap(cell(page, 0)); // given 8 highlighted; r5c1 can only be 3
+    await t.tap(cell(page, 1)); // given 8 highlighted; r7c2 can only be 9
     await page.waitForTimeout(350);
-    await doubleTap(page, t, 36);
-    await expect(cell(page, 36)).toHaveAttribute('data-value', '3');
+    await doubleTap(page, t, 55);
+    await expect(cell(page, 55)).toHaveAttribute('data-value', '9');
   });
 
   test('no highlighted digit: lone candidate fills, multi-candidate only selects', async ({ page }) => {
@@ -1374,24 +1374,24 @@ test.describe('double-tap: highlighted digit', () => {
     await t.tap(page.locator('#notes-mode'));
     await t.tap(cell(page, 7)); // empty, nothing highlighted
     await page.waitForTimeout(350);
-    await doubleTap(page, t, 37);
-    await expect(cell(page, 37)).toHaveAttribute('data-value', '');
-    await page.waitForTimeout(350);
     await doubleTap(page, t, 36);
-    await expect(cell(page, 36)).toHaveAttribute('data-value', '3');
+    await expect(cell(page, 36)).toHaveAttribute('data-value', '');
+    await page.waitForTimeout(350);
+    await doubleTap(page, t, 55);
+    await expect(cell(page, 55)).toHaveAttribute('data-value', '9');
   });
 
   test('Manual mode: highlighted digit does not fill', async ({ page }) => {
     const t = await touchDriver(page);
-    await t.tap(cell(page, 37));
-    await page.keyboard.press('Shift+Digit3');
+    await t.tap(cell(page, 36));
+    await page.keyboard.press('Shift+Digit1');
     await page.keyboard.press('Shift+Digit8');
-    await t.tap(cell(page, 0));
-    await expect(cell(page, 37).locator('.n[data-d="8"]')).toHaveClass(/match/);
+    await t.tap(cell(page, 1));
+    await expect(cell(page, 36).locator('.n[data-d="8"]')).toHaveClass(/match/);
     await page.waitForTimeout(350);
-    await doubleTap(page, t, 37);
-    await expect(cell(page, 37)).toHaveClass(/selected/);
-    await expect(cell(page, 37)).toHaveAttribute('data-value', '');
+    await doubleTap(page, t, 36);
+    await expect(cell(page, 36)).toHaveClass(/selected/);
+    await expect(cell(page, 36)).toHaveAttribute('data-value', '');
   });
 });
 
@@ -1407,8 +1407,8 @@ test('emphasised-candidate colour comes from --cand-emph', async ({ page }) => {
   const t = await touchDriver(page);
   await t.tap(page.locator('#notes-mode'));
   await page.evaluate(() => document.documentElement.style.setProperty('--cand-emph', 'rgb(180, 83, 9)'));
-  await t.tap(cell(page, 0));
-  expect(await cell(page, 37).locator('.n[data-d="8"]').evaluate((el) => getComputedStyle(el).color)).toBe('rgb(180, 83, 9)');
+  await t.tap(cell(page, 1));
+  expect(await cell(page, 36).locator('.n[data-d="8"]').evaluate((el) => getComputedStyle(el).color)).toBe('rgb(180, 83, 9)');
 });
 
 test.describe('Erase semantics', () => {
@@ -1423,7 +1423,7 @@ test.describe('Erase semantics', () => {
     await t.tap(erase(page));
     await page.keyboard.press('0');
     await page.keyboard.press('Backspace');
-    await expect(cell(page, 0)).toHaveAttribute('data-value', '8');
+    await expect(cell(page, 0)).toHaveAttribute('data-value', '3');
     await t.tap(autoBtn(page));
     await expect(erase(page)).toBeDisabled();
   });
@@ -1432,13 +1432,13 @@ test.describe('Erase semantics', () => {
     const t = await touchDriver(page);
     await t.tap(cell(page, EMPTY));
     await page.keyboard.press('Shift+Digit1');
-    await page.keyboard.press('Shift+Digit4');
+    await page.keyboard.press('Shift+Digit3');
     await t.tap(key(page, 4));
     await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '');
     await expect(erase(page)).toBeEnabled();
     await t.tap(erase(page));
     await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '');
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '14');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '13');
     await expect(erase(page)).toBeEnabled();
     await t.tap(erase(page));
     await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '');
@@ -1449,13 +1449,13 @@ test.describe('Erase semantics', () => {
     const t = await touchDriver(page);
     await t.tap(autoBtn(page));
     await t.tap(cell(page, EMPTY));
-    await page.keyboard.press('Shift+Digit2');
+    await page.keyboard.press('Shift+Digit3');
     await t.tap(key(page, 1));
     await t.tap(erase(page));
     await expect(cell(page, EMPTY)).toHaveAttribute('data-value', '');
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '145789');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '179');
     await t.tap(erase(page));
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1245789');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1379');
     await expect(erase(page)).toBeDisabled();
   });
 
@@ -1463,14 +1463,14 @@ test.describe('Erase semantics', () => {
     const t = await touchDriver(page);
     await t.tap(autoBtn(page));
     await t.tap(cell(page, EMPTY));
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1245789');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1379');
     await expect(erase(page)).toBeDisabled();
     await t.tap(erase(page));
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1245789');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1379');
     await page.keyboard.press('Shift+Digit9');
     await expect(erase(page)).toBeEnabled();
     await t.tap(erase(page));
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1245789');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1379');
     await expect(erase(page)).toBeDisabled();
   });
 
@@ -1478,7 +1478,7 @@ test.describe('Erase semantics', () => {
     const t = await touchDriver(page);
     await t.tap(cell(page, EMPTY));
     await expect(erase(page)).toBeDisabled();
-    await page.keyboard.press('Shift+Digit5');
+    await page.keyboard.press('Shift+Digit3');
     await expect(erase(page)).toBeEnabled();
     await t.tap(erase(page));
     await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '');
@@ -1490,7 +1490,7 @@ test.describe('Erase semantics', () => {
     await t.tap(autoBtn(page));
     await t.tap(cell(page, EMPTY));
     await page.keyboard.press('Shift+Digit1');
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '245789');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '379');
     await t.tap(autoBtn(page));
     await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '');
     await expect(erase(page)).toBeDisabled();
@@ -1498,21 +1498,21 @@ test.describe('Erase semantics', () => {
     await t.tap(erase(page));
     await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '');
     await t.tap(autoBtn(page));
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '245789');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '379');
   });
 
   test('erasing in Auto leaves Manual notes intact', async ({ page }) => {
     const t = await touchDriver(page);
     await t.tap(cell(page, EMPTY));
     await page.keyboard.press('Shift+Digit7');
-    await page.keyboard.press('Shift+Digit8');
+    await page.keyboard.press('Shift+Digit9');
     await t.tap(autoBtn(page));
     await expect(erase(page)).toBeDisabled();
-    await page.keyboard.press('Shift+Digit2');
+    await page.keyboard.press('Shift+Digit3');
     await t.tap(erase(page));
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1245789');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1379');
     await t.tap(autoBtn(page));
-    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '78');
+    await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '79');
   });
 
   test('each Erase is one undo step and animates', async ({ page }) => {
@@ -1537,11 +1537,11 @@ test.describe('Erase semantics', () => {
 
   test('button state follows the selected cell', async ({ page }) => {
     const t = await touchDriver(page);
-    await t.tap(cell(page, 19));
+    await t.tap(cell(page, 18));
     await page.keyboard.press('Shift+Digit2');
     await t.tap(cell(page, 0));
     await expect(erase(page)).toBeDisabled();
-    await t.tap(cell(page, 19));
+    await t.tap(cell(page, 18));
     await expect(erase(page)).toBeEnabled();
     await t.tap(cell(page, EMPTY));
     await expect(erase(page)).toBeDisabled();
@@ -1596,10 +1596,10 @@ test.describe('no double-tap zoom', () => {
       addEventListener('touchend', (e) => window.__ends.push(e.defaultPrevented), false);
     });
     await t.tap(page.locator('#notes-mode'));
-    await t.tap(cell(page, 36), { holdMs: 40 });
+    await t.tap(cell(page, 55), { holdMs: 40 });
     await page.waitForTimeout(100);
-    await t.tap(cell(page, 36), { holdMs: 40 });
-    await expect(cell(page, 36)).toHaveAttribute('data-value', '3');
+    await t.tap(cell(page, 55), { holdMs: 40 });
+    await expect(cell(page, 55)).toHaveAttribute('data-value', '9');
     await t.tap(cell(page, 0)); // a given, so the key tap below writes nothing
     await t.tap(key(page, 1));
     const ends = await page.evaluate(() => window.__ends);

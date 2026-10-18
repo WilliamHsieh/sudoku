@@ -45,17 +45,17 @@ const swipeUp = async (sel, dy) => {
 const resumeAnimations = () => page.evaluate(() => document.getAnimations().forEach((a) => a.play()));
 
 await tap('#notes-mode');
-for (const [i, d] of [[36, 3], [45, 2], [47, 9], [33, 4], [2, 3]]) {
+for (const [i, d] of [[55, 9], [5, 5], [11, 9], [27, 6], [18, 1]]) {
   await tap(cell(i));
   await tap(key(d));
 }
-await tap(cell(33));
+await tap(cell(27));
 await tap('#erase');
 await page.clock.fastForward(222_000);
-await tap(cell(36));
+await tap(cell(55));
 await page.waitForTimeout(300);
 
-// Mid-travel: the ring is on its way from 36 to 33, every yellow highlight is off.
+// Mid-travel: the ring is on its way from 55 to 27, every yellow highlight is off.
 await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1000);
 await tap('#undo');
 await page.clock.runFor(40);
@@ -66,10 +66,10 @@ await page.clock.runFor(1000);
 await page.waitForTimeout(500);
 await shot('v6-undo-after.png');
 
-// Refused pencil mark: 3 is already in r9c6's row, column and box.
-await tap(cell(77));
+// Refused pencil mark: 4 is already in r9c4's row, column and box.
+await tap(cell(75));
 await page.waitForTimeout(300);
-await swipeUp(key(3), 60);
+await swipeUp(key(4), 60);
 await freezeAnimations(70);
 await shot('v6-refusal-flash.png');
 
