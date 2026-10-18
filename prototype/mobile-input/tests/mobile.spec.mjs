@@ -1233,6 +1233,8 @@ test.describe('illegal candidates are refused', () => {
     expect(tint).toContain('inset');
     await t.move(p.x, p.y - 40); // the arm threshold can still be crossed
     await expect(k).toHaveClass(/armed/);
+    await expect(k).toHaveCSS('background-color', 'rgb(236, 233, 226)'); // neutral, not blue or red-orange
+    expect(await k.evaluate((el) => getComputedStyle(el, '::before').backgroundColor)).toBe('rgb(217, 84, 30)');
     await page.clock.runFor(2000); // the tint lasts as long as the drag
     expect(await tinted()).toEqual(BLOCKERS);
     await t.end(p.x, p.y - 40);
@@ -1257,6 +1259,7 @@ test.describe('illegal candidates are refused', () => {
     await t.start(p5.x, p5.y);
     await t.move(p5.x, p5.y - 15);
     await expect(k5.locator('.label')).toHaveText('\u2212 candidate');
+    await expect(k5).toHaveCSS('background-color', 'rgb(238, 241, 247)'); // legal drags keep the pressed surface
     await expect(cell(page, EMPTY).locator('.n[data-d="5"]')).toHaveClass(/preview-remove/);
     expect(await tinted()).toEqual([]);
     await t.end(p5.x, p5.y - 15);

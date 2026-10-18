@@ -21,6 +21,7 @@
   --undo-ring: #d9541e;
   --key: #ffffff;
   --key-pressed: #eef1f7;
+  --key-pressed-neutral: #ece9e2;
   --radius: 12px;
   --cell: calc((min(100vw, 430px) - 16px) / 9);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
@@ -398,6 +399,7 @@ html, body {
   transition: background 80ms ease-out;
 }
 .key.pressed { transform: scale(0.95); background: var(--key-pressed); }
+.key.pressed.illegal { background: var(--key-pressed-neutral); }
 .key.armed::before { background: var(--accent); }
 .key.armed.remove::before { background: var(--conflict); }
 .key.armed.illegal::before { background: var(--undo-ring); }
