@@ -29,16 +29,16 @@ const key = (d) => `.key[data-d="${d}"]`;
 const shot = (name) => page.screenshot({ path: join(OUT, name) });
 
 await tap('#notes-mode');
-for (const [i, d] of [[40, 5], [59, 7], [62, 4], [70, 3], [2, 4]]) {
+for (const [i, d] of [[36, 3], [45, 2], [47, 9], [33, 4], [2, 3]]) {
   await tap(cell(i));
   await tap(key(d));
 }
 await page.clock.fastForward(462_000);
-await tap(cell(40));
+await tap(cell(36));
 await page.waitForTimeout(400);
 await shot('v3-selected-filled.png');
 
-await tap(cell(3));
+await tap(cell(7));
 await page.waitForTimeout(400);
 await shot('v3-selected-empty.png');
 

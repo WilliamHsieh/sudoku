@@ -1,13 +1,21 @@
 # Mobile input prototype
 
 Standalone, dependency-free (plain HTML/CSS/JS) prototype of the mobile Sudoku
-input model. It does not touch the main app.
+input model. It does not touch the main app. The demo puzzle is NYT Hard
+2025-06-01 from the main app's bank (25 givens, one solution, needs more than
+singles; checked by `tests/puzzle.spec.mjs`).
 
 - Tap a key: write that digit as the answer (tap the same key again to clear).
 - Swipe up on a key (~28px arms, below ~22px disarms): toggle that digit as a
-  candidate in the selected cell.
-- Tools: Undo, Redo (two-step: a red-orange ring lands on each affected cell, then
-  the change applies), Erase, Notes Auto/Manual switch, More.
+  candidate in the selected cell. Adding a digit that already sits in the cell's
+  row, column or box (given or answer) is refused: the lift glides back, nothing is
+  written, and the blocking cells flash red-orange. Removing is always allowed, and
+  notes made illegal by a later answer are left alone.
+- Tools: Undo, Redo, Erase, Notes Auto/Manual switch, More. Undo/redo: a red-orange
+  ring travels from the selection to the changed cell (~300ms for a neighbour up to
+  ~450ms across the board, 150ms in place), the change applies 200ms after it lands,
+  then the ring fades. Repeats during or within ~400ms of one run at half speed.
+  Same-digit highlights stay off until the last ring is gone, then fade back in.
 - Erase: disabled on givens. Clears the answer first (the cell's notes come back).
   On an empty cell it resets Auto overrides (Auto mode) or clears manual notes
   (Manual mode), never the other mode's set. Disabled when there is nothing to erase.
@@ -47,4 +55,6 @@ With `npm start` running in another shell:
 ```sh
 npm run record       # v1 flow: recordings/mobile-input-opus.webm + screenshots
 npm run record:v2    # v2 flow: recordings/mobile-input-opus-v2.webm + screenshots
+npm run record:v6    # travelling undo/redo ring: recordings/v6-undo-redo.webm
+npm run screens:v6   # v6 screenshots into recordings/
 ```

@@ -12,7 +12,9 @@
     "screens:v3": "node scripts/screens-v3.mjs recordings",
     "screens:v4": "node scripts/screens-v4.mjs recordings",
     "screens:v5": "node scripts/screens-v5.mjs recordings",
-    "record:v4": "node scripts/record-v4.mjs recordings"
+    "screens:v6": "node scripts/screens-v6.mjs recordings",
+    "record:v4": "node scripts/record-v4.mjs recordings",
+    "record:v6": "node scripts/record-v6.mjs recordings"
   },
   "devDependencies": {
     "@playwright/test": "1.48"

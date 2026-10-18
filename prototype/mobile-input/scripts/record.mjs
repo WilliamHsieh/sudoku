@@ -14,15 +14,15 @@ await wait(400);
 await caption('Tap a cell to select it');
 await tap(cell(2), 900);
 
-await caption('Tap 4 → writes the answer');
-await tap(key(4), 1000);
-await caption('Tap 4 again → clears it');
-await tap(key(4), 1000);
+await caption('Tap 9 → writes the answer');
+await tap(key(9), 1000);
+await caption('Tap 9 again → clears it');
+await tap(key(9), 1000);
 
 await caption('Swipe up on a key → add candidate');
 await swipe(key(1), 70);
 await swipe(key(2), 75, { shot: join(OUT, 'mobile-input-opus-armed-swipe.png') });
-await swipe(key(4), 70, { after: 900 });
+await swipe(key(9), 70, { after: 900 });
 
 await caption('Swipe the same key again → remove candidate');
 await swipe(key(2), 72, { hold: 300, after: 1000 });
@@ -30,16 +30,11 @@ await swipe(key(2), 72, { hold: 300, after: 1000 });
 await caption('Short drag below threshold → glides back, nothing written');
 await swipe(key(6), 17, { ms: 300, hold: 450, after: 1200 });
 
-await caption('Two candidates left (1, 4). Remove 1 → only 4 remains');
+await caption('Two candidates left (1, 9). Remove 1 → only 9 remains');
 await swipe(key(1), 72, { after: 1200 });
-await caption('Lone candidate flashes green every 15s (3s in this demo)');
-await page.waitForSelector(`${cell(2)} .n.lone-flash`);
-await wait(500);
-await page.screenshot({ path: join(OUT, 'mobile-input-opus-single-cue.png') });
-await wait(1300);
 
 await caption('Create a conflict: 5 in a row that already has 5');
-await tap(cell(3), 700);
+await tap(cell(7), 700);
 await tap(key(5), 600);
 await page.screenshot({ path: join(OUT, 'mobile-input-opus-conflict.png') });
 await wait(1200);
@@ -57,7 +52,7 @@ await wait(1200);
 
 await caption('A wrong answer still drives Auto notes (never checked vs solution)');
 await tap(cell(21), 700);
-await tap(key(2), 1800);
+await tap(key(6), 1800);
 
 await caption('More → single-candidate cue setting (on by default)');
 await tap('#more', 1000);

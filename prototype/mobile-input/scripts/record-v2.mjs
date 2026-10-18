@@ -14,10 +14,10 @@ const { page, wait, caption, cell, key, tap, swipe, shot, finish } = await openD
 await wait(400);
 await caption('Notes: Auto');
 await tap('#notes-mode', 700);
-await caption('Edit the auto candidates: swipe 2 out, swipe 7 in');
+await caption('Edit the auto candidates: swipe 2 and 9 out');
 await tap(cell(2), 500);
 await swipe(key(2), 70, { after: 450 });
-await swipe(key(7), 72, { hold: 160, after: 700, shot: `${OUT}/${NAME}-armed-swipe.png` });
+await swipe(key(9), 72, { hold: 160, after: 700, shot: `${OUT}/${NAME}-armed-swipe.png` });
 await shot(`${NAME}-erase-before.png`);
 await caption('Erase resets the cell to its auto candidates');
 await tap('#erase', 300);
@@ -33,29 +33,33 @@ await wait(1200);
 await tap('#undo', 1300);
 
 await caption('Quick back-to-back swipes');
-await tap(cell(18), 400);
+await tap(cell(19), 400);
 const quick = { ms: 130, pre: 30, hold: 20, after: 90 };
-for (const d of [3, 7, 1, 3, 9, 7, 1, 3]) await swipe(key(d), 58, quick);
+for (const d of [3, 6, 2, 3, 9, 6, 2, 3]) await swipe(key(d), 58, quick);
 await wait(1000);
 
 await caption('Double-tap a single-candidate cell → fills it');
-await tap(cell(40), 110);
-await tap(cell(40), 500);
+await tap(cell(36), 110);
+await tap(cell(36), 500);
 await shot(`${NAME}-double-tap-fill.png`);
 await wait(800);
 await caption('Double-tap a cell with several candidates → just selects');
-await tap(cell(2), 110);
-await tap(cell(2), 1300);
+await tap(cell(37), 110);
+await tap(cell(37), 1300);
 
-await caption('Every single-candidate cell flashes together (15s; 4s here)');
+await caption('Fill a few cells: every single-candidate cell flashes together');
+for (const [i, d] of [[45, 2], [47, 9], [33, 4], [2, 3]]) {
+  await tap(cell(i), 250);
+  await tap(key(d), 350);
+}
 await page.waitForFunction(() => document.querySelectorAll('.n.lone-flash').length >= 2);
 await wait(350);
 await shot(`${NAME}-synced-flash.png`);
 await wait(1600);
 
 await caption('Undo, undo');
-await tap('#undo', 900);
 await tap('#undo', 1100);
+await tap('#undo', 1300);
 
 await caption('Pause: timer stops, board hidden, input blocked');
 await tap('#pause', 500);
