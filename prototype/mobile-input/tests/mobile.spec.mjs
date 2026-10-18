@@ -873,6 +873,99 @@ test.describe('undo / redo animation', () => {
   });
 });
 
+test.describe('highlights pause during undo / redo', () => {
+  const TINT = 'rgb(250, 236, 180)';
+  const CHIP = 'rgb(252, 239, 184)';
+  const highlights = (page) => page.evaluate(() => ({
+    same: [...new Set([...document.querySelectorAll('.cell.same:not(.conflict)')].map((el) => getComputedStyle(el).backgroundColor))],
+    chips: [...new Set([...document.querySelectorAll('.n.on.match')].map((el) => getComputedStyle(el).backgroundColor))],
+  }));
+  const expectAbsent = async (page) =>
+    expect(await highlights(page)).toEqual({ same: ['rgb(255, 255, 255)'], chips: ['rgba(0, 0, 0, 0)'] });
+  const expectPresent = (page) => expect.poll(() => highlights(page)).toEqual({ same: [TINT], chips: [CHIP] });
+
+  // Answers 4 (cell 2) and 3 (cell 70), then erases both: each undo restores a digit
+  // that has same-digit cells and matching candidates elsewhere.
+  async function setup(page, reduce = false) {
+    if (reduce) await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.clock.install();
+    await page.goto('/');
+    await page.clock.pauseAt(Date.now() + 2000);
+    const t = await touchDriver(page);
+    await t.tap(page.locator('#notes-mode'));
+    await t.tap(cell(page, 2));
+    await t.tap(key(page, 4));
+    await t.tap(cell(page, 70));
+    await t.tap(key(page, 3));
+    await t.tap(page.locator('#erase'));
+    await t.tap(cell(page, 2));
+    await t.tap(page.locator('#erase'));
+    await page.clock.runFor(1000);
+    return t;
+  }
+
+  test('absent through both steps, back with a fade once the ring ends', async ({ page }) => {
+    const t = await setup(page);
+    await t.tap(cell(page, 0)); // given 5: tints and chips on
+    await expectPresent(page);
+    await t.tap(page.locator('#undo'));
+    await page.clock.runFor(100); // step one
+    await expectAbsent(page);
+    await page.clock.runFor(200); // step two: 4 restored and selected
+    await expect(cell(page, 2)).toHaveAttribute('data-value', '4');
+    await expect(cell(page, 2)).toHaveClass(/selected/);
+    await expectAbsent(page);
+    await expect(cell(page, 14).locator('.v')).toHaveCSS('color', 'rgb(29, 36, 51)');
+    await page.clock.runFor(400); // ~700ms
+    await expect(page.locator('#board')).not.toHaveClass(/quiet/);
+    await expect(page.locator('#board')).toHaveClass(/hl-in/);
+    expect(await page.locator('.cell.same').first().evaluate((el) => getComputedStyle(el).animationName)).toBe('same-in');
+    await expectPresent(page);
+  });
+
+  test('two quick undos keep highlights off until the last ring ends', async ({ page }) => {
+    const t = await setup(page);
+    await t.tap(page.locator('#undo'));
+    await page.clock.runFor(300);
+    await expect(cell(page, 2)).toHaveAttribute('data-value', '4');
+    await t.tap(page.locator('#undo'));
+    await page.clock.runFor(400); // 700ms after the first undo, 400ms after the second
+    await expect(cell(page, 70)).toHaveAttribute('data-value', '3');
+    await expect(page.locator('#board')).toHaveClass(/quiet/);
+    await expectAbsent(page);
+    await page.clock.runFor(300);
+    await expect(page.locator('#board')).not.toHaveClass(/quiet/);
+    await expectPresent(page);
+  });
+
+  test('redo behaves the same; conflict red stays visible', async ({ page }) => {
+    const t = await setup(page);
+    await t.tap(cell(page, 1)); // given 3
+    await t.tap(cell(page, 18));
+    await t.tap(key(page, 3)); // conflicts with the given 3 in its box
+    await expect(cell(page, 18)).toHaveClass(/conflict/);
+    await t.tap(page.locator('#undo'));
+    await page.clock.runFor(1000);
+    await t.tap(page.locator('#redo'));
+    await page.clock.runFor(300);
+    await expect(cell(page, 18)).toHaveAttribute('data-value', '3');
+    await expectAbsent(page);
+    await expect(cell(page, 1)).toHaveCSS('background-color', 'rgb(251, 228, 228)');
+    await page.clock.runFor(400);
+    await expectPresent(page);
+  });
+
+  test('reduced motion: suppressed during the ring, back without a fade', async ({ page }) => {
+    const t = await setup(page, true);
+    await t.tap(page.locator('#undo'));
+    await expect(cell(page, 2)).toHaveAttribute('data-value', '4');
+    await expectAbsent(page);
+    await page.clock.runFor(700);
+    await expect(page.locator('#board')).not.toHaveClass(/quiet|hl-in/);
+    expect(await highlights(page)).toEqual({ same: [TINT], chips: [CHIP] });
+  });
+});
+
 test.describe('redo', () => {
   const undoBtn = (page) => page.locator('#undo');
   const redoBtn = (page) => page.locator('#redo');

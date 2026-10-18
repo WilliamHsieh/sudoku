@@ -247,6 +247,18 @@ html, body {
   75% { opacity: 1; transform: scale(1); }
   100% { opacity: 0; transform: scale(1); }
 }
+.board.quiet .cell.same:not(.conflict) { background: var(--surface); }
+.board.quiet .n.on.match:not(.lone-flash) {
+  color: var(--ink-soft);
+  background: transparent;
+  box-shadow: none;
+}
+.board.hl-in .cell.same:not(.conflict) { animation: same-in 150ms ease-out; }
+.board.hl-in .n.on.match:not(.lone-flash) { animation: chip-in 150ms ease-out; }
+@keyframes same-in { from { background-color: var(--surface); } }
+@keyframes chip-in {
+  from { color: var(--ink-soft); background-color: transparent; box-shadow: 0 0 0 0.5px transparent; }
+}
 .v.undo-in, .n.undo-in { animation: undo-in 360ms cubic-bezier(0.22, 1, 0.36, 1); }
 @keyframes undo-in {
   from { opacity: 0; transform: scale(1.6); }

@@ -111,12 +111,27 @@ function travel(from, to) {
     animateChange([], before);
   };
   for (const i of changed) restartClass(cells[i].el, 'undo-target', RING_MS);
+  if (changed.length) quietHighlights();
   if (reducedMotion.matches || !changed.length) {
     apply();
   } else {
     pending = { apply, timer: setTimeout(flushPending, RING_IN_MS) };
     renderHistoryButtons();
   }
+}
+
+// Same-digit tints and candidate chips stay off while any undo/redo ring is
+// running; each travel restarts the window so rapid repeats never flicker them.
+const HL_IN_MS = 150;
+let quietTimer = 0;
+function quietHighlights() {
+  clearTimeout(quietTimer);
+  boardEl.classList.remove('hl-in');
+  boardEl.classList.add('quiet');
+  quietTimer = setTimeout(() => {
+    boardEl.classList.remove('quiet');
+    if (!reducedMotion.matches) restartClass(boardEl, 'hl-in', HL_IN_MS);
+  }, RING_MS);
 }
 
 const undo = () => travel(history, redoStack);
