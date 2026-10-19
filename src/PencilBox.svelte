@@ -17,9 +17,7 @@
 
   const visible = $derived(game.hasNote(cell_id, idx + 1));
   const isSelected = $derived(game.selected === cell_id);
-  const isShiftSlot = $derived(
-    !!shiftHover && shiftHover.cell === cell_id && shiftHover.slot === idx
-  );
+  const isShiftSlot = $derived(shiftHover.cell === cell_id && shiftHover.slot === idx);
   const focusedValue = $derived(game.selected === -1 ? 0 : game.value(game.selected));
   const isMatchingNumber = $derived(focusedValue !== 0 && idx + 1 === focusedValue && visible);
   const isOnlyCandidate = $derived(

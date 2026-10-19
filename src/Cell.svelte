@@ -32,7 +32,7 @@
   }
 
   function handleClick(e) {
-    if (e.shiftKey && shiftHover && shiftHover.cell === cell_id) {
+    if (e.shiftKey && shiftHover.cell === cell_id) {
       game.enter(cell_id, shiftHover.d);
     }
     game.select(cell_id);
