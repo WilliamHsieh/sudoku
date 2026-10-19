@@ -1,0 +1,153 @@
+<script>
+  import { game } from "./game/game.svelte.js";
+  import { ring } from "./ring.js";
+
+  const auto = $derived(game.notesMode === "auto");
+  const eraseOff = $derived(!game.eraseKind(game.selected));
+
+  function toggleNotes() {
+    game.setNotesMode(auto ? "manual" : "auto");
+  }
+</script>
+
+<div class="tools" role="toolbar" aria-label="Tools">
+  <button
+    class="tool"
+    id="undo"
+    type="button"
+    aria-label="Undo"
+    disabled={!game.canUndo}
+    onclick={() => ring.undo()}
+  >
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M9 14 4 9l5-5"></path>
+      <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"></path>
+    </svg>
+    <span>Undo</span>
+  </button>
+  <button
+    class="tool"
+    id="redo"
+    type="button"
+    aria-label="Redo"
+    disabled={!game.canRedo}
+    onclick={() => ring.redo()}
+  >
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="m15 14 5-5-5-5"></path>
+      <path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"></path>
+    </svg>
+    <span>Redo</span>
+  </button>
+  <button
+    class="tool"
+    id="erase"
+    type="button"
+    aria-label="Erase"
+    disabled={eraseOff}
+    onclick={() => game.erase(game.selected)}
+  >
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="m7 21-4.3-4.3a1 1 0 0 1 0-1.4l10-10a1 1 0 0 1 1.4 0l5.6 5.6a1 1 0 0 1 0 1.4L13 19"
+      ></path>
+      <path d="M22 21H7"></path>
+      <path d="m5 11 9 9"></path>
+    </svg>
+    <span>Erase</span>
+  </button>
+  <button
+    class="tool notes-switch"
+    id="notes-mode"
+    type="button"
+    role="switch"
+    aria-checked={auto}
+    aria-label="Auto notes"
+    onclick={toggleNotes}
+  >
+    <span class="switch" aria-hidden="true"><span class="knob"></span></span>
+    <span class="notes-label">Notes: <b>{auto ? "Auto" : "Manual"}</b></span>
+  </button>
+</div>
+
+<style>
+  .tools {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1.5fr;
+    gap: 6px;
+  }
+
+  .tool {
+    appearance: none;
+    border: none;
+    background: transparent;
+    color: var(--ui-ink);
+    font: inherit;
+    font-size: 12px;
+    padding: 6px 2px;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    touch-action: manipulation;
+    font-family: var(--ui-font);
+  }
+
+  .tool:active {
+    background: var(--key-pressed);
+  }
+
+  .tool:disabled {
+    opacity: 0.35;
+    cursor: default;
+    background: transparent;
+    pointer-events: none;
+  }
+
+  .tool svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .switch {
+    width: 38px;
+    height: 22px;
+    border-radius: 11px;
+    background: var(--switch-off);
+    position: relative;
+    transition: background 160ms ease-out;
+  }
+
+  .knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--switch-knob);
+    box-shadow: var(--shadow-knob);
+    transition: transform 160ms ease-out;
+  }
+
+  .notes-switch[aria-checked="true"] .switch {
+    background: var(--switch-on);
+  }
+
+  .notes-switch[aria-checked="true"] .knob {
+    transform: translateX(16px);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .switch,
+    .knob {
+      transition: none;
+    }
+  }
+</style>

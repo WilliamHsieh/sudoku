@@ -3,13 +3,27 @@
   import Cell from "./Cell.svelte";
   import Timer from "./Timer.svelte";
   import Calendar from "./Calendar.svelte";
-  import { done } from "./store";
+  import Tools from "./Tools.svelte";
+  import Keypad from "./Keypad.svelte";
+  import { get } from "svelte/store";
+  import { done, solvedPuzzles } from "./store";
   import { game } from "./game/game.svelte.js";
+  import { firstUnsolvedLatest } from "./game/daily.js";
+  import { puzzleData } from "./puzzles.js";
+  import { ring } from "./ring.js";
+  import { padUi } from "./pad-ui.svelte.js";
+  import { installIosZoomGuards } from "./ios-zoom.js";
+  import { installShiftHover, isShiftAim } from "./shift-hover.svelte.js";
   import { onMount } from "svelte";
 
   const CELL_IDS = Array.from({ length: 81 }, (_, i) => i);
+  const NARROW_MQ = "(max-width: 599px)";
 
   let showCalendar = $state(true);
+  let hasPlayed = $state(false);
+  let isNarrow = $state(typeof window !== "undefined" && window.matchMedia(NARROW_MQ).matches);
+  let wrapEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
+  let ringEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
 
   function handleKeydown(e) {
     const cmd = e.ctrlKey || e.metaKey;
@@ -74,15 +88,58 @@
     showCalendar = !showCalendar;
   }
 
+  function openJournal() {
+    showCalendar = true;
+  }
+
+  function hasQueryPuzzle() {
+    return /^[0-9]{81}$/.test(new URLSearchParams(window.location.search).get("q") ?? "");
+  }
+
+  function playFromJournal() {
+    if (!hasPlayed && !hasQueryPuzzle()) {
+      const pick = firstUnsolvedLatest(puzzleData, get(solvedPuzzles));
+      if (pick) {
+        game.load(pick.puzzle, { dateStr: pick.dateStr, difficulty: pick.difficulty });
+      }
+    }
+    hasPlayed = true;
+    showCalendar = false;
+  }
+
   function handleLoadPuzzle(event) {
     console.log("Puzzle loaded from calendar:", event.detail);
+    hasPlayed = true;
     showCalendar = false;
   }
 
   onMount(() => {
+    const mq = window.matchMedia(NARROW_MQ);
+    isNarrow = mq.matches;
+    const onNarrow = () => {
+      isNarrow = mq.matches;
+    };
+    mq.addEventListener("change", onNarrow);
+    game.setBeforeMutate(() => ring.flush());
     window.addEventListener("loadPuzzle", handleLoadPuzzle);
+    const stopShiftHover = installShiftHover();
     return () => {
+      mq.removeEventListener("change", onNarrow);
+      game.setBeforeMutate(() => {});
+      ring.destroy();
+      stopShiftHover();
       window.removeEventListener("loadPuzzle", handleLoadPuzzle);
+    };
+  });
+
+  $effect(() => {
+    if (showCalendar) return;
+    if (wrapEl && ringEl) ring.bind(wrapEl, ringEl);
+    const mobile = window.matchMedia("(max-width: 599px)").matches;
+    const stopZoom = mobile ? installIosZoomGuards() : () => {};
+    return () => {
+      stopZoom();
+      ring.destroy();
     };
   });
 </script>
@@ -94,42 +151,125 @@
 </svelte:head>
 
 <main>
-  <div class="header">
-    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
-    <h1 onclick={removeFocus}>Sudoku</h1>
-    {#if !showCalendar}
-      <Timer />
-    {/if}
-    <button class="view-toggle" onclick={toggleView}>
-      {#if showCalendar}
-        <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
-          <rect width="18" height="18" x="3" y="3" rx="2"></rect>
-          <path d="M3 9h18"></path>
-          <path d="M3 15h18"></path>
-          <path d="M9 3v18"></path>
-          <path d="M15 3v18"></path>
-        </svg>
-        Play
-      {:else}
-        <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M8 2v4"></path>
-          <path d="M16 2v4"></path>
-          <rect width="18" height="18" x="3" y="4" rx="2"></rect>
-          <path d="M3 10h18"></path>
-        </svg>
-        Calendar
+  <Api />
+  {#if !isNarrow}
+    <div class="header">
+      <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
+      <h1 onclick={removeFocus}>Sudoku</h1>
+      {#if !showCalendar && !isNarrow}
+        <Timer />
       {/if}
-    </button>
-  </div>
+      <button class="view-toggle" onclick={toggleView}>
+        {#if showCalendar}
+          <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+            <path d="M3 9h18"></path>
+            <path d="M3 15h18"></path>
+            <path d="M9 3v18"></path>
+            <path d="M15 3v18"></path>
+          </svg>
+          Play
+        {:else}
+          <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8 2v4"></path>
+            <path d="M16 2v4"></path>
+            <rect width="18" height="18" x="3" y="4" rx="2"></rect>
+            <path d="M3 10h18"></path>
+          </svg>
+          Calendar
+        {/if}
+      </button>
+    </div>
+  {:else}
+    <header class="hd">
+      <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
+      <h1 class="hd-brand" onclick={removeFocus}>Sudoku</h1>
+      <div class="hd-r">
+        {#if showCalendar}
+          <button class="hpill" type="button" aria-label="Back to puzzle" onclick={playFromJournal}>
+            <span class="face"
+              ><svg
+                class="ic"
+                aria-hidden="true"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+                <path d="M3 9h18"></path>
+                <path d="M3 15h18"></path>
+                <path d="M9 3v18"></path>
+                <path d="M15 3v18"></path></svg
+              >Play</span
+            >
+          </button>
+        {:else}
+          <button class="hbtn cal" type="button" aria-label="Journal" onclick={openJournal}>
+            <span class="face"
+              ><svg
+                class="ic"
+                aria-hidden="true"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M8 2v3"></path>
+                <path d="M16 2v3"></path>
+                <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+                <path d="M3 9h18"></path>
+                <path d="M8 13h.01"></path>
+                <path d="M12 13h.01"></path>
+                <path d="M16 13h.01"></path>
+                <path d="M8 17h.01"></path>
+                <path d="M12 17h.01"></path>
+                <path d="M16 17h.01"></path>
+              </svg></span
+            >
+          </button>
+          <Timer />
+          <button class="hbtn" type="button" aria-label="Pause">
+            <span class="face"
+              ><svg class="ic pz" viewBox="0 0 24 24" aria-hidden="true"
+                ><rect x="6.5" y="5" width="3.6" height="14" rx="1"></rect><rect
+                  x="13.9"
+                  y="5"
+                  width="3.6"
+                  height="14"
+                  rx="1"
+                ></rect></svg
+              ></span
+            >
+          </button>
+        {/if}
+      </div>
+    </header>
+  {/if}
 
   {#if showCalendar}
     <Calendar />
   {:else}
-    <Api />
-    <div class="board">
-      {#each CELL_IDS as id (id)}
-        <Cell cell_id={id} />
-      {/each}
+    <div class="play">
+      <div class="board-wrap" bind:this={wrapEl}>
+        <div class="board" class:quiet={padUi.quiet} class:shift-aim={isShiftAim()}>
+          {#each CELL_IDS as id (id)}
+            <Cell cell_id={id} />
+          {/each}
+        </div>
+        <div class="undo-ring" bind:this={ringEl} aria-hidden="true"></div>
+      </div>
+      <div class="mobile-chrome">
+        <Tools />
+        <Keypad />
+        <p class="pad-hint">Tap = answer · Swipe up = candidate</p>
+      </div>
     </div>
 
     {#if $done}
@@ -150,7 +290,8 @@
   main {
     width: 100%;
     min-height: 100vh;
-    padding: 16px;
+    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+      max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
     font-family: var(--ui-font);
     color: var(--ui-ink);
     background: var(--page-bg);
@@ -211,20 +352,71 @@
     background: var(--given-bg);
   }
 
+  .hd {
+    display: none;
+  }
+
+  .board-wrap {
+    position: relative;
+    max-width: 650px;
+    width: 100%;
+    margin: 0 auto 32px;
+  }
+
   .board {
     container-type: inline-size;
     display: grid;
     grid-template-columns: repeat(9, 1fr);
-    max-width: 650px;
     width: 100%;
     aspect-ratio: 1;
-    margin: 0 auto 32px;
     border: var(--line-outer-w) solid var(--line-outer);
     border-radius: var(--board-radius);
     overflow: hidden;
     background: var(--board-bg);
     -webkit-user-select: none;
     user-select: none;
+    touch-action: manipulation;
+  }
+
+  .undo-ring {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 4;
+    box-sizing: border-box;
+    border: 2.5px solid var(--undo-ring);
+    border-radius: 4px;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--undo-ring) 18%, transparent);
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  .board.shift-aim,
+  .board.shift-aim :global(.cell) {
+    cursor: crosshair;
+  }
+
+  .board.quiet :global(.cell.same:not(.conflict)) {
+    background: var(--board-bg);
+  }
+  .board.quiet :global(.cell.same.given:not(.conflict)) {
+    background: var(--given-bg);
+  }
+  .board.quiet :global(.pencil-box.matching-number:not(.only-candidate)) {
+    color: var(--cand);
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .mobile-chrome {
+    display: none;
+  }
+
+  .pad-hint {
+    margin: 0;
+    text-align: center;
+    font-size: 12px;
+    color: var(--ui-soft);
   }
 
   .success-message {
@@ -288,7 +480,8 @@
 
   @media (max-width: 768px) {
     main {
-      padding: 12px;
+      padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+        max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
     }
 
     .header {
@@ -296,7 +489,7 @@
       padding: 4px 0 12px;
     }
 
-    .board {
+    .board-wrap {
       max-width: 100%;
       margin-bottom: 24px;
     }
@@ -304,6 +497,143 @@
     .success-card {
       margin: 16px;
       padding: 32px 24px;
+    }
+  }
+
+  /* Prototype used 600px as the wide-board line; the pad lives below that so
+     1280 desktop chrome (and every existing e2e test) stays unchanged. */
+  @media (max-width: 599px) {
+    /* Mockup C: 8px sides and top, 16px bottom. The 768px rule's 12px
+       would shrink the board to 366 and the keys below 119.33. */
+    main {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right))
+        max(16px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+    }
+
+    /* Clip lock on the pad. Desktop keeps master's `1fr` columns and
+       implicit rows so 1280 idle tracks stay pixel-identical; cells and
+       the notes grid already use minmax(0,1fr) + min-width:0. */
+    .board {
+      grid-template-columns: repeat(9, minmax(0, 1fr));
+      grid-template-rows: repeat(9, minmax(0, 1fr));
+    }
+
+    .board-wrap {
+      margin-bottom: 0;
+    }
+
+    .play {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .mobile-chrome {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .header {
+      display: none;
+    }
+
+    /* H2 header — exact rules from h2-play.html / h2-journal.html */
+    .hd,
+    .hd * {
+      box-sizing: border-box;
+    }
+    .hd {
+      --hd-ink: #1c1a16;
+      --hd-soft: #5d584f;
+      --hd-neutral: #e5e4e0;
+      --hd-line: rgb(0 0 0 / 0.08);
+      --hd-face: rgb(255 255 255 / 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 44px;
+      padding: 0 16px;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+      color: var(--hd-ink);
+    }
+    .hd-brand {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      line-height: 1;
+      margin: 0;
+    }
+    .hd-r {
+      display: flex;
+      align-items: center;
+    }
+    .hd .ic {
+      width: 16px;
+      height: 16px;
+      flex: none;
+      stroke-width: 2;
+    }
+    .hbtn {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      padding: 0;
+      border: 0;
+      background: none;
+      color: inherit;
+      cursor: pointer;
+      font: inherit;
+    }
+    .hbtn .face {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--hd-line, rgb(0 0 0 / 0.08));
+      border-radius: 8px;
+      background: var(--hd-face, rgb(255 255 255 / 0.7));
+    }
+    .pz rect {
+      fill: currentColor;
+      stroke: none;
+    }
+    .hbtn.cal {
+      margin-right: 3px;
+    }
+    .hd-r > .hbtn:last-child {
+      margin-right: -7px;
+    }
+    .hpill {
+      height: 44px;
+      display: flex;
+      align-items: center;
+      padding: 0;
+      border: 0;
+      background: none;
+      color: inherit;
+      cursor: pointer;
+      font: inherit;
+    }
+    .hpill .face {
+      height: 30px;
+      width: 69.75px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 10px 0 8px;
+      border: 1px solid var(--hd-line, rgb(0 0 0 / 0.08));
+      border-radius: 8px;
+      background: var(--hd-face, rgb(255 255 255 / 0.7));
+      font-size: 14.4px;
+      font-weight: 600;
+    }
+    main > .hd {
+      margin: -3px -8px -7px;
     }
   }
 </style>

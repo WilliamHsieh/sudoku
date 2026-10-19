@@ -10,5 +10,10 @@
       return;
     }
     game.load(q);
+    window.dispatchEvent(
+      new CustomEvent("loadPuzzle", {
+        detail: { puzzleString: q },
+      })
+    );
   });
 </script>

@@ -1,8 +1,10 @@
 <script>
+  import { get } from "svelte/store";
   import { solvedPuzzles } from "./store.js";
   import { puzzleData } from "./puzzles.js";
   import { formatTime } from "./store.js";
   import { game } from "./game/game.svelte.js";
+  import { firstUnsolvedPuzzle } from "./game/daily.js";
 
   let currentDate = new Date();
   let currentMonth = currentDate.getMonth();
@@ -135,6 +137,13 @@
       const hasPuzzles = day.puzzles && Object.keys(day.puzzles).length > 0;
 
       if (hasPuzzles) {
+        // Mobile journal: open the first unsolved of that day, as today.
+        // Desktop keeps the difficulty modal.
+        if (window.matchMedia("(max-width: 599px)").matches) {
+          const pick = firstUnsolvedPuzzle(puzzleData, get(solvedPuzzles), day.date);
+          if (pick) selectPuzzle(pick.dateStr, pick.difficulty);
+          return;
+        }
         modalDate = day.date;
         showModal = true;
       } else {

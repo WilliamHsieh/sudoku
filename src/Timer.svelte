@@ -22,13 +22,13 @@
   $: seconds = $timer % 60;
 </script>
 
-<div class="timer">
-  <svg class="timer-icon" viewBox="0 0 24 24" aria-hidden="true">
+<div class="timer timer2">
+  <svg class="timer-icon ic" viewBox="0 0 24 24" aria-hidden="true">
     <line x1="10" x2="14" y1="2" y2="2"></line>
     <line x1="12" x2="15" y1="14" y2="11"></line>
     <circle cx="12" cy="14" r="8"></circle>
   </svg>
-  <span class="time">{minutes}{seconds < 10 ? ":0" : ":"}{seconds}</span>
+  <b class="time">{minutes}{seconds < 10 ? ":0" : ":"}{seconds}</b>
 </div>
 
 <style>
@@ -62,5 +62,31 @@
     font-variant-numeric: tabular-nums;
     line-height: 1;
     min-width: 2.6em;
+  }
+
+  @media (max-width: 599px) {
+    /* H2 .timer2 — exact rules from h2-play.html */
+    .timer2 {
+      height: 30px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 8px;
+      border: 1px solid rgb(0 0 0 / 0.08);
+      border-radius: 8px;
+      background: rgb(255 255 255 / 0.7);
+      color: #1c1a16;
+    }
+    .timer2 .ic {
+      width: 15px;
+      height: 15px;
+    }
+    .timer2 b {
+      font-size: 14.4px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+      min-width: 0;
+    }
   }
 </style>

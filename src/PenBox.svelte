@@ -49,4 +49,12 @@
     border-radius: 50%;
     background: var(--conflict);
   }
+
+  /* Mobile uses `.cell.conflict::after` (Combo C). Keep the node so
+     `:has(.conflict)` still reddens the digit; hide the inner marker. */
+  @media (max-width: 599px) {
+    .conflict {
+      display: none;
+    }
+  }
 </style>

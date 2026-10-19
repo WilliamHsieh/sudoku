@@ -107,4 +107,45 @@ describe("createGame", () => {
     expect(g.value(0)).toBe(0);
     expect(g.hasNote(0, 2)).toBe(true);
   });
+
+  it("setNotesMode is a view setting, not an undo step", () => {
+    g.enter(0, 4);
+    g.setNotesMode("manual");
+    expect(g.notesMode).toBe("manual");
+    expect(g.hasNote(0, 2)).toBe(false);
+    g.undo();
+    expect(g.notesMode).toBe("manual");
+    expect(g.value(0)).toBe(0);
+  });
+
+  it("fillLone writes the lone Auto candidate as one step", () => {
+    for (const d of [3, 4, 6, 7]) g.toggleNote(0, d);
+    expect(g.noteCount(0)).toBe(1);
+    g.fillLone(0);
+    expect(g.value(0)).toBe(2);
+    g.undo();
+    expect(g.value(0)).toBe(0);
+    expect(g.hasNote(0, 2)).toBe(true);
+  });
+
+  it("Erase is two-step in Auto: answer, then overrides", () => {
+    g.toggleNote(0, 2);
+    g.enter(0, 4);
+    expect(g.eraseKind(0)).toBe("answer");
+    g.erase(0);
+    expect(g.value(0)).toBe(0);
+    expect(g.hasNote(0, 2)).toBe(false);
+    expect(g.eraseKind(0)).toBe("auto-overrides");
+    g.erase(0);
+    expect(g.hasNote(0, 2)).toBe(true);
+    expect(g.eraseKind(0)).toBe(null);
+  });
+
+  it("peekUndo names the cell that changed", () => {
+    expect(g.peekUndo()).toBe(null);
+    g.enter(0, 4);
+    const peek = g.peekUndo();
+    expect(peek?.cells).toEqual([0]);
+    expect(peek?.first).toBe(0);
+  });
 });
