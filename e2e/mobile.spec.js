@@ -75,6 +75,7 @@ test("swipe up past the arm threshold toggles a candidate", async ({ page }) => 
 
 test("drag shows the label, preview and arms at ~28px with hysteresis", async ({ page }) => {
   const t = await touchDriver(page);
+  await t.tap(page.locator("#notes-mode")); // Manual: cell 0 has no notes, so 3 is an add
   await t.tap(cell(page, 0));
   const k = key(page, 3);
   const p = await t.center(k);
@@ -93,7 +94,7 @@ test("drag shows the label, preview and arms at ~28px with hysteresis", async ({
   await t.move(p.x, p.y - 20);
   await expect(k).not.toHaveClass(/armed/);
   await t.end(p.x, p.y - 20);
-  await expect(cell(page, 0)).toHaveAttribute("data-notes", "23467");
+  await expect(cell(page, 0)).toHaveAttribute("data-notes", "");
 });
 
 test("sub-threshold release and a long still press write nothing", async ({ page }) => {
