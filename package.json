@@ -12,7 +12,6 @@
     "test:e2e": "playwright test",
     "check": "svelte-check --tsconfig ./jsconfig.json",
     "format": "prettier --write .",
-    "format:check": "prettier --check .",
     "lint": "eslint ."
   },
   "devDependencies": {

@@ -4,3 +4,5 @@ test-results
 prototype/
 package-lock.json
 node_modules
+# Puzzle data, not code — Prettier would rewrite every quote.
+src/puzzles.js
