@@ -1,3 +1,11 @@
+/* Compute --cell on .cell so nested note-slot containers can use cqw
+   without rewriting 100cqi to the slot. */
+@property --cell {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
 @font-face {
   font-family: "Atkinson Hyperlegible";
   font-style: normal;

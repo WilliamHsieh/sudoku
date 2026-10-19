@@ -80,24 +80,36 @@
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-<div
-  class="pencil-box"
-  class:invisible={!visible && !previewAdd}
-  class:selected={isSelected}
-  class:aim={isShiftSlot}
-  class:matching-number={isMatchingNumber}
-  class:only-candidate={showOnlyCandidateHint}
-  class:preview-add={previewAdd}
-  class:preview-remove={previewRemove}
-  class:hidden-pending={hiddenPending}
-  data-d={idx + 1}
-  data-shift-slot={isShiftSlot ? "true" : undefined}
-  onclick={handleClick}
->
-  {idx + 1}
+<div class="note-slot">
+  <div
+    class="pencil-box"
+    class:invisible={!visible && !previewAdd}
+    class:selected={isSelected}
+    class:aim={isShiftSlot}
+    class:matching-number={isMatchingNumber}
+    class:only-candidate={showOnlyCandidateHint}
+    class:preview-add={previewAdd}
+    class:preview-remove={previewRemove}
+    class:hidden-pending={hiddenPending}
+    data-d={idx + 1}
+    data-shift-slot={isShiftSlot ? "true" : undefined}
+    onclick={handleClick}
+  >
+    {idx + 1}
+  </div>
 </div>
 
 <style>
+  /* Stretched 3×3 cell. Size chips against this box (cqw/cqh), not a
+     cyclic 100% on the grid item. */
+  .note-slot {
+    container-type: size;
+    min-width: 0;
+    min-height: 0;
+    display: grid;
+    place-items: stretch;
+  }
+
   .pencil-box {
     font-size: calc(var(--cell) * var(--cand-size));
     display: flex;
@@ -153,10 +165,10 @@
     z-index: 2;
     place-self: center;
     box-sizing: border-box;
-    width: calc(var(--cell) * var(--chip-size));
-    height: calc(var(--cell) * var(--chip-size));
-    max-width: calc(100% - 4px);
-    max-height: calc(100% - 4px);
+    width: min(calc(var(--cell) * var(--chip-size)), calc(100cqw - 4px));
+    height: min(calc(var(--cell) * var(--chip-size)), calc(100cqh - 4px));
+    max-width: calc(100cqw - 4px);
+    max-height: calc(100cqh - 4px);
     border-radius: 3.5px;
     color: var(--ink);
     font-weight: 700;
@@ -177,10 +189,10 @@
   .pencil-box.matching-number {
     place-self: center;
     box-sizing: border-box;
-    width: calc(var(--cell) * var(--chip-size));
-    height: calc(var(--cell) * var(--chip-size));
-    max-width: calc(100% - 4px);
-    max-height: calc(100% - 4px);
+    width: min(calc(var(--cell) * var(--chip-size)), calc(100cqw - 4px));
+    height: min(calc(var(--cell) * var(--chip-size)), calc(100cqh - 4px));
+    max-width: calc(100cqw - 4px);
+    max-height: calc(100cqh - 4px);
     color: var(--chip-ink);
     font-weight: var(--chip-weight);
     background: var(--chip-bg);
@@ -247,10 +259,13 @@
     }
 
     /* No Shift aim on the pad. Size chips to 0.32 of --cell, leaving 1px
-       in the slot so the 0.5px chip line stays ≥1px from every grid line. */
-    .pencil-box.matching-number {
-      max-width: calc(100% - 1px);
-      max-height: calc(100% - 1px);
+       in the slot so the 0.5px chip line stays ≥1px from every grid line.
+       Aim (e2e / desktop) keeps the 4px cap so the 1.5px ring still clears. */
+    .pencil-box.matching-number:not(.aim) {
+      width: min(calc(var(--cell) * var(--chip-size)), calc(100cqw - 1px));
+      height: min(calc(var(--cell) * var(--chip-size)), calc(100cqh - 1px));
+      max-width: calc(100cqw - 1px);
+      max-height: calc(100cqh - 1px);
     }
   }
 </style>
