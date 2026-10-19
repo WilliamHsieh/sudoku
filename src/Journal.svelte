@@ -1,4 +1,5 @@
 <script>
+  import { tick } from "svelte";
   import { get } from "svelte/store";
   import { solvedPuzzles, puzzleProgress } from "./store.js";
   import { puzzleData } from "./puzzles.js";
@@ -33,6 +34,7 @@
   import Marks from "./journal/Marks.svelte";
   import DiffLabel from "./journal/DiffLabel.svelte";
   import PuzzleRow from "./journal/PuzzleRow.svelte";
+  import { SLIDE_EASE, SLIDE_MS, slideOffsets } from "./journal/slide.js";
 
   const today = formatDay(new Date());
   const latest = latestPuzzleDay(puzzleData, today) ?? today;
@@ -45,6 +47,26 @@
   let swipeX = $state(0);
   let swiping = $state(false);
   let touchX = 0;
+  let animating = false;
+  let slideGen = 0;
+  let slideTimer = 0;
+  let alive = true;
+  /** @type {HTMLDivElement | null} */
+  let mobVp = $state(null);
+  /** @type {HTMLDivElement | null} */
+  let deskVp = $state(null);
+  /**
+   * Dual-grid slide. `view` (title + stats) stays put until the track settles.
+   * @typedef {{
+   *   dir: -1 | 1,
+   *   fromPx: number,
+   *   width: number,
+   *   phase: "prep" | "run",
+   *   target: "mobile" | "desktop",
+   *   gen: number,
+   * }} MonthSlide
+   */
+  let slide = $state(/** @type {MonthSlide | null} */ (null));
 
   const solved = $derived($solvedPuzzles);
   const progress = $derived($puzzleProgress);
@@ -65,21 +87,115 @@
   const shownDay = $derived(sel || latest);
   const otherUnfinished = $derived(unfinished.filter((x) => x.date !== shownDay));
   const sheetDay = $derived(sheet === "day" ? sel : null);
+  const incomingCells = $derived(
+    slide ? monthCells(puzzleData, latest, today, new Date(y, m + slide.dir, 1)) : cells
+  );
 
   /** @param {string} date */
   function kinds(date) {
     return DIFFS.map((d) => puzzleState(solved, progress, date, d).kind);
   }
 
-  /** @param {number} n */
-  function shiftMonth(n) {
+  function prefersReduced() {
+    return (
+      typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    );
+  }
+
+  /** @param {number} gen */
+  function finishSlide(gen) {
+    if (!slide || slide.gen !== gen) return;
+    const current = slide;
+    slide = null;
+    animating = false;
+    window.clearTimeout(slideTimer);
+    const vp = current.target === "mobile" ? mobVp : deskVp;
+    if (vp) vp.style.height = "";
+    view = new Date(view.getFullYear(), view.getMonth() + current.dir, 1);
+  }
+
+  /**
+   * Paint the resting offset, then slide. Two frames so the start position commits
+   * before the transition (same order as the approved mockup).
+   * @param {number} gen
+   * @param {HTMLElement} vp
+   */
+  function armSlide(gen, vp) {
+    tick().then(() => {
+      if (!alive || !slide || slide.gen !== gen) return;
+      const track = vp.querySelector(".track");
+      if (!(track instanceof HTMLElement)) {
+        finishSlide(gen);
+        return;
+      }
+      void track.offsetWidth;
+      getComputedStyle(track).transform;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (!alive || !slide || slide.gen !== gen || slide.phase !== "prep") return;
+          slide = { ...slide, phase: "run" };
+          window.clearTimeout(slideTimer);
+          slideTimer = window.setTimeout(() => finishSlide(gen), SLIDE_MS + 120);
+        });
+      });
+    });
+  }
+
+  /** @param {MonthSlide} s */
+  function trackTransform(s) {
+    const { start, end } = slideOffsets(s.dir, s.width, s.fromPx);
+    return `translateX(${s.phase === "run" ? end : start}px)`;
+  }
+
+  /** @param {MonthSlide} s */
+  function trackTransition(s) {
+    return s.phase === "run" ? `transform ${SLIDE_MS}ms ${SLIDE_EASE}` : "none";
+  }
+
+  /** @param {TransitionEvent} e */
+  function onTrackEnd(e) {
+    if (!slide || e.propertyName !== "transform" || e.target !== e.currentTarget) return;
+    finishSlide(slide.gen);
+  }
+
+  /**
+   * Month chevrons, `[` `]`, and a committed touch drag.
+   * `fromPx` continues a finger drag into the dual-grid slide.
+   * @param {number} n
+   * @param {number} [fromPx]
+   */
+  function shiftMonth(n, fromPx = 0) {
+    if (animating) return;
     if (n > 0 && !canNext) return;
-    view = new Date(y, m + n, 1);
+    if (n === 0) return;
+    const next = new Date(y, m + n, 1);
+    const mobile = isMobile();
+    const vp = mobile ? mobVp : deskVp;
+    const grid = vp?.querySelector(":scope > .grid");
+    if (prefersReduced() || !vp || !(grid instanceof HTMLElement) || vp.clientWidth <= 0) {
+      swipeX = 0;
+      swiping = false;
+      view = next;
+      return;
+    }
+    vp.style.height = `${grid.offsetHeight}px`;
+    animating = true;
     swipeX = 0;
     swiping = false;
+    const gen = ++slideGen;
+    slide = {
+      dir: n < 0 ? -1 : 1,
+      fromPx,
+      width: vp.clientWidth,
+      phase: "prep",
+      target: mobile ? "mobile" : "desktop",
+      gen,
+    };
+    armSlide(gen, vp);
   }
 
   function goLatest() {
+    if (animating) return;
     view = startOfMonth(latest);
     sel = null;
     sheet = null;
@@ -91,6 +207,7 @@
 
   /** @param {string} date */
   function openDay(date) {
+    if (animating) return;
     if (!puzzleData[date]) return;
     if (isMobile()) {
       sel = date;
@@ -103,6 +220,7 @@
   }
 
   function openUnfinished() {
+    if (animating) return;
     sel = null;
     sheet = "unfinished";
   }
@@ -139,6 +257,7 @@
 
   /** @param {string} date */
   function pickDayFromUnfinished(date) {
+    if (animating) return;
     if (isMobile()) {
       sel = date;
       sheet = "day";
@@ -150,20 +269,22 @@
 
   /** @param {TouchEvent} e */
   function onTouchStart(e) {
+    if (animating) return;
     touchX = e.touches[0].clientX;
     swiping = true;
     swipeX = 0;
   }
   /** @param {TouchEvent} e */
   function onTouchMove(e) {
-    if (!swiping) return;
+    if (!swiping || animating) return;
     let dx = e.touches[0].clientX - touchX;
     if (dx < 0 && !canNext) dx /= 4;
     swipeX = dx;
   }
   function onTouchEnd() {
     if (!swiping) return;
-    if (Math.abs(swipeX) > 60 && (swipeX > 0 || canNext)) shiftMonth(swipeX > 0 ? -1 : 1);
+    const dx = swipeX;
+    if (Math.abs(dx) > 60 && (dx > 0 || canNext)) shiftMonth(dx > 0 ? -1 : 1, dx);
     else {
       swipeX = 0;
       swiping = false;
@@ -172,7 +293,7 @@
 
   /** @param {KeyboardEvent} e */
   function onKey(e) {
-    if (isMobile()) return;
+    if (animating || isMobile()) return;
     if (e.key === "Escape" && sel) {
       sel = null;
       return;
@@ -201,6 +322,16 @@
     if (typeof document === "undefined") return;
     document.body.classList.toggle("journal-sheet", !!sheet);
     return () => document.body.classList.remove("journal-sheet");
+  });
+
+  $effect(() => {
+    alive = true;
+    return () => {
+      alive = false;
+      window.clearTimeout(slideTimer);
+      if (mobVp) mobVp.style.height = "";
+      if (deskVp) deskVp.style.height = "";
+    };
   });
 </script>
 
@@ -292,22 +423,16 @@
     </section>
 
     <div class="cal">
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div
-        class="viewport"
-        ontouchstart={onTouchStart}
-        ontouchmove={onTouchMove}
-        ontouchend={onTouchEnd}
-      >
+      {#snippet mobGrid(gridCells, dragging)}
         <div
           class="grid mgrid"
-          class:swiping
-          style:transform={swipeX ? `translateX(${swipeX}px)` : undefined}
+          class:swiping={dragging}
+          style:transform={dragging && swipeX ? `translateX(${swipeX}px)` : undefined}
         >
           {#each WEEKDAYS as w (w)}
             <div class="wd">{w[0]}</div>
           {/each}
-          {#each cells as cell, i (cell?.date ?? `m-${i}`)}
+          {#each gridCells as cell, i (cell?.date ?? `m-${i}`)}
             {#if !cell}
               <div></div>
             {:else if cell.kind === "nop"}
@@ -342,6 +467,33 @@
             {/if}
           {/each}
         </div>
+      {/snippet}
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
+        class="viewport"
+        bind:this={mobVp}
+        ontouchstart={onTouchStart}
+        ontouchmove={onTouchMove}
+        ontouchend={onTouchEnd}
+      >
+        {#if slide && slide.target === "mobile"}
+          <div
+            class="track"
+            style:transform={trackTransform(slide)}
+            style:transition={trackTransition(slide)}
+            ontransitionend={onTrackEnd}
+          >
+            {#if slide.dir < 0}
+              {@render mobGrid(incomingCells, false)}
+              {@render mobGrid(cells, false)}
+            {:else}
+              {@render mobGrid(cells, false)}
+              {@render mobGrid(incomingCells, false)}
+            {/if}
+          </div>
+        {:else}
+          {@render mobGrid(cells, swiping)}
+        {/if}
       </div>
       <div class="legend">
         <span>E · M · H</span>
@@ -469,52 +621,72 @@
           <button class="textlink" type="button" onclick={goLatest}>Go to latest</button>
         {/if}
       </div>
-      <div class="grid dgrid" role="grid">
-        {#each WEEKDAYS as w (w)}
-          <div class="wd">{w}</div>
-        {/each}
-        {#each cells as cell, i (cell?.date ?? `d-${i}`)}
-          {#if !cell}
-            <div class="blank"></div>
-          {:else if cell.kind === "nop"}
-            <div
-              class="day nop"
-              aria-disabled="true"
-              aria-label="{longDate(cell.date)}: no puzzle"
-              title="No puzzle for this date"
-            >
-              <span class="n num">{cell.day}</span>
-              <span class="lbl">No puzzle</span>
-            </div>
-          {:else if cell.kind === "future"}
-            <div
-              class="day future"
-              aria-disabled="true"
-              title={cell.notYet ? "Not out yet" : undefined}
-            >
-              <span class="n num">{cell.day}</span>
-              {#if cell.notYet}<span class="lbl">Not out yet</span>{/if}
-            </div>
-          {:else}
-            <button
-              class="day"
-              class:is-latest={cell.date === latest}
-              class:sel={sel === cell.date || (!sel && cell.date === latest)}
-              type="button"
-              data-d={cell.date}
-              aria-pressed={sel === cell.date || (!sel && cell.date === latest)}
-              aria-label="{longDate(cell.date)}{cell.date === latest ? ' (latest)' : ''}: {dayDesc(
-                solved,
-                progress,
-                cell.date
-              )}"
-              onclick={() => openDay(cell.date)}
-            >
-              <span class="n num">{cell.day}</span>
-              <Marks kinds={kinds(cell.date)} size={12} gap={4} />
-            </button>
-          {/if}
-        {/each}
+      {#snippet deskGrid(gridCells)}
+        <div class="grid dgrid" role="grid">
+          {#each WEEKDAYS as w (w)}
+            <div class="wd">{w}</div>
+          {/each}
+          {#each gridCells as cell, i (cell?.date ?? `d-${i}`)}
+            {#if !cell}
+              <div class="blank"></div>
+            {:else if cell.kind === "nop"}
+              <div
+                class="day nop"
+                aria-disabled="true"
+                aria-label="{longDate(cell.date)}: no puzzle"
+                title="No puzzle for this date"
+              >
+                <span class="n num">{cell.day}</span>
+                <span class="lbl">No puzzle</span>
+              </div>
+            {:else if cell.kind === "future"}
+              <div
+                class="day future"
+                aria-disabled="true"
+                title={cell.notYet ? "Not out yet" : undefined}
+              >
+                <span class="n num">{cell.day}</span>
+                {#if cell.notYet}<span class="lbl">Not out yet</span>{/if}
+              </div>
+            {:else}
+              <button
+                class="day"
+                class:is-latest={cell.date === latest}
+                class:sel={sel === cell.date || (!sel && cell.date === latest)}
+                type="button"
+                data-d={cell.date}
+                aria-pressed={sel === cell.date || (!sel && cell.date === latest)}
+                aria-label="{longDate(cell.date)}{cell.date === latest
+                  ? ' (latest)'
+                  : ''}: {dayDesc(solved, progress, cell.date)}"
+                onclick={() => openDay(cell.date)}
+              >
+                <span class="n num">{cell.day}</span>
+                <Marks kinds={kinds(cell.date)} size={12} gap={4} />
+              </button>
+            {/if}
+          {/each}
+        </div>
+      {/snippet}
+      <div class="viewport" bind:this={deskVp}>
+        {#if slide && slide.target === "desktop"}
+          <div
+            class="track"
+            style:transform={trackTransform(slide)}
+            style:transition={trackTransition(slide)}
+            ontransitionend={onTrackEnd}
+          >
+            {#if slide.dir < 0}
+              {@render deskGrid(incomingCells)}
+              {@render deskGrid(cells)}
+            {:else}
+              {@render deskGrid(cells)}
+              {@render deskGrid(incomingCells)}
+            {/if}
+          </div>
+        {:else}
+          {@render deskGrid(cells)}
+        {/if}
       </div>
       <div class="legend dleg">
         <span>E · M · H</span>
@@ -1044,7 +1216,19 @@
   }
   .viewport {
     overflow: hidden;
+    position: relative;
     touch-action: pan-y;
+  }
+  .track {
+    display: flex;
+    width: 200%;
+    will-change: transform;
+  }
+  .track > .grid {
+    flex: 0 0 50%;
+    width: 50%;
+    min-width: 0;
+    transition: none;
   }
   .mgrid {
     display: grid;
@@ -1422,6 +1606,11 @@
     .dcal {
       min-width: 0;
     }
+    .dcal .viewport {
+      border: 1px solid var(--line-thin);
+      border-radius: 12px;
+      background: var(--hair);
+    }
     .dmhead {
       display: grid;
       grid-template-columns: 44px 1fr 44px;
@@ -1476,9 +1665,6 @@
     .dgrid {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
-      border: 1px solid var(--line-thin);
-      border-radius: 12px;
-      overflow: hidden;
       background: var(--hair);
       gap: 1px;
       --dh: clamp(64px, calc((100vh - 330px) / 6), 112px);
@@ -1789,7 +1975,8 @@
   @media (prefers-reduced-motion: reduce) {
     .mgrid,
     .ulnk,
-    .dgrid .day {
+    .dgrid .day,
+    .track {
       transition: none;
     }
   }

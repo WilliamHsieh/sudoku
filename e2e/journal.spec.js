@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { buildHistory, seedHistory } from "./journal-fixtures.js";
+import { touchDriver } from "./touch.js";
 
 const NOW = new Date("2026-10-18T12:00:00");
 
@@ -148,5 +149,188 @@ test.describe("mobile journal selected", () => {
       paint.afterColor === "rgba(0, 0, 0, 0)" ||
       paint.afterColor === "transparent";
     expect(afterOff).toBeTruthy();
+  });
+});
+
+/** @param {import('@playwright/test').Page} page @param {string} rootSel */
+async function armSlideWatch(page, rootSel) {
+  await page.evaluate((rootSel) => {
+    const root = document.querySelector(rootSel);
+    const titleSel = rootSel === ".dcal" ? ".dmhead h2" : ".mhead h1";
+    window.__slideLog = [];
+    const obs = new MutationObserver(() => {
+      const track = root.querySelector(":scope > .track");
+      if (!track) return;
+      const snap = {
+        title: document.querySelector(titleSel).textContent.replace(/\s+/g, " ").trim(),
+        left: document.querySelector(".stats h2")?.textContent.replace(/\s+/g, " ").trim() ?? null,
+        mobileStat: document.querySelector(".sblock .srow.h span")?.textContent.trim() ?? null,
+        right: document.querySelector(".ctx h2")?.textContent.trim() ?? null,
+        transition: track.style.transition,
+        transform: track.style.transform,
+        grids: track.querySelectorAll(".grid").length,
+      };
+      const log = window.__slideLog;
+      const last = log[log.length - 1];
+      if (!last || last.transition !== snap.transition || last.transform !== snap.transform)
+        log.push(snap);
+    });
+    obs.observe(root, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["style"],
+    });
+    window.__slideObs = obs;
+  }, rootSel);
+}
+
+/** @param {import('@playwright/test').Page} page @param {string} rootSel */
+async function slideLog(page, rootSel) {
+  await page.waitForFunction(
+    (sel) => {
+      const log = window.__slideLog || [];
+      const ran = log.some((s) => String(s.transition).includes("300ms"));
+      return ran && !document.querySelector(`${sel} > .track`);
+    },
+    rootSel,
+    { timeout: 2000 }
+  );
+  return page.evaluate(() => {
+    window.__slideObs?.disconnect();
+    return window.__slideLog;
+  });
+}
+
+test.describe("desktop month slide", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.clock.install({ time: NOW });
+    await seedHistory(page, buildHistory("default"));
+    await page.goto("./");
+  });
+
+  test("previous month slides in from the left and settles the title", async ({ page }) => {
+    await armSlideWatch(page, ".dcal .viewport");
+    await page.locator(".dcal").getByRole("button", { name: "Previous month" }).click();
+    const log = await slideLog(page, ".dcal .viewport");
+    const prep = log.find((s) => s.transition === "none");
+    const run = log.find((s) => s.transition.includes("300ms"));
+    expect(prep.grids).toBe(2);
+    expect(prep.transform).toMatch(/^translateX\(-\d+(\.\d+)?px\)$/);
+    expect(prep.title).toMatch(/October\s+2026/);
+    expect(prep.left).toMatch(/October by difficulty/);
+    expect(run.transition.replace(/\s/g, "")).toMatch(
+      /transform300mscubic-bezier\((?:0)?\.22,(?:0)?\.8,(?:0)?\.24,1\)/
+    );
+    expect(run.transform).toBe("translateX(0px)");
+    expect(run.title).toMatch(/October\s+2026/);
+    expect(run.left).toMatch(/October by difficulty/);
+    expect(run.right).toMatch(/October 18/);
+    await expect(page.locator(".dmhead h2")).toHaveText(/September\s+2026/);
+    await expect(page.locator(".stats h2")).toHaveText("September by difficulty");
+    await expect(page.locator(".ctx h2")).toContainText("October 18");
+    await expect(page.locator(".dcal .viewport > .track")).toHaveCount(0);
+    await expect(page.locator('.dgrid .day[data-d="2026-09-15"]')).toBeVisible();
+  });
+
+  test("next month slides in from the right", async ({ page }) => {
+    await page.locator(".dcal").getByRole("button", { name: "Previous month" }).click();
+    await expect(page.locator(".dmhead h2")).toHaveText(/September\s+2026/);
+    await armSlideWatch(page, ".dcal .viewport");
+    await page.locator(".dcal").getByRole("button", { name: "Next month" }).click();
+    const log = await slideLog(page, ".dcal .viewport");
+    const prep = log.find((s) => s.transition === "none");
+    const run = log.find((s) => s.transition.includes("300ms"));
+    expect(prep.transform).toBe("translateX(0px)");
+    expect(prep.title).toMatch(/September\s+2026/);
+    expect(run.transform).toMatch(/^translateX\(-\d+(\.\d+)?px\)$/);
+    expect(run.title).toMatch(/September\s+2026/);
+    expect(run.left).toMatch(/September by difficulty/);
+    await expect(page.locator(".dmhead h2")).toHaveText(/October\s+2026/);
+    await expect(page.locator(".stats h2")).toHaveText("October by difficulty");
+  });
+
+  test("a second month command during the slide is ignored", async ({ page }) => {
+    await page.locator(".dcal button[aria-label='Previous month']").evaluate((btn) => {
+      btn.click();
+      btn.click();
+    });
+    await expect(page.locator(".dmhead h2")).toHaveText(/September\s+2026/);
+    await expect(page.locator(".dcal .viewport > .track")).toHaveCount(0);
+    await expect(page.locator(".dmhead h2")).not.toHaveText(/August/);
+  });
+
+  test("bracket keys slide the month", async ({ page }) => {
+    await armSlideWatch(page, ".dcal .viewport");
+    await page.keyboard.press("[");
+    const log = await slideLog(page, ".dcal .viewport");
+    expect(log.some((s) => s.transition.includes("300ms"))).toBeTruthy();
+    expect(log.every((s) => /October\s+2026/.test(s.title))).toBeTruthy();
+    await expect(page.locator(".dmhead h2")).toHaveText(/September\s+2026/);
+    await page.keyboard.press("]");
+    await expect(page.locator(".dmhead h2")).toHaveText(/October\s+2026/);
+  });
+
+  test("reduced motion swaps the month without a track", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.locator(".dcal").getByRole("button", { name: "Previous month" }).click();
+    await expect(page.locator(".dcal .viewport > .track")).toHaveCount(0);
+    await expect(page.locator(".dmhead h2")).toHaveText(/September\s+2026/);
+    await expect(page.locator(".stats h2")).toHaveText("September by difficulty");
+  });
+});
+
+test.describe("mobile month slide", () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
+
+  test.beforeEach(async ({ page }) => {
+    await page.clock.install({ time: NOW });
+    await seedHistory(page, buildHistory("default"));
+    await page.goto("./");
+  });
+
+  test("chevron slides the grid and keeps the month title until settle", async ({ page }) => {
+    await armSlideWatch(page, ".mobile .viewport");
+    await page.locator(".mobile").getByRole("button", { name: "Previous month" }).click();
+    const log = await slideLog(page, ".mobile .viewport");
+    const run = log.find((s) => s.transition.includes("300ms"));
+    expect(run.grids).toBe(2);
+    expect(run.title).toMatch(/October\s+2026/);
+    expect(run.mobileStat).toMatch(/Oct by difficulty/);
+    expect(run.transform).toBe("translateX(0px)");
+    await expect(page.locator(".mhead h1")).toHaveText(/September\s+2026/);
+    await expect(page.locator(".sblock .srow.h span").first()).toHaveText("Sep by difficulty");
+  });
+
+  test("a drag completes as a dual-grid slide from the finger", async ({ page }) => {
+    const t = await touchDriver(page);
+    const vp = page.locator(".mobile .viewport");
+    const box = await vp.boundingBox();
+    const y = box.y + 30;
+    const x = box.x + box.width / 2;
+    await t.start(x, y);
+    for (let i = 1; i <= 6; i++) {
+      await page.waitForTimeout(16);
+      await t.move(x + 20 * i, y);
+    }
+    const dragging = await vp.locator(":scope > .mgrid").evaluate((el) => ({
+      transform: getComputedStyle(el).transform,
+      tracks: document.querySelectorAll(".mobile .track").length,
+    }));
+    expect(dragging.tracks).toBe(0);
+    expect(dragging.transform).not.toBe("none");
+    await armSlideWatch(page, ".mobile .viewport");
+    await t.end(x + 120, y);
+    const log = await slideLog(page, ".mobile .viewport");
+    const prep = log.find((s) => s.transition === "none");
+    const run = log.find((s) => s.transition.includes("300ms"));
+    const start = Number(prep.transform.match(/-?\d+(\.\d+)?/)[0]);
+    const width = await vp.evaluate((el) => el.clientWidth);
+    expect(prep.grids).toBe(2);
+    expect(start).toBeLessThan(0);
+    expect(start).toBeGreaterThan(-width);
+    expect(run.transform).toBe("translateX(0px)");
+    expect(run.title).toMatch(/October\s+2026/);
+    await expect(page.locator(".mhead h1")).toHaveText(/September\s+2026/);
   });
 });
