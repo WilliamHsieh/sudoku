@@ -126,6 +126,16 @@ export function createGame() {
       return apply(setAnswer(state, i, d))
     },
 
+    /**
+     * Keyboard digits: write d. Same digit again is a no-op (master assignment,
+     * not setAnswer's toggle). Shift-click still uses enter().
+     * @param {number} i @param {number} d
+     */
+    fill(i, d) {
+      if (state.answers[i] === d) return { state, changed: false, blockers: [] }
+      return apply(setAnswer(state, i, d))
+    },
+
     /** @param {number} i @param {number} d */
     toggleNote(i, d) {
       return apply(toggleCandidate(state, i, d))

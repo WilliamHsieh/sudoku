@@ -10,18 +10,24 @@
   let showCalendar = $state(true);
 
   function handleKeydown(e) {
-    const mod = e.ctrlKey || e.metaKey;
-    if (mod && (e.key.toLowerCase() === "y" || (e.key.toLowerCase() === "z" && e.shiftKey))) {
+    const cmd = e.ctrlKey || e.metaKey;
+    // Only these chords are undo/redo. Ctrl/Alt/Meta+digit follows master and
+    // still enters the digit.
+    if (e.ctrlKey && e.key.toLowerCase() === "y") {
       e.preventDefault();
       game.redo();
       return;
     }
-    if (mod && e.key.toLowerCase() === "z") {
+    if (cmd && e.key.toLowerCase() === "z" && e.shiftKey) {
+      e.preventDefault();
+      game.redo();
+      return;
+    }
+    if (cmd && e.key.toLowerCase() === "z") {
       e.preventDefault();
       game.undo();
       return;
     }
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
 
     if (game.selected == -1) return;
     const id = game.selected;
@@ -29,7 +35,7 @@
     if (e.key >= "0" && e.key <= "9" && game.editable(id)) {
       const d = parseInt(e.key, 10);
       if (d === 0) game.clearAnswer(id);
-      else game.enter(id, d);
+      else game.fill(id, d);
     } else if (e.key == "ArrowLeft" && id % 9) {
       game.select(id - 1);
     } else if (e.key == "ArrowRight" && (id + 1) % 9) {

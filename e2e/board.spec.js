@@ -44,6 +44,20 @@ test('typing a digit fills the selected cell; another digit replaces it; 0 clear
   await expect(cell(page, 0).locator('.pencil-box')).toHaveCount(9)
 })
 
+test('typing the same digit twice keeps it', async ({ page }) => {
+  await cell(page, 0).click()
+  await page.keyboard.press('4')
+  await expectValue(page, 0, 4)
+  await page.keyboard.press('4')
+  await expectValue(page, 0, 4)
+})
+
+test('Ctrl+4 enters 4', async ({ page }) => {
+  await cell(page, 0).click()
+  await page.keyboard.press('Control+4')
+  await expectValue(page, 0, 4)
+})
+
 test('a conflicting digit is accepted and marked', async ({ page }) => {
   await cell(page, 0).click()
   await page.keyboard.press('5') // 5 is already in the row
