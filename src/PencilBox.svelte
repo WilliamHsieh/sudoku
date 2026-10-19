@@ -1,5 +1,6 @@
 <script>
   import { game } from "./game/game.svelte.js";
+  import { padUi } from "./pad-ui.svelte.js";
 
   /**
    * @typedef {Object} Props
@@ -24,6 +25,15 @@
   const isOnlyCandidate = $derived(
     game.value(cell_id) === 0 && visible && game.noteCount(cell_id) === 1
   );
+  const previewAdd = $derived(
+    padUi.preview?.cell === cell_id && padUi.preview?.d === idx + 1 && padUi.preview?.kind === "add"
+  );
+  const previewRemove = $derived(
+    padUi.preview?.cell === cell_id &&
+      padUi.preview?.d === idx + 1 &&
+      padUi.preview?.kind === "remove"
+  );
+  const hiddenPending = $derived(padUi.pending?.cell === cell_id && padUi.pending?.d === idx + 1);
 
   function handleClick(e) {
     if (e.shiftKey) {
@@ -74,12 +84,16 @@
 <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 <div
   class="pencil-box"
-  class:invisible={!visible}
+  class:invisible={!visible && !previewAdd}
   class:selected={isSelected}
   class:shift-hover={showShiftCursor}
   class:snapped={isClosest && showShiftCursor}
   class:matching-number={isMatchingNumber}
   class:only-candidate={showOnlyCandidateHint}
+  class:preview-add={previewAdd}
+  class:preview-remove={previewRemove}
+  class:hidden-pending={hiddenPending}
+  data-d={idx + 1}
   onclick={handleClick}
 >
   {idx + 1}
@@ -133,6 +147,9 @@
   }
 
   .pencil-box.matching-number {
+    place-self: center;
+    width: calc(var(--cell) * var(--chip-size));
+    height: calc(var(--cell) * var(--chip-size));
     color: var(--chip-ink);
     font-weight: var(--chip-weight);
     background: var(--chip-bg);
@@ -176,5 +193,26 @@
     color: transparent !important;
     background: transparent !important;
     box-shadow: none !important;
+  }
+
+  .pencil-box.preview-add {
+    opacity: 0.45;
+    color: var(--sel-ring);
+  }
+
+  .pencil-box.preview-remove {
+    opacity: 0.55;
+    color: var(--conflict);
+    text-decoration: line-through;
+  }
+
+  .pencil-box.hidden-pending {
+    opacity: 0 !important;
+  }
+
+  @media (max-width: 599px) {
+    .pencil-box {
+      pointer-events: none;
+    }
   }
 </style>

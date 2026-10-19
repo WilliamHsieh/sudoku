@@ -14,14 +14,21 @@ import {
   hasCandidate,
   conflicts,
   isSolved,
+  setNotesMode as changeNotesMode,
+  fill as fillLoneAction,
+  eraseAction,
+  blockersOf,
+  isAdd,
 } from "./game.js";
 import {
   createHistory,
   commit,
+  replace,
   undo as undoHistory,
   redo as redoHistory,
   canUndo,
   canRedo,
+  changedCells,
 } from "./history.js";
 import { popcount } from "./board.js";
 import { done, timer, timerRunning, resetTimer, solvedPuzzles } from "../store.js";
@@ -44,11 +51,25 @@ export function createGame() {
   let marked = $state(false);
   /** @type {number[]} */
   let lastBlockers = $state([]);
+  /** @type {() => void} */
+  let beforeMutate = () => {};
 
   const state = $derived(history.present);
 
+  /**
+   * Cells that undo/redo would change, and the cell the ring should land on.
+   * @param {import('./game.js').GameState | undefined} other
+   */
+  function peek(other) {
+    if (!other) return null;
+    const cells = changedCells(state, other);
+    const first = cells.includes(selected) ? selected : (cells[0] ?? -1);
+    return { cells, first };
+  }
+
   /** @param {import('./game.js').ActionResult} result */
   function apply(result) {
+    beforeMutate();
     lastBlockers = result.blockers;
     if (!result.changed) return result;
     history = commit(history, result);
@@ -93,6 +114,14 @@ export function createGame() {
     get blockers() {
       return lastBlockers;
     },
+    get notesMode() {
+      return state.notesMode;
+    },
+
+    /** Flush a pending undo/redo ring before the next mutation. @param {() => void} [fn] */
+    setBeforeMutate(fn) {
+      beforeMutate = fn ?? (() => {});
+    },
 
     /** @param {number} i */
     value(i) {
@@ -125,7 +154,44 @@ export function createGame() {
 
     /** @param {number} i */
     select(i) {
+      beforeMutate();
       selected = i;
+    },
+
+    /** @param {import('./game.js').NotesMode} mode */
+    setNotesMode(mode) {
+      beforeMutate();
+      history = replace(history, changeNotesMode(state, mode));
+    },
+
+    /** @param {number} i */
+    eraseKind(i) {
+      return eraseAction(state, i);
+    },
+
+    /**
+     * Double-tap fill: the highlighted digit if it is a shown candidate, else
+     * the cell's lone candidate. Auto mode only.
+     * @param {number} i @param {number} [highlighted]
+     */
+    fillLone(i, highlighted = 0) {
+      return apply(fillLoneAction(state, i, highlighted));
+    },
+
+    /** @param {number} i @param {number} d */
+    noteBlockers(i, d) {
+      return blockersOf(state, i, d);
+    },
+    /** @param {number} i @param {number} d */
+    wouldAddNote(i, d) {
+      return isAdd(state, i, d);
+    },
+
+    peekUndo() {
+      return canUndo(history) ? peek(history.past[history.past.length - 1]) : null;
+    },
+    peekRedo() {
+      return canRedo(history) ? peek(history.future[history.future.length - 1]) : null;
     },
 
     /** @param {number} i @param {number} d */
@@ -170,12 +236,14 @@ export function createGame() {
     },
 
     undo() {
+      beforeMutate();
       if (!canUndo(history)) return;
       history = undoHistory(history);
       lastBlockers = [];
       syncSolved();
     },
     redo() {
+      beforeMutate();
       if (!canRedo(history)) return;
       history = redoHistory(history);
       lastBlockers = [];
@@ -187,6 +255,7 @@ export function createGame() {
      * @param {LoadMeta} [info]
      */
     load(puzzle, info = {}) {
+      beforeMutate();
       history = createHistory(newGame(puzzle, { notesMode: "auto" }));
       selected = -1;
       meta = { dateStr: info.dateStr ?? null, difficulty: info.difficulty ?? null };

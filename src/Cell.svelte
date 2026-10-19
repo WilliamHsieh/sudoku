@@ -2,6 +2,9 @@
   import PenBox from "./PenBox.svelte";
   import PencilBox from "./PencilBox.svelte";
   import { game } from "./game/game.svelte.js";
+  import { padUi } from "./pad-ui.svelte.js";
+  import { nextDoubleTap } from "./game/pad.js";
+  import { maskDigits } from "./game/board.js";
 
   /** @type {{ cell_id: number }} */
   let { cell_id } = $props();
@@ -19,6 +22,10 @@
   const focusedValue = $derived(game.selected === -1 ? 0 : game.value(game.selected));
   const same = $derived(value !== 0 && focusedValue === value);
   const conflict = $derived(game.inConflict(cell_id));
+  const notes = $derived(maskDigits(game.notes(cell_id)).join(""));
+  const blocking = $derived(padUi.blocking.includes(cell_id));
+  const blocked = $derived(padUi.blocked.includes(cell_id));
+  const undoTarget = $derived(padUi.undoTargets.includes(cell_id));
 
   function handleKeyDown(e) {
     if (e.key === "Shift") {
@@ -69,6 +76,16 @@
   function handleClick() {
     game.select(cell_id);
   }
+
+  /** Touch: select on pointerdown (no 300ms delay) and detect double-tap fill. */
+  function handlePointerDown(e) {
+    if (e.pointerType === "mouse" || (e.button !== undefined && e.button > 0)) return;
+    const highlighted = game.selected >= 0 ? game.value(game.selected) : 0;
+    const step = nextDoubleTap(padUi.lastTap, cell_id, performance.now(), highlighted);
+    padUi.lastTap = step.next;
+    game.select(cell_id);
+    if (step.isDouble) game.fillLone(cell_id, step.highlighted);
+  }
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
@@ -80,8 +97,15 @@
   class:same
   class:conflict
   class:user={value !== 0 && !given}
+  class:blocking
+  class:blocked
+  class:undo-target={undoTarget}
   data-r={row}
   data-c={col}
+  data-i={cell_id}
+  data-value={value || ""}
+  data-notes={notes}
+  onpointerdown={handlePointerDown}
   onclick={handleClick}
   oncontextmenu={(e) => {
     e.preventDefault();
@@ -116,6 +140,7 @@
     cursor: pointer;
     background: var(--board-bg);
     color: var(--answer-ink);
+    touch-action: manipulation;
   }
 
   .cell[data-c="2"],
@@ -160,5 +185,72 @@
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     grid-template-rows: repeat(3, 1fr);
+  }
+
+  .cell.blocking {
+    background-color: color-mix(in srgb, var(--undo-ring) 24%, var(--board-bg));
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--undo-ring) 70%, transparent);
+  }
+
+  .cell.blocked {
+    animation: blocked 300ms ease-out;
+  }
+
+  .cell.undo-target {
+    z-index: 3;
+  }
+
+  .cell.undo-target::before {
+    content: "";
+    position: absolute;
+    inset: 1px;
+    border: 2.5px solid var(--undo-ring);
+    border-radius: 4px;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--undo-ring) 18%, transparent);
+    pointer-events: none;
+    animation: undo-target var(--ring-ms, 620ms) cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  @keyframes blocked {
+    from {
+      background-color: color-mix(in srgb, var(--undo-ring) 24%, var(--board-bg));
+      box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--undo-ring) 70%, transparent);
+    }
+  }
+
+  @keyframes undo-target {
+    0% {
+      opacity: 0;
+      transform: scale(1.9);
+    }
+    38% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    75% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(1);
+    }
+  }
+
+  @media (max-width: 599px) {
+    .candidate {
+      pointer-events: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cell.blocked {
+      animation: none;
+      background-color: color-mix(in srgb, var(--undo-ring) 24%, var(--board-bg));
+      box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--undo-ring) 70%, transparent);
+    }
+    .cell.undo-target::before {
+      animation: none;
+    }
   }
 </style>

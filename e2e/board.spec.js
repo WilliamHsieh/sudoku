@@ -17,6 +17,12 @@ test.beforeEach(async ({ page }) => {
   await openBoard(page);
 });
 
+test("the number pad is a mobile-only control", async ({ page }) => {
+  await expect(page.locator(".keypad")).toHaveCount(1);
+  await expect(page.locator(".keypad")).not.toBeVisible();
+  await expect(page.locator(".tools")).not.toBeVisible();
+});
+
 test("starts with no selection; givens are shaded", async ({ page }) => {
   await expect(cell(page, 1)).toHaveCSS("background-color", GIVEN_BG);
   await expect(cell(page, 0)).toHaveCSS("background-color", "rgb(255, 255, 255)");

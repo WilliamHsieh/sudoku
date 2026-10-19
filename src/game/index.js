@@ -3,3 +3,4 @@ export * from "./board.js";
 export * from "./game.js";
 export * from "./history.js";
 export * from "./snapshot.js";
+export * from "./pad.js";

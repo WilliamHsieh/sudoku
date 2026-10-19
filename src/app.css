@@ -1,3 +1,11 @@
+@font-face {
+  font-family: "Atkinson Hyperlegible";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url("./fonts/atkinson-hyperlegible-latin-400-normal.woff2") format("woff2");
+}
+
 :root {
   --page-bg: #f5f4f0;
   --board-bg: #ffffff;
@@ -32,11 +40,16 @@
   --chip-line: #e1c76e;
   --chip-ink: #7a4b08;
   --chip-weight: 400;
+  --chip-size: 0.32;
+  --undo-ring: #d4501a;
   --conflict: #c02f2f;
   --conflict-bg: #fbe2e0;
   --ui-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
   --ui-ink: #1c1a16;
   --ui-soft: #5d584f;
+  --switch-on: #1c1a16;
+  --switch-off: #d3cec4;
+  --switch-knob: #ffffff;
   --timer-ink: #1c1a16;
   --timer-bg: rgb(255 255 255 / 0.7);
   --timer-line: rgb(0 0 0 / 0.08);
@@ -44,13 +57,19 @@
   --key-line: #dcd7cd;
   --key-shadow: 0 1px 0 #dcd7cd;
   --key-radius: 12px;
+  --key-font: "Atkinson Hyperlegible", Verdana, sans-serif;
+  --key-size: 30px;
+  --key-weight: 400;
+  --key-ink: #1c1a16;
   --key-pressed: #eef1f7;
+  --key-pressed-illegal: #ece9e2;
   --cue: #2f9e5a;
   --cue-ink: #15803d;
   --cue-line: #22c55e;
   --cue-fill: rgb(34 197 94 / 0.2);
   --on-accent: #ffffff;
   --overlay: rgb(0 0 0 / 0.3);
+  --shadow-knob: 0 1px 2px rgb(0 0 0 / 0.25);
   --shadow-dialog: 0 10px 30px rgb(0 0 0 / 0.2);
   --diff-easy: #4ade80;
   --diff-medium: #fbbf24;
@@ -84,6 +103,9 @@ body {
   min-height: 100%;
   background: var(--page-bg);
   color: var(--ui-ink);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
 }
 
 #app {

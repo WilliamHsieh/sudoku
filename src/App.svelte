@@ -3,13 +3,20 @@
   import Cell from "./Cell.svelte";
   import Timer from "./Timer.svelte";
   import Calendar from "./Calendar.svelte";
+  import Tools from "./Tools.svelte";
+  import Keypad from "./Keypad.svelte";
   import { done } from "./store";
   import { game } from "./game/game.svelte.js";
+  import { ring } from "./ring.js";
+  import { padUi } from "./pad-ui.svelte.js";
+  import { installIosZoomGuards } from "./ios-zoom.js";
   import { onMount } from "svelte";
 
   const CELL_IDS = Array.from({ length: 81 }, (_, i) => i);
 
   let showCalendar = $state(true);
+  let wrapEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
+  let ringEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
 
   function handleKeydown(e) {
     const cmd = e.ctrlKey || e.metaKey;
@@ -80,10 +87,21 @@
   }
 
   onMount(() => {
+    game.setBeforeMutate(() => ring.flush());
     window.addEventListener("loadPuzzle", handleLoadPuzzle);
     return () => {
+      game.setBeforeMutate(() => {});
       window.removeEventListener("loadPuzzle", handleLoadPuzzle);
     };
+  });
+
+  $effect(() => {
+    if (wrapEl && ringEl) ring.bind(wrapEl, ringEl);
+  });
+
+  $effect(() => {
+    if (showCalendar) return;
+    return installIosZoomGuards();
   });
 </script>
 
@@ -125,11 +143,21 @@
   {#if showCalendar}
     <Calendar />
   {:else}
-    <Api />
-    <div class="board">
-      {#each CELL_IDS as id (id)}
-        <Cell cell_id={id} />
-      {/each}
+    <div class="play">
+      <Api />
+      <div class="board-wrap" bind:this={wrapEl}>
+        <div class="board" class:quiet={padUi.quiet}>
+          {#each CELL_IDS as id (id)}
+            <Cell cell_id={id} />
+          {/each}
+        </div>
+        <div class="undo-ring" bind:this={ringEl} aria-hidden="true"></div>
+      </div>
+      <div class="mobile-chrome">
+        <Tools />
+        <Keypad />
+        <p class="pad-hint">Tap = answer · Swipe up = candidate</p>
+      </div>
     </div>
 
     {#if $done}
@@ -150,7 +178,8 @@
   main {
     width: 100%;
     min-height: 100vh;
-    padding: 16px;
+    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+      max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
     font-family: var(--ui-font);
     color: var(--ui-ink);
     background: var(--page-bg);
@@ -211,20 +240,62 @@
     background: var(--given-bg);
   }
 
+  .board-wrap {
+    position: relative;
+    max-width: 650px;
+    width: 100%;
+    margin: 0 auto 32px;
+  }
+
   .board {
     container-type: inline-size;
     display: grid;
     grid-template-columns: repeat(9, 1fr);
-    max-width: 650px;
     width: 100%;
     aspect-ratio: 1;
-    margin: 0 auto 32px;
     border: var(--line-outer-w) solid var(--line-outer);
     border-radius: var(--board-radius);
     overflow: hidden;
     background: var(--board-bg);
     -webkit-user-select: none;
     user-select: none;
+    touch-action: manipulation;
+  }
+
+  .undo-ring {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 4;
+    box-sizing: border-box;
+    border: 2.5px solid var(--undo-ring);
+    border-radius: 4px;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--undo-ring) 18%, transparent);
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  .board.quiet :global(.cell.same:not(.conflict)) {
+    background: var(--board-bg);
+  }
+  .board.quiet :global(.cell.same.given:not(.conflict)) {
+    background: var(--given-bg);
+  }
+  .board.quiet :global(.pencil-box.matching-number:not(.only-candidate)) {
+    color: var(--cand);
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .mobile-chrome {
+    display: none;
+  }
+
+  .pad-hint {
+    margin: 0;
+    text-align: center;
+    font-size: 12px;
+    color: var(--ui-soft);
   }
 
   .success-message {
@@ -288,7 +359,8 @@
 
   @media (max-width: 768px) {
     main {
-      padding: 12px;
+      padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+        max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
     }
 
     .header {
@@ -296,7 +368,7 @@
       padding: 4px 0 12px;
     }
 
-    .board {
+    .board-wrap {
       max-width: 100%;
       margin-bottom: 24px;
     }
@@ -304,6 +376,26 @@
     .success-card {
       margin: 16px;
       padding: 32px 24px;
+    }
+  }
+
+  /* Prototype used 600px as the wide-board line; the pad lives below that so
+     1280 desktop chrome (and every existing e2e test) stays unchanged. */
+  @media (max-width: 599px) {
+    .board-wrap {
+      margin-bottom: 0;
+    }
+
+    .play {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .mobile-chrome {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
     }
   }
 </style>
