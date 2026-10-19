@@ -2,7 +2,16 @@
 // Demo puzzle row 1 is `0 5 0 9 0 0 0 0 0`; cell 0 is empty with candidates 2 3 4 6 7,
 // cell 1 is a given 5.
 import { test, expect } from "@playwright/test";
-import { SELECTED_BG, GIVEN_BG, cell, pencil, pen, openBoard, expectValue } from "./helpers.js";
+import {
+  SELECTED_BG,
+  GIVEN_BG,
+  SAME_DIGIT_GIVEN_BG,
+  cell,
+  pencil,
+  pen,
+  openBoard,
+  expectValue,
+} from "./helpers.js";
 
 test.beforeEach(async ({ page }) => {
   await openBoard(page);
@@ -30,7 +39,7 @@ test("click selects a cell; clicking the title deselects", async ({ page }) => {
 
 test("selecting a filled cell highlights the same digit elsewhere", async ({ page }) => {
   await cell(page, 1).click(); // given 5
-  await expect(cell(page, 27)).toHaveCSS("background-color", "rgb(253, 230, 138)"); // r4c1 is 5
+  await expect(cell(page, 27)).toHaveCSS("background-color", SAME_DIGIT_GIVEN_BG); // r4c1 is 5
 });
 
 test("typing a digit fills the selected cell; another digit replaces it; 0 clears", async ({

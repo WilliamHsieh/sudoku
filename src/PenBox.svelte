@@ -5,47 +5,48 @@
   let { cell_id } = $props();
   const value = $derived(game.value(cell_id));
   const conflict = $derived(game.inConflict(cell_id));
+  const given = $derived(game.given(cell_id));
 </script>
 
-<div class="pen-box">
+<div class="pen-box" class:given>
   {value}
-  <div class:conflict></div>
+  {#if conflict}
+    <div class="conflict"></div>
+  {/if}
 </div>
 
 <style>
   .pen-box {
     width: 100%;
     height: 100%;
-    font-size: 2rem;
+    font-size: calc(var(--cell) * var(--digit-size));
+    font-family: var(--digit-font);
+    font-weight: var(--answer-weight);
+    font-variant-numeric: tabular-nums;
     position: relative;
-    font-weight: 700;
     display: flex;
     justify-content: center;
     align-items: center;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1;
+    color: var(--answer-ink);
+  }
+
+  .pen-box.given {
+    color: var(--given-ink);
+    font-weight: var(--given-weight);
+  }
+
+  .pen-box:has(.conflict) {
+    color: var(--conflict);
   }
 
   .conflict {
     position: absolute;
-    width: 10px;
-    height: 10px;
-    right: 6px;
-    bottom: 6px;
+    top: 3px;
+    right: 3px;
+    width: 5px;
+    height: 5px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #ef4444, #dc2626);
-    box-shadow: 0 2px 4px rgba(239, 68, 68, 0.4);
-    animation: pulse 2s infinite;
-  }
-
-  @keyframes pulse {
-    0%,
-    100% {
-      transform: scale(1);
-      opacity: 1;
-    }
-    50% {
-      transform: scale(1.1);
-      opacity: 0.8;
-    }
+    background: var(--conflict);
   }
 </style>

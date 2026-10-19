@@ -87,100 +87,94 @@
 
 <style>
   .pencil-box {
-    font-size: 0.9rem;
+    font-size: calc(var(--cell) * var(--cand-size));
     display: flex;
     justify-content: center;
     align-items: center;
-    font-weight: 500;
-    color: #9ca3af;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    transition: all 0.15s ease;
+    font-weight: var(--cand-weight);
+    color: var(--cand);
+    font-family: var(--digit-font);
     cursor: pointer;
-    border-radius: 2px;
-    min-height: 20px;
+    border-radius: 3px;
+    line-height: 1;
   }
 
   .pencil-box.selected {
-    color: white;
+    color: var(--cand-on-selected);
   }
 
   .pencil-box:hover {
-    background: rgba(59, 130, 246, 0.1);
-    color: #3b82f6;
+    background: color-mix(in srgb, var(--sel-ring) 12%, transparent);
+    color: var(--sel-ring);
   }
 
   .pencil-box.selected:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
+    background: color-mix(in srgb, var(--sel-ring) 16%, transparent);
+    color: var(--sel-ink);
   }
 
   .pencil-box.shift-hover {
-    cursor:
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='M8 2v12M2 8h12' stroke='%23374151' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")
-        8 8,
-      crosshair;
+    cursor: crosshair;
   }
 
   .pencil-box.shift-hover:hover {
-    background: rgba(239, 68, 68, 0.1);
-    color: #ef4444;
-    cursor:
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='M8 2v12M2 8h12' stroke='%23ef4444' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")
-        8 8,
-      crosshair;
+    background: color-mix(in srgb, var(--conflict) 12%, transparent);
+    color: var(--conflict);
+    cursor: crosshair;
   }
 
   .pencil-box.snapped {
-    background: rgba(34, 197, 94, 0.2) !important;
-    color: #22c55e !important;
-    transform: scale(1.1);
-    border: 1px solid #22c55e;
-    box-shadow: 0 0 8px rgba(34, 197, 94, 0.3);
+    place-self: center;
+    color: var(--ink);
+    font-weight: 700;
+    box-shadow: 0 0 0 1.5px var(--ink);
     z-index: 10;
     position: relative;
   }
 
   .pencil-box.matching-number {
-    background: rgba(253, 230, 138, 0.3);
-    color: #b45309;
-    border: 1px solid rgba(253, 230, 138, 0.6);
-    border-radius: 3px;
+    color: var(--chip-ink);
+    font-weight: var(--chip-weight);
+    background: var(--chip-bg);
+    box-shadow: 0 0 0 0.5px var(--chip-line);
+    border-radius: 3.5px;
   }
 
   .pencil-box.matching-number.selected {
-    background: rgba(253, 230, 138, 0.15);
-    color: rgba(255, 255, 255, 0.9);
-    border: 1px solid rgba(253, 230, 138, 0.4);
+    color: var(--chip-ink);
   }
 
   .pencil-box.only-candidate {
-    background: rgba(34, 197, 94, 0.2);
-    color: #15803d;
-    border: 2px solid #22c55e;
-    border-radius: 4px;
+    background: var(--cue-fill);
+    color: var(--cue-ink);
     font-weight: 600;
+    box-shadow: 0 0 0 1px var(--cue-line);
+    border-radius: 4px;
     animation: pulse-glow 2s ease-in-out infinite;
     position: relative;
     z-index: 5;
   }
 
   .pencil-box.only-candidate.selected {
-    background: rgba(34, 197, 94, 0.15);
-    color: rgba(255, 255, 255, 0.95);
-    border: 2px solid rgba(34, 197, 94, 0.6);
+    background: var(--cue-fill);
+    color: var(--cue-ink);
   }
 
   @keyframes pulse-glow {
     0%,
     100% {
-      box-shadow: 0 0 5px rgba(34, 197, 94, 0.3);
+      box-shadow: 0 0 0 1px var(--cue-line);
     }
     50% {
-      box-shadow: 0 0 15px rgba(34, 197, 94, 0.6);
+      box-shadow:
+        0 0 0 1px var(--cue-line),
+        0 0 10px color-mix(in srgb, var(--cue-line) 50%, transparent);
     }
   }
 
   .invisible {
     color: transparent !important;
+    background: transparent !important;
+    box-shadow: none !important;
   }
 </style>
