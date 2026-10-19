@@ -172,20 +172,26 @@ export function toggleCandidate(state, i, d) {
 /**
  * What Erase would clear in cell i: the answer if there is one, otherwise the
  * current mode's own notes (Auto: the overrides, Manual: the notes). Null when
- * there is nothing to clear or the cell is a given.
+ * Erase would not visibly change the cell: a given, no notes, or in Auto only
+ * stale overrides (e.g. a removed digit that a peer has since taken), since
+ * resetting to the computed candidates would show the same digits.
  * @param {GameState} state @param {number} i
  * @returns {EraseAction | null}
  */
 export function eraseAction(state, i) {
   if (!isEditable(state, i)) return null;
   if (state.answers[i]) return 'answer';
-  if (state.notesMode === 'auto') return state.autoAdded[i] || state.autoRemoved[i] ? 'auto-overrides' : null;
+  if (state.notesMode === 'auto') return candidates(state, i) !== computedCandidates(state, i) ? 'auto-overrides' : null;
   return state.manualNotes[i] ? 'manual-notes' : null;
 }
 
 /**
  * Erase: clears the answer, or else the current mode's notes for cell i (Auto
  * resets the cell to its computed candidates). The other mode's notes are kept.
+ *
+ * Differs from `clearCell` (right-click) on an answered cell in Auto mode:
+ * Erase clears only the answer and keeps the cell's overrides, so a second
+ * Erase is needed to reset them; right-click clears both in one step.
  * @param {GameState} state @param {number} i
  * @returns {ActionResult}
  */
@@ -201,6 +207,10 @@ export function erase(state, i) {
  * Right-click clear: an answer goes together with the cell's Auto overrides
  * when in Auto mode (so the computed candidates come back); an empty cell gets
  * Erase; givens are untouched.
+ *
+ * Differs from `erase` on an answered cell in Auto mode: right-click clears the
+ * answer and the overrides in one step, Erase clears only the answer. In Manual
+ * mode both clear only the answer and keep the notes.
  * @param {GameState} state @param {number} i
  * @returns {ActionResult}
  */

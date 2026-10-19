@@ -67,6 +67,17 @@ describe('undo / redo', () => {
     expect(redo(h)).toBe(h);
   });
 
+  it('Erase on a cell with only stale Auto overrides adds no step', () => {
+    let h = start('auto');
+    h = act(h, toggleCandidate, EMPTY, 3);
+    h = act(h, setAnswer, 76, 3);
+    const steps = h.past.length;
+    h = act(h, erase, EMPTY);
+    expect(h.past.length).toBe(steps);
+    h = undo(h);
+    expect(valueAt(h.present, 76)).toBe(0);
+  });
+
   it('each Erase is one step', () => {
     let h = start();
     h = act(h, toggleCandidate, EMPTY, 1);

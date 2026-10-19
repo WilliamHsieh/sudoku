@@ -285,6 +285,38 @@ describe('Erase', () => {
     expect(erase(s, EMPTY).state).toBe(s);
   });
 
+  it('Auto: nothing to erase when the only overrides are stale', () => {
+    let s = toggleCandidate(auto(), EMPTY, 3).state;
+    s = setAnswer(s, 76, 3).state; // a peer takes 3: the removal no longer shows
+    expect(s.autoRemoved[EMPTY]).not.toBe(0);
+    expect(notes(s, EMPTY)).toBe('179');
+    expect(eraseAction(s, EMPTY)).toBe(null);
+    const r = erase(s, EMPTY);
+    expect(r.changed).toBe(false);
+    expect(r.state).toBe(s);
+    expect(clearCell(s, EMPTY).state).toBe(s);
+    // The removal still applies once the peer's 3 is gone.
+    expect(notes(setAnswer(s, 76, 3).state, EMPTY)).toBe('179');
+  });
+
+  it('Auto: a stale override next to a live one: Erase resets both', () => {
+    let s = play(auto(), [toggleCandidate, EMPTY, 3], [toggleCandidate, EMPTY, 1], [setAnswer, 76, 3]);
+    expect(notes(s, EMPTY)).toBe('79');
+    expect(eraseAction(s, EMPTY)).toBe('auto-overrides');
+    s = erase(s, EMPTY).state;
+    expect(notes(s, EMPTY)).toBe('179');
+    expect(s.autoRemoved[EMPTY]).toBe(0);
+    expect(notes(setAnswer(s, 76, 3).state, EMPTY)).toBe('1379');
+  });
+
+  it('Auto: an added override for a digit that is computed anyway is stale too', () => {
+    const base = auto();
+    const s = { ...base, autoAdded: base.autoAdded.map((m, i) => (i === EMPTY ? 1 << 3 : m)) };
+    expect(notes(s, EMPTY)).toBe('1379');
+    expect(eraseAction(s, EMPTY)).toBe(null);
+    expect(erase(s, EMPTY).state).toBe(s);
+  });
+
   it('Auto: resets after restoring one candidate and removing another', () => {
     let s = play(auto(), [toggleCandidate, EMPTY, 7], [toggleCandidate, EMPTY, 1], [toggleCandidate, EMPTY, 7]);
     expect(notes(s, EMPTY)).toBe('379');
