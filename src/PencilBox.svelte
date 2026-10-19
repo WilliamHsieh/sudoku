@@ -155,8 +155,8 @@
     box-sizing: border-box;
     width: calc(var(--cell) * var(--chip-size));
     height: calc(var(--cell) * var(--chip-size));
-    max-width: calc(100% - 3px);
-    max-height: calc(100% - 3px);
+    max-width: calc(100% - 4px);
+    max-height: calc(100% - 4px);
     border-radius: 3.5px;
     color: var(--ink);
     font-weight: 700;
@@ -179,8 +179,8 @@
     box-sizing: border-box;
     width: calc(var(--cell) * var(--chip-size));
     height: calc(var(--cell) * var(--chip-size));
-    max-width: calc(100% - 3px);
-    max-height: calc(100% - 3px);
+    max-width: calc(100% - 4px);
+    max-height: calc(100% - 4px);
     color: var(--chip-ink);
     font-weight: var(--chip-weight);
     background: var(--chip-bg);

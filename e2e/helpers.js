@@ -178,7 +178,7 @@ export async function expectMasterDesktopPencils(page) {
 /** Chip/aim use --chip-size 0.32, capped so the 1.5px ring stays in the slot. */
 export function expectChipGeometry(sizes) {
   expect(Number.parseFloat(sizes.token)).toBeCloseTo(0.32, 5);
-  expect(sizes.chip).toBeCloseTo(Math.min(sizes.cell * 0.32, sizes.slot - 3), 0);
+  expect(sizes.chip).toBeCloseTo(Math.min(sizes.cell * 0.32, sizes.slot - 4), 0);
 }
 
 export async function readChipGeometry(page, selector = ".pencil-box.matching-number") {
@@ -294,6 +294,38 @@ export function expectGapsAtLeast(gaps, px) {
       g.min,
       `cell ${g.i} slot ${g.d} min gap ${g.min} (${JSON.stringify(g.gaps)})`
     ).toBeGreaterThanOrEqual(px);
+  }
+}
+
+/** Yellow chips in corner slots 1/3/7/9, then aim the tightest of each. */
+export async function expectCornerChipAndAimGaps(page) {
+  for (const d of [1, 3, 7, 9]) {
+    const given = await page.evaluate((d) => {
+      const el = [...document.querySelectorAll(".board > .cell")].find(
+        (c) => Number(c.dataset.value) === d
+      );
+      return el ? Number(el.dataset.i) : null;
+    }, d);
+    expect(given, `a given ${d}`).not.toBeNull();
+    await cell(page, given).click();
+    const chips = (await measureChipLineGaps(page, ".pencil-box.matching-number")).filter(
+      (g) => g.d === d
+    );
+    expectGapsAtLeast(chips, 1);
+    const tightest = chips.reduce((a, b) => (a.min <= b.min ? a : b));
+    const box = await page.evaluate((want) => {
+      const el = [...document.querySelectorAll(".pencil-box.matching-number")].find(
+        (n) => Number(n.dataset.d) === want.d && Number(n.closest(".cell")?.dataset.i) === want.i
+      );
+      const r = el.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    }, tightest);
+    await dispatchPointerMove(page, box.x, box.y);
+    await page.keyboard.down("Shift");
+    await dispatchPointerMove(page, box.x, box.y);
+    const aimed = await measureChipLineGaps(page, ".pencil-box.aim");
+    expectGapsAtLeast(aimed, 1);
+    await page.keyboard.up("Shift");
   }
 }
 
@@ -485,7 +517,7 @@ export async function expectShiftAgreement(page, want, opts = {}) {
   else expect(hit.bg).toBe("rgba(0, 0, 0, 0)");
   const geo = await readChipGeometry(page, ".pencil-box.aim");
   expectChipGeometry(geo);
-  expect(hit.w).toBeCloseTo(Math.min(cellW * 0.32, geo.slot - 3), 0);
+  expect(hit.w).toBeCloseTo(Math.min(cellW * 0.32, geo.slot - 4), 0);
 }
 
 export function solve(q) {

@@ -18,6 +18,7 @@ import {
   dispatchPointerMove,
   readChipGeometry,
   expectChipGeometry,
+  expectCornerChipAndAimGaps,
 } from "./helpers.js";
 import { touchDriver } from "./touch.js";
 import { firstUnsolvedLatest } from "../src/game/daily.js";
@@ -240,17 +241,7 @@ test.describe("pad", () => {
     await t.tap(cell(page, 1));
     const chips = await measureChipLineGaps(page, ".pencil-box.matching-number");
     expectGapsAtLeast(chips, 1);
-    for (const d of [1, 3, 7, 9]) {
-      const note = page.locator(`.pencil-box[data-d="${d}"]:not(.invisible)`).first();
-      if ((await note.count()) === 0) continue;
-      const box = await note.boundingBox();
-      await dispatchPointerMove(page, box.x + box.width / 2, box.y + box.height / 2);
-      await page.keyboard.down("Shift");
-      await dispatchPointerMove(page, box.x + box.width / 2, box.y + box.height / 2);
-      const aimed = await measureChipLineGaps(page, ".pencil-box.aim");
-      expectGapsAtLeast(aimed, 1);
-      await page.keyboard.up("Shift");
-    }
+    await expectCornerChipAndAimGaps(page);
   });
 
   test("Shift, chips and aim never move the 81 cell rects at 390", async ({ page }) => {

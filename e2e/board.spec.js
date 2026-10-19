@@ -25,6 +25,7 @@ import {
   expectNoGridShift,
   measureChipLineGaps,
   expectGapsAtLeast,
+  expectCornerChipAndAimGaps,
 } from "./helpers.js";
 
 test.beforeEach(async ({ page }) => {
@@ -117,18 +118,7 @@ test("chips and aim stay ≥1px from every grid line at 1280", async ({ page }) 
   await cell(page, 1).click();
   const chips = await measureChipLineGaps(page, ".pencil-box.matching-number");
   expectGapsAtLeast(chips, 1);
-  const corners = [1, 3, 7, 9];
-  for (const d of corners) {
-    const note = page.locator(`.pencil-box[data-d="${d}"]:not(.invisible)`).first();
-    if ((await note.count()) === 0) continue;
-    const box = await note.boundingBox();
-    await dispatchPointerMove(page, box.x + box.width / 2, box.y + box.height / 2);
-    await page.keyboard.down("Shift");
-    await dispatchPointerMove(page, box.x + box.width / 2, box.y + box.height / 2);
-    const aimed = await measureChipLineGaps(page, ".pencil-box.aim");
-    expectGapsAtLeast(aimed, 1);
-    await page.keyboard.up("Shift");
-  }
+  await expectCornerChipAndAimGaps(page);
 });
 
 test("Shift, chips and aim never move the 81 cell rects at 1280", async ({ page }) => {
