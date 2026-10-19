@@ -101,7 +101,24 @@
       <Timer />
     {/if}
     <button class="view-toggle" onclick={toggleView}>
-      {showCalendar ? "🎯 Play" : "📅 Calendar"}
+      {#if showCalendar}
+        <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+          <path d="M3 9h18"></path>
+          <path d="M3 15h18"></path>
+          <path d="M9 3v18"></path>
+          <path d="M15 3v18"></path>
+        </svg>
+        Play
+      {:else}
+        <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M8 2v4"></path>
+          <path d="M16 2v4"></path>
+          <rect width="18" height="18" x="3" y="4" rx="2"></rect>
+          <path d="M3 10h18"></path>
+        </svg>
+        Calendar
+      {/if}
     </button>
   </div>
 
@@ -160,6 +177,9 @@
   }
 
   .view-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     background: var(--key-bg);
     color: var(--ui-ink);
     border: 1px solid var(--key-line);
@@ -170,6 +190,17 @@
     font-family: var(--ui-font);
     cursor: pointer;
     box-shadow: var(--key-shadow);
+  }
+
+  .btn-icon {
+    width: 15px;
+    height: 15px;
+    flex: none;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   .view-toggle:hover {

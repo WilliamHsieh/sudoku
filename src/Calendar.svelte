@@ -163,12 +163,20 @@
 
 <div class="calendar-container">
   <div class="calendar-header">
-    <button class="nav-button" on:click={previousMonth}>‹</button>
+    <button class="nav-button" aria-label="Previous month" on:click={previousMonth}>
+      <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="m15 18-6-6 6-6"></path>
+      </svg>
+    </button>
     <div class="header-center">
       <h2>{monthNames[currentMonth]} {currentYear}</h2>
       <button class="today-button" on:click={goToToday}>Today</button>
     </div>
-    <button class="nav-button" on:click={nextMonth}>›</button>
+    <button class="nav-button" aria-label="Next month" on:click={nextMonth}>
+      <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="m9 18 6-6-6-6"></path>
+      </svg>
+    </button>
   </div>
 
   <div class="puzzle-stats">
@@ -319,6 +327,8 @@
 
   .nav-button,
   .today-button {
+    box-sizing: border-box;
+    height: 32px;
     background: var(--key-bg);
     border: 1px solid var(--key-line);
     border-radius: 8px;
@@ -329,17 +339,27 @@
   }
 
   .nav-button {
-    padding: 10px 14px;
-    font-size: 1.4rem;
-    font-weight: 600;
-    min-width: 48px;
+    width: 32px;
+    min-width: 32px;
+    padding: 0;
     display: flex;
     align-items: center;
     justify-content: center;
   }
 
+  .nav-icon {
+    width: 15px;
+    height: 15px;
+    flex: none;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
   .today-button {
-    padding: 6px 12px;
+    padding: 0 12px;
     font-size: 0.85rem;
     font-weight: 500;
   }
