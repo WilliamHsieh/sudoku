@@ -9,12 +9,15 @@
     "preview": "vite preview",
     "test": "npm run test:unit && npm run test:e2e",
     "test:unit": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "check": "svelte-check --tsconfig ./jsconfig.json"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",
     "@sveltejs/vite-plugin-svelte": "^7.2.0",
     "svelte": "^5.56.0",
+    "svelte-check": "^4.7.7",
+    "typescript": "^5.9.3",
     "vite": "^8.1.0",
     "vitest": "^5.0.5"
   }
