@@ -149,12 +149,6 @@
   }
 
   .pencil-box.matching-number {
-    place-self: center;
-    box-sizing: border-box;
-    width: min(100%, calc(var(--cell) * var(--chip-size)));
-    height: min(100%, calc(var(--cell) * var(--chip-size)));
-    max-width: 100%;
-    max-height: 100%;
     color: var(--chip-ink);
     font-weight: var(--chip-weight);
     background: var(--chip-bg);
@@ -218,6 +212,15 @@
   @media (max-width: 599px) {
     .pencil-box {
       pointer-events: none;
+    }
+
+    .pencil-box.matching-number {
+      place-self: center;
+      box-sizing: border-box;
+      width: min(100%, calc(var(--cell) * var(--chip-size)));
+      height: min(100%, calc(var(--cell) * var(--chip-size)));
+      max-width: 100%;
+      max-height: 100%;
     }
   }
 </style>

@@ -91,17 +91,20 @@
     window.addEventListener("loadPuzzle", handleLoadPuzzle);
     return () => {
       game.setBeforeMutate(() => {});
+      ring.destroy();
       window.removeEventListener("loadPuzzle", handleLoadPuzzle);
     };
   });
 
   $effect(() => {
-    if (wrapEl && ringEl) ring.bind(wrapEl, ringEl);
-  });
-
-  $effect(() => {
     if (showCalendar) return;
-    return installIosZoomGuards();
+    if (wrapEl && ringEl) ring.bind(wrapEl, ringEl);
+    const mobile = window.matchMedia("(max-width: 599px)").matches;
+    const stopZoom = mobile ? installIosZoomGuards() : () => {};
+    return () => {
+      stopZoom();
+      ring.destroy();
+    };
   });
 </script>
 

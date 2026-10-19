@@ -58,6 +58,28 @@ test("pad digits are Atkinson 400; board givens and answers use the system font"
   expect(fonts.atkinsonBold).toBe(0);
 });
 
+test("desktop matching chips keep master's slot size at 1280x800", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await cell(page, 1).click(); // given 5 — same-digit chips on notes
+  const chip = page.locator(".pencil-box.matching-number").first();
+  await expect(chip).toBeVisible();
+  const sizes = await page.evaluate(() => {
+    for (const chip of document.querySelectorAll(".pencil-box.matching-number")) {
+      const plain = chip.parentElement?.querySelector(
+        ".pencil-box:not(.invisible):not(.matching-number)"
+      );
+      if (!plain) continue;
+      const a = chip.getBoundingClientRect();
+      const b = plain.getBoundingClientRect();
+      return { chipW: a.width, chipH: a.height, slotW: b.width, slotH: b.height };
+    }
+    return null;
+  });
+  expect(sizes).not.toBeNull();
+  expect(sizes.chipW).toBeCloseTo(sizes.slotW, 0);
+  expect(sizes.chipH).toBeCloseTo(sizes.slotH, 0);
+});
+
 test("starts with no selection; givens are shaded", async ({ page }) => {
   await expect(cell(page, 1)).toHaveCSS("background-color", GIVEN_BG);
   await expect(cell(page, 0)).toHaveCSS("background-color", "rgb(255, 255, 255)");

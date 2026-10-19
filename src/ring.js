@@ -11,11 +11,45 @@ function reducedMotion() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-function restartClass(el, cls, ms) {
-  el.classList.remove(cls);
-  void el.offsetWidth;
-  el.classList.add(cls);
-  setTimeout(() => el.classList.remove(cls), ms);
+/**
+ * One delayed callback. destroy() applies it immediately so an in-flight
+ * undo/redo cannot fire after the view is gone (the play view unmounts when
+ * switching to the calendar). Applying now keeps history in sync with the
+ * tap the user already made; cancelling would drop it.
+ * @param {typeof setTimeout} [schedule]
+ * @param {typeof clearTimeout} [cancel]
+ */
+export function createDeferredAction(schedule = setTimeout, cancel = clearTimeout) {
+  /** @type {{ apply: () => void, timer: ReturnType<typeof setTimeout> } | null} */
+  let pending = null;
+  return {
+    /** @param {() => void} apply @param {number} ms */
+    schedule(apply, ms) {
+      this.flush();
+      const entry = {
+        apply,
+        timer: schedule(() => {
+          pending = null;
+          apply();
+        }, ms),
+      };
+      pending = entry;
+    },
+    flush() {
+      if (!pending) return;
+      const p = pending;
+      pending = null;
+      cancel(p.timer);
+      p.apply();
+    },
+    /** Apply now if one is waiting; never leave a timer behind. */
+    destroy() {
+      this.flush();
+    },
+    get isPending() {
+      return pending !== null;
+    },
+  };
 }
 
 export function createRingController() {
@@ -23,11 +57,26 @@ export function createRingController() {
   let wrapEl = null;
   /** @type {HTMLElement | null} */
   let ringEl = null;
-  /** @type {{ apply: () => void, timer: ReturnType<typeof setTimeout> } | null} */
-  let pending = null;
-  let ringEndsAt = -Infinity;
+  const deferred = createDeferredAction();
+  /** @type {Set<ReturnType<typeof setTimeout>>} */
+  const timers = new Set();
   let lastRingCell = -1;
-  let quietTimer = 0;
+  let ringEndsAt = -Infinity;
+
+  /** @param {() => void} fn @param {number} ms */
+  function later(fn, ms) {
+    const id = setTimeout(() => {
+      timers.delete(id);
+      fn();
+    }, ms);
+    timers.add(id);
+    return id;
+  }
+
+  function clearTimers() {
+    for (const id of timers) clearTimeout(id);
+    timers.clear();
+  }
 
   function bind(wrap, ring) {
     wrapEl = wrap;
@@ -35,11 +84,26 @@ export function createRingController() {
   }
 
   function flush() {
-    if (!pending) return;
-    const p = pending;
-    pending = null;
-    clearTimeout(p.timer);
-    p.apply();
+    deferred.flush();
+  }
+
+  /**
+   * Apply any in-flight undo/redo immediately, drop cosmetic timers, and
+   * release DOM bindings. Safe to call twice.
+   */
+  function destroy() {
+    deferred.destroy();
+    clearTimers();
+    if (ringEl) {
+      for (const anim of ringEl.getAnimations()) anim.cancel();
+      ringEl.style.opacity = "0";
+    }
+    wrapEl?.querySelector(".board")?.classList.remove("hl-in", "quiet");
+    wrapEl = null;
+    ringEl = null;
+    padUi.quiet = false;
+    padUi.undoTargets = [];
+    ringEndsAt = -Infinity;
   }
 
   function box(i) {
@@ -73,11 +137,17 @@ export function createRingController() {
     );
   }
 
+  function restartClass(el, cls, ms) {
+    el.classList.remove(cls);
+    void el.offsetWidth;
+    el.classList.add(cls);
+    later(() => el.classList.remove(cls), ms);
+  }
+
   function quietHighlights(ms) {
-    clearTimeout(quietTimer);
     padUi.quiet = true;
     wrapEl?.querySelector(".board")?.classList.remove("hl-in");
-    quietTimer = window.setTimeout(() => {
+    later(() => {
       padUi.quiet = false;
       const board = wrapEl?.querySelector(".board");
       if (board && !reducedMotion()) restartClass(board, "hl-in", HL_IN_MS);
@@ -87,7 +157,7 @@ export function createRingController() {
   /** @param {'undo' | 'redo'} dir */
   function travel(dir) {
     const now = performance.now();
-    const rapid = !!pending || now < ringEndsAt + RING.rapidGap;
+    const rapid = deferred.isPending || now < ringEndsAt + RING.rapidGap;
     flush();
     const peek = dir === "undo" ? game.peekUndo() : game.peekRedo();
     if (!peek) return;
@@ -98,7 +168,7 @@ export function createRingController() {
       else game.redo();
       if (first >= 0) game.select(first);
       padUi.undoTargets = peek.cells.filter((i) => i !== first);
-      window.setTimeout(() => {
+      later(() => {
         padUi.undoTargets = [];
       }, RING.fade);
     };
@@ -112,7 +182,7 @@ export function createRingController() {
       quietHighlights(RING.still);
       ringEndsAt = now + RING.still;
       apply();
-      window.setTimeout(() => {
+      later(() => {
         padUi.undoTargets = [];
       }, RING.still);
       return;
@@ -122,18 +192,13 @@ export function createRingController() {
     moveRing(start, first, t);
     quietHighlights(total);
     ringEndsAt = now + total;
-    pending = {
-      apply,
-      timer: setTimeout(() => {
-        pending = null;
-        apply();
-      }, t.travel + t.apply),
-    };
+    deferred.schedule(apply, t.travel + t.apply);
   }
 
   return {
     bind,
     flush,
+    destroy,
     undo: () => travel("undo"),
     redo: () => travel("redo"),
   };

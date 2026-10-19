@@ -103,9 +103,15 @@ body {
   min-height: 100%;
   background: var(--page-bg);
   color: var(--ui-ink);
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
   -webkit-text-size-adjust: 100%;
+}
+
+@media (max-width: 599px) {
+  html,
+  body {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
 }
 
 #app {

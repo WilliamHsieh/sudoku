@@ -14,17 +14,16 @@ export function installIosZoomGuards() {
     if (e.touches.length === 0 && e.changedTouches.length === 1) e.preventDefault();
   };
 
+  /** @param {TouchEvent} e */
+  const preventKeyStart = (e) => {
+    if (e.target instanceof Element && e.target.closest(".key")) e.preventDefault();
+  };
+
   const board = document.querySelector(".board");
   const keypad = document.querySelector(".keypad");
   board?.addEventListener("touchend", preventSingleFinger, opts);
   keypad?.addEventListener("touchend", preventSingleFinger, opts);
-  keypad?.addEventListener(
-    "touchstart",
-    (e) => {
-      if (e.target instanceof Element && e.target.closest(".key")) e.preventDefault();
-    },
-    opts
-  );
+  keypad?.addEventListener("touchstart", preventKeyStart, opts);
 
   let last = { t: -Infinity, x: 0, y: 0 };
   /** @param {TouchEvent} e */
@@ -43,6 +42,7 @@ export function installIosZoomGuards() {
   return () => {
     board?.removeEventListener("touchend", preventSingleFinger, opts);
     keypad?.removeEventListener("touchend", preventSingleFinger, opts);
+    keypad?.removeEventListener("touchstart", preventKeyStart, opts);
     document.removeEventListener("touchend", secondTap, opts);
   };
 }
