@@ -151,112 +151,112 @@
 </svelte:head>
 
 <main>
-  <div class="header">
-    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
-    <h1 onclick={removeFocus}>Sudoku</h1>
-    {#if !showCalendar && !isNarrow}
-      <Timer />
-    {/if}
-    <button class="view-toggle" onclick={toggleView}>
-      {#if showCalendar}
-        <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
-          <rect width="18" height="18" x="3" y="3" rx="2"></rect>
-          <path d="M3 9h18"></path>
-          <path d="M3 15h18"></path>
-          <path d="M9 3v18"></path>
-          <path d="M15 3v18"></path>
-        </svg>
-        Play
-      {:else}
-        <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M8 2v4"></path>
-          <path d="M16 2v4"></path>
-          <rect width="18" height="18" x="3" y="4" rx="2"></rect>
-          <path d="M3 10h18"></path>
-        </svg>
-        Calendar
+  <Api />
+  {#if !isNarrow}
+    <div class="header">
+      <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
+      <h1 onclick={removeFocus}>Sudoku</h1>
+      {#if !showCalendar && !isNarrow}
+        <Timer />
       {/if}
-    </button>
-  </div>
-
-  <header class="hd">
-    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
-    <h1 class="hd-brand" onclick={removeFocus}>Sudoku</h1>
-    <div class="hd-r">
-      {#if showCalendar}
-        <button class="hpill" type="button" aria-label="Back to puzzle" onclick={playFromJournal}>
-          <span class="face"
-            ><svg
-              class="ic"
-              aria-hidden="true"
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <rect width="18" height="18" x="3" y="3" rx="2"></rect>
-              <path d="M3 9h18"></path>
-              <path d="M3 15h18"></path>
-              <path d="M9 3v18"></path>
-              <path d="M15 3v18"></path></svg
-            >Play</span
-          >
-        </button>
-      {:else}
-        <button class="hbtn cal" type="button" aria-label="Journal" onclick={openJournal}>
-          <span class="face"
-            ><svg
-              class="ic"
-              aria-hidden="true"
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M8 2v3"></path>
-              <path d="M16 2v3"></path>
-              <rect x="3" y="3" width="18" height="18" rx="2"></rect>
-              <path d="M3 9h18"></path>
-              <path d="M8 13h.01"></path>
-              <path d="M12 13h.01"></path>
-              <path d="M16 13h.01"></path>
-              <path d="M8 17h.01"></path>
-              <path d="M12 17h.01"></path>
-              <path d="M16 17h.01"></path>
-            </svg></span
-          >
-        </button>
-        {#if isNarrow}
-          <Timer />
+      <button class="view-toggle" onclick={toggleView}>
+        {#if showCalendar}
+          <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+            <path d="M3 9h18"></path>
+            <path d="M3 15h18"></path>
+            <path d="M9 3v18"></path>
+            <path d="M15 3v18"></path>
+          </svg>
+          Play
+        {:else}
+          <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8 2v4"></path>
+            <path d="M16 2v4"></path>
+            <rect width="18" height="18" x="3" y="4" rx="2"></rect>
+            <path d="M3 10h18"></path>
+          </svg>
+          Calendar
         {/if}
-        <button class="hbtn" type="button" aria-label="Pause">
-          <span class="face"
-            ><svg class="ic pz" viewBox="0 0 24 24" aria-hidden="true"
-              ><rect x="6.5" y="5" width="3.6" height="14" rx="1"></rect><rect
-                x="13.9"
-                y="5"
-                width="3.6"
-                height="14"
-                rx="1"
-              ></rect></svg
-            ></span
-          >
-        </button>
-      {/if}
+      </button>
     </div>
-  </header>
+  {:else}
+    <header class="hd">
+      <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
+      <h1 class="hd-brand" onclick={removeFocus}>Sudoku</h1>
+      <div class="hd-r">
+        {#if showCalendar}
+          <button class="hpill" type="button" aria-label="Back to puzzle" onclick={playFromJournal}>
+            <span class="face"
+              ><svg
+                class="ic"
+                aria-hidden="true"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+                <path d="M3 9h18"></path>
+                <path d="M3 15h18"></path>
+                <path d="M9 3v18"></path>
+                <path d="M15 3v18"></path></svg
+              >Play</span
+            >
+          </button>
+        {:else}
+          <button class="hbtn cal" type="button" aria-label="Journal" onclick={openJournal}>
+            <span class="face"
+              ><svg
+                class="ic"
+                aria-hidden="true"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M8 2v3"></path>
+                <path d="M16 2v3"></path>
+                <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+                <path d="M3 9h18"></path>
+                <path d="M8 13h.01"></path>
+                <path d="M12 13h.01"></path>
+                <path d="M16 13h.01"></path>
+                <path d="M8 17h.01"></path>
+                <path d="M12 17h.01"></path>
+                <path d="M16 17h.01"></path>
+              </svg></span
+            >
+          </button>
+          <Timer />
+          <button class="hbtn" type="button" aria-label="Pause">
+            <span class="face"
+              ><svg class="ic pz" viewBox="0 0 24 24" aria-hidden="true"
+                ><rect x="6.5" y="5" width="3.6" height="14" rx="1"></rect><rect
+                  x="13.9"
+                  y="5"
+                  width="3.6"
+                  height="14"
+                  rx="1"
+                ></rect></svg
+              ></span
+            >
+          </button>
+        {/if}
+      </div>
+    </header>
+  {/if}
 
   {#if showCalendar}
     <Calendar />
   {:else}
     <div class="play">
-      <Api />
       <div class="board-wrap" bind:this={wrapEl}>
         <div class="board" class:quiet={padUi.quiet}>
           {#each CELL_IDS as id (id)}
@@ -615,6 +615,7 @@
     }
     .hpill .face {
       height: 30px;
+      width: 69.75px;
       display: flex;
       align-items: center;
       gap: 6px;
