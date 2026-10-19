@@ -2,14 +2,15 @@
   import Api from "./Api.svelte";
   import Cell from "./Cell.svelte";
   import Timer from "./Timer.svelte";
-  import Calendar from "./Calendar.svelte";
+  import Journal from "./Journal.svelte";
   import Tools from "./Tools.svelte";
   import Keypad from "./Keypad.svelte";
   import { get } from "svelte/store";
-  import { done, solvedPuzzles } from "./store";
+  import { done, puzzleProgress, solvedPuzzles } from "./store";
   import { game } from "./game/game.svelte.js";
   import { firstUnsolvedLatest } from "./game/daily.js";
   import { puzzleData } from "./puzzles.js";
+  import { unfinishedList } from "./journal/stats.js";
   import { ring } from "./ring.js";
   import { padUi } from "./pad-ui.svelte.js";
   import { installIosZoomGuards } from "./ios-zoom.js";
@@ -84,11 +85,8 @@
     }
   }
 
-  function toggleView() {
-    showCalendar = !showCalendar;
-  }
-
   function openJournal() {
+    game.flushProgress();
     showCalendar = true;
   }
 
@@ -98,9 +96,21 @@
 
   function playFromJournal() {
     if (!hasPlayed && !hasQueryPuzzle()) {
-      const pick = firstUnsolvedLatest(puzzleData, get(solvedPuzzles));
-      if (pick) {
-        game.load(pick.puzzle, { dateStr: pick.dateStr, difficulty: pick.difficulty });
+      const list = unfinishedList(get(puzzleProgress), get(solvedPuzzles));
+      const recent = list[0];
+      const puzzle = recent ? puzzleData[recent.date]?.[recent.diff] : null;
+      if (recent && puzzle) {
+        game.load(puzzle, {
+          dateStr: recent.date,
+          difficulty: recent.diff,
+          snapshot: recent.snapshot,
+          elapsed: recent.elapsed,
+        });
+      } else {
+        const pick = firstUnsolvedLatest(puzzleData, get(solvedPuzzles));
+        if (pick) {
+          game.load(pick.puzzle, { dateStr: pick.dateStr, difficulty: pick.difficulty });
+        }
       }
     }
     hasPlayed = true;
@@ -150,17 +160,21 @@
   <title>Sudoku</title>
 </svelte:head>
 
-<main>
+<main class:on-journal={showCalendar}>
   <Api />
   {#if !isNarrow}
-    <div class="header">
+    <div class="header" class:playing={!showCalendar}>
       <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
       <h1 onclick={removeFocus}>Sudoku</h1>
-      {#if !showCalendar && !isNarrow}
+      {#if !showCalendar}
         <Timer />
       {/if}
-      <button class="view-toggle" onclick={toggleView}>
-        {#if showCalendar}
+      <nav class="seg" aria-label="Views">
+        <button
+          type="button"
+          aria-current={!showCalendar ? "page" : undefined}
+          onclick={playFromJournal}
+        >
           <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
             <rect width="18" height="18" x="3" y="3" rx="2"></rect>
             <path d="M3 9h18"></path>
@@ -169,16 +183,27 @@
             <path d="M15 3v18"></path>
           </svg>
           Play
-        {:else}
+        </button>
+        <button
+          type="button"
+          aria-current={showCalendar ? "page" : undefined}
+          onclick={openJournal}
+        >
           <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M8 2v4"></path>
-            <path d="M16 2v4"></path>
-            <rect width="18" height="18" x="3" y="4" rx="2"></rect>
-            <path d="M3 10h18"></path>
+            <path d="M8 2v3"></path>
+            <path d="M16 2v3"></path>
+            <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+            <path d="M3 9h18"></path>
+            <path d="M8 13h.01"></path>
+            <path d="M12 13h.01"></path>
+            <path d="M16 13h.01"></path>
+            <path d="M8 17h.01"></path>
+            <path d="M12 17h.01"></path>
+            <path d="M16 17h.01"></path>
           </svg>
-          Calendar
-        {/if}
-      </button>
+          Journal
+        </button>
+      </nav>
     </div>
   {:else}
     <header class="hd">
@@ -254,7 +279,7 @@
   {/if}
 
   {#if showCalendar}
-    <Calendar />
+    <Journal />
   {:else}
     <div class="play">
       <div class="board-wrap" bind:this={wrapEl}>
@@ -317,39 +342,49 @@
     cursor: pointer;
   }
 
-  .view-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    background: var(--key-bg);
-    color: var(--ui-ink);
-    border: 1px solid var(--key-line);
-    border-radius: var(--key-radius);
-    padding: 8px 14px;
-    font-size: 0.9rem;
+  .header :global(.timer) {
+    margin-left: auto;
+  }
+
+  .seg {
+    display: flex;
+    background: var(--neutral);
+    border-radius: 10px;
+    padding: 3px;
+    margin-left: auto;
+  }
+  .header.playing .seg {
+    margin-left: 0;
+  }
+  .seg button {
+    font-size: 14px;
     font-weight: 600;
+    color: var(--ink2);
+    padding: 6px 14px;
+    border-radius: 8px;
+    display: flex;
+    gap: 7px;
+    align-items: center;
     font-family: var(--ui-font);
+    background: none;
+    border: 0;
     cursor: pointer;
-    box-shadow: var(--key-shadow);
+  }
+  .seg button[aria-current] {
+    background: var(--card);
+    color: var(--ink);
+    box-shadow: 0 1px 2px rgb(28 26 22 / 0.12);
   }
 
   .btn-icon {
-    width: 15px;
-    height: 15px;
+    width: 16px;
+    height: 16px;
     flex: none;
     stroke: currentColor;
     fill: none;
     stroke-width: 2;
     stroke-linecap: round;
     stroke-linejoin: round;
-  }
-
-  .view-toggle:hover {
-    background: var(--key-pressed);
-  }
-
-  .view-toggle:active {
-    background: var(--given-bg);
   }
 
   .hd {
@@ -634,6 +669,30 @@
     }
     main > .hd {
       margin: -3px -8px -7px;
+    }
+
+    main.on-journal {
+      gap: 18px;
+      padding-bottom: max(40px, env(safe-area-inset-bottom));
+    }
+  }
+
+  @media (min-width: 600px) {
+    main.on-journal {
+      padding: 0;
+    }
+    main.on-journal .header {
+      height: 64px;
+      margin: 0;
+      max-width: none;
+      padding: 0 32px;
+      border-bottom: 1px solid var(--hair);
+      box-sizing: border-box;
+    }
+    main.on-journal .header h1 {
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
     }
   }
 </style>

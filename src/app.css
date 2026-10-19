@@ -87,6 +87,16 @@
   --diff-medium: #fbbf24;
   --diff-hard: #f87171;
   --dot-idle: #d3cec4;
+  --hair: #dcd7cd;
+  --neutral: #e5e4e0;
+  --neutral-2: #ecebe7;
+  --sel: #d3e0f8;
+  --blue: #2a56c6;
+  --blue-d: #2249ad;
+  --amber: #7a4b08;
+  --card: #ffffff;
+  --page: #f5f4f0;
+  --ink2: #5d584f;
   font-family: var(--ui-font);
   color: var(--ui-ink);
   background: var(--page-bg);
@@ -132,4 +142,8 @@ body {
   max-width: none;
   min-height: 100vh;
   text-align: initial;
+}
+
+body.journal-sheet {
+  overflow: hidden;
 }
