@@ -76,6 +76,14 @@ export function registerPr6Tests(opts = {}) {
     await openPlay(page);
   });
 
+  test("the desktop timer chip is 30px tall", async ({ page }) => {
+    test.skip(mobile, "desktop header");
+    const timer = page.locator(".timer");
+    await expect(timer).toHaveCSS("padding-top", "6px");
+    await expect(timer).toHaveCSS("padding-right", "10px");
+    expect((await timer.boundingBox()).height).toBe(30);
+  });
+
   test("the cue pulses every lone candidate together and selection resets it", async ({ page }) => {
     const lones = await loneIds(page);
     expect(lones.length).toBeGreaterThan(1);

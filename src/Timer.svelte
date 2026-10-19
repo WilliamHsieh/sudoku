@@ -59,6 +59,13 @@
     min-width: 2.6em;
   }
 
+  @media (min-width: 600px) {
+    /* 30px lines up with Pause and More. Padding stays 6px 10px; the label stays centered. */
+    .timer {
+      height: 30px;
+    }
+  }
+
   @media (max-width: 599px) {
     /* H2 .timer2 — exact rules from h2-play.html */
     .timer2 {
