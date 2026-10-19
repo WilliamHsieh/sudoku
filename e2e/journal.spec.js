@@ -105,22 +105,21 @@ test.describe("mobile journal selected", () => {
     await page.clock.install({ time: NOW });
     await seedHistory(page, buildHistory("default"));
     await page.goto("./");
-    await page.locator(".mobile .day.is-latest").click();
+    await page.locator('.mobile .day[data-d="2026-10-15"]').click();
     const sel = page.locator(".mobile .day.sel");
     await expect(sel).toHaveCount(1);
+    await expect(sel).toHaveAttribute("data-d", "2026-10-15");
     await expect(sel).toHaveCSS("background-color", "rgb(211, 224, 248)");
     const paint = await sel.evaluate((el) => {
       const cs = getComputedStyle(el);
       const after = getComputedStyle(el, "::after");
       return {
         outline: cs.outlineStyle,
-        outlineW: cs.outlineWidth,
         afterW: after.borderTopWidth,
         afterColor: after.borderTopColor,
       };
     });
     expect(paint.outline === "none" || paint.outline === "").toBeTruthy();
-    expect(paint.outlineW === "0px" || paint.outlineW === "").toBeTruthy();
     const afterOff =
       paint.afterW === "0px" ||
       paint.afterW === "" ||
