@@ -1,6 +1,12 @@
 // Pause, More/Options, Restart, and the single-candidate cue.
 import { test, expect } from "@playwright/test";
-import { cell, expectValue, DEMO_PUZZLE } from "./helpers.js";
+import {
+  cell,
+  expectValue,
+  DEMO_PUZZLE,
+  expectGapsAtLeast,
+  measureChipLineGaps,
+} from "./helpers.js";
 
 const T0 = new Date("2026-01-01T00:00:00Z");
 
@@ -188,6 +194,23 @@ export function registerPr6Tests(opts = {}) {
         "rgb(34, 197, 94) 0px 0px 0px 1px, rgba(34, 197, 94, 0.28) 0px 0px 0px 3px"
       );
     }
+    expectGapsAtLeast(await measureChipLineGaps(page, ".pencil-box.cue"), 1);
+  });
+
+  test("the r9c3 cue ring stays 1px off the box line", async ({ page }) => {
+    await page.goto("./?shot=1&freeze&cueMs=250");
+    await page.clock.runFor(1_000);
+    const six = page.locator('.cell[data-i="74"] .pencil-box.cue');
+    await expect(six).toHaveCount(1);
+    await six.evaluate((el) => {
+      for (const anim of el.getAnimations()) {
+        anim.pause();
+        anim.currentTime = 270;
+      }
+    });
+    const gaps = await measureChipLineGaps(page, ".pencil-box.cue");
+    expectGapsAtLeast(gaps, 1);
+    expect(gaps.find((g) => g.i === 74 && g.d === 6)?.min).toBeGreaterThanOrEqual(1);
   });
 
   test("reduced motion holds a static tint with no ring until the next input", async ({ page }) => {

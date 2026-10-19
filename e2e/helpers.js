@@ -401,11 +401,13 @@ export async function measureChipLineGaps(page, selector) {
       const top = row === 0 ? inner.top : cr.top;
       const bottom = row === 8 ? inner.bottom : cr.bottom - parseFloat(cs.borderBottomWidth);
       const r = el.getBoundingClientRect();
-      const pad = /\baim\b/.test(el.className)
-        ? 1.5
-        : /\bmatching-number\b/.test(el.className)
-          ? 0.5
-          : 0;
+      const pad = /\bcue\b/.test(el.className)
+        ? 3
+        : /\baim\b/.test(el.className)
+          ? 1.5
+          : /\bmatching-number\b/.test(el.className)
+            ? 0.5
+            : 0;
       const gaps = {
         left: r.left - pad - left,
         right: right - (r.right + pad),

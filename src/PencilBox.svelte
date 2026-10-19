@@ -222,12 +222,63 @@
     }
   }
 
+  /* Edge slots move inward so the 3px ring stays 1px off the grid line.
+     Center slot (5) is already clear. Size stays the match-chip size. */
+  .pencil-box.cue[data-d="2"] {
+    transform: translateY(1px);
+  }
+  .pencil-box.cue[data-d="4"] {
+    transform: translateX(1px);
+  }
+  .pencil-box.cue[data-d="6"] {
+    transform: translateX(-1px);
+  }
+  .pencil-box.cue[data-d="8"] {
+    transform: translateY(-1px);
+  }
+  .pencil-box.cue[data-d="1"] {
+    transform: translate(1px, 1px);
+  }
+  .pencil-box.cue[data-d="3"] {
+    transform: translate(-1px, 1px);
+  }
+  .pencil-box.cue[data-d="7"] {
+    transform: translate(1px, -1px);
+  }
+  .pencil-box.cue[data-d="9"] {
+    transform: translate(-1px, -1px);
+  }
+
   @media (max-width: 599px) {
     .pencil-box.cue {
       width: min(calc(var(--cell) * var(--chip-size)), calc(100cqw - 1px));
       height: min(calc(var(--cell) * var(--chip-size)), calc(100cqh - 1px));
       max-width: calc(100cqw - 1px);
       max-height: calc(100cqh - 1px);
+    }
+    .pencil-box.cue[data-d="2"] {
+      transform: translateY(2.5px);
+    }
+    .pencil-box.cue[data-d="4"] {
+      transform: translateX(2.5px);
+    }
+    .pencil-box.cue[data-d="6"] {
+      transform: translateX(-2.5px);
+    }
+    .pencil-box.cue[data-d="8"] {
+      transform: translateY(-2.5px);
+    }
+    .pencil-box.cue[data-d="1"] {
+      transform: translate(2.5px, 2.5px);
+    }
+    .pencil-box.cue[data-d="3"] {
+      transform: translate(-2.5px, 2.5px);
+    }
+    .pencil-box.cue[data-d="7"] {
+      transform: translate(2.5px, -2.5px);
+    }
+    .pencil-box.cue[data-d="9"] {
+      transform: translate(-2.5px, -2.5px);
     }
   }
 
