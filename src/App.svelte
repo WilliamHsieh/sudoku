@@ -7,6 +7,8 @@
   import { game } from "./game/game.svelte.js";
   import { onMount } from "svelte";
 
+  const CELL_IDS = Array.from({ length: 81 }, (_, i) => i);
+
   let showCalendar = $state(true);
 
   function handleKeydown(e) {
@@ -108,7 +110,7 @@
   {:else}
     <Api />
     <div class="board">
-      {#each Array(81) as _, id}
+      {#each CELL_IDS as id (id)}
         <Cell cell_id={id} />
       {/each}
     </div>

@@ -5,6 +5,7 @@
 
   /** @type {{ cell_id: number }} */
   let { cell_id } = $props();
+  const NOTE_SLOTS = Array.from({ length: 9 }, (_, i) => i);
   const walls = $derived.by(() => {
     const x = Math.floor(cell_id / 9);
     const y = cell_id % 9;
@@ -112,7 +113,7 @@
     <PenBox {cell_id} />
   {:else}
     <div class="candidate">
-      {#each Array(9) as _, idx}
+      {#each NOTE_SLOTS as idx (idx)}
         <PencilBox {cell_id} {idx} {isShiftPressed} isClosest={closestPencilIdx === idx} />
       {/each}
     </div>

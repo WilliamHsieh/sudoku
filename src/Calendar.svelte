@@ -1,5 +1,4 @@
 <script>
-  import { onMount } from "svelte";
   import { solvedPuzzles } from "./store.js";
   import { puzzleData } from "./puzzles.js";
   import { formatTime } from "./store.js";
@@ -28,6 +27,10 @@
   ];
 
   const difficulties = ["easy", "medium", "hard"];
+  const totalPuzzles = Object.values(puzzleData).reduce(
+    (sum, puzzles) => sum + Object.keys(puzzles).length,
+    0
+  );
   const difficultyColors = {
     easy: "#4ade80",
     medium: "#fbbf24",
@@ -161,10 +164,6 @@
   $: calendarDays = generateCalendarDays(currentMonth, currentYear);
   $: console.log("Calendar days:", calendarDays.slice(0, 7)); // Debug first week
   $: modalPuzzles = modalDate ? puzzleData[modalDate] || {} : {};
-  $: totalPuzzles = Object.values(puzzleData).reduce(
-    (sum, puzzles) => sum + Object.keys(puzzles).length,
-    0
-  );
 </script>
 
 <div class="calendar-container">
@@ -205,7 +204,7 @@
     <div class="day-header">Fri</div>
     <div class="day-header">Sat</div>
 
-    {#each calendarDays as day}
+    {#each calendarDays as day, i (day?.date ?? `pad-${i}`)}
       <div
         class="calendar-day"
         class:empty={!day}
@@ -227,7 +226,7 @@
         {#if day}
           <div class="day-number">{day.day}</div>
           <div class="puzzle-indicators">
-            {#each difficulties as difficulty}
+            {#each difficulties as difficulty (difficulty)}
               {#if day.puzzles[difficulty]}
                 <span
                   class="puzzle-dot"
@@ -261,7 +260,7 @@
       </div>
 
       <div class="modal-content">
-        {#each difficulties as difficulty}
+        {#each difficulties as difficulty (difficulty)}
           {#if modalPuzzles[difficulty]}
             <button
               class="difficulty-button {difficulty}"
