@@ -250,7 +250,8 @@
   .board {
     container-type: inline-size;
     display: grid;
-    grid-template-columns: repeat(9, 1fr);
+    grid-template-columns: repeat(9, minmax(0, 1fr));
+    grid-template-rows: repeat(9, minmax(0, 1fr));
     width: 100%;
     aspect-ratio: 1;
     border: var(--line-outer-w) solid var(--line-outer);

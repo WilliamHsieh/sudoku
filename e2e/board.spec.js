@@ -11,6 +11,10 @@ import {
   pen,
   openBoard,
   expectValue,
+  measureBoard,
+  expectUnclippedEqualCells,
+  expectSameGeometry,
+  readDigitFonts,
 } from "./helpers.js";
 
 test.beforeEach(async ({ page }) => {
@@ -21,6 +25,37 @@ test("the number pad is a mobile-only control", async ({ page }) => {
   await expect(page.locator(".keypad")).toHaveCount(1);
   await expect(page.locator(".keypad")).not.toBeVisible();
   await expect(page.locator(".tools")).not.toBeVisible();
+});
+
+test("highlight chips, conflict and notes do not resize the board or cells", async ({ page }) => {
+  const before = await measureBoard(page);
+  expectUnclippedEqualCells(before);
+
+  await cell(page, 1).click(); // given 5: same-digit chips
+  await cell(page, 0).click();
+  await page.keyboard.press("5"); // conflict with the given 5, notes still in peers
+  await expect(cell(page, 0).locator(".conflict")).toHaveCount(1);
+  await expect(page.locator(".pencil-box.matching-number").first()).toBeVisible();
+
+  const after = await measureBoard(page);
+  expectUnclippedEqualCells(after);
+  expectSameGeometry(before, after);
+});
+
+test("pad digits are Atkinson 400; board givens and answers use the system font", async ({
+  page,
+}) => {
+  await cell(page, 0).click();
+  await page.keyboard.press("4");
+  const fonts = await readDigitFonts(page);
+  expect(fonts.pad.family).toMatch(/Atkinson Hyperlegible/);
+  expect(fonts.pad.weight).toBe("400");
+  expect(fonts.given.family).not.toMatch(/Atkinson/);
+  expect(fonts.given.weight).toBe("700");
+  expect(fonts.answer.family).not.toMatch(/Atkinson/);
+  expect(fonts.answer.weight).toBe("400");
+  expect(fonts.answer.family).toBe(fonts.given.family);
+  expect(fonts.atkinsonBold).toBe(0);
 });
 
 test("starts with no selection; givens are shaded", async ({ page }) => {

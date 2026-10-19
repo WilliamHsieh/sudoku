@@ -132,6 +132,9 @@
     --cell: calc(100cqi / 9);
     position: relative;
     aspect-ratio: 1;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
     display: grid;
     place-items: center;
     border-right: var(--line-thin-w) solid var(--line-thin);
@@ -182,9 +185,12 @@
   .candidate {
     height: 100%;
     width: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: repeat(3, minmax(0, 1fr));
   }
 
   .cell.blocking {

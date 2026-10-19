@@ -1,7 +1,16 @@
 // Mobile input: iPhone viewport + real CDP touch. Demo puzzle cell 0 is empty
 // with Auto candidates 2 3 4 6 7; cell 1 is a given 5.
 import { test, expect } from "@playwright/test";
-import { cell, pencil, openBoard, expectValue } from "./helpers.js";
+import {
+  cell,
+  pencil,
+  openBoard,
+  expectValue,
+  measureBoard,
+  expectUnclippedEqualCells,
+  expectSameGeometry,
+  readDigitFonts,
+} from "./helpers.js";
 import { touchDriver } from "./touch.js";
 
 const SELECTED_BG = "rgb(211, 224, 248)";
@@ -25,6 +34,39 @@ test("the pad and tools fit a 390px iPhone screen", async ({ page }) => {
   expect(await page.locator(".board").evaluate((el) => getComputedStyle(el).touchAction)).toBe(
     "manipulation"
   );
+});
+
+test("highlight chips, conflict and notes do not resize the board or cells", async ({ page }) => {
+  const t = await touchDriver(page);
+  const before = await measureBoard(page);
+  expectUnclippedEqualCells(before);
+
+  await t.tap(cell(page, 1)); // given 5: same-digit chips
+  await t.tap(cell(page, 0));
+  await t.tap(key(page, 5)); // conflict, notes still in peers
+  await expect(cell(page, 0).locator(".conflict")).toHaveCount(1);
+  await expect(page.locator(".pencil-box.matching-number").first()).toBeVisible();
+
+  const after = await measureBoard(page);
+  expectUnclippedEqualCells(after);
+  expectSameGeometry(before, after);
+});
+
+test("pad digits are Atkinson 400; board givens and answers use the system font", async ({
+  page,
+}) => {
+  const t = await touchDriver(page);
+  await t.tap(cell(page, 0));
+  await t.tap(key(page, 4));
+  const fonts = await readDigitFonts(page);
+  expect(fonts.pad.family).toMatch(/Atkinson Hyperlegible/);
+  expect(fonts.pad.weight).toBe("400");
+  expect(fonts.given.family).not.toMatch(/Atkinson/);
+  expect(fonts.given.weight).toBe("700");
+  expect(fonts.answer.family).not.toMatch(/Atkinson/);
+  expect(fonts.answer.weight).toBe("400");
+  expect(fonts.answer.family).toBe(fonts.given.family);
+  expect(fonts.atkinsonBold).toBe(0);
 });
 
 test("tap on a key writes the answer; tapping the same key clears it", async ({ page }) => {

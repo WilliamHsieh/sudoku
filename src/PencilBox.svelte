@@ -101,6 +101,8 @@
 
 <style>
   .pencil-box {
+    min-width: 0;
+    min-height: 0;
     font-size: calc(var(--cell) * var(--cand-size));
     display: flex;
     justify-content: center;
@@ -148,8 +150,11 @@
 
   .pencil-box.matching-number {
     place-self: center;
-    width: calc(var(--cell) * var(--chip-size));
-    height: calc(var(--cell) * var(--chip-size));
+    box-sizing: border-box;
+    width: min(100%, calc(var(--cell) * var(--chip-size)));
+    height: min(100%, calc(var(--cell) * var(--chip-size)));
+    max-width: 100%;
+    max-height: 100%;
     color: var(--chip-ink);
     font-weight: var(--chip-weight);
     background: var(--chip-bg);
