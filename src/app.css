@@ -76,13 +76,25 @@
   --key-pressed: #eef1f7;
   --key-pressed-illegal: #ece9e2;
   --cue: #2f9e5a;
-  --cue-ink: #15803d;
+  --cue-ink: #166534;
   --cue-line: #22c55e;
-  --cue-fill: rgb(34 197 94 / 0.2);
+  --cue-fill: #d6f3df;
+  --cue-halo: rgb(34 197 94 / 0.28);
   --on-accent: #ffffff;
   --overlay: rgb(0 0 0 / 0.3);
-  --shadow-knob: 0 1px 2px rgb(0 0 0 / 0.25);
+  --shadow-knob: 0 1px 2px rgb(28 26 22 / 0.28);
   --shadow-dialog: 0 10px 30px rgb(0 0 0 / 0.2);
+  --paused-cover: #ebe9e3;
+  --focus: #2a56c6;
+  --primary: #1c1a16;
+  --primary-hover: #35322c;
+  --danger: #c02f2f;
+  --danger-hover: #a52626;
+  --switch-disabled: #e5e2db;
+  --switch-disabled-knob: #f5f4f0;
+  --overlay-pr6: rgb(28 26 22 / 0.32);
+  --shadow-pr6: 0 10px 30px rgb(28 26 22 / 0.22);
+  --shadow-sheet: 0 -8px 24px rgb(28 26 22 / 0.14);
   --diff-easy: #4ade80;
   --diff-medium: #fbbf24;
   --diff-hard: #f87171;
@@ -142,6 +154,14 @@ body {
   max-width: none;
   min-height: 100vh;
   text-align: initial;
+}
+
+.key:focus {
+  outline: none;
+}
+.key:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 body.journal-sheet {

@@ -1,34 +1,28 @@
 <script>
-  import { onMount, onDestroy } from "svelte";
+  import { onMount } from "svelte";
   import { done, timer, timerRunning } from "./store";
 
-  let interval;
-
   onMount(() => {
-    interval = setInterval(() => {
-      if ($timerRunning && !$done) {
-        timer.update((t) => t + 1);
-      }
+    const frozen = new URLSearchParams(window.location.search).has("freeze");
+    const interval = setInterval(() => {
+      if (frozen || !$timerRunning || $done) return;
+      timer.update((t) => t + 1);
     }, 1000);
+    return () => clearInterval(interval);
   });
 
-  onDestroy(() => {
-    if (interval) {
-      clearInterval(interval);
-    }
-  });
-
-  $: minutes = Math.floor($timer / 60);
-  $: seconds = $timer % 60;
+  const minutes = $derived(Math.floor($timer / 60));
+  const seconds = $derived($timer % 60);
+  const label = $derived(`${minutes}:${seconds < 10 ? "0" : ""}${seconds}`);
 </script>
 
-<div class="timer timer2">
+<div class="timer timer2" role="timer" aria-label="Elapsed time">
   <svg class="timer-icon ic" viewBox="0 0 24 24" aria-hidden="true">
     <line x1="10" x2="14" y1="2" y2="2"></line>
     <line x1="12" x2="15" y1="14" y2="11"></line>
     <circle cx="12" cy="14" r="8"></circle>
   </svg>
-  <b class="time">{minutes}{seconds < 10 ? ":0" : ":"}{seconds}</b>
+  <b class="time" data-time>{label}</b>
 </div>
 
 <style>
@@ -39,9 +33,10 @@
     background: var(--timer-bg);
     border: 1px solid var(--timer-line);
     border-radius: 8px;
-    padding: 4px 8px;
+    padding: 6px 10px;
     color: var(--timer-ink);
     font-family: var(--ui-font);
+    box-sizing: border-box;
   }
 
   .timer-icon {
@@ -62,6 +57,13 @@
     font-variant-numeric: tabular-nums;
     line-height: 1;
     min-width: 2.6em;
+  }
+
+  @media (min-width: 600px) {
+    .timer {
+      height: 30px;
+      padding: 0 10px;
+    }
   }
 
   @media (max-width: 599px) {
