@@ -15,7 +15,6 @@ import {
   expectNoGridShift,
   measureChipLineGaps,
   expectGapsAtLeast,
-  dispatchPointerMove,
   readChipGeometry,
   expectChipGeometry,
   expectCornerChipAndAimGaps,
