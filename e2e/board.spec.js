@@ -147,6 +147,24 @@ test('Shift+click on a visible pencil mark enters it, selected or not', async ({
   await expect(pen(page, 0)).toHaveCount(0)
 })
 
+test('Ctrl+Z undoes; Ctrl+Shift+Z and Ctrl+Y redo', async ({ page }) => {
+  await cell(page, 0).click()
+  await page.keyboard.press('4')
+  await expectValue(page, 0, 4)
+  await page.keyboard.press('Control+z')
+  await expectValue(page, 0, 0)
+  await page.keyboard.press('Control+Shift+z')
+  await expectValue(page, 0, 4)
+  await page.keyboard.press('Control+z')
+  await expectValue(page, 0, 0)
+  await page.keyboard.press('Control+y')
+  await expectValue(page, 0, 4)
+  await page.keyboard.press('Meta+z')
+  await expectValue(page, 0, 0)
+  await page.keyboard.press('Meta+Shift+z')
+  await expectValue(page, 0, 4)
+})
+
 test('?q= loads a puzzle from the URL', async ({ page }) => {
   const q = '159230000800014700400500310060102578002083000980040006005000823700306005093000067'
   await openBoard(page, `./?q=${q}`)
