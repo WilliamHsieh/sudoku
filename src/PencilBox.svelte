@@ -101,8 +101,6 @@
 
 <style>
   .pencil-box {
-    min-width: 0;
-    min-height: 0;
     font-size: calc(var(--cell) * var(--cand-size));
     display: flex;
     justify-content: center;
@@ -211,6 +209,8 @@
 
   @media (max-width: 599px) {
     .pencil-box {
+      min-width: 0;
+      min-height: 0;
       pointer-events: none;
     }
 

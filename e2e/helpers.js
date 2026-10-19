@@ -1,8 +1,16 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { expect } from "@playwright/test";
+
+const MASTER_PENCILS = JSON.parse(
+  readFileSync(join(dirname(fileURLToPath(import.meta.url)), "master-desktop-pencils.json"), "utf8")
+);
 
 export const SELECTED_BG = "rgb(211, 224, 248)";
 export const GIVEN_BG = "rgb(229, 228, 224)";
 export const SAME_DIGIT_GIVEN_BG = "rgb(241, 211, 119)";
+export const CONFLICT_BG = "rgb(251, 226, 224)";
 
 export const cell = (page, i) => page.locator(".board > .cell").nth(i);
 export const pencil = (page, i, d) =>
@@ -94,6 +102,37 @@ export function expectMasterDesktopTracks(geo) {
     expect(geo.cells[i].y - geo.board.y, `cell ${i} y`).toBe(want.y);
     expect(geo.cells[i].w, `cell ${i} w`).toBe(want.w);
     expect(geo.cells[i].h, `cell ${i} h`).toBe(want.h);
+  }
+}
+
+/** Every candidate slot's box, relative to the board. */
+export async function measurePencils(page) {
+  return page.evaluate(() => {
+    const board = document.querySelector(".board");
+    const br = board.getBoundingClientRect();
+    return [...board.querySelectorAll(".pencil-box")].map((el, i) => {
+      const r = el.getBoundingClientRect();
+      return {
+        i,
+        x: r.x - br.x,
+        y: r.y - br.y,
+        w: r.width,
+        h: r.height,
+        cls: el.className,
+      };
+    });
+  });
+}
+
+/** Candidate slots keep master's 3×1fr boxes (not minmax(0, 1fr) rounding). */
+export function expectMasterDesktopPencils(pencils) {
+  expect(pencils.length).toBeGreaterThan(0);
+  const byPos = new Map(MASTER_PENCILS.map((p) => [`${p.x}|${p.y}`, p]));
+  for (const p of pencils) {
+    const m = byPos.get(`${p.x}|${p.y}`);
+    expect(m, `no master slot at ${p.x},${p.y} (${p.w}×${p.h})`).toBeTruthy();
+    expect(p.w, `w at ${p.x},${p.y}`).toBe(m.w);
+    expect(p.h, `h at ${p.x},${p.y}`).toBe(m.h);
   }
 }
 

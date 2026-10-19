@@ -385,6 +385,13 @@
   /* Prototype used 600px as the wide-board line; the pad lives below that so
      1280 desktop chrome (and every existing e2e test) stays unchanged. */
   @media (max-width: 599px) {
+    /* Mockup C: 8px sides and top, 16px bottom. The 768px rule's 12px
+       would shrink the board to 366 and the keys below 119.33. */
+    main {
+      padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right))
+        max(16px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+    }
+
     /* Clip lock: chips must not grow the board. Desktop keeps master's 1fr
        tracks (implicit rows) so 1280 rounding stays pixel-identical. */
     .board {

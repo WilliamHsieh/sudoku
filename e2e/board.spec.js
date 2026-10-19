@@ -12,9 +12,10 @@ import {
   openBoard,
   expectValue,
   measureBoard,
-  expectUnclippedEqualCells,
   expectSameGeometry,
   expectMasterDesktopTracks,
+  measurePencils,
+  expectMasterDesktopPencils,
   readDigitFonts,
 } from "./helpers.js";
 
@@ -29,8 +30,10 @@ test("the number pad is a mobile-only control", async ({ page }) => {
 });
 
 test("highlight chips, conflict and notes do not resize the board or cells", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
   const before = await measureBoard(page);
-  expectUnclippedEqualCells(before);
+  expectMasterDesktopTracks(before);
+  expectMasterDesktopPencils(await measurePencils(page));
 
   await cell(page, 1).click(); // given 5: same-digit chips
   await cell(page, 0).click();
@@ -39,7 +42,8 @@ test("highlight chips, conflict and notes do not resize the board or cells", asy
   await expect(page.locator(".pencil-box.matching-number").first()).toBeVisible();
 
   const after = await measureBoard(page);
-  expectUnclippedEqualCells(after);
+  expectMasterDesktopTracks(after);
+  expectMasterDesktopPencils(await measurePencils(page));
   expectSameGeometry(before, after);
 });
 
@@ -59,17 +63,37 @@ test("pad digits are Atkinson 400; board givens and answers use the system font"
   expect(fonts.atkinsonBold).toBe(0);
 });
 
-test("desktop board cells match master's 1280x800 tracks idle and with a given selected", async ({
-  page,
-}) => {
+test("desktop board pixels match master at 1280x800 in every play state", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
-  const idle = await measureBoard(page);
-  expectMasterDesktopTracks(idle);
 
-  await cell(page, 1).click(); // given 5 — same-digit chips
+  const check = async () => {
+    expectMasterDesktopTracks(await measureBoard(page));
+    expectMasterDesktopPencils(await measurePencils(page));
+  };
+
+  await check(); // idle
+
+  await cell(page, 0).click(); // selected empty
+  await check();
+
+  await cell(page, 1).click(); // selected given
   await expect(page.locator(".pencil-box.matching-number").first()).toBeVisible();
-  const selected = await measureBoard(page);
-  expectMasterDesktopTracks(selected);
+  await check();
+
+  await cell(page, 0).click();
+  await page.keyboard.press("4"); // selected answer
+  await expectValue(page, 0, 4);
+  await check();
+
+  await cell(page, 2).click(); // undo available: 4 stays, empty selected
+  await expectValue(page, 0, 4);
+  await check();
+
+  await cell(page, 0).click();
+  await page.keyboard.press("5"); // conflict with the given 5
+  await expect(cell(page, 0).locator(".conflict")).toHaveCount(1);
+  await expect(cell(page, 1)).toHaveCSS("background-color", SAME_DIGIT_GIVEN_BG);
+  await check();
 });
 
 test("desktop matching chips keep master's slot size at 1280x800", async ({ page }) => {

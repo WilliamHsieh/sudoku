@@ -182,12 +182,9 @@
   .candidate {
     height: 100%;
     width: 100%;
-    min-width: 0;
-    min-height: 0;
-    overflow: hidden;
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-rows: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
   }
 
   .cell.blocking {
@@ -249,6 +246,17 @@
 
     .candidate {
       pointer-events: none;
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-rows: repeat(3, minmax(0, 1fr));
+    }
+
+    /* Prototype: conflict fill wins over same-digit yellow, including givens. */
+    .cell.same.conflict,
+    .cell.same.given.conflict {
+      background: var(--conflict-bg);
     }
   }
 

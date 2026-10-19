@@ -10,6 +10,7 @@ import {
   expectUnclippedEqualCells,
   expectSameGeometry,
   readDigitFonts,
+  CONFLICT_BG,
 } from "./helpers.js";
 import { touchDriver } from "./touch.js";
 
@@ -24,9 +25,14 @@ test("the pad and tools fit a 390px iPhone screen", async ({ page }) => {
   const board = await page.locator(".board").boundingBox();
   expect(board.x).toBeGreaterThanOrEqual(0);
   expect(board.x + board.width).toBeLessThanOrEqual(390);
+  expect(board.width).toBeCloseTo(374, 1);
+  expect(board.height).toBeCloseTo(374, 1);
   await expect(page.locator(".keypad")).toBeVisible();
   await expect(page.locator(".key")).toHaveCount(9);
   await expect(page.locator(".tools")).toBeVisible();
+  const keyBox = await page.locator(".key").first().boundingBox();
+  expect(keyBox.width).toBeCloseTo(119.33, 1);
+  expect(keyBox.height).toBe(64);
   const pad = await page.locator(".keypad").boundingBox();
   expect(pad.y + pad.height).toBeLessThanOrEqual(844);
   const scrollW = await page.evaluate(() => document.documentElement.scrollWidth);
@@ -79,6 +85,16 @@ test("tap on a key writes the answer; tapping the same key clears it", async ({ 
   await expectValue(page, 0, 7);
   await t.tap(key(page, 7));
   await expectValue(page, 0, 0);
+});
+
+test("a conflict on a same-digit given uses the pink conflict fill", async ({ page }) => {
+  const t = await touchDriver(page);
+  await t.tap(cell(page, 0));
+  await t.tap(key(page, 5));
+  await expect(cell(page, 1)).toHaveClass(/given/);
+  await expect(cell(page, 1)).toHaveClass(/same/);
+  await expect(cell(page, 1)).toHaveClass(/conflict/);
+  await expect(cell(page, 1)).toHaveCSS("background-color", CONFLICT_BG);
 });
 
 test("tap does not overwrite a given", async ({ page }) => {
