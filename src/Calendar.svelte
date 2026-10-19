@@ -444,13 +444,13 @@
 
   .calendar-day.today {
     background: var(--sel-bg);
-    box-shadow: inset 0 0 0 2px var(--sel-ring);
+    box-shadow: inset 0 0 0 var(--sel-ring-w) var(--sel-ring);
     cursor: pointer;
   }
 
   .calendar-day.selected {
     background: var(--sel-bg);
-    box-shadow: inset 0 0 0 2px var(--sel-ring);
+    box-shadow: inset 0 0 0 var(--sel-ring-w) var(--sel-ring);
     color: var(--sel-ink);
   }
 

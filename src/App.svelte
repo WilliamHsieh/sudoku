@@ -212,6 +212,7 @@
   }
 
   .board {
+    container-type: inline-size;
     display: grid;
     grid-template-columns: repeat(9, 1fr);
     max-width: 650px;

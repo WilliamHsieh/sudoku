@@ -105,6 +105,7 @@
 
 <style>
   .cell {
+    --cell: calc(100cqi / 9);
     position: relative;
     aspect-ratio: 1;
     display: grid;
