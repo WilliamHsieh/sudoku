@@ -10,6 +10,7 @@
   import { ring } from "./ring.js";
   import { padUi } from "./pad-ui.svelte.js";
   import { installIosZoomGuards } from "./ios-zoom.js";
+  import { installShiftHover } from "./shift-hover.svelte.js";
   import { onMount } from "svelte";
 
   const CELL_IDS = Array.from({ length: 81 }, (_, i) => i);
@@ -89,9 +90,11 @@
   onMount(() => {
     game.setBeforeMutate(() => ring.flush());
     window.addEventListener("loadPuzzle", handleLoadPuzzle);
+    const stopShiftHover = installShiftHover();
     return () => {
       game.setBeforeMutate(() => {});
       ring.destroy();
+      stopShiftHover();
       window.removeEventListener("loadPuzzle", handleLoadPuzzle);
     };
   });

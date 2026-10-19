@@ -170,6 +170,57 @@ export async function readDigitFonts(page) {
   });
 }
 
+export async function moveToPencil(page, i, d) {
+  const box = await pencil(page, i, d).boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+}
+
+export async function moveToCell(page, i) {
+  const box = await cell(page, i).boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+}
+
+export async function readShiftHover(page) {
+  return page.evaluate(() => {
+    const slots = [...document.querySelectorAll(".pencil-box")].map((el) => {
+      const cs = getComputedStyle(el);
+      return {
+        cell: Number(el.closest(".cell")?.dataset.i),
+        d: Number(el.dataset.d),
+        shift: el.dataset.shiftSlot === "true" || /\bshift-slot\b/.test(el.className),
+        cursor: cs.cursor,
+        bg: cs.backgroundColor,
+        radius: cs.borderRadius,
+        shadow: cs.boxShadow,
+      };
+    });
+    return { active: slots.filter((s) => s.shift), slots };
+  });
+}
+
+/** Cursor, box, and the slot a click would enter must name the same candidate. */
+export async function expectShiftAgreement(page, want) {
+  const { active, slots } = await readShiftHover(page);
+  if (!want) {
+    expect(active, "no Shift-hover box").toEqual([]);
+    expect(
+      slots.filter((s) => s.cursor === "crosshair"),
+      "no crosshair unless a box is shown"
+    ).toEqual([]);
+    return;
+  }
+  expect(active, "exactly one Shift-hover box").toEqual(
+    expect.arrayContaining([expect.objectContaining({ cell: want.cell, d: want.d, shift: true })])
+  );
+  expect(active).toHaveLength(1);
+  const hit = active[0];
+  expect(hit.cursor).toBe("crosshair");
+  expect(hit.radius).toBe("4px");
+  expect(hit.shadow).not.toBe("none");
+  expect(hit.bg).not.toBe("rgba(0, 0, 0, 0)");
+  expect(slots.filter((s) => s.cursor === "crosshair")).toHaveLength(1);
+}
+
 export function solve(q) {
   const g = [...q].map(Number);
   const ok = (i, d) => {

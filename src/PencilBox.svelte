@@ -1,25 +1,25 @@
 <script>
   import { game } from "./game/game.svelte.js";
   import { padUi } from "./pad-ui.svelte.js";
+  import { shiftHover } from "./shift-hover.svelte.js";
 
   /**
    * @typedef {Object} Props
    * @property {number} cell_id
    * @property {number} idx
-   * @property {boolean} [isShiftPressed]
-   * @property {boolean} [isClosest]
    */
   /** @type {Props} */
-  let { cell_id, idx, isShiftPressed = false, isClosest = false } = $props();
+  let { cell_id, idx } = $props();
 
-  let localShiftPressed = $state(false);
   let showOnlyCandidateHint = $state(false);
   /** @type {ReturnType<typeof setTimeout> | null} */
   let hintTimer = null;
 
   const visible = $derived(game.hasNote(cell_id, idx + 1));
   const isSelected = $derived(game.selected === cell_id);
-  const showShiftCursor = $derived(isShiftPressed || localShiftPressed);
+  const isShiftSlot = $derived(
+    !!shiftHover && shiftHover.cell === cell_id && shiftHover.slot === idx
+  );
   const focusedValue = $derived(game.selected === -1 ? 0 : game.value(game.selected));
   const isMatchingNumber = $derived(focusedValue !== 0 && idx + 1 === focusedValue && visible);
   const isOnlyCandidate = $derived(
@@ -37,18 +37,14 @@
 
   function handleClick(e) {
     if (e.shiftKey) {
-      if (game.hasNote(cell_id, idx + 1)) game.enter(cell_id, idx + 1);
-    } else if (game.selected == cell_id) {
+      e.stopPropagation();
+      if (isShiftSlot) game.enter(cell_id, idx + 1);
+      game.select(cell_id);
+      return;
+    }
+    if (game.selected == cell_id) {
       game.toggleNote(cell_id, idx + 1);
     }
-  }
-
-  function handleKeyDown(e) {
-    if (e.key === "Shift") localShiftPressed = true;
-  }
-
-  function handleKeyUp(e) {
-    if (e.key === "Shift") localShiftPressed = false;
   }
 
   function startRepeatingCycle() {
@@ -79,21 +75,19 @@
   });
 </script>
 
-<svelte:window onkeydown={handleKeyDown} onkeyup={handleKeyUp} />
-
 <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 <div
   class="pencil-box"
   class:invisible={!visible && !previewAdd}
   class:selected={isSelected}
-  class:shift-hover={showShiftCursor}
-  class:snapped={isClosest && showShiftCursor}
+  class:shift-slot={isShiftSlot}
   class:matching-number={isMatchingNumber}
   class:only-candidate={showOnlyCandidateHint}
   class:preview-add={previewAdd}
   class:preview-remove={previewRemove}
   class:hidden-pending={hiddenPending}
   data-d={idx + 1}
+  data-shift-slot={isShiftSlot ? "true" : undefined}
   onclick={handleClick}
 >
   {idx + 1}
@@ -127,23 +121,23 @@
     color: var(--sel-ink);
   }
 
-  .pencil-box.shift-hover {
+  /* One derived Shift-hover: same box as a normal slot hover, not the
+     conflict-red outline. Digit may stay conflict-tinted (master). */
+  .pencil-box.shift-slot,
+  .pencil-box.shift-slot:hover,
+  .pencil-box.shift-slot.selected,
+  .pencil-box.shift-slot.selected:hover,
+  .pencil-box.shift-slot.matching-number,
+  .pencil-box.shift-slot.only-candidate {
     cursor: crosshair;
-  }
-
-  .pencil-box.shift-hover:hover {
-    background: color-mix(in srgb, var(--conflict) 12%, transparent);
+    background: color-mix(in srgb, var(--sel-ring) 12%, transparent);
     color: var(--conflict);
-    cursor: crosshair;
-  }
-
-  .pencil-box.snapped {
-    place-self: center;
-    color: var(--ink);
+    box-shadow: 0 0 0 1px var(--sel-ring);
+    border-radius: 4px;
     font-weight: 700;
-    box-shadow: 0 0 0 1.5px var(--ink);
     z-index: 10;
     position: relative;
+    animation: none;
   }
 
   .pencil-box.matching-number {

@@ -17,6 +17,9 @@ import {
   measurePencils,
   expectMasterDesktopPencils,
   readDigitFonts,
+  moveToPencil,
+  moveToCell,
+  expectShiftAgreement,
 } from "./helpers.js";
 
 test.beforeEach(async ({ page }) => {
@@ -260,6 +263,56 @@ test("clicking a pencil mark of the selected cell hides it; clicking again resto
   await pencil(page, 0, 2).click();
   await expect(pencil(page, 0, 2)).not.toHaveClass(/invisible/);
   await expectValue(page, 0, 0);
+});
+
+test("Shift-hover cursor, box and click target stay one derived slot", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+
+  await moveToPencil(page, 0, 2);
+  await expectShiftAgreement(page, null);
+
+  await page.keyboard.down("Shift");
+  await expectShiftAgreement(page, { cell: 0, d: 2 });
+
+  await moveToPencil(page, 0, 3);
+  await expectShiftAgreement(page, { cell: 0, d: 3 });
+  await moveToPencil(page, 0, 4);
+  await expectShiftAgreement(page, { cell: 0, d: 4 });
+
+  await moveToPencil(page, 0, 1); // empty slot in the same cell
+  await expectShiftAgreement(page, null);
+
+  await moveToCell(page, 1); // given 5
+  await expectShiftAgreement(page, null);
+
+  await page.keyboard.up("Shift");
+  await cell(page, 0).click();
+  await page.keyboard.press("5"); // conflict with the given 5
+  await expect(cell(page, 0)).toHaveClass(/conflict/);
+  await expect(cell(page, 1)).toHaveClass(/conflict/);
+  await moveToCell(page, 0);
+  await page.keyboard.down("Shift");
+  await expectShiftAgreement(page, null);
+  await moveToCell(page, 1);
+  await expectShiftAgreement(page, null);
+
+  await page.keyboard.up("Shift");
+  await page.keyboard.press("Control+z"); // empty cell 0 again
+  await expectValue(page, 0, 0);
+  await cell(page, 0).click(); // selected empty
+  await moveToPencil(page, 0, 6);
+  await page.keyboard.down("Shift");
+  await expectShiftAgreement(page, { cell: 0, d: 6 });
+
+  await page.keyboard.up("Shift");
+  await expectShiftAgreement(page, null);
+  await page.keyboard.down("Shift");
+  await expectShiftAgreement(page, { cell: 0, d: 6 });
+
+  await page.mouse.down();
+  await page.mouse.up();
+  await expectValue(page, 0, 6);
+  await page.keyboard.up("Shift");
 });
 
 test("Shift+click on a visible pencil mark enters it, selected or not", async ({ page }) => {

@@ -5,16 +5,13 @@
   import { padUi } from "./pad-ui.svelte.js";
   import { nextDoubleTap } from "./game/pad.js";
   import { maskDigits } from "./game/board.js";
+  import { shiftHover } from "./shift-hover.svelte.js";
 
   /** @type {{ cell_id: number }} */
   let { cell_id } = $props();
   const NOTE_SLOTS = Array.from({ length: 9 }, (_, i) => i);
   const row = $derived(Math.floor(cell_id / 9));
   const col = $derived(cell_id % 9);
-
-  let isShiftPressed = $state(false);
-  let cellElement = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
-  let closestPencilIdx = $state(-1);
 
   const value = $derived(game.value(cell_id));
   const given = $derived(game.given(cell_id));
@@ -27,45 +24,6 @@
   const blocked = $derived(padUi.blocked.includes(cell_id));
   const undoTarget = $derived(padUi.undoTargets.includes(cell_id));
 
-  function handleKeyDown(e) {
-    if (e.key === "Shift") {
-      isShiftPressed = true;
-    }
-  }
-
-  function handleKeyUp(e) {
-    if (e.key === "Shift") {
-      isShiftPressed = false;
-      closestPencilIdx = -1;
-    }
-  }
-
-  function handleMouseMove(e) {
-    if (!isShiftPressed || !cellElement || value !== 0) return;
-
-    const rect = cellElement.getBoundingClientRect();
-    const relativeX = e.clientX - rect.left;
-    const relativeY = e.clientY - rect.top;
-
-    const pencilWidth = rect.width / 3;
-    const pencilHeight = rect.height / 3;
-
-    const gridX = Math.floor(relativeX / pencilWidth);
-    const gridY = Math.floor(relativeY / pencilHeight);
-
-    const newClosestIdx = Math.min(Math.max(gridY * 3 + gridX, 0), 8);
-
-    if (game.hasNote(cell_id, newClosestIdx + 1)) {
-      closestPencilIdx = newClosestIdx;
-    } else {
-      closestPencilIdx = -1;
-    }
-  }
-
-  function handleMouseLeave() {
-    closestPencilIdx = -1;
-  }
-
   function handleRightClick() {
     // Same as master: only the selected non-given cell.
     if (game.selected == cell_id && !game.given(cell_id)) {
@@ -73,7 +31,10 @@
     }
   }
 
-  function handleClick() {
+  function handleClick(e) {
+    if (e.shiftKey && shiftHover && shiftHover.cell === cell_id) {
+      game.enter(cell_id, shiftHover.d);
+    }
     game.select(cell_id);
   }
 
@@ -90,7 +51,6 @@
 
 <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 <div
-  bind:this={cellElement}
   class="cell"
   class:given
   class:selected
@@ -111,21 +71,17 @@
     e.preventDefault();
     handleRightClick();
   }}
-  onmousemove={handleMouseMove}
-  onmouseleave={handleMouseLeave}
 >
   {#if value}
     <PenBox {cell_id} />
   {:else}
     <div class="candidate">
       {#each NOTE_SLOTS as idx (idx)}
-        <PencilBox {cell_id} {idx} {isShiftPressed} isClosest={closestPencilIdx === idx} />
+        <PencilBox {cell_id} {idx} />
       {/each}
     </div>
   {/if}
 </div>
-
-<svelte:window onkeydown={handleKeyDown} onkeyup={handleKeyUp} />
 
 <style>
   .cell {
