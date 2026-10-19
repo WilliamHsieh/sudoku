@@ -4,7 +4,8 @@ name: CI
 
 on:
   pull_request:
-    branches: ['master']
+    # merge/** covers PRs stacked on another merge/ branch
+    branches: ['master', 'merge/**']
 
 # Read-only; a build needs nothing more (also what Dependabot PRs get by default)
 permissions:
