@@ -7,8 +7,20 @@ const key = (page, d) => page.locator(`.key[data-d="${d}"]`);
 // Cell 75 (row 9, col 4) is empty; its row/col/box candidates are 1379.
 // 4 is illegal there (row, column and box), as are 2, 5, 6 and 8.
 const EMPTY = 75;
-const GIVEN_BG = 'rgb(233, 229, 220)';
+const GIVEN_BG = 'rgb(229, 228, 224)';
 const SELECTED_BG = 'rgb(211, 224, 248)';
+const INK = 'rgb(28, 26, 22)';
+const SAME = 'rgb(251, 224, 138)';
+const SAME_GIVEN = 'rgb(241, 211, 119)';
+const CONFLICT = 'rgb(192, 47, 47)';
+const CONFLICT_BG = 'rgb(251, 226, 224)';
+const CAND = 'rgb(117, 113, 105)';
+const CAND_SEL = 'rgb(99, 95, 88)';
+const CHIP_INK = 'rgb(122, 75, 8)';
+const CHIP_BG = 'rgb(252, 239, 190)';
+const CHIP_LINE = 'rgb(225, 199, 110)';
+const UNDO = 'rgb(212, 80, 26)';
+const UI_SOFT = 'rgb(93, 88, 79)';
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
@@ -46,7 +58,7 @@ test.describe('selection highlight', () => {
     await expect(cell(page, 21)).toHaveClass(/same/);
     const eights = await page.locator('.cell[data-value="8"]').count();
     await expect(page.locator('.cell.same')).toHaveCount(eights - 1);
-    expect(await cell(page, 21).evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(250, 236, 180)');
+    expect(await cell(page, 21).evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(SAME_GIVEN);
     expect(await cell(page, 1).evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(SELECTED_BG);
     expect(await cell(page, 1).evaluate((el) => getComputedStyle(el).boxShadow)).toContain('rgb(42, 86, 198)');
     await peerFree(page);
@@ -65,9 +77,9 @@ test.describe('selection highlight', () => {
     expect(Number(st.w)).toBeLessThan(600);
     expect(st.size).toBe(plain.size);
     expect(st.tr).toBe('none');
-    expect(st.c).toBe('rgb(115, 71, 10)');
-    expect(st.chip).toBe('rgb(252, 239, 184)');
-    expect(st.line).toContain('rgb(230, 207, 122)');
+    expect(st.c).toBe(CHIP_INK);
+    expect(st.chip).toBe(CHIP_BG);
+    expect(st.line).toContain(CHIP_LINE);
     expect(st.bg).toBe('rgb(255, 255, 255)');
     const matched = await page.locator('.n.match').evaluateAll((els) => els.map((el) => el.dataset.d));
     expect(matched.length).toBeGreaterThan(3);
@@ -81,20 +93,20 @@ test.describe('selection highlight', () => {
     const t = await touchDriver(page);
     const bg = (i) => cell(page, i).evaluate((el) => getComputedStyle(el).backgroundColor);
     expect(await bg(1)).toBe(GIVEN_BG);
-    await expect(cell(page, 1).locator('.v')).toHaveCSS('color', 'rgb(31, 29, 26)');
+    await expect(cell(page, 1).locator('.v')).toHaveCSS('color', INK);
     expect(await bg(EMPTY)).toBe('rgb(255, 255, 255)');
 
     await t.tap(cell(page, 21)); // given 8: the selected given turns blue under the blue ring
     expect(await bg(21)).toBe(SELECTED_BG);
     expect(await cell(page, 21).evaluate((el) => getComputedStyle(el).boxShadow)).toContain('rgb(42, 86, 198)');
-    expect(await bg(1)).toBe('rgb(250, 236, 180)'); // same digit: yellow replaces grey
-    expect(await bg(77)).toBe('rgb(250, 236, 180)');
+    expect(await bg(1)).toBe(SAME_GIVEN); // same digit: yellow replaces grey
+    expect(await bg(77)).toBe(SAME_GIVEN);
 
     await t.tap(cell(page, 9));
     expect(await bg(9)).toBe(SELECTED_BG);
     await t.tap(key(page, 8)); // conflicts with the given 8 at cell 1
-    expect(await bg(1)).toBe('rgb(251, 228, 228)');
-    expect(await bg(9)).toBe('rgb(251, 228, 228)'); // conflict wins over the selection fill
+    expect(await bg(1)).toBe(CONFLICT_BG);
+    expect(await bg(9)).toBe(CONFLICT_BG); // conflict wins over the selection fill
     await t.tap(key(page, 8));
     expect(await bg(9)).toBe(SELECTED_BG);
 
@@ -109,7 +121,7 @@ test.describe('selection highlight', () => {
     await t.tap(key(page, 3));
     await expect(page.locator('.cell.same')).toHaveCount(await page.locator('.cell[data-value="3"]').count() - 1);
     await expect(cell(page, EMPTY)).toHaveCSS('background-color', SELECTED_BG);
-    await expect(cell(page, 0)).toHaveCSS('background-color', 'rgb(250, 236, 180)');
+    await expect(cell(page, 0)).toHaveCSS('background-color', SAME_GIVEN);
   });
 
   test('answers are dark ink at regular weight; givens are bold on grey; conflict red still wins', async ({ page }) => {
@@ -122,15 +134,15 @@ test.describe('selection highlight', () => {
     });
     const answer = await look(EMPTY);
     const given = await look(0);
-    expect(answer).toMatchObject({ color: 'rgb(31, 29, 26)', weight: '400', bg: SELECTED_BG });
-    expect(given).toMatchObject({ color: 'rgb(31, 29, 26)', weight: '600', bg: GIVEN_BG });
+    expect(answer).toMatchObject({ color: INK, weight: '400', bg: SELECTED_BG });
+    expect(given).toMatchObject({ color: INK, weight: '700', bg: GIVEN_BG });
     expect(answer.size).toBe(given.size);
     await t.tap(cell(page, 76));
-    expect(await look(EMPTY)).toMatchObject({ color: 'rgb(31, 29, 26)', weight: '400', bg: 'rgb(255, 255, 255)' });
+    expect(await look(EMPTY)).toMatchObject({ color: INK, weight: '400', bg: 'rgb(255, 255, 255)' });
     await t.tap(cell(page, 0)); // given 3: the answer cell stays ink on white, not blue
     await t.tap(cell(page, EMPTY));
     await t.tap(key(page, 4)); // conflicts with the given 4 at 79
-    expect(await look(EMPTY)).toMatchObject({ color: 'rgb(214, 59, 59)', weight: '400', bg: 'rgb(251, 228, 228)' });
+    expect(await look(EMPTY)).toMatchObject({ color: CONFLICT, weight: '400', bg: CONFLICT_BG });
     const blueText = await page.locator('.cell .v').evaluateAll((els) =>
       els.filter((el) => getComputedStyle(el).color === 'rgb(42, 86, 198)').length);
     expect(blueText).toBe(0);
@@ -154,7 +166,7 @@ test.describe('selection highlight', () => {
       fg: getComputedStyle(el).color,
       bg: getComputedStyle(el.closest('.cell')).backgroundColor,
     }));
-    expect(fg).toBe('rgb(92, 88, 80)');
+    expect(fg).toBe(CAND_SEL);
     expect(bg).toBe(SELECTED_BG);
     const lum = (rgb) => {
       const [r, g, b] = rgb.match(/\d+/g).map((v) => {
@@ -166,18 +178,16 @@ test.describe('selection highlight', () => {
     const [hi, lo] = [lum(fg), lum(bg)].sort((a, b) => b - a);
     const ratio = (hi + 0.05) / (lo + 0.05);
     expect(ratio).toBeGreaterThanOrEqual(4.5);
-    expect(ratio).toBeCloseTo(5.32, 2);
-    // Every visible candidate on the board uses the same colour.
-    const colours = await page.locator('.n.on:not(.match):not(.lone-flash)').evaluateAll((els) =>
-      [...new Set(els.map((el) => getComputedStyle(el).color))]);
-    expect(colours).toEqual(['rgb(92, 88, 80)']);
-    await expect(page.locator('.hint')).toHaveCSS('color', 'rgb(91, 100, 117)');
+    const onWhite = await page.locator('.cell:not(.selected) .n.on:not(.match):not(.lone-flash)').first()
+      .evaluate((el) => getComputedStyle(el).color);
+    expect(onWhite).toBe(CAND);
+    await expect(page.locator('.hint')).toHaveCSS('color', UI_SOFT);
   });
 
   test('selection fill sits under the refusal flash and the drag tint', async ({ page }) => {
     const t = await touchDriver(page);
     await t.tap(cell(page, 21));
-    const tint = 'color-mix(in srgb, rgb(217, 84, 30) 24%, rgb(255, 255, 255))';
+    const tint = 'color-mix(in srgb, rgb(212, 80, 26) 24%, rgb(255, 255, 255))';
     const probe = (cls) => cell(page, 21).evaluate((el, c) => {
       el.classList.add(c);
       const out = getComputedStyle(el).backgroundColor;
@@ -275,7 +285,7 @@ test('remove label is shown in red mode when the candidate exists', async ({ pag
   await expect(k).toHaveClass(/remove/);
   await expect(cell(page, EMPTY).locator('.n[data-d="1"]')).toHaveClass(/preview-remove/);
   const color = await k.locator('.label').evaluate((el) => getComputedStyle(el).color);
-  expect(color).toBe('rgb(214, 59, 59)');
+  expect(color).toBe(CONFLICT);
   await t.end(p.x, p.y - 15);
   await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '1');
 });
@@ -305,7 +315,7 @@ test('conflicting digits turn red with a steady dot', async ({ page }) => {
   await expect(cell(page, EMPTY)).toHaveClass(/conflict/);
   await expect(cell(page, 79)).toHaveClass(/conflict/);
   const color = await cell(page, EMPTY).locator('.v').evaluate((el) => getComputedStyle(el).color);
-  expect(color).toBe('rgb(214, 59, 59)');
+  expect(color).toBe(CONFLICT);
   const dot = await cell(page, EMPTY).evaluate((el) => {
     const s = getComputedStyle(el, '::after');
     return { content: s.content, anim: s.animationName };
@@ -1102,15 +1112,14 @@ test.describe('undo / redo animation', () => {
     await t.tap(page.locator('#undo'));
     expect(await cell(page, EMPTY).getAttribute('data-value')).toBe('');
     await expect(cell(page, EMPTY)).toHaveClass(/undo-target/);
-    expect(await ringOf(page, EMPTY)).toEqual({ anim: 'none', border: 'rgb(217, 84, 30)', content: '""' });
+    expect(await ringOf(page, EMPTY)).toEqual({ anim: 'none', border: UNDO, content: '""' });
     expect(await page.evaluate(() => document.getElementById('undo-ring').getAnimations().length)).toBe(0);
     await expect(page.locator('.undo-in, .undo-out')).toHaveCount(0);
   });
 });
 
 test.describe('highlights pause during undo / redo', () => {
-  const TINT = 'rgb(250, 236, 180)';
-  const CHIP = 'rgb(252, 239, 184)';
+  const CHIP = CHIP_BG;
   // Same-digit cells as "<given|answer>:<background>" so resting fills can be told apart.
   const highlights = (page) => page.evaluate(() => ({
     same: [...new Set([...document.querySelectorAll('.cell.same:not(.conflict)')].map((el) =>
@@ -1124,7 +1133,9 @@ test.describe('highlights pause during undo / redo', () => {
     expect(resting(h.same)).toBe(true);
     expect(h.chips).toEqual(['rgba(0, 0, 0, 0)']);
   };
-  const tinted = (h) => h.same.length > 0 && h.same.every((s) => s.endsWith(TINT)) && h.chips.join() === CHIP;
+  const tinted = (h) => h.same.length > 0
+    && h.same.every((s) => s === `given:${SAME_GIVEN}` || s === `answer:${SAME}`)
+    && h.chips.join() === CHIP;
   const expectPresent = (page) => expect.poll(async () => tinted(await highlights(page))).toBe(true);
 
   // Answers 1 (cell 18) and 9 (cell 80), then erases both: each undo restores a digit
@@ -1161,7 +1172,7 @@ test.describe('highlights pause during undo / redo', () => {
     await expectAbsent(page);
     await expect(cell(page, 18)).toHaveCSS('background-color', SELECTED_BG);
     await expect(cell(page, 0)).toHaveCSS('background-color', GIVEN_BG);
-    await expect(cell(page, 45).locator('.v')).toHaveCSS('color', 'rgb(31, 29, 26)');
+    await expect(cell(page, 45).locator('.v')).toHaveCSS('color', INK);
     await page.clock.runFor(250); // 800ms
     await expect(page.locator('#board')).not.toHaveClass(/quiet/);
     await expect(page.locator('#board')).toHaveClass(/hl-in/);
@@ -1198,7 +1209,7 @@ test.describe('highlights pause during undo / redo', () => {
     await page.clock.runFor(400);
     await expect(cell(page, 9)).toHaveAttribute('data-value', '8');
     await expectAbsent(page);
-    await expect(cell(page, 1)).toHaveCSS('background-color', 'rgb(251, 228, 228)');
+    await expect(cell(page, 1)).toHaveCSS('background-color', CONFLICT_BG);
     await page.clock.runFor(300);
     await expectPresent(page);
   });
@@ -1311,7 +1322,7 @@ test.describe('illegal candidates are refused', () => {
     await t.start(p.x, p.y);
     await t.move(p.x, p.y - 15);
     await expect(k.locator('.label')).toHaveText('Not allowed');
-    await expect(k.locator('.label')).toHaveCSS('color', 'rgb(217, 84, 30)');
+    await expect(k.locator('.label')).toHaveCSS('color', UNDO);
     await expect(page.locator('.n.preview-add, .n.preview-remove')).toHaveCount(0);
     const tinted = () => page.locator('.cell.blocking').evaluateAll((els) => els.map((el) => el.dataset.i).sort());
     expect(await tinted()).toEqual(BLOCKERS);
@@ -1320,7 +1331,7 @@ test.describe('illegal candidates are refused', () => {
     await t.move(p.x, p.y - 40); // the arm threshold can still be crossed
     await expect(k).toHaveClass(/armed/);
     await expect(k).toHaveCSS('background-color', 'rgb(236, 233, 226)'); // neutral, not blue or red-orange
-    await expect.poll(() => k.evaluate((el) => getComputedStyle(el, '::before').backgroundColor)).toBe('rgb(217, 84, 30)');
+    await expect.poll(() => k.evaluate((el) => getComputedStyle(el, '::before').backgroundColor)).toBe(UNDO);
     await page.clock.runFor(2000); // the tint lasts as long as the drag
     expect(await tinted()).toEqual(BLOCKERS);
     await t.end(p.x, p.y - 40);
@@ -1489,10 +1500,10 @@ test('pause card hides the board border entirely', async ({ page }) => {
   expect(r).toBe(await page.locator('#board').evaluate((el) => getComputedStyle(el).borderRadius));
 });
 
-test('emphasised-candidate colour comes from --cand-emph', async ({ page }) => {
+test('emphasised-candidate colour comes from --chip-ink', async ({ page }) => {
   const t = await touchDriver(page);
   await t.tap(page.locator('#notes-mode'));
-  await page.evaluate(() => document.documentElement.style.setProperty('--cand-emph', 'rgb(180, 83, 9)'));
+  await page.evaluate(() => document.documentElement.style.setProperty('--chip-ink', 'rgb(180, 83, 9)'));
   await t.tap(cell(page, 1));
   expect(await cell(page, 36).locator('.n[data-d="8"]').evaluate((el) => getComputedStyle(el).color)).toBe('rgb(180, 83, 9)');
 });

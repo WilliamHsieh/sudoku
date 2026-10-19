@@ -288,7 +288,7 @@ async function hover(page, i, d) {
   await page.mouse.move(b.x + p.x, b.y + p.y);
 }
 const note = (page, i, d) => cell(page, i).locator(`.n:nth-child(${d})`);
-const INK = 'rgb(31, 29, 26)';
+const INK = 'rgb(28, 26, 22)';
 const boardCursor = (page, i) => cell(page, i).evaluate((el) => getComputedStyle(el).cursor);
 
 test.describe('Shift-hover', () => {
@@ -345,7 +345,7 @@ test.describe('Shift-hover', () => {
       return { color: s.color, bg: s.backgroundColor, ring: s.boxShadow, weight: s.fontWeight };
     });
     expect(look.color).toBe(INK);
-    expect(look.bg).toBe('rgb(252, 239, 184)');
+    expect(look.bg).toBe('rgb(252, 239, 190)');
     expect(look.ring).toContain(INK);
     expect(look.weight).toBe('700');
     await page.keyboard.up('Shift');

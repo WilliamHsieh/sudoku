@@ -24,12 +24,13 @@ singles alone; checked by `tests/puzzle.spec.mjs`).
   every 30s (override with `?cueMs=3000` or `window.__sudoku.setCueInterval(ms)`).
   Double-tapping a cell writes the digit that was highlighted before the first tap
   if it is one of the cell's candidates, else the cell's lone candidate.
-- Givens are bold on a warm grey (`--given-bg`); answers are the same dark ink at
-  regular weight on white (`--entered`), so weight and fill tell them apart. Selection: the selected cell gets a
-  light blue fill (`--selected-bg`, replacing white or grey) under a blue ring; other
-  cells with the same digit get a yellow tint and matching candidates sit on a pale
-  yellow chip (`--same`, `--cand-emph`, `--cand-chip`). Conflict red, the refusal
-  flash and drag tint, and the undo ring all show over the blue fill.
+- Givens are weight 700 on `--given-bg`; answers are the same `--ink` at weight 400
+  on `--board-bg`. Selection: `--sel-bg` under a `--sel-ring`. Same-digit cells use
+  `--same-digit`, or `--same-digit-given` on givens. Matching candidates sit on a
+  `--chip-*` tile. Candidates are `--cand` on white and `--cand-on-selected` on the
+  fill. Conflict, refusal and the undo ring use `--conflict-*` and `--undo-ring`.
+  Notes switch: `--switch-on` / `--switch-off` (blue is only the selection ring).
+  All colours, sizes and fonts live in one `:root` token block.
 - Timer with pause/resume; pauses itself when the page is hidden.
 - Desktop: click to select, arrows move, `1`-`9` answer, `Shift`+`1`-`9` candidate,
   `0`/`Backspace`/right-click clear, `Ctrl`/`Cmd`+`Z` undo,
