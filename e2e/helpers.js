@@ -73,6 +73,30 @@ export function expectUnclippedEqualCells(geo) {
   close(geo.board.scrollH, geo.board.clientH);
 }
 
+/** Master `338c075` at 1280×800 Chromium: `repeat(9, 1fr)` columns, implicit rows. */
+export const MASTER_DESKTOP_1280 = {
+  board: 650,
+  origin: 4,
+  track: 71.34375,
+};
+
+/** Every cell's box equals master's 1280×800 tracks (not minmax(0, 1fr) rounding). */
+export function expectMasterDesktopTracks(geo) {
+  const { board, origin, track } = MASTER_DESKTOP_1280;
+  expect(geo.board.w).toBe(board);
+  expect(geo.board.h).toBe(board);
+  expect(geo.cells).toHaveLength(81);
+  for (let i = 0; i < 81; i++) {
+    const col = i % 9;
+    const row = Math.floor(i / 9);
+    const want = { x: origin + col * track, y: origin + row * track, w: track, h: track };
+    expect(geo.cells[i].x - geo.board.x, `cell ${i} x`).toBe(want.x);
+    expect(geo.cells[i].y - geo.board.y, `cell ${i} y`).toBe(want.y);
+    expect(geo.cells[i].w, `cell ${i} w`).toBe(want.w);
+    expect(geo.cells[i].h, `cell ${i} h`).toBe(want.h);
+  }
+}
+
 export function expectSameGeometry(before, after) {
   close(after.board.w, before.board.w);
   close(after.board.h, before.board.h);

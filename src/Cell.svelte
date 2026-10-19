@@ -132,9 +132,6 @@
     --cell: calc(100cqi / 9);
     position: relative;
     aspect-ratio: 1;
-    min-width: 0;
-    min-height: 0;
-    overflow: hidden;
     display: grid;
     place-items: center;
     border-right: var(--line-thin-w) solid var(--line-thin);
@@ -244,6 +241,12 @@
   }
 
   @media (max-width: 599px) {
+    .cell {
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+    }
+
     .candidate {
       pointer-events: none;
     }

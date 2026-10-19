@@ -14,6 +14,7 @@ import {
   measureBoard,
   expectUnclippedEqualCells,
   expectSameGeometry,
+  expectMasterDesktopTracks,
   readDigitFonts,
 } from "./helpers.js";
 
@@ -56,6 +57,19 @@ test("pad digits are Atkinson 400; board givens and answers use the system font"
   expect(fonts.answer.weight).toBe("400");
   expect(fonts.answer.family).toBe(fonts.given.family);
   expect(fonts.atkinsonBold).toBe(0);
+});
+
+test("desktop board cells match master's 1280x800 tracks idle and with a given selected", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const idle = await measureBoard(page);
+  expectMasterDesktopTracks(idle);
+
+  await cell(page, 1).click(); // given 5 — same-digit chips
+  await expect(page.locator(".pencil-box.matching-number").first()).toBeVisible();
+  const selected = await measureBoard(page);
+  expectMasterDesktopTracks(selected);
 });
 
 test("desktop matching chips keep master's slot size at 1280x800", async ({ page }) => {

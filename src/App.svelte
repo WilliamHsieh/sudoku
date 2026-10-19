@@ -253,8 +253,7 @@
   .board {
     container-type: inline-size;
     display: grid;
-    grid-template-columns: repeat(9, minmax(0, 1fr));
-    grid-template-rows: repeat(9, minmax(0, 1fr));
+    grid-template-columns: repeat(9, 1fr);
     width: 100%;
     aspect-ratio: 1;
     border: var(--line-outer-w) solid var(--line-outer);
@@ -386,6 +385,13 @@
   /* Prototype used 600px as the wide-board line; the pad lives below that so
      1280 desktop chrome (and every existing e2e test) stays unchanged. */
   @media (max-width: 599px) {
+    /* Clip lock: chips must not grow the board. Desktop keeps master's 1fr
+       tracks (implicit rows) so 1280 rounding stays pixel-identical. */
+    .board {
+      grid-template-columns: repeat(9, minmax(0, 1fr));
+      grid-template-rows: repeat(9, minmax(0, 1fr));
+    }
+
     .board-wrap {
       margin-bottom: 0;
     }
