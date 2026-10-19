@@ -171,7 +171,7 @@
     max-height: calc(100cqh - 4px);
     border-radius: 3.5px;
     color: var(--ink);
-    font-weight: 700;
+    font-weight: var(--cand-weight);
     box-shadow: 0 0 0 1.5px var(--ink);
     background: transparent;
     animation: none;
@@ -181,8 +181,8 @@
   .pencil-box.aim.matching-number:hover,
   .pencil-box.aim.matching-number.selected:hover {
     background: var(--chip-bg);
-    color: var(--ink);
-    font-weight: 700;
+    color: var(--chip-ink);
+    font-weight: var(--chip-weight);
     box-shadow: 0 0 0 1.5px var(--ink);
   }
 
@@ -260,8 +260,8 @@
 
     /* No Shift aim on the pad. Size chips to 0.32 of --cell, leaving 1px
        in the slot so the 0.5px chip line stays ≥1px from every grid line.
-       Aim (e2e / desktop) keeps the 4px cap so the 1.5px ring still clears. */
-    .pencil-box.matching-number:not(.aim) {
+       Include .aim so a match chip does not change size if Shift is held. */
+    .pencil-box.matching-number {
       width: min(calc(var(--cell) * var(--chip-size)), calc(100cqw - 1px));
       height: min(calc(var(--cell) * var(--chip-size)), calc(100cqh - 1px));
       max-width: calc(100cqw - 1px);

@@ -334,16 +334,29 @@ test("Shift-hover cursor, box and click target stay one derived slot", async ({ 
   await expect(match).toBeVisible();
   const chip = await match.evaluate((el) => {
     const r = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
     return {
       x: r.x + r.width / 2,
       y: r.y + r.height / 2,
       cell: Number(el.closest(".cell")?.dataset.i),
       d: Number(el.dataset.d),
+      w: r.width,
+      h: r.height,
+      weight: cs.fontWeight,
     };
   });
+  expect(chip.weight).toBe("400");
   await dispatchPointerMove(page, chip.x, chip.y);
   await page.keyboard.down("Shift");
   await expectShiftAgreement(page, { cell: chip.cell, d: chip.d });
+  const aimed = await page.locator(".pencil-box.aim").evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    return { w: r.width, h: r.height, weight: cs.fontWeight };
+  });
+  expect(aimed.weight).toBe("400");
+  expect(aimed.w).toBeCloseTo(chip.w, 5);
+  expect(aimed.h).toBeCloseTo(chip.h, 5);
   await page.keyboard.up("Shift");
 });
 

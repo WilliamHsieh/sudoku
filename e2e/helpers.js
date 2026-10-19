@@ -297,8 +297,12 @@ export function expectGapsAtLeast(gaps, px) {
   }
 }
 
-/** Yellow chips in corner slots 1/3/7/9, then aim the tightest of each. */
+/** Yellow chips in corner slots 1/3/7/9, then aim the tightest of each.
+ * A match chip must not change size or weight under Shift. Desktop match+aim
+ * share the slot-4 cap so the 1.5px ring clears; mobile match stays slot-1
+ * (no product Shift aim) and the ring is checked on a plain candidate. */
 export async function expectCornerChipAndAimGaps(page) {
+  const mobile = (page.viewportSize()?.width ?? 1280) <= 599;
   for (const d of [1, 3, 7, 9]) {
     const given = await page.evaluate((d) => {
       const el = [...document.querySelectorAll(".board > .cell")].find(
@@ -313,18 +317,56 @@ export async function expectCornerChipAndAimGaps(page) {
     );
     expectGapsAtLeast(chips, 1);
     const tightest = chips.reduce((a, b) => (a.min <= b.min ? a : b));
-    const box = await page.evaluate((want) => {
+    const rest = await page.evaluate((want) => {
       const el = [...document.querySelectorAll(".pencil-box.matching-number")].find(
         (n) => Number(n.dataset.d) === want.d && Number(n.closest(".cell")?.dataset.i) === want.i
       );
       const r = el.getBoundingClientRect();
-      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+      const cs = getComputedStyle(el);
+      return {
+        x: r.x + r.width / 2,
+        y: r.y + r.height / 2,
+        w: r.width,
+        h: r.height,
+        weight: cs.fontWeight,
+      };
     }, tightest);
+    expect(rest.weight, `given ${d} chip weight`).toBe("400");
+    await dispatchPointerMove(page, rest.x, rest.y);
+    await page.keyboard.down("Shift");
+    await dispatchPointerMove(page, rest.x, rest.y);
+    const aimedBox = await page.evaluate(() => {
+      const el = document.querySelector(".pencil-box.aim");
+      const r = el.getBoundingClientRect();
+      const cs = getComputedStyle(el);
+      return { w: r.width, h: r.height, weight: cs.fontWeight };
+    });
+    expect(aimedBox.weight, `given ${d} aim weight`).toBe("400");
+    expect(aimedBox.w, `given ${d} aim width`).toBeCloseTo(rest.w, 5);
+    expect(aimedBox.h, `given ${d} aim height`).toBeCloseTo(rest.h, 5);
+    if (!mobile) {
+      const aimed = await measureChipLineGaps(page, ".pencil-box.aim");
+      expectGapsAtLeast(aimed, 1);
+    }
+    await page.keyboard.up("Shift");
+  }
+  if (mobile) {
+    const box = await page.evaluate(() => {
+      const el = [...document.querySelectorAll(".pencil-box")].find(
+        (n) =>
+          !n.classList.contains("invisible") &&
+          !n.classList.contains("matching-number") &&
+          n.textContent.trim()
+      );
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    expect(box, "a plain candidate to aim").not.toBeNull();
     await dispatchPointerMove(page, box.x, box.y);
     await page.keyboard.down("Shift");
     await dispatchPointerMove(page, box.x, box.y);
-    const aimed = await measureChipLineGaps(page, ".pencil-box.aim");
-    expectGapsAtLeast(aimed, 1);
+    expectGapsAtLeast(await measureChipLineGaps(page, ".pencil-box.aim"), 1);
     await page.keyboard.up("Shift");
   }
 }
@@ -509,8 +551,9 @@ export async function expectShiftAgreement(page, want, opts = {}) {
   expect(active).toHaveLength(1);
   const hit = active[0];
   expect(hit.cursor).toBe("crosshair");
-  expect(hit.color).toBe("rgb(28, 26, 22)");
-  expect(hit.weight).toBe("700");
+  expect(hit.weight).toBe("400");
+  if (hit.match) expect(hit.color).toBe("rgb(122, 75, 8)");
+  else expect(hit.color).toBe("rgb(28, 26, 22)");
   expect(hit.radius).toBe("3.5px");
   expect(hit.shadow).toContain("1.5px");
   if (hit.match) expect(hit.bg).not.toBe("rgba(0, 0, 0, 0)");
