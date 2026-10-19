@@ -177,7 +177,7 @@ export async function expectMasterDesktopPencils(page) {
 
 /** Chip/aim use --chip-size 0.32, capped so the 1.5px ring stays in the slot. */
 export function expectChipGeometry(sizes) {
-  expect(sizes.token).toBe("0.32");
+  expect(Number.parseFloat(sizes.token)).toBeCloseTo(0.32, 5);
   expect(sizes.chip).toBeCloseTo(Math.min(sizes.cell * 0.32, sizes.slot - 3), 0);
 }
 
