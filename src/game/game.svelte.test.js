@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { get } from "svelte/store";
 import { createGame, DEMO_PUZZLE } from "./game.svelte.js";
-import { done, timer, timerRunning } from "../store.js";
+import { done, puzzleProgress, timer, timerRunning } from "../store.js";
 import { maskDigits } from "./board.js";
 
 /** @type {ReturnType<typeof createGame>} */
@@ -97,6 +97,28 @@ describe("createGame", () => {
     expect(get(timer)).toBe(0);
     expect(get(timerRunning)).toBe(true);
     expect(get(done)).toBe(false);
+  });
+
+  it("persists in-progress answers and restores them with elapsed", () => {
+    puzzleProgress.set({});
+    g.load(DEMO_PUZZLE, { dateStr: "2026-10-18", difficulty: "medium" });
+    g.enter(0, 4);
+    timer.set(700);
+    g.flushProgress();
+    const saved = get(puzzleProgress)["2026-10-18"].medium;
+    expect(saved.filled).toBe(1);
+    expect(saved.elapsed).toBe(700);
+    expect(saved.snapshot?.answers[0]).toBe("4");
+
+    const g2 = createGame();
+    g2.load(DEMO_PUZZLE, {
+      dateStr: "2026-10-18",
+      difficulty: "medium",
+      snapshot: saved.snapshot,
+      elapsed: saved.elapsed,
+    });
+    expect(g2.value(0)).toBe(4);
+    expect(get(timer)).toBe(700);
   });
 
   it("clear on an answered cell drops the answer and restores hidden notes", () => {

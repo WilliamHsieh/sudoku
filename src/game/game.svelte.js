@@ -31,7 +31,9 @@ import {
   changedCells,
 } from "./history.js";
 import { popcount } from "./board.js";
+import { fromSnapshot } from "./snapshot.js";
 import { done, timer, timerRunning, resetTimer, solvedPuzzles } from "../store.js";
+import { puzzleProgress, progressPayload } from "../journal/progress.js";
 
 /** Demo puzzle shipped on master (the board you get by clicking Play). */
 export const DEMO_PUZZLE =
@@ -74,7 +76,20 @@ export function createGame() {
     if (!result.changed) return result;
     history = commit(history, result);
     syncSolved();
+    persistProgress();
     return result;
+  }
+
+  function persistProgress() {
+    if (!meta.dateStr || !meta.difficulty) return;
+    if (isSolved(history.present)) {
+      puzzleProgress.clear(meta.dateStr, meta.difficulty);
+      return;
+    }
+    const elapsed = get(timer);
+    const payload = progressPayload(history.present, elapsed);
+    if (payload.filled === 0 && elapsed === 0) return;
+    puzzleProgress.save(meta.dateStr, meta.difficulty, payload);
   }
 
   function syncSolved() {
@@ -84,6 +99,7 @@ export function createGame() {
         solvedPuzzles.markSolved(meta.dateStr, meta.difficulty, get(timer));
         marked = true;
       }
+      if (meta.dateStr && meta.difficulty) puzzleProgress.clear(meta.dateStr, meta.difficulty);
     } else {
       done.set(false);
     }
@@ -241,6 +257,7 @@ export function createGame() {
       history = undoHistory(history);
       lastBlockers = [];
       syncSolved();
+      persistProgress();
     },
     redo() {
       beforeMutate();
@@ -248,21 +265,37 @@ export function createGame() {
       history = redoHistory(history);
       lastBlockers = [];
       syncSolved();
+      persistProgress();
     },
 
     /**
      * @param {string} puzzle
-     * @param {LoadMeta} [info]
+     * @param {LoadMeta & { snapshot?: import('./snapshot.js').Snapshot, elapsed?: number }} [info]
      */
     load(puzzle, info = {}) {
       beforeMutate();
-      history = createHistory(newGame(puzzle, { notesMode: "auto" }));
+      persistProgress();
+      if (info.snapshot) {
+        history = createHistory(fromSnapshot(info.snapshot));
+      } else {
+        history = createHistory(newGame(puzzle, { notesMode: "auto" }));
+      }
       selected = -1;
       meta = { dateStr: info.dateStr ?? null, difficulty: info.difficulty ?? null };
       marked = false;
       lastBlockers = [];
       done.set(false);
-      resetTimer();
+      if (typeof info.elapsed === "number") {
+        timer.set(info.elapsed);
+        timerRunning.set(true);
+      } else {
+        resetTimer();
+      }
+    },
+
+    /** Write current in-progress puzzle to `sudoku-progress`. */
+    flushProgress() {
+      persistProgress();
     },
 
     dismiss() {

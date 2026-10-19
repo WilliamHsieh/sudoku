@@ -119,7 +119,7 @@ test.describe("H2 header", () => {
 
   test("Journal header: Sudoku + Play pill", async ({ page }) => {
     await page.goto("./");
-    await expect(page.locator(".calendar-container")).toBeVisible();
+    await expect(page.locator(".journal")).toBeVisible();
     const hd = page.locator(".hd");
     await expect(hd).toBeVisible();
     const header = await rectOf(hd);
@@ -147,7 +147,7 @@ test.describe("H2 header", () => {
     await expect(page.locator(".hd")).toHaveCSS("border-bottom-width", "0px");
   });
 
-  test("Calendar to Play round trip keeps progress and timer", async ({ page }) => {
+  test("Journal to Play round trip keeps progress and timer", async ({ page }) => {
     await openBoard(page);
     const t = await touchDriver(page);
     await t.tap(cell(page, 0));
@@ -156,7 +156,7 @@ test.describe("H2 header", () => {
     const time = await page.locator(".timer2 b, .timer .time").innerText();
 
     await t.tap(page.getByRole("button", { name: "Journal" }));
-    await expect(page.locator(".calendar-container")).toBeVisible();
+    await expect(page.locator(".journal")).toBeVisible();
     await expect(page.locator(".board")).toHaveCount(0);
 
     await t.tap(page.getByRole("button", { name: "Back to puzzle" }));
@@ -169,7 +169,7 @@ test.describe("H2 header", () => {
     const pick = firstUnsolvedLatest(puzzleData, {});
     expect(pick, "a latest unsolved puzzle exists").toBeTruthy();
     await page.goto("./");
-    await expect(page.locator(".calendar-container")).toBeVisible();
+    await expect(page.locator(".journal")).toBeVisible();
     await page.getByRole("button", { name: "Back to puzzle" }).click();
     await expect(page.locator(".board > .cell")).toHaveCount(81);
     // Not the in-memory demo (cell 1 = 5). Same pick the app uses for today.
@@ -178,15 +178,20 @@ test.describe("H2 header", () => {
     await expect(page.locator(".board > .cell").nth(1)).not.toHaveAttribute("data-value", "5");
   });
 
-  test("tapping a journal day opens that puzzle directly", async ({ page }) => {
+  test("tapping a journal day opens that day's sheet, not the board", async ({ page }) => {
     await page.goto("./");
-    const day = page
-      .locator(".calendar-day")
-      .filter({ has: page.locator(".day-number", { hasText: /^18$/ }) });
-    await day.click();
+    await expect(page.locator(".journal")).toBeVisible();
+    await expect(page.locator(".ulink")).toHaveCount(0);
+    await page.locator(".mobile .day.is-latest").click();
+    await expect(page.locator(".sheet.on")).toBeVisible();
     await expect(page.locator(".modal")).toHaveCount(0);
+    await expect(page.locator(".board")).toHaveCount(0);
+    await page
+      .locator(".sheet .prow")
+      .filter({ hasText: "Easy" })
+      .getByRole("button", { name: "Start" })
+      .click();
     await expect(page.locator(".board > .cell")).toHaveCount(81);
-    await expectValue(page, 1, 7);
   });
 });
 
