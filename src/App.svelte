@@ -13,7 +13,7 @@
   import { ring } from "./ring.js";
   import { padUi } from "./pad-ui.svelte.js";
   import { installIosZoomGuards } from "./ios-zoom.js";
-  import { installShiftHover } from "./shift-hover.svelte.js";
+  import { installShiftHover, isShiftAim } from "./shift-hover.svelte.js";
   import { onMount } from "svelte";
 
   const CELL_IDS = Array.from({ length: 81 }, (_, i) => i);
@@ -258,7 +258,7 @@
   {:else}
     <div class="play">
       <div class="board-wrap" bind:this={wrapEl}>
-        <div class="board" class:quiet={padUi.quiet}>
+        <div class="board" class:quiet={padUi.quiet} class:shift-aim={isShiftAim()}>
           {#each CELL_IDS as id (id)}
             <Cell cell_id={id} />
           {/each}
@@ -389,6 +389,11 @@
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--undo-ring) 18%, transparent);
     pointer-events: none;
     opacity: 0;
+  }
+
+  .board.shift-aim,
+  .board.shift-aim :global(.cell) {
+    cursor: crosshair;
   }
 
   .board.quiet :global(.cell.same:not(.conflict)) {

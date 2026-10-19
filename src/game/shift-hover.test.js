@@ -16,12 +16,12 @@ describe("resolveShiftHover", () => {
 });
 
 describe("slotFromPoint", () => {
-  it("maps the 3×3 grid and rejects points outside the cell", () => {
+  it("maps the 3×3 grid like Opus slotAt and clamps to the cell", () => {
     expect(slotFromPoint(rect, 10 + 15, 20 + 15)).toBe(0);
     expect(slotFromPoint(rect, 10 + 45, 20 + 15)).toBe(1);
     expect(slotFromPoint(rect, 10 + 75, 20 + 75)).toBe(8);
-    expect(slotFromPoint(rect, 9, 20 + 15)).toBe(-1);
-    expect(slotFromPoint(rect, 10 + 15, 20 + 90)).toBe(-1);
+    expect(slotFromPoint(rect, 9, 20 + 15)).toBe(0);
+    expect(slotFromPoint(rect, 10 + 15, 20 + 90)).toBe(6);
     expect(slotFromPoint({ ...rect, width: 0 }, 15, 25)).toBe(-1);
   });
 });

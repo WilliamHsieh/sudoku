@@ -84,7 +84,7 @@
   class="pencil-box"
   class:invisible={!visible && !previewAdd}
   class:selected={isSelected}
-  class:shift-slot={isShiftSlot}
+  class:aim={isShiftSlot}
   class:matching-number={isMatchingNumber}
   class:only-candidate={showOnlyCandidateHint}
   class:preview-add={previewAdd}
@@ -125,23 +125,48 @@
     color: var(--sel-ink);
   }
 
-  /* One derived Shift-hover: same box as a normal slot hover, not the
-     conflict-red outline. Digit may stay conflict-tinted (master). */
-  .pencil-box.shift-slot,
-  .pencil-box.shift-slot:hover,
-  .pencil-box.shift-slot.selected,
-  .pencil-box.shift-slot.selected:hover,
-  .pencil-box.shift-slot.matching-number,
-  .pencil-box.shift-slot.only-candidate {
+  /* Opus shift-aim: empty slots and other candidates stay as they are. */
+  :global(.board.shift-aim) .pencil-box:hover:not(.aim) {
+    background: transparent;
+    color: var(--cand);
+  }
+  :global(.board.shift-aim) .pencil-box.selected:hover:not(.aim) {
+    background: transparent;
+    color: var(--cand-on-selected);
+  }
+  :global(.board.shift-aim) .pencil-box.matching-number:hover:not(.aim) {
+    background: var(--chip-bg);
+    color: var(--chip-ink);
+  }
+  :global(.board.shift-aim) .pencil-box {
     cursor: crosshair;
-    background: color-mix(in srgb, var(--sel-ring) 12%, transparent);
-    color: var(--conflict);
-    box-shadow: 0 0 0 1px var(--sel-ring);
-    border-radius: 4px;
-    font-weight: 700;
-    z-index: 10;
+  }
+
+  /* Opus `.n.on.aim` — ink outline, chip-sized, transparent unless a match chip. */
+  .pencil-box.aim,
+  .pencil-box.aim:hover,
+  .pencil-box.aim.selected:hover {
     position: relative;
+    z-index: 2;
+    place-self: center;
+    box-sizing: border-box;
+    width: calc(var(--cell) * 0.34);
+    height: calc(var(--cell) * 0.34);
+    border-radius: 3.5px;
+    color: var(--ink);
+    font-weight: 700;
+    box-shadow: 0 0 0 1.5px var(--ink);
+    background: transparent;
     animation: none;
+    cursor: crosshair;
+  }
+  .pencil-box.aim.matching-number,
+  .pencil-box.aim.matching-number:hover,
+  .pencil-box.aim.matching-number.selected:hover {
+    background: var(--chip-bg);
+    color: var(--ink);
+    font-weight: 700;
+    box-shadow: 0 0 0 1.5px var(--ink);
   }
 
   .pencil-box.matching-number {

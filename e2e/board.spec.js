@@ -19,6 +19,7 @@ import {
   readDigitFonts,
   moveToPencil,
   moveToCell,
+  dispatchPointerMove,
   expectShiftAgreement,
 } from "./helpers.js";
 
@@ -268,6 +269,11 @@ test("clicking a pencil mark of the selected cell hides it; clicking again resto
 test("Shift-hover cursor, box and click target stay one derived slot", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
 
+  const shiftClick = async () => {
+    await page.mouse.down();
+    await page.mouse.up();
+  };
+
   await moveToPencil(page, 0, 2);
   await expectShiftAgreement(page, null);
 
@@ -280,10 +286,12 @@ test("Shift-hover cursor, box and click target stay one derived slot", async ({ 
   await expectShiftAgreement(page, { cell: 0, d: 4 });
 
   await moveToPencil(page, 0, 1); // empty slot in the same cell
-  await expectShiftAgreement(page, null);
+  await expectShiftAgreement(page, null, { overBoard: true });
+  await shiftClick();
+  await expectValue(page, 0, 0);
 
   await moveToCell(page, 1); // given 5
-  await expectShiftAgreement(page, null);
+  await expectShiftAgreement(page, null, { overBoard: true });
 
   await page.keyboard.up("Shift");
   await cell(page, 0).click();
@@ -292,9 +300,9 @@ test("Shift-hover cursor, box and click target stay one derived slot", async ({ 
   await expect(cell(page, 1)).toHaveClass(/conflict/);
   await moveToCell(page, 0);
   await page.keyboard.down("Shift");
-  await expectShiftAgreement(page, null);
+  await expectShiftAgreement(page, null, { overBoard: true });
   await moveToCell(page, 1);
-  await expectShiftAgreement(page, null);
+  await expectShiftAgreement(page, null, { overBoard: true });
 
   await page.keyboard.up("Shift");
   await page.keyboard.press("Control+z"); // empty cell 0 again
@@ -309,9 +317,28 @@ test("Shift-hover cursor, box and click target stay one derived slot", async ({ 
   await page.keyboard.down("Shift");
   await expectShiftAgreement(page, { cell: 0, d: 6 });
 
-  await page.mouse.down();
-  await page.mouse.up();
+  await shiftClick();
   await expectValue(page, 0, 6);
+  await page.keyboard.up("Shift");
+
+  // Yellow match chip keeps its fill under the ink aim box.
+  await page.keyboard.press("Control+z");
+  await expectValue(page, 0, 0);
+  await cell(page, 1).click(); // given 5 — same-digit chips
+  const match = page.locator(".pencil-box.matching-number").first();
+  await expect(match).toBeVisible();
+  const chip = await match.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return {
+      x: r.x + r.width / 2,
+      y: r.y + r.height / 2,
+      cell: Number(el.closest(".cell")?.dataset.i),
+      d: Number(el.dataset.d),
+    };
+  });
+  await dispatchPointerMove(page, chip.x, chip.y);
+  await page.keyboard.down("Shift");
+  await expectShiftAgreement(page, { cell: chip.cell, d: chip.d });
   await page.keyboard.up("Shift");
 });
 
@@ -342,7 +369,7 @@ test("Shift-hover re-resolves when the board changes under a still pointer", asy
   await typeDigit(2);
   await expectValue(page, 2, 2);
   await expect(cell(page, 0)).not.toHaveAttribute("data-notes", /2/);
-  await expectShiftAgreement(page, null);
+  await expectShiftAgreement(page, null, { overBoard: true });
   await shiftClick();
   await expectValue(page, 0, 0);
 
@@ -359,7 +386,7 @@ test("Shift-hover re-resolves when the board changes under a still pointer", asy
   await hoverNote2();
   await typeDigit(2);
   await expectValue(page, 2, 2);
-  await expectShiftAgreement(page, null);
+  await expectShiftAgreement(page, null, { overBoard: true });
   await tapTool("erase");
   await expectValue(page, 2, 0);
   await expect(cell(page, 0)).toHaveAttribute("data-notes", /2/);
@@ -369,7 +396,7 @@ test("Shift-hover re-resolves when the board changes under a still pointer", asy
   await tapTool("notes-mode");
   await expect(page.locator("#notes-mode")).toHaveAttribute("aria-checked", "false");
   await expect(cell(page, 0)).toHaveAttribute("data-notes", "");
-  await expectShiftAgreement(page, null);
+  await expectShiftAgreement(page, null, { overBoard: true });
   await shiftClick();
   await expectValue(page, 0, 0);
   await tapTool("notes-mode");
@@ -384,7 +411,7 @@ test("Shift-hover re-resolves when the board changes under a still pointer", asy
   await hoverNote2();
   await typeDigit(4);
   await expectValue(page, 0, 4);
-  await expectShiftAgreement(page, null);
+  await expectShiftAgreement(page, null, { overBoard: true });
   await shiftClick();
   await expectValue(page, 0, 4);
   await page.keyboard.up("Shift");

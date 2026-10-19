@@ -178,14 +178,19 @@ export async function readDigitFonts(page) {
   });
 }
 
-async function dispatchPointerMove(page, x, y) {
+export async function dispatchPointerMove(page, x, y) {
   await page.mouse.move(x, y);
   // Chromium's CDP mouse.move is not always a `pointermove`. The app listens
   // only for pointermove; synthesize one at the same point.
   await page.evaluate(
     ({ x, y }) => {
       window.dispatchEvent(
-        new PointerEvent("pointermove", { clientX: x, clientY: y, bubbles: true })
+        new PointerEvent("pointermove", {
+          clientX: x,
+          clientY: y,
+          bubbles: true,
+          pointerType: "mouse",
+        })
       );
     },
     { x, y }
@@ -204,43 +209,69 @@ export async function moveToCell(page, i) {
 
 export async function readShiftHover(page) {
   return page.evaluate(() => {
+    const board = document.querySelector(".board");
+    const br = board?.getBoundingClientRect();
     const slots = [...document.querySelectorAll(".pencil-box")].map((el) => {
       const cs = getComputedStyle(el);
       return {
         cell: Number(el.closest(".cell")?.dataset.i),
         d: Number(el.dataset.d),
-        shift: el.dataset.shiftSlot === "true" || /\bshift-slot\b/.test(el.className),
+        shift: el.dataset.shiftSlot === "true" || /\baim\b/.test(el.className),
+        match: /\bmatching-number\b/.test(el.className),
         cursor: cs.cursor,
         bg: cs.backgroundColor,
+        color: cs.color,
+        weight: cs.fontWeight,
         radius: cs.borderRadius,
         shadow: cs.boxShadow,
+        w: el.getBoundingClientRect().width,
       };
     });
-    return { active: slots.filter((s) => s.shift), slots };
+    return {
+      boardAim: board?.classList.contains("shift-aim") ?? false,
+      boardCursor: board ? getComputedStyle(board).cursor : "",
+      cellW: br ? br.width / 9 : 0,
+      active: slots.filter((s) => s.shift),
+      slots,
+    };
   });
 }
 
-/** Cursor, box, and the slot a click would enter must name the same candidate. */
-export async function expectShiftAgreement(page, want) {
-  const { active, slots } = await readShiftHover(page);
+/**
+ * Aim box is present iff `want` names a visible candidate under the pointer.
+ * Crosshair (`board.shift-aim`) stays on while Shift is held over the board,
+ * including empty slots and filled cells.
+ * @param {import("@playwright/test").Page} page
+ * @param {{ cell: number, d: number } | null} want
+ * @param {{ overBoard?: boolean }} [opts]
+ */
+export async function expectShiftAgreement(page, want, opts = {}) {
+  const { active, boardAim, boardCursor, cellW } = await readShiftHover(page);
+  if (opts.overBoard) {
+    expect(boardAim, "board.shift-aim").toBe(true);
+    expect(boardCursor).toBe("crosshair");
+  } else if (!want) {
+    expect(boardAim, "no shift-aim").toBe(false);
+  }
   if (!want) {
-    expect(active, "no Shift-hover box").toEqual([]);
-    expect(
-      slots.filter((s) => s.cursor === "crosshair"),
-      "no crosshair unless a box is shown"
-    ).toEqual([]);
+    expect(active, "no aim box").toEqual([]);
     return;
   }
-  expect(active, "exactly one Shift-hover box").toEqual(
+  expect(boardAim, "board.shift-aim").toBe(true);
+  expect(boardCursor).toBe("crosshair");
+  expect(active, "exactly one aimed candidate").toEqual(
     expect.arrayContaining([expect.objectContaining({ cell: want.cell, d: want.d, shift: true })])
   );
   expect(active).toHaveLength(1);
   const hit = active[0];
   expect(hit.cursor).toBe("crosshair");
-  expect(hit.radius).toBe("4px");
-  expect(hit.shadow).not.toBe("none");
-  expect(hit.bg).not.toBe("rgba(0, 0, 0, 0)");
-  expect(slots.filter((s) => s.cursor === "crosshair")).toHaveLength(1);
+  expect(hit.color).toBe("rgb(28, 26, 22)");
+  expect(hit.weight).toBe("700");
+  expect(hit.radius).toBe("3.5px");
+  expect(hit.shadow).toContain("1.5px");
+  if (hit.match) expect(hit.bg).not.toBe("rgba(0, 0, 0, 0)");
+  else expect(hit.bg).toBe("rgba(0, 0, 0, 0)");
+  expect(hit.w).toBeCloseTo(cellW * 0.34, 0);
 }
 
 export function solve(q) {
