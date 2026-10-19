@@ -1543,7 +1543,7 @@
       font-size: 10px;
       white-space: nowrap;
     }
-    .dgrid .day.is-latest:not(.sel)::before {
+    .dgrid .day.is-latest::before {
       content: "";
       position: absolute;
       inset: 2px;
@@ -1554,6 +1554,18 @@
     .dgrid .day.sel,
     button.day.sel:hover {
       background: var(--sel);
+    }
+    /* Inset ring, same shape as the latest ring, so it never sits on the grid lines. */
+    .dgrid .day.sel::after {
+      content: "";
+      position: absolute;
+      inset: 1px;
+      border: 3px solid var(--blue);
+      border-radius: 10px;
+      pointer-events: none;
+    }
+    .dgrid .day.sel.is-latest::before {
+      border-color: transparent;
     }
     .dgrid .day.nop {
       background: var(--page);
