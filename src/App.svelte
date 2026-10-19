@@ -3,27 +3,41 @@
   import Cell from "./Cell.svelte";
   import Timer from "./Timer.svelte";
   import Calendar from "./Calendar.svelte";
-  import { puzzle, focusedCellId, cellUpdate, prefilled, done } from "./store";
-  import { timerRunning } from "./store";
+  import { done } from "./store";
+  import { game } from "./game/game.svelte.js";
+  import { onMount } from "svelte";
 
-  let showCalendar = true;
+  let showCalendar = $state(true);
 
   function handleKeydown(e) {
-    if ($focusedCellId == -1) return;
-    const x = Math.floor($focusedCellId / 9);
-    const y = $focusedCellId % 9;
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && (e.key.toLowerCase() === "y" || (e.key.toLowerCase() === "z" && e.shiftKey))) {
+      e.preventDefault();
+      game.redo();
+      return;
+    }
+    if (mod && e.key.toLowerCase() === "z") {
+      e.preventDefault();
+      game.undo();
+      return;
+    }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
 
-    if (e.key >= "0" && e.key <= "9" && !$prefilled[x][y]) {
-      $puzzle[x][y] = parseInt(e.key, 10);
-      $cellUpdate = true;
-    } else if (e.key == "ArrowLeft" && $focusedCellId % 9) {
-      $focusedCellId -= 1;
-    } else if (e.key == "ArrowRight" && ($focusedCellId + 1) % 9) {
-      $focusedCellId += 1;
-    } else if (e.key == "ArrowUp" && $focusedCellId >= 9) {
-      $focusedCellId -= 9;
-    } else if (e.key == "ArrowDown" && $focusedCellId + 9 < 81) {
-      $focusedCellId += 9;
+    if (game.selected == -1) return;
+    const id = game.selected;
+
+    if (e.key >= "0" && e.key <= "9" && game.editable(id)) {
+      const d = parseInt(e.key, 10);
+      if (d === 0) game.clearAnswer(id);
+      else game.enter(id, d);
+    } else if (e.key == "ArrowLeft" && id % 9) {
+      game.select(id - 1);
+    } else if (e.key == "ArrowRight" && (id + 1) % 9) {
+      game.select(id + 1);
+    } else if (e.key == "ArrowUp" && id >= 9) {
+      game.select(id - 9);
+    } else if (e.key == "ArrowDown" && id + 9 < 81) {
+      game.select(id + 9);
     } else {
       return;
     }
@@ -32,24 +46,19 @@
 
   function handleGlobalKeydown(e) {
     if (e.key === "Escape" && $done) {
-      dismissSuccess();
+      game.dismiss();
     } else {
       handleKeydown(e);
     }
   }
 
   function removeFocus() {
-    $focusedCellId = -1;
-  }
-
-  function dismissSuccess() {
-    $done = false;
-    $timerRunning = false;
+    game.select(-1);
   }
 
   function handleSuccessBackdrop(event) {
     if (event.target === event.currentTarget) {
-      dismissSuccess();
+      game.dismiss();
     }
   }
 
@@ -57,14 +66,11 @@
     showCalendar = !showCalendar;
   }
 
-  // Listen for puzzle loading events from calendar
   function handleLoadPuzzle(event) {
     console.log("Puzzle loaded from calendar:", event.detail);
-    showCalendar = false; // Switch back to puzzle view
+    showCalendar = false;
   }
 
-  // Add event listener when component mounts
-  import { onMount } from "svelte";
   onMount(() => {
     window.addEventListener("loadPuzzle", handleLoadPuzzle);
     return () => {
@@ -73,7 +79,7 @@
   });
 </script>
 
-<svelte:window on:keydown={handleGlobalKeydown} />
+<svelte:window onkeydown={handleGlobalKeydown} />
 
 <svelte:head>
   <title>Sudoku</title>
@@ -82,11 +88,11 @@
 <main>
   <div class="header">
     <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
-    <h1 on:click={removeFocus}>Sudoku</h1>
+    <h1 onclick={removeFocus}>Sudoku</h1>
     {#if !showCalendar}
       <Timer />
     {/if}
-    <button class="view-toggle" on:click={toggleView}>
+    <button class="view-toggle" onclick={toggleView}>
       {showCalendar ? "🎯 Play" : "📅 Calendar"}
     </button>
   </div>
@@ -103,9 +109,9 @@
 
     {#if $done}
       <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-      <div class="success-message" on:click={handleSuccessBackdrop}>
+      <div class="success-message" onclick={handleSuccessBackdrop}>
         <div class="success-card">
-          <button class="success-close" on:click={dismissSuccess}
+          <button class="success-close" onclick={() => game.dismiss()}
             >&times;</button
           >
           <div class="success-icon">🎉</div>

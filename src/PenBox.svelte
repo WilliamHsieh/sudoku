@@ -1,14 +1,15 @@
 <script>
-  import { puzzle, conflictCell } from "./store";
+  import { game } from "./game/game.svelte.js";
 
-  export let cell_id;
-  const x = Math.floor(cell_id / 9);
-  const y = cell_id % 9;
+  /** @type {{ cell_id: number }} */
+  let { cell_id } = $props();
+  const value = $derived(game.value(cell_id));
+  const conflict = $derived(game.inConflict(cell_id));
 </script>
 
 <div class="pen-box">
-  {$puzzle[x][y]}
-  <div class:conflict={$conflictCell[x][y]}></div>
+  {value}
+  <div class:conflict></div>
 </div>
 
 <style>

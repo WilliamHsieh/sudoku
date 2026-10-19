@@ -1,46 +1,45 @@
 <script>
   import PenBox from "./PenBox.svelte";
   import PencilBox from "./PencilBox.svelte";
-  import { onMount } from "svelte";
-  import {
-    puzzle,
-    userRemovePencil,
-    focusedCellId,
-    prefilled,
-    cellUpdate,
-    pencilBox,
-  } from "./store";
+  import { game } from "./game/game.svelte.js";
 
-  export let cell_id;
+  /** @type {{ cell_id: number }} */
+  let { cell_id } = $props();
   const x = Math.floor(cell_id / 9);
   const y = cell_id % 9;
-  let style = "cell";
-  let isShiftPressed = false;
-  let cellElement;
-  let closestPencilIdx = -1;
+  const walls =
+    "cell" +
+    (x % 3 == 0 ? " top-wall" : "") +
+    (y % 3 == 0 ? " left-wall" : "") +
+    (x == 8 && (x + 1) % 3 == 0 ? " bottom-wall" : "") +
+    (y == 8 && (y + 1) % 3 == 0 ? " right-wall" : "");
 
-  $: cellStyle = () => {
+  let isShiftPressed = $state(false);
+  let cellElement = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
+  let closestPencilIdx = $state(-1);
+
+  const value = $derived(game.value(cell_id));
+  const given = $derived(game.given(cell_id));
+  const selected = $derived(game.selected === cell_id);
+  const focusedValue = $derived(game.selected === -1 ? 0 : game.value(game.selected));
+  const cellStyle = $derived.by(() => {
     let fg = "#374151";
     let bg = "white";
 
-    if ($prefilled[x][y]) bg = "#e2e8f0";
-    if ($puzzle[x][y] == 0) {
+    if (given) bg = "#e2e8f0";
+    if (value == 0) {
       fg = "#6b7280";
-    } else if (
-      $focusedCellId != -1 &&
-      $puzzle[Math.floor($focusedCellId / 9)][$focusedCellId % 9] ==
-        $puzzle[x][y]
-    ) {
+    } else if (focusedValue != 0 && focusedValue == value) {
       bg = "#fde68a";
       fg = "#374151";
     }
-    if ($focusedCellId == cell_id) {
+    if (selected) {
       bg = "#3b82f6";
       fg = "white";
     }
 
     return `background-color: ${bg}; color: ${fg}`;
-  };
+  });
 
   function handleKeyDown(e) {
     if (e.key === "Shift") {
@@ -56,13 +55,12 @@
   }
 
   function handleMouseMove(e) {
-    if (!isShiftPressed || !cellElement || $puzzle[x][y] !== 0) return;
+    if (!isShiftPressed || !cellElement || value !== 0) return;
 
     const rect = cellElement.getBoundingClientRect();
     const relativeX = e.clientX - rect.left;
     const relativeY = e.clientY - rect.top;
 
-    // Calculate which pencil mark position is closest (3x3 grid)
     const pencilWidth = rect.width / 3;
     const pencilHeight = rect.height / 3;
 
@@ -71,11 +69,7 @@
 
     const newClosestIdx = Math.min(Math.max(gridY * 3 + gridX, 0), 8);
 
-    // Only update if the pencil mark is visible
-    if (
-      $pencilBox[x][y][newClosestIdx] &&
-      !$userRemovePencil[x][y][newClosestIdx]
-    ) {
+    if (game.hasNote(cell_id, newClosestIdx + 1)) {
       closestPencilIdx = newClosestIdx;
     } else {
       closestPencilIdx = -1;
@@ -86,38 +80,32 @@
     closestPencilIdx = -1;
   }
 
-  onMount(() => {
-    if (x % 3 == 0) style += " top-wall";
-    if (y % 3 == 0) style += " left-wall";
-    if (x == 8 && (x + 1) % 3 == 0) style += " bottom-wall";
-    if (y == 8 && (y + 1) % 3 == 0) style += " right-wall";
-  });
-
   function handleRightClick() {
-    // 不要清掉題目給定（prefilled）的格子——與 App 填數字的 !prefilled 守則一致
-    if ($focusedCellId == cell_id && !$prefilled[x][y]) {
-      $userRemovePencil[x][y].fill(false);
-      $puzzle[x][y] = 0;
-      $cellUpdate = true;
+    // Same as master: only the selected non-given cell.
+    if (game.selected == cell_id && !game.given(cell_id)) {
+      game.clear(cell_id);
     }
   }
 
   function handleClick() {
-    $focusedCellId = cell_id;
+    game.select(cell_id);
   }
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 <div
   bind:this={cellElement}
-  class={style}
-  style={cellStyle()}
-  on:click={handleClick}
-  on:contextmenu|preventDefault={handleRightClick}
-  on:mousemove={handleMouseMove}
-  on:mouseleave={handleMouseLeave}
+  class={walls}
+  style={cellStyle}
+  onclick={handleClick}
+  oncontextmenu={(e) => {
+    e.preventDefault();
+    handleRightClick();
+  }}
+  onmousemove={handleMouseMove}
+  onmouseleave={handleMouseLeave}
 >
-  {#if $puzzle[x][y]}
+  {#if value}
     <PenBox {cell_id} />
   {:else}
     <div class="candidate">
@@ -133,7 +121,7 @@
   {/if}
 </div>
 
-<svelte:window on:keydown={handleKeyDown} on:keyup={handleKeyUp} />
+<svelte:window onkeydown={handleKeyDown} onkeyup={handleKeyUp} />
 
 <style>
   .cell {
