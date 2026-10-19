@@ -1,3 +1,4 @@
+import '@fontsource/atkinson-hyperlegible/latin-400.css'
 import './app.css'
 import { mount } from 'svelte'
 import App from './App.svelte'
