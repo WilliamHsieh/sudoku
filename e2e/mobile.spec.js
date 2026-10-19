@@ -40,6 +40,19 @@ test("the pad and tools fit a 390px iPhone screen", async ({ page }) => {
   expect(await page.locator(".board").evaluate((el) => getComputedStyle(el).touchAction)).toBe(
     "manipulation"
   );
+  const timer = await page.locator(".timer").boundingBox();
+  expect(timer.height).toBe(30);
+});
+
+test("Calendar is white at rest after a tap elsewhere", async ({ page }) => {
+  const t = await touchDriver(page);
+  const cal = page.locator(".view-toggle");
+  await expect(cal).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await t.tap(cell(page, 0));
+  await t.tap(page.locator("#notes-mode"));
+  await t.tap(cell(page, 2));
+  await expect(cal).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await expect(cal).toHaveCSS("border-top-color", "rgb(220, 215, 205)");
 });
 
 test("highlight chips, conflict and notes do not resize the board or cells", async ({ page }) => {
@@ -52,6 +65,15 @@ test("highlight chips, conflict and notes do not resize the board or cells", asy
   await t.tap(key(page, 5)); // conflict, notes still in peers
   await expect(cell(page, 0).locator(".conflict")).toHaveCount(1);
   await expect(page.locator(".pencil-box.matching-number").first()).toBeVisible();
+  const chipSizes = await page.evaluate(() => {
+    const chip = document.querySelector(".pencil-box.matching-number");
+    const host = chip.closest(".cell");
+    return {
+      chip: chip.getBoundingClientRect().width,
+      cell: host.getBoundingClientRect().width,
+    };
+  });
+  expect(chipSizes.chip).toBeCloseTo(chipSizes.cell * 0.34, 1);
 
   const after = await measureBoard(page);
   expectUnclippedEqualCells(after);

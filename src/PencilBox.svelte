@@ -217,10 +217,8 @@
     .pencil-box.matching-number {
       place-self: center;
       box-sizing: border-box;
-      width: min(100%, calc(var(--cell) * var(--chip-size)));
-      height: min(100%, calc(var(--cell) * var(--chip-size)));
-      max-width: 100%;
-      max-height: 100%;
+      width: calc(var(--cell) * var(--chip-size));
+      height: calc(var(--cell) * var(--chip-size));
     }
   }
 </style>

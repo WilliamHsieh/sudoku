@@ -63,4 +63,18 @@
     line-height: 1;
     min-width: 2.6em;
   }
+
+  @media (max-width: 599px) {
+    .timer {
+      border-radius: 8px;
+      padding: 4px 8px;
+      background: rgb(255 255 255 / 0.7);
+    }
+
+    .time {
+      font-size: 14.4px;
+      font-weight: 600;
+      line-height: 20px;
+    }
+  }
 </style>

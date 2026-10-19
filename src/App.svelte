@@ -414,5 +414,32 @@
       flex-direction: column;
       gap: 12px;
     }
+
+    /* Resting Calendar is white. Touch capture can leave :hover stuck
+       (Chromium restores the last mouse point after a CDP tap). */
+    .view-toggle {
+      background: #ffffff;
+      border: 1px solid #dcd7cd;
+    }
+
+    .view-toggle:hover,
+    .view-toggle:focus {
+      background: #ffffff;
+    }
+
+    .view-toggle:focus-visible {
+      outline: 2px solid var(--sel-ring);
+      outline-offset: 2px;
+    }
+
+    .view-toggle:active {
+      background: var(--given-bg);
+    }
+  }
+
+  @media (max-width: 599px) and (hover: hover) {
+    .view-toggle:hover {
+      background: var(--key-pressed);
+    }
   }
 </style>
