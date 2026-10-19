@@ -11,6 +11,7 @@ export const SELECTED_BG = "rgb(211, 224, 248)";
 export const GIVEN_BG = "rgb(229, 228, 224)";
 export const SAME_DIGIT_GIVEN_BG = "rgb(241, 211, 119)";
 export const CONFLICT_BG = "rgb(251, 226, 224)";
+export const CONFLICT = "rgb(192, 47, 47)";
 
 export const cell = (page, i) => page.locator(".board > .cell").nth(i);
 export const pencil = (page, i, d) =>

@@ -215,6 +215,21 @@
     .cell.same.given.conflict {
       background: var(--conflict-bg);
     }
+
+    /* Combo C `.cell.conf::after` — 5×5 at a 3px inset. Don't clip the dot. */
+    .cell.conflict {
+      overflow: visible;
+    }
+    .cell.conflict::after {
+      content: "";
+      position: absolute;
+      top: 3px;
+      right: 3px;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--conflict);
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {

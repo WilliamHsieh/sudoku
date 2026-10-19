@@ -11,6 +11,7 @@ import {
   expectSameGeometry,
   readDigitFonts,
   CONFLICT_BG,
+  CONFLICT,
 } from "./helpers.js";
 import { touchDriver } from "./touch.js";
 import { firstUnsolvedLatest } from "../src/game/daily.js";
@@ -273,6 +274,62 @@ test.describe("pad", () => {
     await expect(cell(page, 1)).toHaveClass(/same/);
     await expect(cell(page, 1)).toHaveClass(/conflict/);
     await expect(cell(page, 1)).toHaveCSS("background-color", CONFLICT_BG);
+  });
+
+  test("every conflicting cell draws Combo C's 5×5 inset conflict dot", async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(cell(page, 0));
+    await t.tap(key(page, 5));
+    await expect(cell(page, 0)).toHaveClass(/conflict/);
+    await expect(cell(page, 1)).toHaveClass(/given/);
+    await expect(cell(page, 1)).toHaveClass(/conflict/);
+
+    for (const i of [0, 1]) {
+      const dot = await cell(page, i).evaluate((el) => {
+        const after = getComputedStyle(el, "::after");
+        const box = el.getBoundingClientRect();
+        const cs = getComputedStyle(el);
+        const padTop = box.top + parseFloat(cs.borderTopWidth);
+        const padRight = box.right - parseFloat(cs.borderRightWidth);
+        const top = parseFloat(after.top);
+        const right = parseFloat(after.right);
+        const w = parseFloat(after.width);
+        const h = parseFloat(after.height);
+        const inner = el.querySelector(".pen-box .conflict");
+        return {
+          content: after.content,
+          position: after.position,
+          top,
+          right,
+          w,
+          h,
+          radius: after.borderRadius,
+          color: after.backgroundColor,
+          x: padRight - right - w,
+          y: padTop + top,
+          innerDisplay: inner ? getComputedStyle(inner).display : "none",
+        };
+      });
+      expect(dot.content, `cell ${i} ::after content`).toBe('""');
+      expect(dot.position, `cell ${i} ::after position`).toBe("absolute");
+      expect(dot.w, `cell ${i} ::after width`).toBe(5);
+      expect(dot.h, `cell ${i} ::after height`).toBe(5);
+      expect(dot.top, `cell ${i} ::after top`).toBe(3);
+      expect(dot.right, `cell ${i} ::after right`).toBe(3);
+      expect(dot.radius, `cell ${i} ::after radius`).toBe("50%");
+      expect(dot.color, `cell ${i} ::after colour`).toBe(CONFLICT);
+      expect(dot.innerDisplay, `cell ${i} pen-box marker`).toBe("none");
+      const box = await cell(page, i).evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const cs = getComputedStyle(el);
+        return {
+          padTop: r.top + parseFloat(cs.borderTopWidth),
+          padRight: r.right - parseFloat(cs.borderRightWidth),
+        };
+      });
+      near(dot.x, box.padRight - 3 - 5, `cell ${i} dot x`);
+      near(dot.y, box.padTop + 3, `cell ${i} dot y`);
+    }
   });
 
   test("tap does not overwrite a given", async ({ page }) => {
