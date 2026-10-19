@@ -86,7 +86,13 @@ describe("monthStats", () => {
     const progress = {
       "2026-10-18": { medium: { elapsed: 10, filled: 1, empty: 50, updatedAt: 1 } },
     };
-    const md = monthStats(data, solved, progress, new Date(2026, 9, 1));
+    const md = monthStats(
+      { ...data, "2026-10-20": { easy: "e" } },
+      solved,
+      progress,
+      new Date(2026, 9, 1),
+      "2026-10-18"
+    );
     expect(md.days).toBe(3);
     expect(md.tot).toBe(1);
     expect(md.unf).toBe(1);
@@ -103,5 +109,13 @@ describe("monthCells", () => {
     expect(byDay[19].kind).toBe("future");
     expect(byDay[19].notYet).toBe(true);
     expect(byDay[20].notYet).toBe(false);
+  });
+
+  it("does not treat a puzzle after latest as playable", () => {
+    const extra = { ...data, "2026-10-19": { easy: "e", medium: "m", hard: "h" } };
+    const cells = monthCells(extra, "2026-10-18", "2026-10-18", new Date(2026, 9, 1));
+    const byDay = Object.fromEntries(cells.filter(Boolean).map((c) => [c.day, c]));
+    expect(byDay[19].kind).toBe("future");
+    expect(byDay[19].notYet).toBe(false);
   });
 });

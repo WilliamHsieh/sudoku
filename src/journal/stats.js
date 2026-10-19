@@ -140,8 +140,9 @@ export function unfinishedList(progress, solved) {
  * @param {Record<string, Record<string, { completed?: boolean, time?: number, timestamp?: number }>>} solved
  * @param {Record<string, Record<string, { elapsed?: number, filled?: number, empty?: number, updatedAt?: number }>>} progress
  * @param {Date} view  first of the visible month
+ * @param {string} [latest]  most recent puzzle day; future dates in the file are ignored
  */
-export function monthStats(puzzleData, solved, progress, view) {
+export function monthStats(puzzleData, solved, progress, view, latest) {
   const y = view.getFullYear();
   const m = view.getMonth();
   const bs = personalBests(solved);
@@ -155,7 +156,7 @@ export function monthStats(puzzleData, solved, progress, view) {
     const dt = new Date(y, m, i);
     if (dt.getMonth() !== m) break;
     const s = `${y}-${String(m + 1).padStart(2, "0")}-${String(i).padStart(2, "0")}`;
-    if (puzzleData[s]) out.days++;
+    if (puzzleData[s] && (!latest || s <= latest)) out.days++;
   }
   for (const d of DIFFS) {
     /** @type {number[]} */
@@ -201,9 +202,9 @@ export function monthCells(puzzleData, latest, today, view) {
   for (let i = 0; i < first; i++) cells.push(null);
   for (let i = 1; i <= n; i++) {
     const date = `${y}-${String(m + 1).padStart(2, "0")}-${String(i).padStart(2, "0")}`;
-    if (puzzleData[date]) cells.push({ date, day: i, kind: "puzzle" });
-    else if (date <= latest) cells.push({ date, day: i, kind: "nop" });
-    else cells.push({ date, day: i, kind: "future", notYet: date <= today });
+    if (date > latest) cells.push({ date, day: i, kind: "future", notYet: date <= today });
+    else if (puzzleData[date]) cells.push({ date, day: i, kind: "puzzle" });
+    else cells.push({ date, day: i, kind: "nop" });
   }
   const tail = (7 - (cells.length % 7)) % 7;
   for (let i = 0; i < tail; i++) cells.push(null);

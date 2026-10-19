@@ -48,7 +48,7 @@
 
   const solved = $derived($solvedPuzzles);
   const progress = $derived($puzzleProgress);
-  const md = $derived(monthStats(puzzleData, solved, progress, view));
+  const md = $derived(monthStats(puzzleData, solved, progress, view, latest));
   const cells = $derived(monthCells(puzzleData, latest, today, view));
   const unfinished = $derived(unfinishedList(progress, solved));
   const streak = $derived(streakFrom(puzzleData, solved, latest));
@@ -337,7 +337,7 @@
                 onclick={() => openDay(cell.date)}
               >
                 <span class="n num">{cell.day}</span>
-                <Marks kinds={kinds(cell.date)} />
+                <Marks kinds={kinds(cell.date)} size={9} gap={2} />
               </button>
             {/if}
           {/each}
@@ -1510,6 +1510,7 @@
       width: 100%;
       transition: background-color 0.12s;
       border: 0;
+      outline: none;
       font: inherit;
       color: inherit;
       cursor: pointer;
