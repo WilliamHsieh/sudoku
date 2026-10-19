@@ -241,6 +241,11 @@
     margin-top: 2px;
   }
 
+  /* Author display:block would otherwise override the hidden attribute. */
+  .row small[hidden] {
+    display: none;
+  }
+
   .row .ic {
     width: 20px;
     height: 20px;

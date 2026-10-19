@@ -59,13 +59,6 @@
     min-width: 2.6em;
   }
 
-  @media (min-width: 600px) {
-    .timer {
-      height: 30px;
-      padding: 0 10px;
-    }
-  }
-
   @media (max-width: 599px) {
     /* H2 .timer2 — exact rules from h2-play.html */
     .timer2 {
