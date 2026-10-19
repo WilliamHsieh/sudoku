@@ -19,10 +19,18 @@ export const pencil = (page, i, d) =>
     .nth(d - 1);
 export const pen = (page, i) => cell(page, i).locator(".pen-box");
 
+/** Demo puzzle shipped on master (Play on desktop; `?q=` on mobile). */
+export const DEMO_PUZZLE =
+  "050900000800040307000280190538607940020301000109804623907400000045000209000030070";
+
 export async function openBoard(page, path = "./") {
-  await page.goto(path);
-  await page.getByRole("button", { name: /Play/ }).click();
-  await expect(page.locator(".board > .cell")).toHaveCount(81);
+  const dest = path === "./" ? `./?q=${DEMO_PUZZLE}` : path;
+  await page.goto(dest);
+  const board = page.locator(".board > .cell");
+  if ((await board.count()) === 0) {
+    await page.getByRole("button", { name: /Play|Back to puzzle/ }).click();
+  }
+  await expect(board).toHaveCount(81);
 }
 
 export async function expectValue(page, i, v) {

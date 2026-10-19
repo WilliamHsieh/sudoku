@@ -5,8 +5,11 @@
   import Calendar from "./Calendar.svelte";
   import Tools from "./Tools.svelte";
   import Keypad from "./Keypad.svelte";
-  import { done } from "./store";
+  import { get } from "svelte/store";
+  import { done, solvedPuzzles } from "./store";
   import { game } from "./game/game.svelte.js";
+  import { firstUnsolvedLatest } from "./game/daily.js";
+  import { puzzleData } from "./puzzles.js";
   import { ring } from "./ring.js";
   import { padUi } from "./pad-ui.svelte.js";
   import { installIosZoomGuards } from "./ios-zoom.js";
@@ -14,8 +17,11 @@
   import { onMount } from "svelte";
 
   const CELL_IDS = Array.from({ length: 81 }, (_, i) => i);
+  const NARROW_MQ = "(max-width: 599px)";
 
   let showCalendar = $state(true);
+  let hasPlayed = $state(false);
+  let isNarrow = $state(typeof window !== "undefined" && window.matchMedia(NARROW_MQ).matches);
   let wrapEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   let ringEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
 
@@ -82,16 +88,43 @@
     showCalendar = !showCalendar;
   }
 
+  function openJournal() {
+    showCalendar = true;
+  }
+
+  function hasQueryPuzzle() {
+    return /^[0-9]{81}$/.test(new URLSearchParams(window.location.search).get("q") ?? "");
+  }
+
+  function playFromJournal() {
+    if (!hasPlayed && !hasQueryPuzzle()) {
+      const pick = firstUnsolvedLatest(puzzleData, get(solvedPuzzles));
+      if (pick) {
+        game.load(pick.puzzle, { dateStr: pick.dateStr, difficulty: pick.difficulty });
+      }
+    }
+    hasPlayed = true;
+    showCalendar = false;
+  }
+
   function handleLoadPuzzle(event) {
     console.log("Puzzle loaded from calendar:", event.detail);
+    hasPlayed = true;
     showCalendar = false;
   }
 
   onMount(() => {
+    const mq = window.matchMedia(NARROW_MQ);
+    isNarrow = mq.matches;
+    const onNarrow = () => {
+      isNarrow = mq.matches;
+    };
+    mq.addEventListener("change", onNarrow);
     game.setBeforeMutate(() => ring.flush());
     window.addEventListener("loadPuzzle", handleLoadPuzzle);
     const stopShiftHover = installShiftHover();
     return () => {
+      mq.removeEventListener("change", onNarrow);
       game.setBeforeMutate(() => {});
       ring.destroy();
       stopShiftHover();
@@ -121,7 +154,7 @@
   <div class="header">
     <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
     <h1 onclick={removeFocus}>Sudoku</h1>
-    {#if !showCalendar}
+    {#if !showCalendar && !isNarrow}
       <Timer />
     {/if}
     <button class="view-toggle" onclick={toggleView}>
@@ -145,6 +178,79 @@
       {/if}
     </button>
   </div>
+
+  <header class="hd">
+    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
+    <h1 class="hd-brand" onclick={removeFocus}>Sudoku</h1>
+    <div class="hd-r">
+      {#if showCalendar}
+        <button class="hpill" type="button" aria-label="Back to puzzle" onclick={playFromJournal}>
+          <span class="face"
+            ><svg
+              class="ic"
+              aria-hidden="true"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+              <path d="M3 9h18"></path>
+              <path d="M3 15h18"></path>
+              <path d="M9 3v18"></path>
+              <path d="M15 3v18"></path></svg
+            >Play</span
+          >
+        </button>
+      {:else}
+        <button class="hbtn cal" type="button" aria-label="Journal" onclick={openJournal}>
+          <span class="face"
+            ><svg
+              class="ic"
+              aria-hidden="true"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M8 2v3"></path>
+              <path d="M16 2v3"></path>
+              <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+              <path d="M3 9h18"></path>
+              <path d="M8 13h.01"></path>
+              <path d="M12 13h.01"></path>
+              <path d="M16 13h.01"></path>
+              <path d="M8 17h.01"></path>
+              <path d="M12 17h.01"></path>
+              <path d="M16 17h.01"></path>
+            </svg></span
+          >
+        </button>
+        {#if isNarrow}
+          <Timer />
+        {/if}
+        <button class="hbtn" type="button" aria-label="Pause">
+          <span class="face"
+            ><svg class="ic pz" viewBox="0 0 24 24" aria-hidden="true"
+              ><rect x="6.5" y="5" width="3.6" height="14" rx="1"></rect><rect
+                x="13.9"
+                y="5"
+                width="3.6"
+                height="14"
+                rx="1"
+              ></rect></svg
+            ></span
+          >
+        </button>
+      {/if}
+    </div>
+  </header>
 
   {#if showCalendar}
     <Calendar />
@@ -244,6 +350,10 @@
 
   .view-toggle:active {
     background: var(--given-bg);
+  }
+
+  .hd {
+    display: none;
   }
 
   .board-wrap {
@@ -391,6 +501,9 @@
     /* Mockup C: 8px sides and top, 16px bottom. The 768px rule's 12px
        would shrink the board to 366 and the keys below 119.33. */
     main {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
       padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right))
         max(16px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
     }
@@ -418,31 +531,102 @@
       gap: 12px;
     }
 
-    /* Resting Calendar is white. Touch capture can leave :hover stuck
-       (Chromium restores the last mouse point after a CDP tap). */
-    .view-toggle {
-      background: #ffffff;
-      border: 1px solid #dcd7cd;
+    .header {
+      display: none;
     }
 
-    .view-toggle:hover,
-    .view-toggle:focus {
-      background: #ffffff;
+    /* H2 header — exact rules from h2-play.html / h2-journal.html */
+    .hd,
+    .hd * {
+      box-sizing: border-box;
     }
-
-    .view-toggle:focus-visible {
-      outline: 2px solid var(--sel-ring);
-      outline-offset: 2px;
+    .hd {
+      --hd-ink: #1c1a16;
+      --hd-soft: #5d584f;
+      --hd-neutral: #e5e4e0;
+      --hd-line: rgb(0 0 0 / 0.08);
+      --hd-face: rgb(255 255 255 / 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 44px;
+      padding: 0 16px;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+      color: var(--hd-ink);
     }
-
-    .view-toggle:active {
-      background: var(--given-bg);
+    .hd-brand {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      line-height: 1;
+      margin: 0;
     }
-  }
-
-  @media (max-width: 599px) and (hover: hover) {
-    .view-toggle:hover {
-      background: var(--key-pressed);
+    .hd-r {
+      display: flex;
+      align-items: center;
+    }
+    .hd .ic {
+      width: 16px;
+      height: 16px;
+      flex: none;
+      stroke-width: 2;
+    }
+    .hbtn {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      padding: 0;
+      border: 0;
+      background: none;
+      color: inherit;
+      cursor: pointer;
+      font: inherit;
+    }
+    .hbtn .face {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--hd-line, rgb(0 0 0 / 0.08));
+      border-radius: 8px;
+      background: var(--hd-face, rgb(255 255 255 / 0.7));
+    }
+    .pz rect {
+      fill: currentColor;
+      stroke: none;
+    }
+    .hbtn.cal {
+      margin-right: 3px;
+    }
+    .hd-r > .hbtn:last-child {
+      margin-right: -7px;
+    }
+    .hpill {
+      height: 44px;
+      display: flex;
+      align-items: center;
+      padding: 0;
+      border: 0;
+      background: none;
+      color: inherit;
+      cursor: pointer;
+      font: inherit;
+    }
+    .hpill .face {
+      height: 30px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 10px 0 8px;
+      border: 1px solid var(--hd-line, rgb(0 0 0 / 0.08));
+      border-radius: 8px;
+      background: var(--hd-face, rgb(255 255 255 / 0.7));
+      font-size: 14.4px;
+      font-weight: 600;
+    }
+    main > .hd {
+      margin: -3px -8px -7px;
     }
   }
 </style>
