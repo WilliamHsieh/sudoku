@@ -33,6 +33,7 @@
   );
   const hiddenPending = $derived(padUi.pending?.cell === cell_id && padUi.pending?.d === idx + 1);
   const cued = $derived(isOnlyCandidate && playUi.showsCue(cell_id));
+  const cueHold = $derived(cued && playUi.phase === "hold");
 
   function handleClick(e) {
     if (e.shiftKey) {
@@ -59,6 +60,7 @@
     class:aim={isShiftSlot}
     class:matching-number={isMatchingNumber}
     class:cue={cued}
+    class:cue-hold={cueHold}
     class:preview-add={previewAdd}
     class:preview-remove={previewRemove}
     class:hidden-pending={hiddenPending}
@@ -227,6 +229,16 @@
       max-width: calc(100cqw - 1px);
       max-height: calc(100cqh - 1px);
     }
+  }
+
+  /* Hold (reduced motion, including ?rm=1) stays on the tint. The flash animation
+     would otherwise end on the transparent keyframe while the class remains. */
+  .pencil-box.cue.cue-hold {
+    animation: none;
+    background: var(--cue-fill);
+    color: var(--cue-ink);
+    font-weight: 600;
+    box-shadow: 0 0 0 1px var(--cue-line);
   }
 
   @media (prefers-reduced-motion: reduce) {

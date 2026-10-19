@@ -155,6 +155,41 @@ export function registerPr6Tests(opts = {}) {
     await expect(page.locator("#cue-desc")).toBeVisible();
   });
 
+  test("the cue peak tints every lone candidate with the ink digit and a 3px ring", async ({
+    page,
+  }) => {
+    await page.clock.runFor(30_000);
+    const chips = page.locator(".pencil-box.cue");
+    expect(await chips.count()).toBeGreaterThan(1);
+    await chips.evaluateAll((els) => {
+      for (const el of els) {
+        for (const anim of el.getAnimations()) {
+          anim.pause();
+          anim.currentTime = 270;
+        }
+      }
+    });
+    const looks = await chips.evaluateAll((els) =>
+      els.map((el) => {
+        const cs = getComputedStyle(el);
+        return {
+          bg: cs.backgroundColor,
+          color: cs.color,
+          weight: cs.fontWeight,
+          shadow: cs.boxShadow,
+        };
+      })
+    );
+    for (const look of looks) {
+      expect(look.bg).toBe("rgb(214, 243, 223)");
+      expect(look.color).toBe("rgb(22, 101, 52)");
+      expect(look.weight).toBe("600");
+      expect(look.shadow).toBe(
+        "rgb(34, 197, 94) 0px 0px 0px 1px, rgba(34, 197, 94, 0.28) 0px 0px 0px 3px"
+      );
+    }
+  });
+
   test("reduced motion holds a static tint with no ring until the next input", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.reload();
@@ -169,11 +204,17 @@ export function registerPr6Tests(opts = {}) {
     await expect(chip).toBeVisible();
     const look = await chip.evaluate((el) => {
       const cs = getComputedStyle(el);
-      return { animation: cs.animationName, shadow: cs.boxShadow, bg: cs.backgroundColor };
+      return {
+        animation: cs.animationName,
+        shadow: cs.boxShadow,
+        bg: cs.backgroundColor,
+        color: cs.color,
+      };
     });
     expect(look.animation).toBe("none");
     expect(look.bg).toBe("rgb(214, 243, 223)");
-    expect(look.shadow).not.toMatch(/3px/);
+    expect(look.color).toBe("rgb(22, 101, 52)");
+    expect(look.shadow).toBe("rgb(34, 197, 94) 0px 0px 0px 1px");
 
     await page.clock.runFor(60_000);
     await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "hold");
