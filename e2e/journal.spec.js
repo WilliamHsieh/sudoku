@@ -15,25 +15,33 @@ test.describe("desktop journal", () => {
   }) => {
     const latest = page.locator('.dgrid .day[data-d="2026-10-18"]');
     await expect(latest).toHaveClass(/is-latest/);
-    await expect(latest).not.toHaveClass(/sel/);
-    const ring = await latest.evaluate((el) => {
+    await expect(latest).toHaveClass(/sel/);
+    await page.mouse.move(0, 0);
+    await expect(latest).toHaveCSS("background-color", "rgb(211, 224, 248)");
+    const defaultPaint = await latest.evaluate((el) => {
       const before = getComputedStyle(el, "::before");
       const after = getComputedStyle(el, "::after");
       return {
-        before: before.borderTopWidth,
         beforeColor: before.borderTopColor,
-        after: after.borderTopWidth,
-        outline: getComputedStyle(el).outlineStyle,
+        beforeW: before.borderTopWidth,
+        afterW: after.borderTopWidth,
+        afterColor: after.borderTopColor,
+        inset: after.top,
       };
     });
-    expect(ring.before).toBe("2px");
-    expect(ring.beforeColor).toBe("rgb(28, 26, 22)");
-    expect(ring.after === "0px" || ring.after === "").toBeTruthy();
-    expect(ring.outline === "none" || ring.outline === "").toBeTruthy();
+    const defaultInkDropped =
+      defaultPaint.beforeW === "0px" ||
+      defaultPaint.beforeColor === "rgba(0, 0, 0, 0)" ||
+      defaultPaint.beforeColor === "transparent";
+    expect(defaultInkDropped).toBeTruthy();
+    expect(defaultPaint.afterW).toBe("3px");
+    expect(defaultPaint.afterColor).toBe("rgb(42, 86, 198)");
+    expect(defaultPaint.inset).toBe("1px");
 
     await page.locator('.dgrid .day[data-d="2026-10-15"]').click();
     const sel = page.locator(".dgrid .day.sel");
     await expect(sel).toHaveCount(1);
+    await expect(sel).toHaveAttribute("data-d", "2026-10-15");
     await page.mouse.move(0, 0);
     await expect(sel).toHaveCSS("background-color", "rgb(211, 224, 248)");
     const paint = await sel.evaluate((el) => {
@@ -47,6 +55,20 @@ test.describe("desktop journal", () => {
     expect(paint.afterW).toBe("3px");
     expect(paint.afterColor).toBe("rgb(42, 86, 198)");
     expect(paint.inset).toBe("1px");
+    const latestWhileOther = await latest.evaluate((el) => {
+      const before = getComputedStyle(el, "::before");
+      const after = getComputedStyle(el, "::after");
+      return {
+        sel: el.classList.contains("sel"),
+        before: before.borderTopWidth,
+        beforeColor: before.borderTopColor,
+        after: after.borderTopWidth,
+      };
+    });
+    expect(latestWhileOther.sel).toBe(false);
+    expect(latestWhileOther.before).toBe("2px");
+    expect(latestWhileOther.beforeColor).toBe("rgb(28, 26, 22)");
+    expect(latestWhileOther.after === "0px" || latestWhileOther.after === "").toBeTruthy();
 
     await latest.click();
     await expect(latest).toHaveClass(/sel/);

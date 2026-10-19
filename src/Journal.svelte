@@ -499,10 +499,10 @@
             <button
               class="day"
               class:is-latest={cell.date === latest}
-              class:sel={sel === cell.date}
+              class:sel={sel === cell.date || (!sel && cell.date === latest)}
               type="button"
               data-d={cell.date}
-              aria-pressed={sel === cell.date}
+              aria-pressed={sel === cell.date || (!sel && cell.date === latest)}
               aria-label="{longDate(cell.date)}{cell.date === latest ? ' (latest)' : ''}: {dayDesc(
                 solved,
                 progress,
@@ -1564,6 +1564,7 @@
       border-radius: 10px;
       pointer-events: none;
     }
+    /* Selected + latest: drop the ink Latest ring; keep blue selected ring + fill. */
     .dgrid .day.sel.is-latest::before {
       border-color: transparent;
     }
