@@ -240,26 +240,17 @@ html, body {
   .slot-box.on {
     display: block;
     position: absolute;
-    /* One third of the cell on each axis, inset 2px so the box fills the slot. */
-    left: calc(100% * var(--sc) / 3 + 2px);
-    top: calc(100% * var(--sr) / 3 + 2px);
-    width: calc(100% / 3 - 4px);
-    height: calc(100% / 3 - 4px);
+    /* Notes sit inset by 1px; the box is a 3px inset of that slot so it never meets the cell edge. */
+    left: calc(1px + (100% - 2px) * var(--sc) / 3 + 3px);
+    top: calc(1px + (100% - 2px) * var(--sr) / 3 + 3px);
+    width: calc((100% - 2px) / 3 - 6px);
+    height: calc((100% - 2px) / 3 - 6px);
     box-sizing: border-box;
-    background: #ffffff;
-    border: 1px solid #8fa8dc;
+    background: #ece9e2;
+    border: 1px solid #d8d3c8;
     border-radius: 4px;
     pointer-events: none;
     z-index: 0;
-    transition: none;
-  }
-  /* Hidden or empty restorable slot: same struck-through ghost as a keypad remove preview. */
-  .n.slot-ghost {
-    position: relative;
-    z-index: 1;
-    opacity: 0.55;
-    color: var(--conflict);
-    text-decoration: line-through;
   }
 }
 .board.shift-aim, .board.shift-aim .cell { cursor: crosshair; }
