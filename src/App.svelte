@@ -7,6 +7,8 @@
   import { game } from "./game/game.svelte.js";
   import { onMount } from "svelte";
 
+  const CELL_IDS = Array.from({ length: 81 }, (_, i) => i);
+
   let showCalendar = $state(true);
 
   function handleKeydown(e) {
@@ -108,7 +110,7 @@
   {:else}
     <Api />
     <div class="board">
-      {#each Array(81) as _, id}
+      {#each CELL_IDS as id (id)}
         <Cell cell_id={id} />
       {/each}
     </div>
@@ -117,9 +119,7 @@
       <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
       <div class="success-message" onclick={handleSuccessBackdrop}>
         <div class="success-card">
-          <button class="success-close" onclick={() => game.dismiss()}
-            >&times;</button
-          >
+          <button class="success-close" onclick={() => game.dismiss()}>&times;</button>
           <div class="success-icon">🎉</div>
           <h2>Puzzle Complete!</h2>
           <p>Congratulations! You've successfully solved the Sudoku puzzle.</p>
@@ -134,8 +134,7 @@
     width: 100%;
     height: 100vh;
     padding: 20px;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-      sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
     overflow-x: hidden;
   }

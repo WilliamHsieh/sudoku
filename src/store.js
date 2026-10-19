@@ -13,10 +13,10 @@ export let timerRunning = writable(true);
 // Solved puzzles tracking
 function createSolvedPuzzles() {
   // Load from localStorage
-  const stored = typeof window !== 'undefined' ? localStorage.getItem('sudoku-solved') : null;
-  
+  const stored = typeof window !== "undefined" ? localStorage.getItem("sudoku-solved") : null;
+
   const initial = stored ? JSON.parse(stored) : {};
-  
+
   const { subscribe, set, update } = writable(initial);
 
   return {
@@ -24,27 +24,27 @@ function createSolvedPuzzles() {
     set,
     update,
     markSolved: (dateStr, difficulty, completionTime) => {
-      update(solved => {
+      update((solved) => {
         if (!solved[dateStr]) solved[dateStr] = {};
         solved[dateStr][difficulty] = {
           completed: true,
           time: completionTime,
-          timestamp: Date.now()
+          timestamp: Date.now(),
         };
-        
+
         // Save to localStorage
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('sudoku-solved', JSON.stringify(solved));
+        if (typeof window !== "undefined") {
+          localStorage.setItem("sudoku-solved", JSON.stringify(solved));
         }
-        
+
         return solved;
       });
     },
     isSolved: (dateStr, difficulty) => {
       const solved = {};
-      subscribe(value => solved.current = value)();
+      subscribe((value) => (solved.current = value))();
       return solved.current?.[dateStr]?.[difficulty]?.completed || false;
-    }
+    },
   };
 }
 
@@ -60,5 +60,5 @@ export function resetTimer() {
 export function formatTime(seconds) {
   const minutes = Math.floor(seconds / 60);
   const secs = seconds % 60;
-  return `${minutes}:${secs < 10 ? '0' : ''}${secs}`;
+  return `${minutes}:${secs < 10 ? "0" : ""}${secs}`;
 }

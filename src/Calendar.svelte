@@ -1,5 +1,4 @@
 <script>
-  import { onMount } from "svelte";
   import { solvedPuzzles } from "./store.js";
   import { puzzleData } from "./puzzles.js";
   import { formatTime } from "./store.js";
@@ -28,6 +27,10 @@
   ];
 
   const difficulties = ["easy", "medium", "hard"];
+  const totalPuzzles = Object.values(puzzleData).reduce(
+    (sum, puzzles) => sum + Object.keys(puzzles).length,
+    0
+  );
   const difficultyColors = {
     easy: "#4ade80",
     medium: "#fbbf24",
@@ -124,7 +127,7 @@
       window.dispatchEvent(
         new CustomEvent("loadPuzzle", {
           detail: { dateStr, difficulty, puzzleString },
-        }),
+        })
       );
     } else {
       console.log("No puzzle found for", dateStr, difficulty);
@@ -161,10 +164,6 @@
   $: calendarDays = generateCalendarDays(currentMonth, currentYear);
   $: console.log("Calendar days:", calendarDays.slice(0, 7)); // Debug first week
   $: modalPuzzles = modalDate ? puzzleData[modalDate] || {} : {};
-  $: totalPuzzles = Object.values(puzzleData).reduce(
-    (sum, puzzles) => sum + Object.keys(puzzles).length,
-    0,
-  );
 </script>
 
 <div class="calendar-container">
@@ -183,20 +182,15 @@
 
   <div class="legend">
     <div class="legend-item">
-      <span class="legend-dot" style="background-color: {difficultyColors.easy}"
-      ></span>
+      <span class="legend-dot" style="background-color: {difficultyColors.easy}"></span>
       Easy
     </div>
     <div class="legend-item">
-      <span
-        class="legend-dot"
-        style="background-color: {difficultyColors.medium}"
-      ></span>
+      <span class="legend-dot" style="background-color: {difficultyColors.medium}"></span>
       Medium
     </div>
     <div class="legend-item">
-      <span class="legend-dot" style="background-color: {difficultyColors.hard}"
-      ></span>
+      <span class="legend-dot" style="background-color: {difficultyColors.hard}"></span>
       Hard
     </div>
   </div>
@@ -210,7 +204,7 @@
     <div class="day-header">Fri</div>
     <div class="day-header">Sat</div>
 
-    {#each calendarDays as day}
+    {#each calendarDays as day, i (day?.date ?? `pad-${i}`)}
       <div
         class="calendar-day"
         class:empty={!day}
@@ -218,31 +212,29 @@
         class:past={day?.isPast && !day?.isToday}
         class:future={day && !day?.isPast}
         class:selected={selectedDate === day?.date}
-        class:has-puzzles={day &&
-          day.puzzles &&
-          Object.keys(day.puzzles).length > 0}
+        class:has-puzzles={day && day.puzzles && Object.keys(day.puzzles).length > 0}
         on:click={() => selectDate(day)}
-        on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectDate(day); } }}
+        on:keydown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            selectDate(day);
+          }
+        }}
         role="button"
         tabindex="0"
       >
         {#if day}
           <div class="day-number">{day.day}</div>
           <div class="puzzle-indicators">
-            {#each difficulties as difficulty}
+            {#each difficulties as difficulty (difficulty)}
               {#if day.puzzles[difficulty]}
                 <span
                   class="puzzle-dot"
-                  class:solved={$solvedPuzzles[day.date]?.[difficulty]
-                    ?.completed}
-                  style="background-color: {$solvedPuzzles[day.date]?.[
-                    difficulty
-                  ]?.completed
+                  class:solved={$solvedPuzzles[day.date]?.[difficulty]?.completed}
+                  style="background-color: {$solvedPuzzles[day.date]?.[difficulty]?.completed
                     ? difficultyColors[difficulty]
                     : '#e5e7eb'}"
-                  title="{difficulty} puzzle {$solvedPuzzles[day.date]?.[
-                    difficulty
-                  ]?.completed
+                  title="{difficulty} puzzle {$solvedPuzzles[day.date]?.[difficulty]?.completed
                     ? 'completed'
                     : 'available'}"
                 >
@@ -268,12 +260,11 @@
       </div>
 
       <div class="modal-content">
-        {#each difficulties as difficulty}
+        {#each difficulties as difficulty (difficulty)}
           {#if modalPuzzles[difficulty]}
             <button
               class="difficulty-button {difficulty}"
-              class:completed={$solvedPuzzles[modalDate]?.[difficulty]
-                ?.completed}
+              class:completed={$solvedPuzzles[modalDate]?.[difficulty]?.completed}
               on:click={() => selectPuzzle(modalDate, difficulty)}
             >
               <div
@@ -282,14 +273,11 @@
               ></div>
               <div class="difficulty-info">
                 <span class="difficulty-name"
-                  >{difficulty.charAt(0).toUpperCase() +
-                    difficulty.slice(1)}</span
+                  >{difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}</span
                 >
                 <span class="difficulty-desc">
                   {#if $solvedPuzzles[modalDate]?.[difficulty]?.completed}
-                    Solved in {formatTime(
-                      $solvedPuzzles[modalDate][difficulty].time,
-                    )}
+                    Solved in {formatTime($solvedPuzzles[modalDate][difficulty].time)}
                   {:else}
                     {difficulty === "easy"
                       ? "Perfect for beginners"
@@ -315,8 +303,7 @@
     max-width: 800px;
     margin: 0 auto;
     padding: 20px;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-      sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   }
 
   .calendar-header {

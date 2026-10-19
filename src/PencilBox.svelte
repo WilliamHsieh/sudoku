@@ -20,11 +20,9 @@
   const isSelected = $derived(game.selected === cell_id);
   const showShiftCursor = $derived(isShiftPressed || localShiftPressed);
   const focusedValue = $derived(game.selected === -1 ? 0 : game.value(game.selected));
-  const isMatchingNumber = $derived(
-    focusedValue !== 0 && idx + 1 === focusedValue && visible,
-  );
+  const isMatchingNumber = $derived(focusedValue !== 0 && idx + 1 === focusedValue && visible);
   const isOnlyCandidate = $derived(
-    game.value(cell_id) === 0 && visible && game.noteCount(cell_id) === 1,
+    game.value(cell_id) === 0 && visible && game.noteCount(cell_id) === 1
   );
 
   function handleClick(e) {
@@ -95,8 +93,7 @@
     align-items: center;
     font-weight: 500;
     color: #9ca3af;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-      sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     transition: all 0.15s ease;
     cursor: pointer;
     border-radius: 2px;
