@@ -8,7 +8,6 @@ test.describe("desktop journal", () => {
     await page.clock.install({ time: NOW });
     await seedHistory(page, buildHistory("default"));
     await page.goto("./");
-    await page.clock.pauseAt(NOW);
   });
 
   test("selected day is fill only: no blue ring, latest ring drops when selected", async ({
@@ -33,31 +32,24 @@ test.describe("desktop journal", () => {
     await page.locator('.dgrid .day[data-d="2026-10-15"]').click();
     const sel = page.locator(".dgrid .day.sel");
     await expect(sel).toHaveCount(1);
+    await page.mouse.move(0, 0);
+    await expect(sel).toHaveCSS("background-color", "rgb(211, 224, 248)");
     const paint = await sel.evaluate((el) => {
       const cs = getComputedStyle(el);
       const after = getComputedStyle(el, "::after");
-      return {
-        bg: cs.backgroundColor,
-        outline: cs.outlineStyle,
-        afterW: after.borderTopWidth,
-        afterColor: after.borderTopColor,
-      };
+      return { outline: cs.outlineStyle, afterW: after.borderTopWidth };
     });
-    expect(paint.bg).toBe("rgb(211, 224, 248)");
     expect(paint.outline === "none" || paint.outline === "").toBeTruthy();
     expect(paint.afterW === "0px" || paint.afterW === "").toBeTruthy();
 
     await latest.click();
     await expect(latest).toHaveClass(/sel/);
+    await page.mouse.move(0, 0);
+    await expect(latest).toHaveCSS("background-color", "rgb(211, 224, 248)");
     const latestSel = await latest.evaluate((el) => {
       const before = getComputedStyle(el, "::before");
-      return {
-        bg: getComputedStyle(el).backgroundColor,
-        beforeColor: before.borderTopColor,
-        beforeW: before.borderTopWidth,
-      };
+      return { beforeColor: before.borderTopColor, beforeW: before.borderTopWidth };
     });
-    expect(latestSel.bg).toBe("rgb(211, 224, 248)");
     const dropped =
       latestSel.beforeW === "0px" ||
       latestSel.beforeColor === "rgba(0, 0, 0, 0)" ||

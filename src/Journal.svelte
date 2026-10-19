@@ -1515,7 +1515,7 @@
       cursor: pointer;
       padding: 10px 0;
     }
-    button.day:hover {
+    .dgrid button.day:hover:not(.sel) {
       background: #faf9f6;
     }
     .dgrid .day .n {

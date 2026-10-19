@@ -182,7 +182,7 @@ test.describe("H2 header", () => {
     await page.goto("./");
     await expect(page.locator(".journal")).toBeVisible();
     await expect(page.locator(".ulink")).toHaveCount(0);
-    await page.locator(".day.is-latest").click();
+    await page.locator(".mobile .day.is-latest").click();
     await expect(page.locator(".sheet.on")).toBeVisible();
     await expect(page.locator(".modal")).toHaveCount(0);
     await expect(page.locator(".board")).toHaveCount(0);
