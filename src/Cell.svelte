@@ -6,17 +6,8 @@
   /** @type {{ cell_id: number }} */
   let { cell_id } = $props();
   const NOTE_SLOTS = Array.from({ length: 9 }, (_, i) => i);
-  const walls = $derived.by(() => {
-    const x = Math.floor(cell_id / 9);
-    const y = cell_id % 9;
-    return (
-      "cell" +
-      (x % 3 == 0 ? " top-wall" : "") +
-      (y % 3 == 0 ? " left-wall" : "") +
-      (x == 8 && (x + 1) % 3 == 0 ? " bottom-wall" : "") +
-      (y == 8 && (y + 1) % 3 == 0 ? " right-wall" : "")
-    );
-  });
+  const row = $derived(Math.floor(cell_id / 9));
+  const col = $derived(cell_id % 9);
 
   let isShiftPressed = $state(false);
   let cellElement = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
@@ -26,24 +17,8 @@
   const given = $derived(game.given(cell_id));
   const selected = $derived(game.selected === cell_id);
   const focusedValue = $derived(game.selected === -1 ? 0 : game.value(game.selected));
-  const cellStyle = $derived.by(() => {
-    let fg = "#374151";
-    let bg = "white";
-
-    if (given) bg = "#e2e8f0";
-    if (value == 0) {
-      fg = "#6b7280";
-    } else if (focusedValue != 0 && focusedValue == value) {
-      bg = "#fde68a";
-      fg = "#374151";
-    }
-    if (selected) {
-      bg = "#3b82f6";
-      fg = "white";
-    }
-
-    return `background-color: ${bg}; color: ${fg}`;
-  });
+  const same = $derived(value !== 0 && focusedValue === value);
+  const conflict = $derived(game.inConflict(cell_id));
 
   function handleKeyDown(e) {
     if (e.key === "Shift") {
@@ -99,8 +74,14 @@
 <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 <div
   bind:this={cellElement}
-  class={walls}
-  style={cellStyle}
+  class="cell"
+  class:given
+  class:selected
+  class:same
+  class:conflict
+  class:user={value !== 0 && !given}
+  data-r={row}
+  data-c={col}
   onclick={handleClick}
   oncontextmenu={(e) => {
     e.preventDefault();
@@ -124,17 +105,52 @@
 
 <style>
   .cell {
-    aspect-ratio: 1;
-    border: 0.25px solid #6b7280;
-    transition: all 0.15s ease;
     position: relative;
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+    border-right: var(--line-thin-w) solid var(--line-thin);
+    border-bottom: var(--line-thin-w) solid var(--line-thin);
+    font-family: var(--digit-font);
     cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: white;
-    min-height: 60px;
-    padding: 2px;
+    background: var(--board-bg);
+    color: var(--answer-ink);
+  }
+
+  .cell[data-c="2"],
+  .cell[data-c="5"] {
+    border-right: var(--line-box-w) solid var(--line-box);
+  }
+  .cell[data-c="8"] {
+    border-right: none;
+  }
+  .cell[data-r="2"],
+  .cell[data-r="5"] {
+    border-bottom: var(--line-box-w) solid var(--line-box);
+  }
+  .cell[data-r="8"] {
+    border-bottom: none;
+  }
+
+  .cell.given {
+    background: var(--given-bg);
+  }
+  .cell.same {
+    background: var(--same-digit);
+  }
+  .cell.same.given {
+    background: var(--same-digit-given);
+  }
+  .cell.selected {
+    background: var(--sel-bg);
+    box-shadow: inset 0 0 0 var(--sel-ring-w) var(--sel-ring);
+    z-index: 1;
+  }
+  .cell.given.selected {
+    background: var(--sel-bg);
+  }
+  .cell.conflict {
+    background: var(--conflict-bg);
   }
 
   .candidate {
@@ -143,19 +159,5 @@
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     grid-template-rows: repeat(3, 1fr);
-    gap: 1px;
-  }
-
-  .top-wall {
-    border-top: 5px solid #374151;
-  }
-  .bottom-wall {
-    border-bottom: 5px solid #374151;
-  }
-  .left-wall {
-    border-left: 5px solid #374151;
-  }
-  .right-wall {
-    border-right: 5px solid #374151;
   }
 </style>

@@ -31,11 +31,6 @@
     (sum, puzzles) => sum + Object.keys(puzzles).length,
     0
   );
-  const difficultyColors = {
-    easy: "#4ade80",
-    medium: "#fbbf24",
-    hard: "#f87171",
-  };
 
   function formatDate(date) {
     const year = date.getFullYear();
@@ -182,15 +177,15 @@
 
   <div class="legend">
     <div class="legend-item">
-      <span class="legend-dot" style="background-color: {difficultyColors.easy}"></span>
+      <span class="legend-dot easy"></span>
       Easy
     </div>
     <div class="legend-item">
-      <span class="legend-dot" style="background-color: {difficultyColors.medium}"></span>
+      <span class="legend-dot medium"></span>
       Medium
     </div>
     <div class="legend-item">
-      <span class="legend-dot" style="background-color: {difficultyColors.hard}"></span>
+      <span class="legend-dot hard"></span>
       Hard
     </div>
   </div>
@@ -229,11 +224,8 @@
             {#each difficulties as difficulty (difficulty)}
               {#if day.puzzles[difficulty]}
                 <span
-                  class="puzzle-dot"
+                  class="puzzle-dot {difficulty}"
                   class:solved={$solvedPuzzles[day.date]?.[difficulty]?.completed}
-                  style="background-color: {$solvedPuzzles[day.date]?.[difficulty]?.completed
-                    ? difficultyColors[difficulty]
-                    : '#e5e7eb'}"
                   title="{difficulty} puzzle {$solvedPuzzles[day.date]?.[difficulty]?.completed
                     ? 'completed'
                     : 'available'}"
@@ -267,10 +259,7 @@
               class:completed={$solvedPuzzles[modalDate]?.[difficulty]?.completed}
               on:click={() => selectPuzzle(modalDate, difficulty)}
             >
-              <div
-                class="difficulty-icon"
-                style="background-color: {difficultyColors[difficulty]}"
-              ></div>
+              <div class="difficulty-icon {difficulty}"></div>
               <div class="difficulty-info">
                 <span class="difficulty-name"
                   >{difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}</span
@@ -302,8 +291,9 @@
   .calendar-container {
     max-width: 800px;
     margin: 0 auto;
-    padding: 20px;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: 12px 4px 20px;
+    font-family: var(--ui-font);
+    color: var(--ui-ink);
   }
 
   .calendar-header {
@@ -322,68 +312,47 @@
 
   .calendar-header h2 {
     margin: 0;
-    font-size: 1.5rem;
+    font-size: 1.35rem;
     font-weight: 600;
+    color: var(--ui-ink);
+  }
+
+  .nav-button,
+  .today-button {
+    background: var(--key-bg);
+    border: 1px solid var(--key-line);
+    border-radius: 8px;
+    color: var(--ui-ink);
+    cursor: pointer;
+    font-family: var(--ui-font);
+    box-shadow: var(--key-shadow);
   }
 
   .nav-button {
-    background: white;
-    border: 2px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 12px 16px;
+    padding: 10px 14px;
     font-size: 1.4rem;
-    cursor: pointer;
-    transition: all 0.2s;
-    color: #374151;
     font-weight: 600;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     min-width: 48px;
     display: flex;
     align-items: center;
     justify-content: center;
   }
 
-  .nav-button:hover {
-    background: #3b82f6;
-    border-color: #3b82f6;
-    color: white;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
-  }
-
-  .nav-button:active {
-    transform: translateY(0);
-  }
-
   .today-button {
-    background: white;
-    border: 2px solid #e5e7eb;
-    border-radius: 6px;
     padding: 6px 12px;
     font-size: 0.85rem;
-    cursor: pointer;
-    transition: all 0.2s;
-    color: #374151;
     font-weight: 500;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   }
 
+  .nav-button:hover,
   .today-button:hover {
-    background: #3b82f6;
-    border-color: #3b82f6;
-    color: white;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 6px rgba(59, 130, 246, 0.3);
-  }
-
-  .today-button:active {
-    transform: translateY(0);
+    background: var(--key-pressed);
   }
 
   .puzzle-stats {
     text-align: center;
-    margin-bottom: 20px;
-    color: #6b7280;
+    margin-bottom: 16px;
+    color: var(--ui-soft);
     font-size: 0.9rem;
   }
 
@@ -401,89 +370,91 @@
     font-size: 0.9rem;
   }
 
-  .legend-dot {
+  .legend-dot,
+  .puzzle-dot {
     width: 12px;
     height: 12px;
     border-radius: 50%;
+  }
+
+  .legend-dot.easy,
+  .difficulty-icon.easy,
+  .puzzle-dot.easy.solved {
+    background: var(--diff-easy);
+  }
+  .legend-dot.medium,
+  .difficulty-icon.medium,
+  .puzzle-dot.medium.solved {
+    background: var(--diff-medium);
+  }
+  .legend-dot.hard,
+  .difficulty-icon.hard,
+  .puzzle-dot.hard.solved {
+    background: var(--diff-hard);
   }
 
   .calendar-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     gap: 1px;
-    background: #e5e7eb;
+    background: var(--line-thin);
     border-radius: 12px;
     overflow: hidden;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--line-thin);
   }
 
   .day-header {
-    background: #374151;
-    color: white;
+    background: var(--given-bg);
+    color: var(--ui-ink);
     padding: 12px;
     text-align: center;
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
   }
 
   .calendar-day {
-    background: white;
+    background: var(--board-bg);
     min-height: 80px;
     padding: 8px;
     position: relative;
-    transition: all 0.2s ease;
-    border: 1px solid #e5e7eb;
     cursor: default;
     display: flex;
     flex-direction: column;
   }
 
   .calendar-day.today {
-    background: #dbeafe;
-    border: 1px solid #3b82f6;
+    background: var(--sel-bg);
+    box-shadow: inset 0 0 0 2px var(--sel-ring);
     cursor: pointer;
-  }
-
-  .calendar-day.today:hover {
-    background: #bfdbfe;
-    border-color: #2563eb;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   }
 
   .calendar-day.selected {
-    background: #3b82f6 !important;
-    color: white;
-    border: 1px solid #1d4ed8;
+    background: var(--sel-bg);
+    box-shadow: inset 0 0 0 2px var(--sel-ring);
+    color: var(--sel-ink);
   }
 
   .calendar-day.selected .day-number {
-    color: white;
+    color: var(--sel-ink);
   }
 
   .calendar-day.future {
-    background: #f3f4f6 !important;
-    color: #9ca3af;
+    background: var(--page-bg);
+    color: var(--ui-soft);
     cursor: not-allowed;
-    border: 1px solid #e5e7eb;
   }
 
   .calendar-day.past {
-    background: white;
+    background: var(--board-bg);
     cursor: pointer;
-    border: 1px solid #e5e7eb;
   }
 
   .calendar-day.past:hover {
-    background: #f3f4f6;
-    border-color: #d1d5db;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    background: var(--given-bg);
   }
 
-  /* Debug: temporary bright color for empty cells */
   .calendar-day.empty {
-    background: #e5e7eb;
+    background: var(--page-bg);
   }
 
   .day-number {
@@ -506,39 +477,18 @@
     width: 16px;
     height: 16px;
     border-radius: 50%;
-    border: none;
-    cursor: pointer;
-    transition: all 0.2s;
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    background: var(--dot-idle);
     flex-shrink: 0;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   }
 
   .puzzle-dot:hover {
-    transform: scale(1.2);
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
-  }
-
-  /* Ensure dots are visible on selected (blue) backgrounds */
-  .calendar-day.selected .puzzle-dot {
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
-  }
-
-  /* Ensure dots are visible on today (light blue) backgrounds */
-  .calendar-day.today .puzzle-dot {
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+    transform: scale(1.15);
   }
 
   .modal-backdrop {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.5);
+    inset: 0;
+    background: var(--overlay);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -546,14 +496,13 @@
   }
 
   .modal {
-    background: white;
+    background: var(--board-bg);
     padding: 24px;
     border-radius: 12px;
     max-width: 400px;
     width: 90%;
-    box-shadow:
-      0 20px 25px -5px rgba(0, 0, 0, 0.1),
-      0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    box-shadow: var(--shadow-dialog);
+    color: var(--ui-ink);
   }
 
   .modal-header {
@@ -563,15 +512,15 @@
   }
 
   .modal-header h3 {
-    margin: 0 0 8px 0;
-    font-size: 1.5rem;
+    margin: 0 0 8px;
+    font-size: 1.35rem;
     font-weight: 600;
-    color: #111827;
+    color: var(--ui-ink);
   }
 
   .modal-header p {
     margin: 0;
-    color: #6b7280;
+    color: var(--ui-soft);
     font-size: 0.9rem;
   }
 
@@ -583,14 +532,14 @@
     border: none;
     font-size: 24px;
     cursor: pointer;
-    color: #6b7280;
+    color: var(--ui-soft);
     padding: 4px;
     border-radius: 4px;
   }
 
   .modal-close:hover {
-    background: #f3f4f6;
-    color: #374151;
+    background: var(--given-bg);
+    color: var(--ui-ink);
   }
 
   .modal-content {
@@ -600,28 +549,26 @@
   }
 
   .difficulty-button {
-    background: white;
-    border: 2px solid #e5e7eb;
+    background: var(--board-bg);
+    border: 1px solid var(--key-line);
     border-radius: 8px;
     padding: 16px;
     cursor: pointer;
     display: flex;
     align-items: center;
     gap: 16px;
-    transition: all 0.2s;
     text-align: left;
     position: relative;
+    font-family: var(--ui-font);
   }
 
   .difficulty-button:hover {
-    border-color: #d1d5db;
-    background: #f9fafb;
-    transform: translateY(-1px);
+    background: var(--given-bg);
   }
 
   .difficulty-button.completed {
-    border-color: #4ade80;
-    background: #f0fdf4;
+    border-color: var(--cue-line);
+    background: var(--cue-fill);
   }
 
   .difficulty-icon {
@@ -643,14 +590,14 @@
     display: block;
     font-weight: 600;
     font-size: 1.1rem;
-    color: #111827;
+    color: var(--ui-ink);
     margin-bottom: 4px;
   }
 
   .difficulty-desc {
     display: block;
     font-size: 0.85rem;
-    color: #6b7280;
+    color: var(--ui-soft);
   }
 
   .difficulty-header {
@@ -660,8 +607,8 @@
   }
 
   .completed-badge {
-    background-color: #4ade80;
-    color: white;
+    background: var(--cue);
+    color: var(--on-accent);
     padding: 4px 8px;
     border-radius: 4px;
     font-size: 0.8rem;
@@ -678,6 +625,6 @@
     left: 50%;
     transform: translate(-50%, -50%);
     font-size: 1.2rem;
-    color: #4ade80;
+    color: var(--cue);
   }
 </style>

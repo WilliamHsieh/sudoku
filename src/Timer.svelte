@@ -23,7 +23,11 @@
 </script>
 
 <div class="timer">
-  <span class="timer-icon">⏱️</span>
+  <svg class="timer-icon" viewBox="0 0 24 24" aria-hidden="true">
+    <line x1="10" x2="14" y1="2" y2="2"></line>
+    <line x1="12" x2="15" y1="14" y2="11"></line>
+    <circle cx="12" cy="14" r="8"></circle>
+  </svg>
   <span class="time">{minutes}{seconds < 10 ? ":0" : ":"}{seconds}</span>
 </div>
 
@@ -32,38 +36,31 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--timer-bg);
+    border: 1px solid var(--timer-line);
     border-radius: 8px;
-    padding: 6px 12px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-      sans-serif;
+    padding: 4px 8px;
+    color: var(--timer-ink);
+    font-family: var(--ui-font);
   }
 
   .timer-icon {
-    font-size: 1rem;
-    opacity: 0.8;
+    width: 15px;
+    height: 15px;
+    flex: none;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   .time {
-    font-size: 1rem;
+    font-size: 0.9rem;
     font-weight: 600;
-    color: #374151;
+    color: var(--timer-ink);
     font-variant-numeric: tabular-nums;
     line-height: 1;
-  }
-
-  @media (max-width: 640px) {
-    .timer {
-      padding: 4px 8px;
-    }
-
-    .time {
-      font-size: 0.9rem;
-    }
-
-    .timer-icon {
-      font-size: 0.9rem;
-    }
+    min-width: 2.6em;
   }
 </style>

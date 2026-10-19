@@ -132,10 +132,11 @@
 <style>
   main {
     width: 100%;
-    height: 100vh;
-    padding: 20px;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    min-height: 100vh;
+    padding: 16px;
+    font-family: var(--ui-font);
+    color: var(--ui-ink);
+    background: var(--page-bg);
     overflow-x: hidden;
   }
 
@@ -143,118 +144,94 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 32px;
-    padding: 20px 0;
-    border-bottom: 2px solid #e2e8f0;
+    margin: 0 auto 24px;
+    padding: 8px 0 16px;
+    border-bottom: var(--line-thin-w) solid var(--line-thin);
     max-width: 1200px;
-    margin-left: auto;
-    margin-right: auto;
   }
 
   .header h1 {
     margin: 0;
-    font-size: 2.5rem;
-    font-weight: 700;
-    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    color: var(--ui-ink);
     cursor: pointer;
-    transition: all 0.3s ease;
-  }
-
-  .header h1:hover {
-    transform: scale(1.02);
   }
 
   .view-toggle {
-    background: linear-gradient(135deg, #3b82f6, #2563eb);
-    color: white;
-    border: none;
-    border-radius: 12px;
-    padding: 12px 20px;
-    font-size: 0.95rem;
+    background: var(--key-bg);
+    color: var(--ui-ink);
+    border: 1px solid var(--key-line);
+    border-radius: var(--key-radius);
+    padding: 8px 14px;
+    font-size: 0.9rem;
     font-weight: 600;
+    font-family: var(--ui-font);
     cursor: pointer;
-    transition: all 0.2s ease;
-    box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.3);
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    box-shadow: var(--key-shadow);
   }
 
   .view-toggle:hover {
-    background: linear-gradient(135deg, #2563eb, #1d4ed8);
-    transform: translateY(-1px);
-    box-shadow: 0 6px 12px -2px rgba(59, 130, 246, 0.4);
+    background: var(--key-pressed);
   }
 
   .view-toggle:active {
-    transform: translateY(0);
+    background: var(--given-bg);
   }
 
   .board {
     display: grid;
     grid-template-columns: repeat(9, 1fr);
-    gap: 0;
     max-width: 650px;
-    margin: 0 auto 32px auto;
-    border-radius: 4px;
+    width: 100%;
+    aspect-ratio: 1;
+    margin: 0 auto 32px;
+    border: var(--line-outer-w) solid var(--line-outer);
+    border-radius: var(--board-radius);
     overflow: hidden;
-    box-shadow:
-      0 20px 25px -5px rgba(0, 0, 0, 0.1),
-      0 10px 10px -5px rgba(0, 0, 0, 0.04);
-    background: white;
-    padding: 0;
-
+    background: var(--board-bg);
     -webkit-user-select: none;
-    -moz-user-select: none;
-    -o-user-select: none;
     user-select: none;
   }
 
   .success-message {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.5);
+    inset: 0;
+    background: var(--overlay);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 1000;
-    animation: fadeIn 0.3s ease;
   }
 
   .success-card {
-    background: white;
+    background: var(--board-bg);
+    color: var(--ui-ink);
     padding: 48px 32px;
-    border-radius: 20px;
+    border-radius: 16px;
     text-align: center;
     max-width: 400px;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-    animation: scaleIn 0.4s ease;
+    box-shadow: var(--shadow-dialog);
     position: relative;
   }
 
   .success-icon {
     font-size: 4rem;
     margin-bottom: 16px;
-    animation: bounce 1s infinite;
   }
 
   .success-card h2 {
-    margin: 0 0 16px 0;
-    font-size: 2rem;
+    margin: 0 0 16px;
+    font-size: 1.75rem;
     font-weight: 700;
-    color: var(--color-gray-900);
+    color: var(--ui-ink);
   }
 
   .success-card p {
     margin: 0;
-    color: var(--color-gray-600);
-    font-size: 1.1rem;
+    color: var(--ui-soft);
+    font-size: 1.05rem;
     line-height: 1.6;
   }
 
@@ -266,66 +243,25 @@
     border: none;
     font-size: 24px;
     cursor: pointer;
-    color: #6b7280;
+    color: var(--ui-soft);
     padding: 4px;
     border-radius: 4px;
-    transition: all 0.2s;
     line-height: 1;
   }
 
   .success-close:hover {
-    background: #f3f4f6;
-    color: #374151;
-  }
-
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-
-  @keyframes scaleIn {
-    from {
-      opacity: 0;
-      transform: scale(0.9);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1);
-    }
-  }
-
-  @keyframes bounce {
-    0%,
-    20%,
-    50%,
-    80%,
-    100% {
-      transform: translateY(0);
-    }
-    40% {
-      transform: translateY(-10px);
-    }
-    60% {
-      transform: translateY(-5px);
-    }
+    background: var(--given-bg);
+    color: var(--ui-ink);
   }
 
   @media (max-width: 768px) {
     main {
-      padding: 16px;
+      padding: 12px;
     }
 
     .header {
-      margin-bottom: 24px;
-      padding: 16px 0;
-    }
-
-    .header h1 {
-      font-size: 2rem;
+      margin-bottom: 16px;
+      padding: 4px 0 12px;
     }
 
     .board {
@@ -336,14 +272,6 @@
     .success-card {
       margin: 16px;
       padding: 32px 24px;
-    }
-
-    .success-card h2 {
-      font-size: 1.75rem;
-    }
-
-    .success-icon {
-      font-size: 3rem;
     }
   }
 </style>
