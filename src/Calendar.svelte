@@ -1,14 +1,9 @@
 <script>
   import { onMount } from "svelte";
-  import {
-    puzzle,
-    prefilled,
-    cellUpdate,
-    solvedPuzzles,
-    currentPuzzle,
-  } from "./store.js";
+  import { solvedPuzzles } from "./store.js";
   import { puzzleData } from "./puzzles.js";
-  import { resetTimer, formatTime } from "./store.js";
+  import { formatTime } from "./store.js";
+  import { game } from "./game/game.svelte.js";
 
   let currentDate = new Date();
   let currentMonth = currentDate.getMonth();
@@ -118,52 +113,13 @@
     modalDate = null; // Clear modal date
   }
 
-  function loadPuzzle(puzzleString) {
-    // Parse puzzle string into 2D array format matching store.js
-    const newPuzzle = [];
-    for (let i = 0; i < 9; i++) {
-      const row = [];
-      for (let j = 0; j < 9; j++) {
-        row.push(parseInt(puzzleString[i * 9 + j], 10));
-      }
-      newPuzzle.push(row);
-    }
-
-    // Update the puzzle store
-    puzzle.set(newPuzzle);
-
-    // Update prefilled status
-    const newPrefilled = [];
-    for (let i = 0; i < 9; i++) {
-      const row = [];
-      for (let j = 0; j < 9; j++) {
-        row.push(newPuzzle[i][j] !== 0);
-      }
-      newPrefilled.push(row);
-    }
-    prefilled.set(newPrefilled);
-
-    // Trigger cell update
-    cellUpdate.set(true);
-  }
-
   function selectPuzzle(dateStr, difficulty) {
     console.log("Selecting puzzle:", dateStr, difficulty);
     const puzzleString = puzzleData[dateStr]?.[difficulty];
 
     if (puzzleString) {
       console.log("Loading puzzle:", puzzleString);
-
-      // Set current puzzle info
-      currentPuzzle.set({ dateStr, difficulty });
-
-      // Reset timer for new puzzle
-      resetTimer();
-
-      // Load puzzle using the store system
-      loadPuzzle(puzzleString);
-
-      // Close modal and emit event
+      game.load(puzzleString, { dateStr, difficulty });
       closeModal();
       window.dispatchEvent(
         new CustomEvent("loadPuzzle", {

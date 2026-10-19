@@ -6,11 +6,6 @@ import {
   timer,
   timerRunning,
   solvedPuzzles,
-  puzzle,
-  prefilled,
-  pencilBox,
-  userRemovePencil,
-  focusedCellId,
 } from './store.js'
 
 describe('formatTime', () => {
@@ -43,24 +38,5 @@ describe('solvedPuzzles', () => {
     expect(entry.completed).toBe(true)
     expect(entry.time).toBe(123)
     expect(typeof entry.timestamp).toBe('number')
-  })
-})
-
-describe('initial state', () => {
-  it('starts with no selection and a 9x9 demo puzzle', () => {
-    expect(get(focusedCellId)).toBe(-1)
-    const p = get(puzzle)
-    expect(p).toHaveLength(9)
-    for (const row of p) {
-      expect(row).toHaveLength(9)
-      for (const v of row) expect(v >= 0 && v <= 9).toBe(true)
-    }
-    expect(p[0]).toEqual([0, 5, 0, 9, 0, 0, 0, 0, 0])
-  })
-
-  it('starts with every pencil mark possible and none removed', () => {
-    expect(get(pencilBox).flat(2).every((v) => v === true)).toBe(true)
-    expect(get(userRemovePencil).flat(2).every((v) => v === false)).toBe(true)
-    expect(get(prefilled).flat().every((v) => v === false)).toBe(true)
   })
 })

@@ -1,79 +1,56 @@
 <script>
-  import {
-    pencilBox,
-    userRemovePencil,
-    puzzle,
-    focusedCellId,
-    cellUpdate,
-  } from "./store";
-  import { onDestroy } from "svelte";
+  import { game } from "./game/game.svelte.js";
 
-  export let cell_id;
-  export let idx;
-  export let isShiftPressed = false;
-  export let isClosest = false;
-  const x = Math.floor(cell_id / 9);
-  const y = cell_id % 9;
+  /**
+   * @typedef {Object} Props
+   * @property {number} cell_id
+   * @property {number} idx
+   * @property {boolean} [isShiftPressed]
+   * @property {boolean} [isClosest]
+   */
+  /** @type {Props} */
+  let { cell_id, idx, isShiftPressed = false, isClosest = false } = $props();
 
-  let localShiftPressed = false;
+  let localShiftPressed = $state(false);
+  let showOnlyCandidateHint = $state(false);
+  /** @type {ReturnType<typeof setTimeout> | null} */
+  let hintTimer = null;
 
-  // Clean up timers when component is destroyed
-  onDestroy(() => {
-    clearTimers();
-  });
+  const visible = $derived(game.hasNote(cell_id, idx + 1));
+  const isSelected = $derived(game.selected === cell_id);
+  const showShiftCursor = $derived(isShiftPressed || localShiftPressed);
+  const focusedValue = $derived(game.selected === -1 ? 0 : game.value(game.selected));
+  const isMatchingNumber = $derived(
+    focusedValue !== 0 && idx + 1 === focusedValue && visible,
+  );
+  const isOnlyCandidate = $derived(
+    game.value(cell_id) === 0 && visible && game.noteCount(cell_id) === 1,
+  );
 
   function handleClick(e) {
-    // TODO: shift click anywhere to auto complete the cell if there's only on pencil mark left
     if (e.shiftKey) {
-      // Only fill if this pencil mark is actually visible (possible to fill)
-      if ($pencilBox[x][y][idx] && !$userRemovePencil[x][y][idx]) {
-        $puzzle[x][y] = idx + 1;
-        $cellUpdate = true;
-      }
-    } else if ($focusedCellId == cell_id) {
-      $userRemovePencil[x][y][idx] = !$userRemovePencil[x][y][idx];
-      $cellUpdate = true;
+      if (game.hasNote(cell_id, idx + 1)) game.enter(cell_id, idx + 1);
+    } else if (game.selected == cell_id) {
+      game.toggleNote(cell_id, idx + 1);
     }
   }
 
   function handleKeyDown(e) {
-    if (e.key === "Shift") {
-      localShiftPressed = true;
-    }
+    if (e.key === "Shift") localShiftPressed = true;
   }
 
   function handleKeyUp(e) {
-    if (e.key === "Shift") {
-      localShiftPressed = false;
-    }
-  }
-
-  $: isSelected = $focusedCellId === cell_id;
-  $: showShiftCursor = isShiftPressed || localShiftPressed;
-
-  let isMatchingNumber = false;
-  let isOnlyCandidate = false;
-  let showOnlyCandidateHint = false;
-  let hintTimer = null;
-
-  function startHintCycle() {
-    clearTimers();
-    startRepeatingCycle();
+    if (e.key === "Shift") localShiftPressed = false;
   }
 
   function startRepeatingCycle() {
     hintTimer = setTimeout(() => {
-      showHint();
+      showOnlyCandidateHint = true;
+      setTimeout(() => {
+        showOnlyCandidateHint = false;
+      }, 1500);
       startRepeatingCycle();
     }, 15000);
-  }
-
-  function showHint() {
-    showOnlyCandidateHint = true;
-    // Hide after 1.5 second
-    setTimeout(() => {
-      showOnlyCandidateHint = false;
-    }, 1500);
   }
 
   function clearTimers() {
@@ -84,68 +61,28 @@
     showOnlyCandidateHint = false;
   }
 
-  $: {
-    // Highlight pencil marks that match the focused cell's number
-    let focusedCellNumber = 0;
-
-    if ($focusedCellId !== -1) {
-      const focusedX = Math.floor($focusedCellId / 9);
-      const focusedY = $focusedCellId % 9;
-      focusedCellNumber = $puzzle[focusedX][focusedY];
-    }
-
-    // Only highlight if:
-    // 1. Selected cell has a number
-    // 2. This pencil mark shows that same number
-    // 3. This pencil mark is actually visible
-    isMatchingNumber =
-      focusedCellNumber !== 0 &&
-      idx + 1 === focusedCellNumber &&
-      $pencilBox[x][y][idx] &&
-      !$userRemovePencil[x][y][idx];
-
-    // Check if this is the only candidate left in this cell
-    let wasOnlyCandidate = isOnlyCandidate;
-
-    if ($puzzle[x][y] === 0) {
-      // Only for empty cells
-      let visibleCandidates = 0;
-      for (let i = 0; i < 9; i++) {
-        if ($pencilBox[x][y][i] && !$userRemovePencil[x][y][i]) {
-          visibleCandidates++;
-        }
-      }
-      isOnlyCandidate =
-        visibleCandidates === 1 &&
-        $pencilBox[x][y][idx] &&
-        !$userRemovePencil[x][y][idx];
-    } else {
-      isOnlyCandidate = false;
-    }
-
-    // Start hint cycle when becoming only candidate
-    if (isOnlyCandidate && !wasOnlyCandidate) {
-      startHintCycle();
-    }
-    // Clear timers when no longer only candidate
-    else if (!isOnlyCandidate && wasOnlyCandidate) {
+  $effect(() => {
+    if (isOnlyCandidate) {
       clearTimers();
+      startRepeatingCycle();
+      return () => clearTimers();
     }
-  }
+    clearTimers();
+  });
 </script>
 
-<svelte:window on:keydown={handleKeyDown} on:keyup={handleKeyUp} />
+<svelte:window onkeydown={handleKeyDown} onkeyup={handleKeyUp} />
 
 <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 <div
   class="pencil-box"
-  class:invisible={!$pencilBox[x][y][idx] || $userRemovePencil[x][y][idx]}
+  class:invisible={!visible}
   class:selected={isSelected}
   class:shift-hover={showShiftCursor}
   class:snapped={isClosest && showShiftCursor}
   class:matching-number={isMatchingNumber}
   class:only-candidate={showOnlyCandidateHint}
-  on:click={handleClick}
+  onclick={handleClick}
 >
   {idx + 1}
 </div>

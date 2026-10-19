@@ -44,6 +44,20 @@ test('typing a digit fills the selected cell; another digit replaces it; 0 clear
   await expect(cell(page, 0).locator('.pencil-box')).toHaveCount(9)
 })
 
+test('typing the same digit twice keeps it', async ({ page }) => {
+  await cell(page, 0).click()
+  await page.keyboard.press('4')
+  await expectValue(page, 0, 4)
+  await page.keyboard.press('4')
+  await expectValue(page, 0, 4)
+})
+
+test('Ctrl+4 enters 4', async ({ page }) => {
+  await cell(page, 0).click()
+  await page.keyboard.press('Control+4')
+  await expectValue(page, 0, 4)
+})
+
 test('a conflicting digit is accepted and marked', async ({ page }) => {
   await cell(page, 0).click()
   await page.keyboard.press('5') // 5 is already in the row
@@ -145,6 +159,24 @@ test('Shift+click on a visible pencil mark enters it, selected or not', async ({
   await pencil(page, 0, 5).click({ modifiers: ['Shift'] }) // 5 is not a candidate
   await expectValue(page, 0, 0)
   await expect(pen(page, 0)).toHaveCount(0)
+})
+
+test('Ctrl+Z undoes; Ctrl+Shift+Z and Ctrl+Y redo', async ({ page }) => {
+  await cell(page, 0).click()
+  await page.keyboard.press('4')
+  await expectValue(page, 0, 4)
+  await page.keyboard.press('Control+z')
+  await expectValue(page, 0, 0)
+  await page.keyboard.press('Control+Shift+z')
+  await expectValue(page, 0, 4)
+  await page.keyboard.press('Control+z')
+  await expectValue(page, 0, 0)
+  await page.keyboard.press('Control+y')
+  await expectValue(page, 0, 4)
+  await page.keyboard.press('Meta+z')
+  await expectValue(page, 0, 0)
+  await page.keyboard.press('Meta+Shift+z')
+  await expectValue(page, 0, 4)
 })
 
 test('?q= loads a puzzle from the URL', async ({ page }) => {
