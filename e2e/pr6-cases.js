@@ -13,7 +13,7 @@ async function openPlay(page) {
   await page.clock.install({ time: T0 });
   await page.goto(`./?q=${DEMO_PUZZLE}`);
   if ((await page.locator(".board > .cell").count()) === 0) {
-    await page.getByRole("button", { name: /^Play$/ }).click();
+    await page.getByRole("button", { name: /Play|Back to puzzle/ }).click();
   }
   await expect(page.locator(".board > .cell")).toHaveCount(81);
 }
@@ -120,7 +120,11 @@ export function registerPr6Tests(opts = {}) {
   });
 
   test("Manual notes disable the cue and keep the saved choice", async ({ page }) => {
-    await page.locator("#notes-mode").click({ force: true });
+    // Desktop has no notes control in the header. The mobile switch is in the DOM
+    // either way; a script click toggles it when the row is not on screen.
+    await page
+      .locator("#notes-mode")
+      .evaluate((el) => /** @type {HTMLButtonElement} */ (el).click());
     await expect(page.locator("#notes-mode")).toHaveAttribute("aria-checked", "false");
     await moreButton(page).click();
     const cue = page.locator("#opt-cue");
@@ -134,7 +138,9 @@ export function registerPr6Tests(opts = {}) {
     await expect(page.locator(".pencil-box.cue")).toHaveCount(0);
     await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "idle");
 
-    await page.locator("#notes-mode").click({ force: true });
+    await page
+      .locator("#notes-mode")
+      .evaluate((el) => /** @type {HTMLButtonElement} */ (el).click());
     await moreButton(page).click();
     await expect(page.locator("#opt-cue")).toBeEnabled();
     await expect(page.locator("#opt-cue")).toHaveAttribute("aria-checked", "true");
@@ -145,7 +151,7 @@ export function registerPr6Tests(opts = {}) {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.reload();
     if ((await page.locator(".board > .cell").count()) === 0) {
-      await page.getByRole("button", { name: /^Play$/ }).click();
+      await page.getByRole("button", { name: /Play|Back to puzzle/ }).click();
     }
     await expect(page.locator(".board > .cell")).toHaveCount(81);
 
