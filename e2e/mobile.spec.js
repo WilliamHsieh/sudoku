@@ -13,6 +13,8 @@ import {
   CONFLICT_BG,
 } from "./helpers.js";
 import { touchDriver } from "./touch.js";
+import { firstUnsolvedLatest } from "../src/game/daily.js";
+import { puzzleData } from "../src/puzzles.js";
 
 const SELECTED_BG = "rgb(211, 224, 248)";
 const key = (page, d) => page.locator(`.key[data-d="${d}"]`);
@@ -157,13 +159,16 @@ test.describe("H2 header", () => {
   });
 
   test("Play with no history opens the first unsolved of the latest day", async ({ page }) => {
+    const pick = firstUnsolvedLatest(puzzleData, {});
+    expect(pick, "a latest unsolved puzzle exists").toBeTruthy();
     await page.goto("./");
     await expect(page.locator(".calendar-container")).toBeVisible();
     await page.getByRole("button", { name: "Back to puzzle" }).click();
     await expect(page.locator(".board > .cell")).toHaveCount(81);
-    // 2026-10-18 easy: 072190406… — cell 1 is a given 7 (demo cell 1 is 5).
-    await expectValue(page, 1, 7);
-    await expectValue(page, 0, 0);
+    // Not the in-memory demo (cell 1 = 5). Same pick the app uses for today.
+    await expectValue(page, 1, Number(pick.puzzle[1]));
+    await expectValue(page, 0, Number(pick.puzzle[0]));
+    await expect(page.locator(".board > .cell").nth(1)).not.toHaveAttribute("data-value", "5");
   });
 
   test("tapping a journal day opens that puzzle directly", async ({ page }) => {
