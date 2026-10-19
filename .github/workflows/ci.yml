@@ -70,3 +70,38 @@ jobs:
           name: playwright-report
           path: playwright-report
           retention-days: 7
+
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint changed files
+        env:
+          BASE: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags origin "$BASE"
+          files=$(git diff --name-only --diff-filter=ACMR "origin/$BASE...HEAD" | grep -E '\.(js|svelte|json|css|html)$' || true)
+          if [ -z "$files" ]; then
+            echo "No lintable files changed; skipping."
+            exit 0
+          fi
+          echo "Changed lintable files:"
+          echo "$files"
+          echo "$files" | xargs npx prettier --check
+          eslint_files=$(echo "$files" | grep -E '\.(js|svelte)$' || true)
+          if [ -z "$eslint_files" ]; then
+            echo "No JS/Svelte files changed; skipping eslint."
+            exit 0
+          fi
+          echo "$eslint_files" | xargs npx eslint
