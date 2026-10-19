@@ -221,8 +221,6 @@ html, body {
 }
 .n.on { opacity: 1; }
 .n.on.match {
-  position: relative;
-  z-index: 1;
   place-self: center;
   width: calc(var(--cell) * 0.32);
   height: calc(var(--cell) * 0.32);
@@ -232,27 +230,6 @@ html, body {
   border-radius: 3.5px;
 }
 .n.hidden-pending { opacity: 0 !important; }
-.slot-box { display: none; }
-@media (hover: hover) and (pointer: fine) {
-  /* In the selected cell only slots a click would toggle get the pointer and the box. */
-  .cell.selected { cursor: default; }
-  .cell.selected.slot-live { cursor: pointer; }
-  .slot-box.on {
-    display: block;
-    position: absolute;
-    /* Notes sit inset by 1px; the box is a 3px inset of that slot so it never meets the cell edge. */
-    left: calc(1px + (100% - 2px) * var(--sc) / 3 + 3px);
-    top: calc(1px + (100% - 2px) * var(--sr) / 3 + 3px);
-    width: calc((100% - 2px) / 3 - 6px);
-    height: calc((100% - 2px) / 3 - 6px);
-    box-sizing: border-box;
-    background: #ece9e2;
-    border: 1px solid #d8d3c8;
-    border-radius: 4px;
-    pointer-events: none;
-    z-index: 0;
-  }
-}
 .board.shift-aim, .board.shift-aim .cell { cursor: crosshair; }
 /* Shift-hover snap: bold ink with an ink outline; on a yellow chip the chip keeps its fill. */
 .n.on.aim {

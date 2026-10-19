@@ -40,13 +40,6 @@ singles alone; checked by `tests/puzzle.spec.mjs`).
   non-given cell: an answer is cleared together with its Auto overrides; an empty
   cell gets Erase. There is no mouse double-click fill (that is touch only): each click
   is just a click, so a double-click on a slot toggles it twice.
-- Slot hover (mouse only, `(hover: hover) and (pointer: fine)`): in the selected empty
-  cell, the slot under the pointer gets a soft rounded box (`#ece9e2`, 1px `#d8d3c8`)
-  and a pointer cursor when a click would toggle it (a shown candidate, or a legal
-  digit to restore or add). The box sits inside the slot, clear of the cell edge, and
-  behind a yellow chip if one is there. Blocked digits get neither the box nor the
-  pointer; unselected cells get no slot box. Holding `Shift` hides the box so the
-  Shift-hover outline can take over.
 - Shift-hover (mouse only): while `Shift` is held the board shows a crosshair and the
   visible candidate under the pointer, the one `Shift`+click would enter, is drawn in
   bold ink with an ink outline (on a yellow chip, the chip keeps its fill). It follows

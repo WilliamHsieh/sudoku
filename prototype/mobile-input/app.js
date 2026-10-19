@@ -553,11 +553,7 @@ let lastTap = { i: -1, t: -Infinity, hl: 0 };
 
 // Desktop mouse extras (from the main app). Touch keeps the tap model above.
 let lastPointerType = 'mouse';
-document.addEventListener('pointerdown', (e) => {
-  lastPointerType = e.pointerType;
-  // A touch after mouse use must not revive hover state at the old mouse position.
-  if (e.pointerType !== 'mouse') aim.over = false;
-}, true);
+document.addEventListener('pointerdown', (e) => { lastPointerType = e.pointerType; }, true);
 const isMouse = (e) => (e.pointerType || lastPointerType) === 'mouse';
 
 // The candidate slot (1-9) under the pointer, from the cell's 3x3 grid.
@@ -610,30 +606,6 @@ function aimTarget() {
   const d = slotAt({ clientX: aim.x, clientY: aim.y }, c);
   return hasCandidate(i, d) ? cells[i].notes[d - 1] : null;
 }
-// Slot hover box (mouse only): in the selected empty cell, the slot under the
-// pointer gets a box when a click there would toggle it (not a refused add).
-const slotBox = document.createElement('div');
-slotBox.className = 'slot-box';
-function slotTarget() {
-  const i = state.selected;
-  if (aim.shift || !aim.over || paused || gesture || !editable(i) || state.values[i]) return null;
-  const c = document.elementFromPoint(aim.x, aim.y)?.closest('.cell');
-  if (c !== cells[i].el) return null;
-  const d = slotAt({ clientX: aim.x, clientY: aim.y }, c);
-  return isAdd(i, d) && blockersOf(i, d).length ? null : { i, d };
-}
-function refreshSlotBox() {
-  const t = slotTarget();
-  for (const el of boardEl.querySelectorAll('.cell.slot-live')) if (!t || cells[t.i].el !== el) el.classList.remove('slot-live');
-  slotBox.classList.toggle('on', !!t);
-  if (!t) return;
-  const { el, notes } = cells[t.i];
-  if (slotBox.parentElement !== el) el.insertBefore(slotBox, notes[0].parentElement);
-  slotBox.style.setProperty('--sc', String((t.d - 1) % 3));
-  slotBox.style.setProperty('--sr', String(Math.floor((t.d - 1) / 3)));
-  el.classList.add('slot-live');
-}
-
 function refreshAim() {
   const el = aimTarget();
   if (el !== aim.el) {
@@ -642,7 +614,6 @@ function refreshAim() {
     aim.el = el;
   }
   boardEl.classList.toggle('shift-aim', aim.shift && aim.over && !paused);
-  refreshSlotBox();
 }
 boardEl.addEventListener('pointermove', (e) => {
   if (!isMouse(e) || gesture) return;

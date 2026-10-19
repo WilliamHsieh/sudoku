@@ -1687,25 +1687,6 @@ test('desktop mouse extras stay off for touch: title tap, slot taps and Shift', 
   await page.keyboard.up('Shift');
 });
 
-test('no slot hover box under touch', async ({ page }) => {
-  expect(await page.evaluate(() => matchMedia('(hover: hover) and (pointer: fine)').matches)).toBe(false);
-  const t = await touchDriver(page);
-  await t.tap(page.locator('#notes-mode'));
-  await t.tap(cell(page, EMPTY));
-  const b = await cell(page, EMPTY).boundingBox();
-  const x = b.x + b.width / 6, y = b.y + b.height / 6; // slot 1, a candidate
-  await t.start(x, y);
-  await t.move(x + 2, y);
-  await expect(page.locator('.slot-box.on')).toHaveCount(0);
-  await expect(page.locator('.cell.slot-live')).toHaveCount(0);
-  await t.end(x + 2, y);
-  // Even a stray mouse event on a touch device draws nothing: the box is behind the hover media query.
-  await page.mouse.move(x, y);
-  await expect(page.locator('.slot-box')).toBeHidden();
-  await t.tap(cell(page, 55));
-  await expect(page.locator('.slot-box.on')).toHaveCount(0);
-});
-
 test.describe('no double-tap zoom', () => {
   test('pinch zoom stays allowed by the viewport meta', async ({ page }) => {
     const meta = await page.locator('meta[name="viewport"]').getAttribute('content');
