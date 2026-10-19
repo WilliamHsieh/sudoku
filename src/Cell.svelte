@@ -5,14 +5,17 @@
 
   /** @type {{ cell_id: number }} */
   let { cell_id } = $props();
-  const x = Math.floor(cell_id / 9);
-  const y = cell_id % 9;
-  const walls =
-    "cell" +
-    (x % 3 == 0 ? " top-wall" : "") +
-    (y % 3 == 0 ? " left-wall" : "") +
-    (x == 8 && (x + 1) % 3 == 0 ? " bottom-wall" : "") +
-    (y == 8 && (y + 1) % 3 == 0 ? " right-wall" : "");
+  const walls = $derived.by(() => {
+    const x = Math.floor(cell_id / 9);
+    const y = cell_id % 9;
+    return (
+      "cell" +
+      (x % 3 == 0 ? " top-wall" : "") +
+      (y % 3 == 0 ? " left-wall" : "") +
+      (x == 8 && (x + 1) % 3 == 0 ? " bottom-wall" : "") +
+      (y == 8 && (y + 1) % 3 == 0 ? " right-wall" : "")
+    );
+  });
 
   let isShiftPressed = $state(false);
   let cellElement = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
