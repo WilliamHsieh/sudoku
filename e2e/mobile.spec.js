@@ -228,7 +228,9 @@ test.describe("pad", () => {
     await t.tap(key(page, 5)); // conflict, notes still in peers
     await expect(cell(page, 0).locator(".conflict")).toHaveCount(1);
     await expect(page.locator(".pencil-box.matching-number").first()).toBeVisible();
-    expectChipGeometry(await readChipGeometry(page));
+    const geo = await readChipGeometry(page);
+    expectChipGeometry(geo, 1);
+    expect(geo.chip).toBeGreaterThanOrEqual(11.5);
 
     const after = await measureBoard(page);
     expectUnclippedEqualCells(after);
@@ -240,6 +242,9 @@ test.describe("pad", () => {
     await t.tap(cell(page, 1));
     const chips = await measureChipLineGaps(page, ".pencil-box.matching-number");
     expectGapsAtLeast(chips, 1);
+    const geo = await readChipGeometry(page);
+    expectChipGeometry(geo, 1);
+    expect(geo.chip).toBeGreaterThanOrEqual(11.5);
     await expectCornerChipAndAimGaps(page);
   });
 

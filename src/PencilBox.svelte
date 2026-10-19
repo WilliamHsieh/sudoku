@@ -245,5 +245,12 @@
     .pencil-box {
       pointer-events: none;
     }
+
+    /* No Shift aim on the pad. Size chips to 0.32 of --cell, leaving 1px
+       in the slot so the 0.5px chip line stays ≥1px from every grid line. */
+    .pencil-box.matching-number {
+      max-width: calc(100% - 1px);
+      max-height: calc(100% - 1px);
+    }
   }
 </style>

@@ -175,10 +175,10 @@ export async function expectMasterDesktopPencils(page) {
   }
 }
 
-/** Chip/aim use --chip-size 0.32, capped so the 1.5px ring stays in the slot. */
-export function expectChipGeometry(sizes) {
+/** Chip/aim use --chip-size 0.32. Desktop/aim cap 4px; mobile match chips 1px. */
+export function expectChipGeometry(sizes, cap = 4) {
   expect(Number.parseFloat(sizes.token)).toBeCloseTo(0.32, 5);
-  expect(sizes.chip).toBeCloseTo(Math.min(sizes.cell * 0.32, sizes.slot - 4), 0);
+  expect(sizes.chip).toBeCloseTo(Math.min(sizes.cell * 0.32, sizes.slot - cap), 0);
 }
 
 export async function readChipGeometry(page, selector = ".pencil-box.matching-number") {
