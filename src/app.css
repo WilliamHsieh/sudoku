@@ -116,10 +116,6 @@ body {
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
   }
-
-  :root {
-    --chip-size: 0.34;
-  }
 }
 
 #app {

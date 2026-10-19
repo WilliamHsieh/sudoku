@@ -1,11 +1,4 @@
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { expect } from "@playwright/test";
-
-const MASTER_PENCILS = JSON.parse(
-  readFileSync(join(dirname(fileURLToPath(import.meta.url)), "master-desktop-pencils.json"), "utf8")
-);
 
 export const SELECTED_BG = "rgb(211, 224, 248)";
 export const GIVEN_BG = "rgb(229, 228, 224)";
@@ -133,16 +126,234 @@ export async function measurePencils(page) {
   });
 }
 
-/** Candidate slots keep master's 3×1fr boxes (not minmax(0, 1fr) rounding). */
-export function expectMasterDesktopPencils(pencils) {
-  expect(pencils.length).toBeGreaterThan(0);
-  const byPos = new Map(MASTER_PENCILS.map((p) => [`${p.x}|${p.y}`, p]));
-  for (const p of pencils) {
-    const m = byPos.get(`${p.x}|${p.y}`);
-    expect(m, `no master slot at ${p.x},${p.y} (${p.w}×${p.h})`).toBeTruthy();
-    expect(p.w, `w at ${p.x},${p.y}`).toBe(m.w);
-    expect(p.h, `h at ${p.x},${p.y}`).toBe(m.h);
+/** Idle note slots tile the cell content inset by 1px (Opus `.notes`).
+ * Matching chips and the aim box are sized to --chip-size (0.32) and skipped. */
+export async function expectMasterDesktopPencils(page) {
+  const { cells, pencils } = await page.evaluate(() => {
+    const board = document.querySelector(".board").getBoundingClientRect();
+    const cells = [...document.querySelectorAll(".board > .cell")].map((el) => {
+      const r = el.getBoundingClientRect();
+      const cs = getComputedStyle(el);
+      return {
+        x: r.x - board.x,
+        y: r.y - board.y,
+        w: r.width,
+        h: r.height,
+        br: parseFloat(cs.borderRightWidth),
+        bb: parseFloat(cs.borderBottomWidth),
+      };
+    });
+    const pencils = [...document.querySelectorAll(".pencil-box")].map((el) => {
+      const r = el.getBoundingClientRect();
+      return {
+        i: Number(el.closest(".cell")?.dataset.i),
+        d: Number(el.dataset.d),
+        x: r.x - board.x,
+        y: r.y - board.y,
+        w: r.width,
+        h: r.height,
+        cls: el.className,
+      };
+    });
+    return { cells, pencils };
+  });
+  const INSET = 1;
+  const plain = pencils.filter((p) => !/\bmatching-number\b/.test(p.cls) && !/\baim\b/.test(p.cls));
+  expect(plain.length).toBeGreaterThan(0);
+  for (const p of plain) {
+    const c = cells[p.i];
+    const col = (p.d - 1) % 3;
+    const row = Math.floor((p.d - 1) / 3);
+    const sw = (c.w - c.br - 2 * INSET) / 3;
+    const sh = (c.h - c.bb - 2 * INSET) / 3;
+    const x = c.x + INSET + col * sw;
+    const y = c.y + INSET + row * sh;
+    expect(Math.abs(p.x - x), `pencil ${p.i}/${p.d} x`).toBeLessThanOrEqual(GEO_EPS);
+    expect(Math.abs(p.y - y), `pencil ${p.i}/${p.d} y`).toBeLessThanOrEqual(GEO_EPS);
+    expect(Math.abs(p.w - sw), `pencil ${p.i}/${p.d} w`).toBeLessThanOrEqual(GEO_EPS);
+    expect(Math.abs(p.h - sh), `pencil ${p.i}/${p.d} h`).toBeLessThanOrEqual(GEO_EPS);
   }
+}
+
+/** Chip/aim use --chip-size 0.32, capped so the 1.5px ring stays in the slot. */
+export function expectChipGeometry(sizes) {
+  expect(sizes.token).toBe("0.32");
+  expect(sizes.chip).toBeCloseTo(Math.min(sizes.cell * 0.32, sizes.slot - 3), 0);
+}
+
+export async function readChipGeometry(page, selector = ".pencil-box.matching-number") {
+  return page.evaluate((selector) => {
+    const chip = document.querySelector(selector);
+    const host = chip.closest(".cell");
+    const notes = host.querySelector(".candidate");
+    return {
+      chip: chip.getBoundingClientRect().width,
+      cell: host.getBoundingClientRect().width,
+      slot: notes.getBoundingClientRect().width / 3,
+      token: getComputedStyle(document.documentElement).getPropertyValue("--chip-size").trim(),
+    };
+  }, selector);
+}
+
+/** Board + 81 cell boxes. Used to prove Shift/chips never move the grid. */
+export async function readBoardRects(page) {
+  return page.evaluate(() => {
+    const board = document.querySelector(".board").getBoundingClientRect();
+    const cells = [...document.querySelectorAll(".board > .cell")].map((el) => {
+      const r = el.getBoundingClientRect();
+      return { x: r.x, y: r.y, w: r.width, h: r.height };
+    });
+    return { board: { x: board.x, y: board.y, w: board.width, h: board.height }, cells };
+  });
+}
+
+export function maxRectDelta(a, b) {
+  let max = 0;
+  const pair = (p, q) =>
+    Math.max(Math.abs(p.x - q.x), Math.abs(p.y - q.y), Math.abs(p.w - q.w), Math.abs(p.h - q.h));
+  max = Math.max(max, pair(a.board, b.board));
+  for (let i = 0; i < 81; i++) max = Math.max(max, pair(a.cells[i], b.cells[i]));
+  return max;
+}
+
+export function expectZeroLayoutShift(before, after, label) {
+  const d = maxRectDelta(before, after);
+  expect(d, `${label}: max rect delta ${d}`).toBe(0);
+  return d;
+}
+
+/** Shift-aim a visible note in the first cell of `want` (data-c / data-r). */
+export async function aimFirstNoteIn(page, want) {
+  const hit = await page.evaluate((want) => {
+    const cells = [...document.querySelectorAll(".board > .cell")];
+    for (const el of cells) {
+      const i = Number(el.dataset.i);
+      const col = i % 9;
+      const row = Math.floor(i / 9);
+      if (want.col != null && col !== want.col) continue;
+      if (want.row != null && row !== want.row) continue;
+      const note = [...el.querySelectorAll(".pencil-box")].find(
+        (n) => !n.classList.contains("invisible") && n.textContent.trim()
+      );
+      if (!note) continue;
+      const r = note.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2, i, d: Number(note.dataset.d) };
+    }
+    return null;
+  }, want);
+  expect(hit, `a note in ${JSON.stringify(want)}`).toBeTruthy();
+  await dispatchPointerMove(page, hit.x, hit.y);
+  await page.keyboard.down("Shift");
+  await dispatchPointerMove(page, hit.x, hit.y);
+  return hit;
+}
+
+export async function expectNoGridShift(page) {
+  const deltas = [];
+  const idle = await readBoardRects(page);
+  await cell(page, 1).click(); // given 5 — many yellow chips
+  const many = await readBoardRects(page);
+  deltas.push(expectZeroLayoutShift(idle, many, "many yellow chips"));
+
+  await page.locator("h1").click();
+  const none = await readBoardRects(page);
+  deltas.push(expectZeroLayoutShift(idle, none, "0 chips"));
+
+  await cell(page, 0).click();
+  const oneCell = await readBoardRects(page);
+  deltas.push(expectZeroLayoutShift(idle, oneCell, "selected empty, 0 chips"));
+
+  const col9 = await aimFirstNoteIn(page, { col: 8 });
+  const aimedCol9 = await readBoardRects(page);
+  deltas.push(expectZeroLayoutShift(idle, aimedCol9, `Shift+aim col9 cell ${col9.i}`));
+  await page.keyboard.up("Shift");
+
+  const row9 = await aimFirstNoteIn(page, { row: 8 });
+  const aimedRow9 = await readBoardRects(page);
+  deltas.push(expectZeroLayoutShift(idle, aimedRow9, `Shift+aim row9 cell ${row9.i}`));
+  await page.keyboard.up("Shift");
+
+  await cell(page, 1).click();
+  const oneChipAim = await page.locator(".pencil-box.matching-number").first();
+  await expect(oneChipAim).toBeVisible();
+  const box = await oneChipAim.boundingBox();
+  await dispatchPointerMove(page, box.x + box.width / 2, box.y + box.height / 2);
+  await page.keyboard.down("Shift");
+  await dispatchPointerMove(page, box.x + box.width / 2, box.y + box.height / 2);
+  const aimedChip = await readBoardRects(page);
+  deltas.push(expectZeroLayoutShift(idle, aimedChip, "Shift+aim a yellow chip"));
+  await page.keyboard.up("Shift");
+
+  return Math.max(...deltas);
+}
+
+export function expectGapsAtLeast(gaps, px) {
+  expect(gaps.length, "measured chips/aims").toBeGreaterThan(0);
+  for (const g of gaps) {
+    expect(
+      g.min,
+      `cell ${g.i} slot ${g.d} min gap ${g.min} (${JSON.stringify(g.gaps)})`
+    ).toBeGreaterThanOrEqual(px);
+  }
+}
+
+/**
+ * Gap from a chip/aim box (plus its ring) to the inner edge of every grid line
+ * that bounds its cell. Thin and thick lines included.
+ */
+export async function measureChipLineGaps(page, selector) {
+  return page.evaluate((selector) => {
+    const board = document.querySelector(".board");
+    const bcs = getComputedStyle(board);
+    const br = board.getBoundingClientRect();
+    const cells = [...board.querySelectorAll(":scope > .cell")];
+    const inner = {
+      left: br.left + parseFloat(bcs.borderLeftWidth),
+      right: br.right - parseFloat(bcs.borderRightWidth),
+      top: br.top + parseFloat(bcs.borderTopWidth),
+      bottom: br.bottom - parseFloat(bcs.borderBottomWidth),
+    };
+    const out = [];
+    for (const el of document.querySelectorAll(selector)) {
+      const host = el.closest(".cell");
+      const i = cells.indexOf(host);
+      if (i < 0) continue;
+      const col = i % 9;
+      const row = Math.floor(i / 9);
+      const cs = getComputedStyle(host);
+      const cr = host.getBoundingClientRect();
+      const left = col === 0 ? inner.left : cr.left;
+      const right = col === 8 ? inner.right : cr.right - parseFloat(cs.borderRightWidth);
+      const top = row === 0 ? inner.top : cr.top;
+      const bottom = row === 8 ? inner.bottom : cr.bottom - parseFloat(cs.borderBottomWidth);
+      const r = el.getBoundingClientRect();
+      const pad = /\baim\b/.test(el.className)
+        ? 1.5
+        : /\bmatching-number\b/.test(el.className)
+          ? 0.5
+          : 0;
+      const gaps = {
+        left: r.left - pad - left,
+        right: right - (r.right + pad),
+        top: r.top - pad - top,
+        bottom: bottom - (r.bottom + pad),
+      };
+      const min = Math.min(gaps.left, gaps.right, gaps.top, gaps.bottom);
+      out.push({
+        i,
+        d: Number(el.dataset.d),
+        col,
+        row,
+        slot: Number(el.dataset.d),
+        w: r.width,
+        h: r.height,
+        pad,
+        gaps,
+        min,
+      });
+    }
+    return out;
+  }, selector);
 }
 
 export function expectSameGeometry(before, after) {
@@ -272,7 +483,9 @@ export async function expectShiftAgreement(page, want, opts = {}) {
   expect(hit.shadow).toContain("1.5px");
   if (hit.match) expect(hit.bg).not.toBe("rgba(0, 0, 0, 0)");
   else expect(hit.bg).toBe("rgba(0, 0, 0, 0)");
-  expect(hit.w).toBeCloseTo(cellW * 0.34, 0);
+  const geo = await readChipGeometry(page, ".pencil-box.aim");
+  expectChipGeometry(geo);
+  expect(hit.w).toBeCloseTo(Math.min(cellW * 0.32, geo.slot - 3), 0);
 }
 
 export function solve(q) {

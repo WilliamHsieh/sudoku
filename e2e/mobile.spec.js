@@ -12,6 +12,12 @@ import {
   readDigitFonts,
   CONFLICT_BG,
   CONFLICT,
+  expectNoGridShift,
+  measureChipLineGaps,
+  expectGapsAtLeast,
+  dispatchPointerMove,
+  readChipGeometry,
+  expectChipGeometry,
 } from "./helpers.js";
 import { touchDriver } from "./touch.js";
 import { firstUnsolvedLatest } from "../src/game/daily.js";
@@ -222,19 +228,34 @@ test.describe("pad", () => {
     await t.tap(key(page, 5)); // conflict, notes still in peers
     await expect(cell(page, 0).locator(".conflict")).toHaveCount(1);
     await expect(page.locator(".pencil-box.matching-number").first()).toBeVisible();
-    const chipSizes = await page.evaluate(() => {
-      const chip = document.querySelector(".pencil-box.matching-number");
-      const host = chip.closest(".cell");
-      return {
-        chip: chip.getBoundingClientRect().width,
-        cell: host.getBoundingClientRect().width,
-      };
-    });
-    expect(chipSizes.chip).toBeCloseTo(chipSizes.cell * 0.34, 1);
+    expectChipGeometry(await readChipGeometry(page));
 
     const after = await measureBoard(page);
     expectUnclippedEqualCells(after);
     expectSameGeometry(before, after);
+  });
+
+  test("chips and aim stay ≥1px from every grid line at 390", async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(cell(page, 1));
+    const chips = await measureChipLineGaps(page, ".pencil-box.matching-number");
+    expectGapsAtLeast(chips, 1);
+    for (const d of [1, 3, 7, 9]) {
+      const note = page.locator(`.pencil-box[data-d="${d}"]:not(.invisible)`).first();
+      if ((await note.count()) === 0) continue;
+      const box = await note.boundingBox();
+      await dispatchPointerMove(page, box.x + box.width / 2, box.y + box.height / 2);
+      await page.keyboard.down("Shift");
+      await dispatchPointerMove(page, box.x + box.width / 2, box.y + box.height / 2);
+      const aimed = await measureChipLineGaps(page, ".pencil-box.aim");
+      expectGapsAtLeast(aimed, 1);
+      await page.keyboard.up("Shift");
+    }
+  });
+
+  test("Shift, chips and aim never move the 81 cell rects at 390", async ({ page }) => {
+    const max = await expectNoGridShift(page);
+    expect(max).toBe(0);
   });
 
   test("pad digits are Atkinson 400; board givens and answers use the system font", async ({

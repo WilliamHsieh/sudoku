@@ -14,13 +14,17 @@ import {
   measureBoard,
   expectSameGeometry,
   expectMasterDesktopTracks,
-  measurePencils,
   expectMasterDesktopPencils,
+  readChipGeometry,
+  expectChipGeometry,
   readDigitFonts,
   moveToPencil,
   moveToCell,
   dispatchPointerMove,
   expectShiftAgreement,
+  expectNoGridShift,
+  measureChipLineGaps,
+  expectGapsAtLeast,
 } from "./helpers.js";
 
 test.beforeEach(async ({ page }) => {
@@ -37,7 +41,7 @@ test("highlight chips, conflict and notes do not resize the board or cells", asy
   await page.setViewportSize({ width: 1280, height: 800 });
   const before = await measureBoard(page);
   expectMasterDesktopTracks(before);
-  expectMasterDesktopPencils(await measurePencils(page));
+  await expectMasterDesktopPencils(page);
 
   await cell(page, 1).click(); // given 5: same-digit chips
   await cell(page, 0).click();
@@ -47,7 +51,7 @@ test("highlight chips, conflict and notes do not resize the board or cells", asy
 
   const after = await measureBoard(page);
   expectMasterDesktopTracks(after);
-  expectMasterDesktopPencils(await measurePencils(page));
+  await expectMasterDesktopPencils(page);
   expectSameGeometry(before, after);
 });
 
@@ -72,7 +76,7 @@ test("desktop board pixels match master at 1280x800 in every play state", async 
 
   const check = async () => {
     expectMasterDesktopTracks(await measureBoard(page));
-    expectMasterDesktopPencils(await measurePencils(page));
+    await expectMasterDesktopPencils(page);
   };
 
   await check(); // idle
@@ -100,26 +104,37 @@ test("desktop board pixels match master at 1280x800 in every play state", async 
   await check();
 });
 
-test("desktop matching chips keep master's slot size at 1280x800", async ({ page }) => {
+test("desktop matching chips use --chip-size 0.32 at 1280x800", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await cell(page, 1).click(); // given 5 — same-digit chips on notes
   const chip = page.locator(".pencil-box.matching-number").first();
   await expect(chip).toBeVisible();
-  const sizes = await page.evaluate(() => {
-    for (const chip of document.querySelectorAll(".pencil-box.matching-number")) {
-      const plain = chip.parentElement?.querySelector(
-        ".pencil-box:not(.invisible):not(.matching-number)"
-      );
-      if (!plain) continue;
-      const a = chip.getBoundingClientRect();
-      const b = plain.getBoundingClientRect();
-      return { chipW: a.width, chipH: a.height, slotW: b.width, slotH: b.height };
-    }
-    return null;
-  });
-  expect(sizes).not.toBeNull();
-  expect(sizes.chipW).toBeCloseTo(sizes.slotW, 0);
-  expect(sizes.chipH).toBeCloseTo(sizes.slotH, 0);
+  expectChipGeometry(await readChipGeometry(page));
+});
+
+test("chips and aim stay ≥1px from every grid line at 1280", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await cell(page, 1).click();
+  const chips = await measureChipLineGaps(page, ".pencil-box.matching-number");
+  expectGapsAtLeast(chips, 1);
+  const corners = [1, 3, 7, 9];
+  for (const d of corners) {
+    const note = page.locator(`.pencil-box[data-d="${d}"]:not(.invisible)`).first();
+    if ((await note.count()) === 0) continue;
+    const box = await note.boundingBox();
+    await dispatchPointerMove(page, box.x + box.width / 2, box.y + box.height / 2);
+    await page.keyboard.down("Shift");
+    await dispatchPointerMove(page, box.x + box.width / 2, box.y + box.height / 2);
+    const aimed = await measureChipLineGaps(page, ".pencil-box.aim");
+    expectGapsAtLeast(aimed, 1);
+    await page.keyboard.up("Shift");
+  }
+});
+
+test("Shift, chips and aim never move the 81 cell rects at 1280", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const max = await expectNoGridShift(page);
+  expect(max).toBe(0);
 });
 
 test("starts with no selection; givens are shaded", async ({ page }) => {

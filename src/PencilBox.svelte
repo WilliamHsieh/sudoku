@@ -103,6 +103,8 @@
     display: flex;
     justify-content: center;
     align-items: center;
+    min-width: 0;
+    min-height: 0;
     font-weight: var(--cand-weight);
     color: var(--cand);
     font-family: var(--digit-font);
@@ -142,7 +144,8 @@
     cursor: crosshair;
   }
 
-  /* Opus `.n.on.aim` — ink outline, chip-sized, transparent unless a match chip. */
+  /* Opus `.n.on.aim` / `.n.on.match` — 0.32 of --cell, contained so the
+     1.5px ring (and 0.5px chip line) stay ≥1px from every grid line. */
   .pencil-box.aim,
   .pencil-box.aim:hover,
   .pencil-box.aim.selected:hover {
@@ -150,8 +153,10 @@
     z-index: 2;
     place-self: center;
     box-sizing: border-box;
-    width: calc(var(--cell) * 0.34);
-    height: calc(var(--cell) * 0.34);
+    width: calc(var(--cell) * var(--chip-size));
+    height: calc(var(--cell) * var(--chip-size));
+    max-width: calc(100% - 3px);
+    max-height: calc(100% - 3px);
     border-radius: 3.5px;
     color: var(--ink);
     font-weight: 700;
@@ -170,6 +175,12 @@
   }
 
   .pencil-box.matching-number {
+    place-self: center;
+    box-sizing: border-box;
+    width: calc(var(--cell) * var(--chip-size));
+    height: calc(var(--cell) * var(--chip-size));
+    max-width: calc(100% - 3px);
+    max-height: calc(100% - 3px);
     color: var(--chip-ink);
     font-weight: var(--chip-weight);
     background: var(--chip-bg);
@@ -232,16 +243,7 @@
 
   @media (max-width: 599px) {
     .pencil-box {
-      min-width: 0;
-      min-height: 0;
       pointer-events: none;
-    }
-
-    .pencil-box.matching-number {
-      place-self: center;
-      box-sizing: border-box;
-      width: calc(var(--cell) * var(--chip-size));
-      height: calc(var(--cell) * var(--chip-size));
     }
   }
 </style>

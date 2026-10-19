@@ -513,8 +513,9 @@
         max(16px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
     }
 
-    /* Clip lock: chips must not grow the board. Desktop keeps master's 1fr
-       tracks (implicit rows) so 1280 rounding stays pixel-identical. */
+    /* Clip lock on the pad. Desktop keeps master's `1fr` columns and
+       implicit rows so 1280 idle tracks stay pixel-identical; cells and
+       the notes grid already use minmax(0,1fr) + min-width:0. */
     .board {
       grid-template-columns: repeat(9, minmax(0, 1fr));
       grid-template-rows: repeat(9, minmax(0, 1fr));
