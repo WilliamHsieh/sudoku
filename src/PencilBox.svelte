@@ -1,7 +1,7 @@
 <script>
   import { game } from "./game/game.svelte.js";
   import { padUi } from "./pad-ui.svelte.js";
-  import { shiftHover } from "./shift-hover.svelte.js";
+  import { getShiftHover } from "./shift-hover.svelte.js";
 
   /**
    * @typedef {Object} Props
@@ -17,7 +17,10 @@
 
   const visible = $derived(game.hasNote(cell_id, idx + 1));
   const isSelected = $derived(game.selected === cell_id);
-  const isShiftSlot = $derived(shiftHover.cell === cell_id && shiftHover.slot === idx);
+  const isShiftSlot = $derived.by(() => {
+    const target = getShiftHover();
+    return !!target && target.cell === cell_id && target.slot === idx;
+  });
   const focusedValue = $derived(game.selected === -1 ? 0 : game.value(game.selected));
   const isMatchingNumber = $derived(focusedValue !== 0 && idx + 1 === focusedValue && visible);
   const isOnlyCandidate = $derived(
@@ -36,7 +39,10 @@
   function handleClick(e) {
     if (e.shiftKey) {
       e.stopPropagation();
-      if (isShiftSlot) game.enter(cell_id, idx + 1);
+      const target = getShiftHover();
+      if (target && target.cell === cell_id && target.slot === idx) {
+        game.enter(cell_id, target.d);
+      }
       game.select(cell_id);
       return;
     }

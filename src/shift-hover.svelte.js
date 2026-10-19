@@ -1,15 +1,36 @@
 import { game } from "./game/game.svelte.js";
 import { resolveShiftHover, slotFromPoint } from "./game/shift-hover.js";
 
-/** Last pointer + Shift. `hover` is the one UI state. */
-export const shiftPtr = $state({
+/** Raw pointer cell/slot and whether Shift is down. Not the hover target. */
+const shiftInput = $state({
   down: false,
-  x: 0,
-  y: 0,
+  cell: -1,
+  slot: -1,
 });
 
-/** @type {{ cell: number, slot: number, d: number }} */
-export const shiftHover = $state({ cell: -1, slot: -1, d: 0 });
+/**
+ * One hover target, derived from the raw inputs plus the live game.
+ * Cursor, box, and click all read this. A board change re-resolves it
+ * without another pointer move.
+ * @type {{ cell: number, slot: number, d: number } | null}
+ */
+const shiftTarget = $derived.by(() =>
+  resolveShiftHover({
+    shift: shiftInput.down,
+    cell: shiftInput.cell,
+    slot: shiftInput.slot,
+    filled: shiftInput.cell >= 0 && game.value(shiftInput.cell) !== 0,
+    hasNote:
+      shiftInput.cell >= 0 &&
+      shiftInput.slot >= 0 &&
+      game.hasNote(shiftInput.cell, shiftInput.slot + 1),
+  })
+);
+
+/** Live derived target. Click re-reads this at event time. */
+export function getShiftHover() {
+  return shiftTarget;
+}
 
 function readSlot(clientX, clientY) {
   const el = document.elementFromPoint(clientX, clientY);
@@ -20,59 +41,39 @@ function readSlot(clientX, clientY) {
   return { cell, slot: slotFromPoint(cellEl.getBoundingClientRect(), clientX, clientY) };
 }
 
-function sync(clientX = shiftPtr.x, clientY = shiftPtr.y) {
-  shiftPtr.x = clientX;
-  shiftPtr.y = clientY;
-  const at = shiftPtr.down ? readSlot(clientX, clientY) : { cell: -1, slot: -1 };
-  const next = resolveShiftHover({
-    shift: shiftPtr.down,
-    cell: at.cell,
-    slot: at.slot,
-    filled: at.cell >= 0 && game.value(at.cell) !== 0,
-    hasNote: at.cell >= 0 && at.slot >= 0 && game.hasNote(at.cell, at.slot + 1),
-  });
-  shiftHover.cell = next?.cell ?? -1;
-  shiftHover.slot = next?.slot ?? -1;
-  shiftHover.d = next?.d ?? 0;
-}
-
 function onMove(e) {
-  sync(e.clientX, e.clientY);
+  const at = readSlot(e.clientX, e.clientY);
+  shiftInput.cell = at.cell;
+  shiftInput.slot = at.slot;
 }
 
 function onKeyDown(e) {
   if (e.key !== "Shift" || e.repeat) return;
-  shiftPtr.down = true;
-  sync();
+  shiftInput.down = true;
 }
 
 function onKeyUp(e) {
   if (e.key !== "Shift") return;
-  shiftPtr.down = false;
-  sync();
+  shiftInput.down = false;
 }
 
 function onBlur() {
-  shiftPtr.down = false;
-  sync();
+  shiftInput.down = false;
 }
 
-/** Window-level Shift + pointer. Recomputes on keydown so a still pointer snaps. */
+/** Window-level Shift + pointer. Hover is $derived from these plus the game. */
 export function installShiftHover() {
   window.addEventListener("pointermove", onMove);
-  window.addEventListener("mousemove", onMove);
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);
   window.addEventListener("blur", onBlur);
   return () => {
     window.removeEventListener("pointermove", onMove);
-    window.removeEventListener("mousemove", onMove);
     window.removeEventListener("keydown", onKeyDown);
     window.removeEventListener("keyup", onKeyUp);
     window.removeEventListener("blur", onBlur);
-    shiftPtr.down = false;
-    shiftHover.cell = -1;
-    shiftHover.slot = -1;
-    shiftHover.d = 0;
+    shiftInput.down = false;
+    shiftInput.cell = -1;
+    shiftInput.slot = -1;
   };
 }

@@ -315,6 +315,81 @@ test("Shift-hover cursor, box and click target stay one derived slot", async ({ 
   await page.keyboard.up("Shift");
 });
 
+test("Shift-hover re-resolves when the board changes under a still pointer", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+
+  const typeDigit = async (d) => {
+    await page.evaluate((key) => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key, shiftKey: true, bubbles: true }));
+    }, String(d));
+  };
+  const shiftClick = async () => {
+    await page.mouse.down();
+    await page.mouse.up();
+  };
+  const tapTool = async (id) => {
+    await page.evaluate((id) => document.getElementById(id)?.click(), id);
+  };
+  const hoverNote2 = async () => {
+    await moveToPencil(page, 0, 2);
+    await page.keyboard.down("Shift");
+    await expectShiftAgreement(page, { cell: 0, d: 2 });
+  };
+
+  // Peer fill removes the hovered note (repro: select 2, hover note 2 in 0, type 2).
+  await cell(page, 2).click();
+  await hoverNote2();
+  await typeDigit(2);
+  await expectValue(page, 2, 2);
+  await expect(cell(page, 0)).not.toHaveAttribute("data-notes", /2/);
+  await expectShiftAgreement(page, null);
+  await shiftClick();
+  await expectValue(page, 0, 0);
+
+  // Undo restores the note; hover returns without moving the mouse.
+  await tapTool("undo");
+  await expectValue(page, 2, 0);
+  await expect(cell(page, 0)).toHaveAttribute("data-notes", /2/);
+  await expectShiftAgreement(page, { cell: 0, d: 2 });
+
+  await page.keyboard.up("Shift");
+
+  // Erase of the selected peer restores the note under a still hover.
+  await cell(page, 2).click();
+  await hoverNote2();
+  await typeDigit(2);
+  await expectValue(page, 2, 2);
+  await expectShiftAgreement(page, null);
+  await tapTool("erase");
+  await expectValue(page, 2, 0);
+  await expect(cell(page, 0)).toHaveAttribute("data-notes", /2/);
+  await expectShiftAgreement(page, { cell: 0, d: 2 });
+
+  // Auto → Manual clears notes; Auto restores them.
+  await tapTool("notes-mode");
+  await expect(page.locator("#notes-mode")).toHaveAttribute("aria-checked", "false");
+  await expect(cell(page, 0)).toHaveAttribute("data-notes", "");
+  await expectShiftAgreement(page, null);
+  await shiftClick();
+  await expectValue(page, 0, 0);
+  await tapTool("notes-mode");
+  await expect(page.locator("#notes-mode")).toHaveAttribute("aria-checked", "true");
+  await expect(cell(page, 0)).toHaveAttribute("data-notes", /2/);
+  await expectShiftAgreement(page, { cell: 0, d: 2 });
+
+  await page.keyboard.up("Shift");
+
+  // A keyboard digit into the hovered cell fills it; hover drops.
+  await cell(page, 0).click();
+  await hoverNote2();
+  await typeDigit(4);
+  await expectValue(page, 0, 4);
+  await expectShiftAgreement(page, null);
+  await shiftClick();
+  await expectValue(page, 0, 4);
+  await page.keyboard.up("Shift");
+});
+
 test("Shift+click on a visible pencil mark enters it, selected or not", async ({ page }) => {
   await pencil(page, 0, 3).click({ modifiers: ["Shift"] });
   await expectValue(page, 0, 3);

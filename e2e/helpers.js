@@ -178,14 +178,28 @@ export async function readDigitFonts(page) {
   });
 }
 
+async function dispatchPointerMove(page, x, y) {
+  await page.mouse.move(x, y);
+  // Chromium's CDP mouse.move is not always a `pointermove`. The app listens
+  // only for pointermove; synthesize one at the same point.
+  await page.evaluate(
+    ({ x, y }) => {
+      window.dispatchEvent(
+        new PointerEvent("pointermove", { clientX: x, clientY: y, bubbles: true })
+      );
+    },
+    { x, y }
+  );
+}
+
 export async function moveToPencil(page, i, d) {
   const box = await pencil(page, i, d).boundingBox();
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await dispatchPointerMove(page, box.x + box.width / 2, box.y + box.height / 2);
 }
 
 export async function moveToCell(page, i) {
   const box = await cell(page, i).boundingBox();
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await dispatchPointerMove(page, box.x + box.width / 2, box.y + box.height / 2);
 }
 
 export async function readShiftHover(page) {

@@ -5,7 +5,7 @@
   import { padUi } from "./pad-ui.svelte.js";
   import { nextDoubleTap } from "./game/pad.js";
   import { maskDigits } from "./game/board.js";
-  import { shiftHover } from "./shift-hover.svelte.js";
+  import { getShiftHover } from "./shift-hover.svelte.js";
 
   /** @type {{ cell_id: number }} */
   let { cell_id } = $props();
@@ -32,8 +32,9 @@
   }
 
   function handleClick(e) {
-    if (e.shiftKey && shiftHover.cell === cell_id) {
-      game.enter(cell_id, shiftHover.d);
+    const target = getShiftHover();
+    if (e.shiftKey && target && target.cell === cell_id) {
+      game.enter(cell_id, target.d);
     }
     game.select(cell_id);
   }
