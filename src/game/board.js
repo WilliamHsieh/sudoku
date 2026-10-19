@@ -15,10 +15,11 @@ export const PEERS = Object.freeze(
   Array.from({ length: 81 }, (_, i) => {
     const out = [];
     for (let j = 0; j < 81; j++) {
-      if (j !== i && (rowOf(j) === rowOf(i) || colOf(j) === colOf(i) || boxOf(j) === boxOf(i))) out.push(j);
+      if (j !== i && (rowOf(j) === rowOf(i) || colOf(j) === colOf(i) || boxOf(j) === boxOf(i)))
+        out.push(j);
     }
     return Object.freeze(out);
-  }),
+  })
 );
 
 /** Candidate sets are bitmasks: bit d (1-9) set means digit d is in the set. */
@@ -49,10 +50,12 @@ export function popcount(mask) {
 }
 
 /** @param {unknown} i */
-export const isCell = (i) => Number.isInteger(i) && /** @type {number} */ (i) >= 0 && /** @type {number} */ (i) < 81;
+export const isCell = (i) =>
+  Number.isInteger(i) && /** @type {number} */ (i) >= 0 && /** @type {number} */ (i) < 81;
 
 /** @param {unknown} d */
-export const isDigit = (d) => Number.isInteger(d) && /** @type {number} */ (d) >= 1 && /** @type {number} */ (d) <= 9;
+export const isDigit = (d) =>
+  Number.isInteger(d) && /** @type {number} */ (d) >= 1 && /** @type {number} */ (d) <= 9;
 
 /**
  * Parses an 81-character puzzle string ('0' = empty) into a givens array.
@@ -60,8 +63,8 @@ export const isDigit = (d) => Number.isInteger(d) && /** @type {number} */ (d) >
  * @returns {number[]}
  */
 export function parsePuzzle(puzzle) {
-  if (typeof puzzle !== 'string' || !/^[0-9]{81}$/.test(puzzle)) {
-    throw new Error('puzzle must be 81 digits (0 for empty)');
+  if (typeof puzzle !== "string" || !/^[0-9]{81}$/.test(puzzle)) {
+    throw new Error("puzzle must be 81 digits (0 for empty)");
   }
   return [...puzzle].map(Number);
 }

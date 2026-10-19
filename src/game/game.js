@@ -1,6 +1,15 @@
 // Game rules on an immutable state. Every action returns an ActionResult; when
 // nothing changes, `state` is the same object that was passed in.
-import { PEERS, ALL_DIGITS, bit, popcount, maskDigits, isCell, isDigit, parsePuzzle } from './board.js';
+import {
+  PEERS,
+  ALL_DIGITS,
+  bit,
+  popcount,
+  maskDigits,
+  isCell,
+  isDigit,
+  parsePuzzle,
+} from "./board.js";
 
 /** @typedef {'auto' | 'manual'} NotesMode */
 
@@ -50,7 +59,7 @@ function update(state, i, cell) {
  * @param {{ notesMode?: NotesMode }} [options]
  * @returns {GameState}
  */
-export function newGame(puzzle, { notesMode = 'manual' } = {}) {
+export function newGame(puzzle, { notesMode = "manual" } = {}) {
   return {
     givens: parsePuzzle(puzzle),
     answers: zeros(),
@@ -63,7 +72,13 @@ export function newGame(puzzle, { notesMode = 'manual' } = {}) {
 
 /** Same puzzle and notes mode, all progress cleared. @param {GameState} state @returns {GameState} */
 export function restart(state) {
-  return { ...state, answers: zeros(), manualNotes: zeros(), autoAdded: zeros(), autoRemoved: zeros() };
+  return {
+    ...state,
+    answers: zeros(),
+    manualNotes: zeros(),
+    autoAdded: zeros(),
+    autoRemoved: zeros(),
+  };
 }
 
 /** The given or answer in cell i, 0 if empty. @param {GameState} state @param {number} i */
@@ -93,7 +108,7 @@ export function computedCandidates(state, i) {
  */
 export function candidates(state, i) {
   if (valueAt(state, i)) return 0;
-  if (state.notesMode === 'manual') return state.manualNotes[i];
+  if (state.notesMode === "manual") return state.manualNotes[i];
   return (computedCandidates(state, i) & ~state.autoRemoved[i]) | state.autoAdded[i];
 }
 
@@ -136,7 +151,7 @@ export function setAnswer(state, i, d) {
 
 /** Whether toggling d in cell i would add it to the shown notes. @param {GameState} state @param {number} i @param {number} d */
 export function isAdd(state, i, d) {
-  return state.notesMode === 'auto' ? !hasCandidate(state, i, d) : !(state.manualNotes[i] & bit(d));
+  return state.notesMode === "auto" ? !hasCandidate(state, i, d) : !(state.manualNotes[i] & bit(d));
 }
 
 /**
@@ -154,7 +169,8 @@ export function toggleCandidate(state, i, d) {
     const blockers = blockersOf(state, i, d);
     if (blockers.length) return { state, changed: false, blockers };
   }
-  if (state.notesMode === 'manual') return update(state, i, { manualNotes: state.manualNotes[i] ^ b });
+  if (state.notesMode === "manual")
+    return update(state, i, { manualNotes: state.manualNotes[i] ^ b });
 
   let added = state.autoAdded[i];
   let removed = state.autoRemoved[i];
@@ -180,9 +196,10 @@ export function toggleCandidate(state, i, d) {
  */
 export function eraseAction(state, i) {
   if (!isEditable(state, i)) return null;
-  if (state.answers[i]) return 'answer';
-  if (state.notesMode === 'auto') return candidates(state, i) !== computedCandidates(state, i) ? 'auto-overrides' : null;
-  return state.manualNotes[i] ? 'manual-notes' : null;
+  if (state.answers[i]) return "answer";
+  if (state.notesMode === "auto")
+    return candidates(state, i) !== computedCandidates(state, i) ? "auto-overrides" : null;
+  return state.manualNotes[i] ? "manual-notes" : null;
 }
 
 /**
@@ -197,9 +214,9 @@ export function eraseAction(state, i) {
  */
 export function erase(state, i) {
   const action = eraseAction(state, i);
-  if (action === 'answer') return update(state, i, { answers: 0 });
-  if (action === 'auto-overrides') return update(state, i, { autoAdded: 0, autoRemoved: 0 });
-  if (action === 'manual-notes') return update(state, i, { manualNotes: 0 });
+  if (action === "answer") return update(state, i, { answers: 0 });
+  if (action === "auto-overrides") return update(state, i, { autoAdded: 0, autoRemoved: 0 });
+  if (action === "manual-notes") return update(state, i, { manualNotes: 0 });
   return unchanged(state);
 }
 
@@ -217,13 +234,14 @@ export function erase(state, i) {
 export function clearCell(state, i) {
   if (!isEditable(state, i)) return unchanged(state);
   if (!state.answers[i]) return erase(state, i);
-  if (state.notesMode === 'auto') return update(state, i, { answers: 0, autoAdded: 0, autoRemoved: 0 });
+  if (state.notesMode === "auto")
+    return update(state, i, { answers: 0, autoAdded: 0, autoRemoved: 0 });
   return update(state, i, { answers: 0 });
 }
 
 /** Switches which note set is shown; both sets are kept. @param {GameState} state @param {NotesMode} mode @returns {GameState} */
 export function setNotesMode(state, mode) {
-  if (mode !== 'auto' && mode !== 'manual') throw new RangeError(`unknown notes mode ${mode}`);
+  if (mode !== "auto" && mode !== "manual") throw new RangeError(`unknown notes mode ${mode}`);
   return state.notesMode === mode ? state : { ...state, notesMode: mode };
 }
 
@@ -234,7 +252,7 @@ export function setNotesMode(state, mode) {
  * @param {GameState} state @param {number} i @param {number} [highlighted] digit highlighted before the gesture, 0 for none
  */
 export function fillDigit(state, i, highlighted = 0) {
-  if (state.notesMode !== 'auto' || !isEditable(state, i) || state.answers[i]) return 0;
+  if (state.notesMode !== "auto" || !isEditable(state, i) || state.answers[i]) return 0;
   const cand = candidates(state, i);
   if (isDigit(highlighted) && cand & bit(highlighted)) return highlighted;
   return popcount(cand) === 1 ? maskDigits(cand)[0] : 0;

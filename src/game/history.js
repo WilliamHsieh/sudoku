@@ -1,7 +1,6 @@
 // Snapshot undo/redo over immutable game states: one step per committed change.
 // The notes mode is a view setting, not an edit: undo and redo keep the current one.
 
-
 /**
  * @typedef {Object} History
  * @property {readonly import('./game.js').GameState[]} past   oldest first
@@ -22,7 +21,7 @@ export function createHistory(state, { limit = 500 } = {}) {
  * @returns {History}
  */
 export function commit(history, next) {
-  const state = 'state' in next ? next.state : next;
+  const state = "state" in next ? next.state : next;
   if (state === history.present) return history;
   const past = [...history.past, history.present].slice(-history.limit);
   return { ...history, past, present: state, future: [] };
@@ -43,7 +42,8 @@ export const canUndo = (history) => history.past.length > 0;
 export const canRedo = (history) => history.future.length > 0;
 
 /** @param {import('./game.js').GameState} state @param {import('./game.js').GameState} view */
-const inModeOf = (state, view) => (state.notesMode === view.notesMode ? state : { ...state, notesMode: view.notesMode });
+const inModeOf = (state, view) =>
+  state.notesMode === view.notesMode ? state : { ...state, notesMode: view.notesMode };
 
 /** @param {History} history @returns {History} */
 export function undo(history) {

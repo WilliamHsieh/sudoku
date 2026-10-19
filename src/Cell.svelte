@@ -113,12 +113,7 @@
   {:else}
     <div class="candidate">
       {#each Array(9) as _, idx}
-        <PencilBox
-          {cell_id}
-          {idx}
-          {isShiftPressed}
-          isClosest={closestPencilIdx === idx}
-        />
+        <PencilBox {cell_id} {idx} {isShiftPressed} isClosest={closestPencilIdx === idx} />
       {/each}
     </div>
   {/if}
