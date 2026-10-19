@@ -22,12 +22,14 @@ const moveTo = async (page, loc) => {
 };
 const tap = async (page, loc) => {
   await moveTo(page, loc);
+  await wait(1500);
   await page.mouse.down();
   await page.mouse.up();
   await wait(1500);
 };
 
 async function midGame(page) {
+  await page.evaluate(() => document.fonts.ready);
   await page.locator('#notes-mode').click();
   for (const [i, d] of [[55, 9], [5, 5], [11, 9], [27, 6], [18, 1], [29, 3], [9, 2], [20, 6]]) {
     await cell(page, i).click();
@@ -102,14 +104,17 @@ const browser = await chromium.launch();
 }
 
 // --- human-paced video ---
+const videoDir = join(OUT, 'v13-video');
+await mkdir(videoDir, { recursive: true });
 {
   const context = await browser.newContext({
     viewport: { width: 1280, height: 800 },
     deviceScaleFactor: 1,
-    recordVideo: { dir: OUT, size: { width: 1280, height: 800 } },
+    recordVideo: { dir: videoDir, size: { width: 1280, height: 800 } },
   });
   const page = await context.newPage();
   await page.goto(URL);
+  await page.evaluate(() => document.fonts.ready);
   await wait(1500);
 
   await tap(page, page.locator('#notes-mode')); // Auto on
@@ -131,11 +136,10 @@ const browser = await chromium.launch();
 
 await browser.close();
 
-const videos = (await readdir(OUT)).filter((n) => n.endsWith('.webm')).sort();
 const dest = join(OUT, 'v13-demo.webm');
+const videos = (await readdir(videoDir)).filter((n) => n.endsWith('.webm'));
 if (videos.length) {
-  const src = join(OUT, videos[videos.length - 1]);
-  if (src !== dest) await rename(src, dest);
+  await rename(join(videoDir, videos[0]), dest);
   const bytes = (await stat(dest)).size;
   if (bytes > 15 * 1024 * 1024) throw new Error(`video ${bytes} bytes exceeds 15 MB`);
 }
