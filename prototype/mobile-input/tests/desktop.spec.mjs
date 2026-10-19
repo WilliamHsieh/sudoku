@@ -397,21 +397,19 @@ test.describe('Shift-hover', () => {
 
 test.describe('slot hover box', () => {
   const box = (page) => page.locator('.slot-box');
-  // The box is centred on the hovered candidate of the selected cell.
+  // The box fills one third of the cell, inset 2px on all sides.
   async function expectBoxOn(page, i, d) {
     await expect(box(page)).toBeVisible();
     await expect(cell(page, i)).toHaveClass(/slot-live/);
     const b = await box(page).boundingBox();
-    const g = await cell(page, i).locator('.notes').boundingBox();
+    const g = await cell(page, i).boundingBox();
     const col = (d - 1) % 3, row = Math.floor((d - 1) / 3);
     const sx = g.x + (col * g.width) / 3, sy = g.y + (row * g.height) / 3;
     const sw = g.width / 3, sh = g.height / 3;
-    expect(b.x).toBeGreaterThan(sx + 1.5);
-    expect(b.y).toBeGreaterThan(sy + 1.5);
-    expect(b.x + b.width).toBeLessThan(sx + sw - 1.5);
-    expect(b.y + b.height).toBeLessThan(sy + sh - 1.5);
-    expect(Math.abs(b.x + b.width / 2 - (sx + sw / 2))).toBeLessThan(1.5);
-    expect(Math.abs(b.y + b.height / 2 - (sy + sh / 2))).toBeLessThan(1.5);
+    expect(Math.abs(b.x - (sx + 2))).toBeLessThan(2);
+    expect(Math.abs(b.y - (sy + 2))).toBeLessThan(2);
+    expect(Math.abs(b.width - (sw - 4))).toBeLessThan(2);
+    expect(Math.abs(b.height - (sh - 4))).toBeLessThan(2);
     expect(await boardCursor(page, i)).toBe('pointer');
   }
   async function expectNoBox(page, i, cursor = 'default') {
@@ -425,29 +423,45 @@ test.describe('slot hover box', () => {
     await cell(page, EMPTY).click();
     await hover(page, EMPTY, 3);
     await expectBoxOn(page, EMPTY, 3);
+    await expect(note(page, EMPTY, 3)).not.toHaveClass(/slot-ghost/);
+    expect(await note(page, EMPTY, 3).evaluate((el) => getComputedStyle(el).color)).toBe('rgb(92, 88, 80)');
     const look = await box(page).evaluate((el) => {
       const s = getComputedStyle(el);
-      return { bg: s.backgroundColor, border: `${s.borderTopWidth} ${s.borderTopStyle} ${s.borderTopColor}` };
+      return {
+        bg: s.backgroundColor,
+        border: `${s.borderTopWidth} ${s.borderTopStyle} ${s.borderTopColor}`,
+        radius: s.borderTopLeftRadius,
+        ms: parseFloat(s.transitionDuration) * 1000,
+      };
     });
-    expect(look).toEqual({ bg: 'rgb(236, 233, 226)', border: '1px solid rgb(216, 211, 200)' });
+    expect(look).toEqual({ bg: 'rgb(255, 255, 255)', border: '1px solid rgb(143, 168, 220)', radius: '4px', ms: 0 });
 
     await page.mouse.down();
     await page.mouse.up();
     await expect(cell(page, EMPTY)).toHaveAttribute('data-notes', '179');
     await expectBoxOn(page, EMPTY, 3); // hidden now, a click restores it
+    await expect(note(page, EMPTY, 3)).toHaveClass(/slot-ghost/);
+    expect(await note(page, EMPTY, 3).evaluate((el) => {
+      const s = getComputedStyle(el);
+      return { color: s.color, opacity: s.opacity, deco: s.textDecorationLine };
+    })).toEqual({ color: 'rgb(214, 59, 59)', opacity: '0.55', deco: 'line-through' });
 
     await hover(page, EMPTY, 4); // given 4 at 38: a click would be refused
     await expectNoBox(page, EMPTY);
+    await expect(page.locator('.n.slot-ghost')).toHaveCount(0);
     await hover(page, EMPTY, 6); // 6 in the box (50)
     await expectNoBox(page, EMPTY);
     await hover(page, EMPTY, 9);
     await expectBoxOn(page, EMPTY, 9);
+    await expect(note(page, EMPTY, 9)).not.toHaveClass(/slot-ghost/);
+    await expect(page.locator('.n.slot-ghost')).toHaveCount(0);
   });
 
   test('Manual: the box only shows on legal digits', async ({ page }) => {
     await cell(page, EMPTY).click();
     await hover(page, EMPTY, 1); // empty slot, legal add
     await expectBoxOn(page, EMPTY, 1);
+    await expect(note(page, EMPTY, 1)).toHaveClass(/slot-ghost/);
     await hover(page, EMPTY, 4);
     await expectNoBox(page, EMPTY);
     await hover(page, EMPTY, 2); // 2 is in the column (68)

@@ -18,6 +18,7 @@
     "screens:v10": "node scripts/screens-v10.mjs recordings",
     "screens:v11": "node scripts/screens-v11.mjs recordings",
     "screens:v12": "node scripts/screens-v12.mjs recordings",
+    "screens:v12.1": "node scripts/screens-v12.1.mjs recordings",
     "record:v4": "node scripts/record-v4.mjs recordings",
     "record:v6": "node scripts/record-v6.mjs recordings"
   },

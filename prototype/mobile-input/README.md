@@ -41,12 +41,14 @@ singles alone; checked by `tests/puzzle.spec.mjs`).
   cell gets Erase. There is no mouse double-click fill (that is touch only): each click
   is just a click, so a double-click on a slot toggles it twice.
 - Slot hover (mouse only, `(hover: hover) and (pointer: fine)`): in the selected empty
-  cell, the slot under the pointer gets a soft rounded box (`#ece9e2`, 1px `#d8d3c8`)
-  and a pointer cursor when a click would toggle it (a shown candidate, or a legal
-  digit to restore or add). The box sits inside the slot, clear of the cell edge, and
-  behind a yellow chip if one is there. Blocked digits get neither the box nor the
-  pointer; unselected cells get no slot box. Holding `Shift` hides the box so the
-  Shift-hover outline can take over.
+  cell, the slot under the pointer gets a white rounded box (`#ffffff`, 1px `#8fa8dc`)
+  filling one third of the cell on each axis, inset 2px, radius 4px, and a pointer
+  cursor when a click would toggle it (a shown candidate, or a legal digit to restore
+  or add). A shown candidate keeps its normal colour on top of the box. A hidden or
+  empty restorable slot shows the same box plus the struck-through ghost digit. The
+  box sits behind a yellow chip if one is there. Blocked digits get neither the box
+  nor the pointer; unselected cells get no slot box. Holding `Shift` hides the box so
+  the Shift-hover outline can take over.
 - Shift-hover (mouse only): while `Shift` is held the board shows a crosshair and the
   visible candidate under the pointer, the one `Shift`+click would enter, is drawn in
   bold ink with an ink outline (on a yellow chip, the chip keeps its fill). It follows
@@ -79,4 +81,5 @@ npm run record       # v1 flow: recordings/mobile-input-opus.webm + screenshots
 npm run record:v2    # v2 flow: recordings/mobile-input-opus-v2.webm + screenshots
 npm run record:v6    # travelling undo/redo ring: recordings/v6-undo-redo.webm
 npm run screens:v6   # v6 screenshots into recordings/
+npm run screens:v12.1 # slot-hover box: recordings/v12.1-slot-hover*.png + .webm
 ```

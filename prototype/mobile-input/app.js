@@ -622,9 +622,16 @@ function slotTarget() {
   const d = slotAt({ clientX: aim.x, clientY: aim.y }, c);
   return isAdd(i, d) && blockersOf(i, d).length ? null : { i, d };
 }
+const slotHover = { ghost: null };
 function refreshSlotBox() {
   const t = slotTarget();
   for (const el of boardEl.querySelectorAll('.cell.slot-live')) if (!t || cells[t.i].el !== el) el.classList.remove('slot-live');
+  const nextGhost = t && !hasCandidate(t.i, t.d) ? cells[t.i].notes[t.d - 1] : null;
+  if (slotHover.ghost !== nextGhost) {
+    slotHover.ghost?.classList.remove('slot-ghost');
+    nextGhost?.classList.add('slot-ghost');
+    slotHover.ghost = nextGhost;
+  }
   slotBox.classList.toggle('on', !!t);
   if (!t) return;
   const { el, notes } = cells[t.i];
