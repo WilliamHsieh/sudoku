@@ -116,6 +116,37 @@ describe("play session", () => {
     expect(play.switchDisabled).toBe(false);
   });
 
+  it("stays idle once the puzzle is solved until a new puzzle", () => {
+    time = 30_000;
+    play.step();
+    expect(play.phase).toBe("flash");
+    play.setSolved(true);
+    expect(play.phase).toBe("idle");
+    expect(play.showsCue(2)).toBe(false);
+    time = 90_000;
+    play.step();
+    expect(play.phase).toBe("idle");
+
+    play.pause();
+    expect(play.resume()).toBe(true);
+    time = 120_000;
+    play.step();
+    expect(play.phase).toBe("idle");
+
+    time = 121_000;
+    play.setSolved(false);
+    time = 151_000;
+    play.step();
+    expect(play.phase).toBe("flash");
+
+    play.setSolved(true);
+    time = 122_000;
+    play.resetForLoad();
+    time = 152_000;
+    play.step();
+    expect(play.phase).toBe("flash");
+  });
+
   it("shows a static tint under reduced motion until the next input", () => {
     play.setReduced(true);
     time = 30_000;

@@ -6,6 +6,7 @@ import {
   DEMO_PUZZLE,
   expectGapsAtLeast,
   measureChipLineGaps,
+  solve,
 } from "./helpers.js";
 
 const T0 = new Date("2026-01-01T00:00:00Z");
@@ -195,6 +196,24 @@ export function registerPr6Tests(opts = {}) {
       );
     }
     expectGapsAtLeast(await measureChipLineGaps(page, ".pencil-box.cue"), 1);
+  });
+
+  test("the cue stays idle after the puzzle is solved", async ({ page }) => {
+    const solution = solve(DEMO_PUZZLE);
+    const digits = solution.split("");
+    const blank = [...DEMO_PUZZLE].findIndex((ch) => ch === "0");
+    const digit = digits[blank];
+    digits[blank] = "0";
+    await page.goto(`./?q=${digits.join("")}&cueMs=700`);
+    if ((await page.locator(".board > .cell").count()) === 0) {
+      await page.getByRole("button", { name: /Play|Back to puzzle/ }).click();
+    }
+    await cell(page, blank).click();
+    await page.keyboard.press(digit);
+    await expect(page.locator(".success-card")).toBeVisible();
+    await page.clock.runFor(2_000);
+    await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "idle");
+    await expect(page.locator(".pencil-box.cue")).toHaveCount(0);
   });
 
   test("the r9c3 cue ring stays 1px off the box line", async ({ page }) => {

@@ -44,6 +44,7 @@ export function createPlay(opts = {}) {
   let cuePref = $state(initialCue);
   let auto = $state(true);
   let reduced = $state(false);
+  let solved = $state(false);
   /** @type {'idle' | 'flash' | 'hold'} */
   let phase = $state("idle");
   /** Lone cells snapped when the current pulse began. */
@@ -55,6 +56,10 @@ export function createPlay(opts = {}) {
   let timer = 0;
 
   clock.setEnabled(initialCue);
+
+  function applyBlock() {
+    clock.setBlocked(paused || modal != null || solved);
+  }
 
   function syncFromClock() {
     phase = clock.phase;
@@ -194,8 +199,8 @@ export function createPlay(opts = {}) {
       if (paused) return false;
       paused = true;
       timerRunning.set(false);
-      clock.setBlocked(true);
       if (modal) modal = null;
+      applyBlock();
       bump(now());
       return true;
     },
@@ -207,7 +212,7 @@ export function createPlay(opts = {}) {
       if (!paused) return false;
       paused = false;
       timerRunning.set(true);
-      clock.setBlocked(modal != null);
+      applyBlock();
       bump(now());
       return true;
     },
@@ -250,15 +255,29 @@ export function createPlay(opts = {}) {
     closeModal() {
       if (!modal) return;
       modal = null;
-      clock.setBlocked(paused);
+      applyBlock();
+      bump(now());
+    },
+
+    /**
+     * A solved board blocks the cue the same way pause and a dialog do.
+     * Restart or a new puzzle clears it.
+     * @param {boolean} v
+     */
+    setSolved(v) {
+      const next = !!v;
+      if (next === solved) return;
+      solved = next;
+      applyBlock();
       bump(now());
     },
 
     /** A new puzzle replaces the paused cover and any open dialog. */
     resetForLoad() {
-      const was = paused || modal != null;
+      const was = paused || modal != null || solved;
       paused = false;
       modal = null;
+      solved = false;
       clock.setBlocked(false);
       if (was) bump(now());
     },

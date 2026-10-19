@@ -231,6 +231,10 @@
   });
 
   $effect(() => {
+    playUi.setSolved(game.solved);
+  });
+
+  $effect(() => {
     if (showCalendar) return;
     playUi.start();
   });
