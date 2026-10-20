@@ -328,6 +328,21 @@ export function registerPr6Tests(opts = {}) {
     else await expect(moreButton(page)).toBeDisabled();
   });
 
+  test("Escape as soon as Restart is clicked returns to the sheet", async ({ page }) => {
+    await moreButton(page).click();
+    await expect(page.locator("dialog.opts")).toBeVisible();
+    await page.locator("#opt-restart").click();
+    await page.keyboard.press("Escape");
+    await expect(page.locator("dialog.opts")).toBeVisible();
+    await expect(page.locator("dialog.confirm")).toBeHidden();
+    await expect(page.locator("#opt-restart")).toBeFocused();
+
+    await page.keyboard.press("Escape");
+    await expect(page.locator("dialog.opts")).toBeHidden();
+    await expect(page.locator("dialog.confirm")).toBeHidden();
+    await expect(moreButton(page)).toBeFocused();
+  });
+
   test("restart confirms, Cancel and Esc return to the sheet, Restart clears the puzzle", async ({
     page,
   }) => {

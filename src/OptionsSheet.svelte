@@ -10,11 +10,37 @@
   let restartRow = $state(/** @type {HTMLButtonElement | undefined} */ (undefined));
   let cancelBtn = $state(/** @type {HTMLButtonElement | undefined} */ (undefined));
   let syncing = false;
+  /**
+   * `dialog.close()` reports `close` on a later task. Esc can restore the
+   * sheet before that task, and the late event must not dismiss it.
+   */
+  let optsCloseDebt = 0;
+  /** Esc is putting the sheet back; a nested cancel is not a dismiss. */
+  let restoring = false;
 
   const descId = $derived(playUi.cueReason ? "cue-why" : "cue-desc");
 
   function focusEl(/** @type {HTMLElement | undefined} */ el) {
     el?.focus({ preventScroll: true });
+  }
+
+  function closeOpts() {
+    if (!optsEl?.open) return;
+    optsCloseDebt++;
+    optsEl.close();
+  }
+
+  function closeConfirm() {
+    if (!confirmEl?.open) return;
+    confirmEl.close();
+  }
+
+  function restoreSheet() {
+    restoring = true;
+    playUi.backToOptions();
+    queueMicrotask(() => {
+      restoring = false;
+    });
   }
 
   $effect(() => {
@@ -24,16 +50,16 @@
     syncing = true;
     try {
       if (modal === "options") {
-        if (confirmEl.open) confirmEl.close();
+        closeConfirm();
         if (!optsEl.open) optsEl.showModal();
         focusEl(where === "restart" ? restartRow : cueRow);
       } else if (modal === "confirm") {
-        if (optsEl.open) optsEl.close();
+        closeOpts();
         if (!confirmEl.open) confirmEl.showModal();
         focusEl(cancelBtn);
       } else {
-        if (optsEl.open) optsEl.close();
-        if (confirmEl.open) confirmEl.close();
+        closeOpts();
+        closeConfirm();
       }
     } finally {
       syncing = false;
@@ -41,7 +67,27 @@
   });
 
   function onOptsClose() {
-    if (syncing || playUi.modal !== "options") return;
+    if (optsCloseDebt > 0) {
+      optsCloseDebt--;
+      return;
+    }
+    if (syncing || restoring || optsEl?.open) return;
+    if (playUi.modal === "confirm") {
+      restoreSheet();
+      return;
+    }
+    if (playUi.modal !== "options") return;
+    playUi.closeModal();
+    onclosed?.();
+  }
+
+  /** @param {Event} e */
+  function onOptsCancel(e) {
+    e.preventDefault();
+    if (restoring || playUi.modal === "confirm") {
+      if (playUi.modal === "confirm") restoreSheet();
+      return;
+    }
     playUi.closeModal();
     onclosed?.();
   }
@@ -57,12 +103,12 @@
   /** @param {Event} e */
   function onConfirmCancel(e) {
     e.preventDefault();
-    playUi.backToOptions();
+    restoreSheet();
   }
 
   /** @param {MouseEvent} e */
   function onConfirmClick(e) {
-    if (e.target === confirmEl) playUi.backToOptions();
+    if (e.target === confirmEl) restoreSheet();
   }
 
   function onDone() {
@@ -82,6 +128,7 @@
   bind:this={optsEl}
   aria-labelledby="opts-title"
   onclose={onOptsClose}
+  oncancel={onOptsCancel}
   onclick={onOptsClick}
 >
   <div class="opts-in">
@@ -148,7 +195,7 @@
       class="btn btn-secondary"
       id="confirm-cancel"
       bind:this={cancelBtn}
-      onclick={() => playUi.backToOptions()}>Cancel</button
+      onclick={() => restoreSheet()}>Cancel</button
     >
     <button type="button" class="btn btn-danger" id="confirm-ok" onclick={onRestarted}
       >Restart</button
