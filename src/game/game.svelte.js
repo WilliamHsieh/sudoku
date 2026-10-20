@@ -19,6 +19,7 @@ import {
   eraseAction,
   blockersOf,
   isAdd,
+  restart as restartState,
 } from "./game.js";
 import {
   createHistory,
@@ -55,6 +56,16 @@ export function createGame() {
   let lastBlockers = $state([]);
   /** @type {() => void} */
   let beforeMutate = () => {};
+  /** Puzzle input (including selection) so the cue can restart its idle clock. */
+  /** @type {() => void} */
+  let onActivity = () => {};
+  /** A different puzzle was loaded. */
+  /** @type {() => void} */
+  let onLoad = () => {};
+
+  function activity() {
+    onActivity();
+  }
 
   const state = $derived(history.present);
 
@@ -73,6 +84,7 @@ export function createGame() {
   function apply(result) {
     beforeMutate();
     lastBlockers = result.blockers;
+    activity();
     if (!result.changed) return result;
     history = commit(history, result);
     syncSolved();
@@ -139,6 +151,16 @@ export function createGame() {
       beforeMutate = fn ?? (() => {});
     },
 
+    /** @param {() => void} [fn] */
+    setOnActivity(fn) {
+      onActivity = fn ?? (() => {});
+    },
+
+    /** @param {() => void} [fn] */
+    setOnLoad(fn) {
+      onLoad = fn ?? (() => {});
+    },
+
     /** @param {number} i */
     value(i) {
       return valueAt(state, i);
@@ -172,12 +194,14 @@ export function createGame() {
     select(i) {
       beforeMutate();
       selected = i;
+      activity();
     },
 
     /** @param {import('./game.js').NotesMode} mode */
     setNotesMode(mode) {
       beforeMutate();
       history = replace(history, changeNotesMode(state, mode));
+      activity();
     },
 
     /** @param {number} i */
@@ -253,6 +277,7 @@ export function createGame() {
 
     undo() {
       beforeMutate();
+      activity();
       if (!canUndo(history)) return;
       history = undoHistory(history);
       lastBlockers = [];
@@ -261,11 +286,25 @@ export function createGame() {
     },
     redo() {
       beforeMutate();
+      activity();
       if (!canRedo(history)) return;
       history = redoHistory(history);
       lastBlockers = [];
       syncSolved();
       persistProgress();
+    },
+
+    /** Clear answers, notes and undo/redo. Keeps the puzzle and the notes mode. */
+    restart() {
+      beforeMutate();
+      history = createHistory(restartState(state));
+      selected = -1;
+      lastBlockers = [];
+      marked = false;
+      done.set(false);
+      resetTimer();
+      if (meta.dateStr && meta.difficulty) puzzleProgress.clear(meta.dateStr, meta.difficulty);
+      activity();
     },
 
     /**
@@ -291,6 +330,7 @@ export function createGame() {
       } else {
         resetTimer();
       }
+      onLoad();
     },
 
     /** Write current in-progress puzzle to `sudoku-progress`. */

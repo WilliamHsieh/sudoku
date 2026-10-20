@@ -2,6 +2,7 @@
   import { game } from "./game/game.svelte.js";
   import { padUi } from "./pad-ui.svelte.js";
   import { getShiftHover } from "./shift-hover.svelte.js";
+  import { playUi } from "./play/session.svelte.js";
 
   /**
    * @typedef {Object} Props
@@ -10,10 +11,6 @@
    */
   /** @type {Props} */
   let { cell_id, idx } = $props();
-
-  let showOnlyCandidateHint = $state(false);
-  /** @type {ReturnType<typeof setTimeout> | null} */
-  let hintTimer = null;
 
   const visible = $derived(game.hasNote(cell_id, idx + 1));
   const isSelected = $derived(game.selected === cell_id);
@@ -35,6 +32,8 @@
       padUi.preview?.kind === "remove"
   );
   const hiddenPending = $derived(padUi.pending?.cell === cell_id && padUi.pending?.d === idx + 1);
+  const cued = $derived(isOnlyCandidate && playUi.showsCue(cell_id));
+  const cueHold = $derived(cued && playUi.phase === "hold");
 
   function handleClick(e) {
     if (e.shiftKey) {
@@ -50,33 +49,6 @@
       game.toggleNote(cell_id, idx + 1);
     }
   }
-
-  function startRepeatingCycle() {
-    hintTimer = setTimeout(() => {
-      showOnlyCandidateHint = true;
-      setTimeout(() => {
-        showOnlyCandidateHint = false;
-      }, 1500);
-      startRepeatingCycle();
-    }, 15000);
-  }
-
-  function clearTimers() {
-    if (hintTimer) {
-      clearTimeout(hintTimer);
-      hintTimer = null;
-    }
-    showOnlyCandidateHint = false;
-  }
-
-  $effect(() => {
-    if (isOnlyCandidate) {
-      clearTimers();
-      startRepeatingCycle();
-      return () => clearTimers();
-    }
-    clearTimers();
-  });
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
@@ -87,7 +59,8 @@
     class:selected={isSelected}
     class:aim={isShiftSlot}
     class:matching-number={isMatchingNumber}
-    class:only-candidate={showOnlyCandidateHint}
+    class:cue={cued}
+    class:cue-hold={cueHold}
     class:preview-add={previewAdd}
     class:preview-remove={previewRemove}
     class:hidden-pending={hiddenPending}
@@ -204,31 +177,128 @@
     color: var(--chip-ink);
   }
 
-  .pencil-box.only-candidate {
+  /* Single-candidate cue: 0.34-equivalent chip, same box as the match chip, 4px radius. */
+  .pencil-box.cue {
+    place-self: center;
+    box-sizing: border-box;
+    width: min(calc(var(--cell) * var(--chip-size)), calc(100cqw - 4px));
+    height: min(calc(var(--cell) * var(--chip-size)), calc(100cqh - 4px));
+    max-width: calc(100cqw - 4px);
+    max-height: calc(100cqh - 4px);
+    border-radius: 4px;
+    z-index: 2;
+    animation: lone-pulse 1.5s both;
+  }
+
+  @keyframes lone-pulse {
+    0% {
+      background: transparent;
+      color: var(--cand);
+      box-shadow: 0 0 0 0 transparent;
+      animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    18% {
+      background: var(--cue-fill);
+      color: var(--cue-ink);
+      font-weight: 600;
+      box-shadow:
+        0 0 0 1px var(--cue-line),
+        0 0 0 3px var(--cue-halo);
+      animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    70% {
+      background: var(--cue-fill);
+      color: var(--cue-ink);
+      font-weight: 600;
+      box-shadow:
+        0 0 0 1px var(--cue-line),
+        0 0 0 0 transparent;
+      animation-timing-function: ease-out;
+    }
+    100% {
+      background: transparent;
+      color: var(--cand);
+      box-shadow: 0 0 0 0 transparent;
+    }
+  }
+
+  /* Edge slots move inward so the 3px ring stays 1px off the grid line.
+     Center slot (5) is already clear. Size stays the match-chip size. */
+  .pencil-box.cue[data-d="2"] {
+    transform: translateY(1px);
+  }
+  .pencil-box.cue[data-d="4"] {
+    transform: translateX(1px);
+  }
+  .pencil-box.cue[data-d="6"] {
+    transform: translateX(-1px);
+  }
+  .pencil-box.cue[data-d="8"] {
+    transform: translateY(-1px);
+  }
+  .pencil-box.cue[data-d="1"] {
+    transform: translate(1px, 1px);
+  }
+  .pencil-box.cue[data-d="3"] {
+    transform: translate(-1px, 1px);
+  }
+  .pencil-box.cue[data-d="7"] {
+    transform: translate(1px, -1px);
+  }
+  .pencil-box.cue[data-d="9"] {
+    transform: translate(-1px, -1px);
+  }
+
+  @media (max-width: 599px) {
+    .pencil-box.cue {
+      width: min(calc(var(--cell) * var(--chip-size)), calc(100cqw - 1px));
+      height: min(calc(var(--cell) * var(--chip-size)), calc(100cqh - 1px));
+      max-width: calc(100cqw - 1px);
+      max-height: calc(100cqh - 1px);
+    }
+    .pencil-box.cue[data-d="2"] {
+      transform: translateY(2.5px);
+    }
+    .pencil-box.cue[data-d="4"] {
+      transform: translateX(2.5px);
+    }
+    .pencil-box.cue[data-d="6"] {
+      transform: translateX(-2.5px);
+    }
+    .pencil-box.cue[data-d="8"] {
+      transform: translateY(-2.5px);
+    }
+    .pencil-box.cue[data-d="1"] {
+      transform: translate(2.5px, 2.5px);
+    }
+    .pencil-box.cue[data-d="3"] {
+      transform: translate(-2.5px, 2.5px);
+    }
+    .pencil-box.cue[data-d="7"] {
+      transform: translate(2.5px, -2.5px);
+    }
+    .pencil-box.cue[data-d="9"] {
+      transform: translate(-2.5px, -2.5px);
+    }
+  }
+
+  /* Hold (reduced motion, including ?rm=1) stays on the tint. The flash animation
+     would otherwise end on the transparent keyframe while the class remains. */
+  .pencil-box.cue.cue-hold {
+    animation: none;
     background: var(--cue-fill);
     color: var(--cue-ink);
     font-weight: 600;
     box-shadow: 0 0 0 1px var(--cue-line);
-    border-radius: 4px;
-    animation: pulse-glow 2s ease-in-out infinite;
-    position: relative;
-    z-index: 5;
   }
 
-  .pencil-box.only-candidate.selected {
-    background: var(--cue-fill);
-    color: var(--cue-ink);
-  }
-
-  @keyframes pulse-glow {
-    0%,
-    100% {
+  @media (prefers-reduced-motion: reduce) {
+    .pencil-box.cue {
+      animation: none;
+      background: var(--cue-fill);
+      color: var(--cue-ink);
+      font-weight: 600;
       box-shadow: 0 0 0 1px var(--cue-line);
-    }
-    50% {
-      box-shadow:
-        0 0 0 1px var(--cue-line),
-        0 0 10px color-mix(in srgb, var(--cue-line) 50%, transparent);
     }
   }
 

@@ -163,6 +163,28 @@ describe("createGame", () => {
     expect(g.eraseKind(0)).toBe(null);
   });
 
+  it("restart clears answers, notes, history, selection and the timer", () => {
+    g.select(0);
+    g.enter(0, 4);
+    g.toggleNote(2, 3);
+    g.setNotesMode("manual");
+    g.toggleNote(3, 1);
+    timer.set(90);
+    expect(g.canUndo).toBe(true);
+    g.restart();
+    expect(g.value(0)).toBe(0);
+    expect(g.notesMode).toBe("manual");
+    expect(g.hasNote(3, 1)).toBe(false);
+    g.setNotesMode("auto");
+    expect(g.hasNote(2, 3)).toBe(true);
+    expect(g.canUndo).toBe(false);
+    expect(g.canRedo).toBe(false);
+    expect(g.selected).toBe(-1);
+    expect(get(timer)).toBe(0);
+    expect(get(timerRunning)).toBe(true);
+    expect(get(done)).toBe(false);
+  });
+
   it("peekUndo names the cell that changed", () => {
     expect(g.peekUndo()).toBe(null);
     g.enter(0, 4);

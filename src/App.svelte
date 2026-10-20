@@ -15,7 +15,50 @@
   import { padUi } from "./pad-ui.svelte.js";
   import { installIosZoomGuards } from "./ios-zoom.js";
   import { installShiftHover, isShiftAim } from "./shift-hover.svelte.js";
-  import { onMount } from "svelte";
+  import { playUi } from "./play/session.svelte.js";
+  import { applyShot } from "./play/shot.js";
+  import PausedCover from "./PausedCover.svelte";
+  import OptionsSheet from "./OptionsSheet.svelte";
+  import { onMount, tick } from "svelte";
+
+  game.setOnActivity(() => playUi.noteActivity());
+  game.setOnLoad(() => playUi.resetForLoad());
+  playUi.bindLones(() => {
+    if (game.notesMode !== "auto") return [];
+    const ids = [];
+    for (let i = 0; i < 81; i++) {
+      if (game.value(i) === 0 && game.noteCount(i) === 1) ids.push(i);
+    }
+    return ids;
+  });
+
+  /** @param {string} id */
+  function focusId(id) {
+    document.getElementById(id)?.focus({ preventScroll: true });
+  }
+
+  /** @param {boolean} nowPaused */
+  async function focusAfterPause(nowPaused) {
+    await tick();
+    focusId(nowPaused ? "resume" : "pause");
+  }
+
+  function onPauseClick() {
+    const result = playUi.toggle();
+    if (result === "paused") focusAfterPause(true);
+    else if (result === "resumed") focusAfterPause(false);
+  }
+
+  function onResumeCover() {
+    if (playUi.resume()) focusAfterPause(false);
+  }
+
+  function focusMore() {
+    const el = [...document.querySelectorAll("[data-more]")].find(
+      (node) => node instanceof HTMLElement && node.offsetParent
+    );
+    if (el instanceof HTMLElement) el.focus({ preventScroll: true });
+  }
 
   const CELL_IDS = Array.from({ length: 81 }, (_, i) => i);
   const NARROW_MQ = "(max-width: 599px)";
@@ -68,11 +111,28 @@
   }
 
   function handleGlobalKeydown(e) {
+    if (playUi.modal) return;
+    const plainP =
+      (e.key === "p" || e.key === "P") && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey;
+    if (plainP) {
+      e.preventDefault();
+      onPauseClick();
+      return;
+    }
+    if (playUi.paused) return;
+    playUi.noteActivity();
     if (e.key === "Escape" && $done) {
       game.dismiss();
     } else {
       handleKeydown(e);
     }
+  }
+
+  /** @param {PointerEvent} e */
+  function onPlayPointer(e) {
+    if (playUi.paused) return;
+    if (!(e.target instanceof Element)) return;
+    if (e.target.closest(".play")) playUi.noteActivity();
   }
 
   function removeFocus() {
@@ -88,6 +148,7 @@
   function openJournal() {
     game.flushProgress();
     showCalendar = true;
+    playUi.noteActivity();
   }
 
   function hasQueryPuzzle() {
@@ -113,12 +174,14 @@
         }
       }
     }
+    playUi.start();
     hasPlayed = true;
     showCalendar = false;
   }
 
   function handleLoadPuzzle(event) {
     console.log("Puzzle loaded from calendar:", event.detail);
+    playUi.start();
     hasPlayed = true;
     showCalendar = false;
   }
@@ -133,13 +196,47 @@
     game.setBeforeMutate(() => ring.flush());
     window.addEventListener("loadPuzzle", handleLoadPuzzle);
     const stopShiftHover = installShiftHover();
+    const reduceMq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const shotParams = new URLSearchParams(window.location.search);
+    const reducedOn = () => reduceMq.matches || shotParams.get("rm") === "1";
+    playUi.setReduced(reducedOn());
+    const onReduce = () => playUi.setReduced(reducedOn());
+    reduceMq.addEventListener("change", onReduce);
+    const onVis = () => {
+      if (!document.hidden && document.visibilityState !== "hidden") return;
+      if (playUi.pause()) focusAfterPause(true);
+    };
+    document.addEventListener("visibilitychange", onVis);
+    const shot = shotParams.get("shot");
+    if (shot) {
+      applyShot(game, shot === "manual");
+      hasPlayed = true;
+      showCalendar = false;
+    }
     return () => {
       mq.removeEventListener("change", onNarrow);
+      reduceMq.removeEventListener("change", onReduce);
+      document.removeEventListener("visibilitychange", onVis);
       game.setBeforeMutate(() => {});
+      game.setOnActivity(() => {});
+      game.setOnLoad(() => {});
       ring.destroy();
       stopShiftHover();
       window.removeEventListener("loadPuzzle", handleLoadPuzzle);
     };
+  });
+
+  $effect(() => {
+    playUi.setAuto(game.notesMode === "auto");
+  });
+
+  $effect(() => {
+    playUi.setSolved(game.solved);
+  });
+
+  $effect(() => {
+    if (showCalendar) return;
+    playUi.start();
   });
 
   $effect(() => {
@@ -168,6 +265,41 @@
       <h1 onclick={removeFocus}>Sudoku</h1>
       {#if !showCalendar}
         <Timer />
+        <button
+          class="dhbtn"
+          id="pause"
+          type="button"
+          aria-pressed={playUi.paused}
+          aria-label={playUi.paused ? "Resume" : "Pause"}
+          title={playUi.paused ? "Resume (P)" : "Pause (P)"}
+          onclick={onPauseClick}
+        >
+          <svg class="ic pz ic-pause" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="6.5" y="5" width="3.6" height="14" rx="1"></rect>
+            <rect x="13.9" y="5" width="3.6" height="14" rx="1"></rect>
+          </svg>
+          <svg class="ic play-ic ic-play" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"
+            ></path>
+          </svg>
+        </button>
+        <button
+          class="dhbtn"
+          type="button"
+          data-more
+          aria-label="More"
+          title="More options"
+          aria-haspopup="dialog"
+          disabled={playUi.paused}
+          onclick={() => playUi.openOptions()}
+        >
+          <svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="1"></circle>
+            <circle cx="19" cy="12" r="1"></circle>
+            <circle cx="5" cy="12" r="1"></circle>
+          </svg>
+        </button>
       {/if}
       <nav class="seg" aria-label="Views">
         <button
@@ -260,18 +392,25 @@
             >
           </button>
           <Timer />
-          <button class="hbtn" type="button" aria-label="Pause">
-            <span class="face"
-              ><svg class="ic pz" viewBox="0 0 24 24" aria-hidden="true"
-                ><rect x="6.5" y="5" width="3.6" height="14" rx="1"></rect><rect
-                  x="13.9"
-                  y="5"
-                  width="3.6"
-                  height="14"
-                  rx="1"
-                ></rect></svg
-              ></span
-            >
+          <button
+            class="hbtn"
+            id="pause"
+            type="button"
+            aria-pressed={playUi.paused}
+            aria-label={playUi.paused ? "Resume" : "Pause"}
+            onclick={onPauseClick}
+          >
+            <span class="face">
+              <svg class="ic pz ic-pause" viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="6.5" y="5" width="3.6" height="14" rx="1"></rect>
+                <rect x="13.9" y="5" width="3.6" height="14" rx="1"></rect>
+              </svg>
+              <svg class="ic play-ic ic-play" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"
+                ></path>
+              </svg>
+            </span>
           </button>
         {/if}
       </div>
@@ -281,21 +420,36 @@
   {#if showCalendar}
     <Journal />
   {:else}
-    <div class="play">
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="play" class:is-paused={playUi.paused} onpointerdown={onPlayPointer}>
       <div class="board-wrap" bind:this={wrapEl}>
-        <div class="board" class:quiet={padUi.quiet} class:shift-aim={isShiftAim()}>
+        <div
+          class="board"
+          class:quiet={padUi.quiet}
+          class:shift-aim={isShiftAim()}
+          aria-hidden={playUi.paused ? "true" : undefined}
+          inert={playUi.paused}
+          data-cue-phase={playUi.phase}
+        >
           {#each CELL_IDS as id (id)}
             <Cell cell_id={id} />
           {/each}
         </div>
+        {#if playUi.paused}
+          <PausedCover showKey={!isNarrow} onresume={onResumeCover} />
+        {/if}
         <div class="undo-ring" bind:this={ringEl} aria-hidden="true"></div>
       </div>
       <div class="mobile-chrome">
-        <Tools />
-        <Keypad />
+        <div class="chrome-dim" class:dim={playUi.paused} inert={playUi.paused}>
+          <Tools />
+          <Keypad />
+        </div>
         <p class="pad-hint">Tap = answer · Swipe up = candidate</p>
       </div>
     </div>
+
+    <OptionsSheet onclosed={focusMore} onrestart={() => game.restart()} />
 
     {#if $done}
       <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
@@ -353,8 +507,11 @@
     padding: 3px;
     margin-left: auto;
   }
+  .header.playing {
+    gap: 8px;
+  }
   .header.playing .seg {
-    margin-left: 0;
+    margin-left: 6px;
   }
   .seg button {
     font-size: 14px;
@@ -437,7 +594,7 @@
   .board.quiet :global(.cell.same.given:not(.conflict)) {
     background: var(--given-bg);
   }
-  .board.quiet :global(.pencil-box.matching-number:not(.only-candidate)) {
+  .board.quiet :global(.pencil-box.matching-number:not(.cue)) {
     color: var(--cand);
     background: transparent;
     box-shadow: none;
@@ -572,6 +729,20 @@
       gap: 12px;
     }
 
+    .chrome-dim {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .chrome-dim.dim {
+      opacity: 0.4;
+    }
+
+    .play.is-paused .board {
+      visibility: hidden;
+    }
+
     .header {
       display: none;
     }
@@ -637,6 +808,38 @@
       fill: currentColor;
       stroke: none;
     }
+    .play-ic {
+      display: none;
+    }
+    .play-ic path {
+      fill: currentColor;
+      stroke: none;
+    }
+    #pause[aria-pressed="true"] .ic-pause {
+      display: none;
+    }
+    #pause[aria-pressed="true"] .ic-play {
+      display: block;
+      width: 15px;
+      height: 15px;
+    }
+    #pause[aria-pressed="true"] .face {
+      background: var(--neutral);
+      border-color: rgb(28 26 22 / 0.18);
+    }
+    .hbtn:focus {
+      outline: none;
+    }
+    .hbtn:focus-visible {
+      outline: none;
+    }
+    .hbtn:focus-visible .face {
+      outline: 2px solid var(--focus);
+      outline-offset: 1px;
+    }
+    .hbtn:active .face {
+      background: var(--key-pressed);
+    }
     .hbtn.cal {
       margin-right: 3px;
     }
@@ -678,6 +881,73 @@
   }
 
   @media (min-width: 600px) {
+    .dhbtn {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      padding: 0;
+      border: 1px solid var(--timer-line);
+      border-radius: 8px;
+      background: var(--timer-bg);
+      color: var(--timer-ink);
+      cursor: pointer;
+      font: inherit;
+    }
+    .dhbtn .ic {
+      width: 16px;
+      height: 16px;
+      flex: none;
+    }
+    .dhbtn .pz rect {
+      fill: currentColor;
+      stroke: none;
+    }
+    .dhbtn .ic-play {
+      display: none;
+    }
+    .dhbtn .play-ic path {
+      fill: currentColor;
+      stroke: none;
+    }
+    .dhbtn[aria-pressed="true"] .ic-pause {
+      display: none;
+    }
+    .dhbtn[aria-pressed="true"] .ic-play {
+      display: block;
+      width: 15px;
+      height: 15px;
+    }
+    .dhbtn[aria-pressed="true"] {
+      background: var(--neutral);
+      border-color: rgb(28 26 22 / 0.18);
+    }
+    .dhbtn:focus {
+      outline: none;
+    }
+    .dhbtn:focus-visible {
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
+    }
+    .dhbtn:disabled {
+      opacity: 1;
+      color: var(--timer-ink);
+      background: var(--timer-bg);
+      border-color: var(--timer-line);
+      cursor: default;
+    }
+    .dhbtn .ic {
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .dhbtn .pz {
+      fill: none;
+      stroke: none;
+    }
+
     main.on-journal {
       padding: 0;
     }
@@ -693,6 +963,16 @@
       font-size: 24px;
       font-weight: 700;
       letter-spacing: -0.01em;
+    }
+  }
+
+  @media (min-width: 600px) and (hover: hover) {
+    .dhbtn:hover:not(:disabled) {
+      background: #ffffff;
+      border-color: rgb(28 26 22 / 0.22);
+    }
+    .dhbtn[aria-pressed="true"]:hover {
+      background: #dcdad4;
     }
   }
 </style>

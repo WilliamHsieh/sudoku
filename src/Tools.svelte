@@ -1,12 +1,18 @@
 <script>
   import { game } from "./game/game.svelte.js";
   import { ring } from "./ring.js";
+  import { playUi } from "./play/session.svelte.js";
 
   const auto = $derived(game.notesMode === "auto");
   const eraseOff = $derived(!game.eraseKind(game.selected));
 
   function toggleNotes() {
+    if (playUi.paused) return;
     game.setNotesMode(auto ? "manual" : "auto");
+  }
+
+  function openMore() {
+    playUi.openOptions();
   }
 </script>
 
@@ -17,7 +23,9 @@
     type="button"
     aria-label="Undo"
     disabled={!game.canUndo}
-    onclick={() => ring.undo()}
+    onclick={() => {
+      if (!playUi.paused) ring.undo();
+    }}
   >
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M9 14 4 9l5-5"></path>
@@ -31,7 +39,9 @@
     type="button"
     aria-label="Redo"
     disabled={!game.canRedo}
-    onclick={() => ring.redo()}
+    onclick={() => {
+      if (!playUi.paused) ring.redo();
+    }}
   >
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="m15 14 5-5-5-5"></path>
@@ -45,13 +55,15 @@
     type="button"
     aria-label="Erase"
     disabled={eraseOff}
-    onclick={() => game.erase(game.selected)}
+    onclick={() => {
+      if (!playUi.paused) game.erase(game.selected);
+    }}
   >
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="m7 21-4.3-4.3a1 1 0 0 1 0-1.4l10-10a1 1 0 0 1 1.4 0l5.6 5.6a1 1 0 0 1 0 1.4L13 19"
+      <path
+        d="M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.829 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21"
       ></path>
-      <path d="M22 21H7"></path>
-      <path d="m5 11 9 9"></path>
+      <path d="m5.082 11.09 8.828 8.828"></path>
     </svg>
     <span>Erase</span>
   </button>
@@ -67,12 +79,20 @@
     <span class="switch" aria-hidden="true"><span class="knob"></span></span>
     <span class="notes-label">Notes: <b>{auto ? "Auto" : "Manual"}</b></span>
   </button>
+  <button class="tool" type="button" data-more aria-haspopup="dialog" onclick={openMore}>
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="1"></circle>
+      <circle cx="19" cy="12" r="1"></circle>
+      <circle cx="5" cy="12" r="1"></circle>
+    </svg>
+    <span>More</span>
+  </button>
 </div>
 
 <style>
   .tools {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr 1.5fr;
+    grid-template-columns: 1fr 1fr 1fr 1.5fr 1fr;
     gap: 6px;
   }
 
@@ -98,11 +118,25 @@
     background: var(--key-pressed);
   }
 
+  .tool:focus {
+    outline: none;
+  }
+
+  .tool:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: -2px;
+  }
+
   .tool:disabled {
     opacity: 0.35;
     cursor: default;
     background: transparent;
     pointer-events: none;
+  }
+
+  /* The row is already at 40%. Don't stack the disabled fade on top. */
+  :global(.chrome-dim.dim) .tool:disabled {
+    opacity: 1;
   }
 
   .tool svg {
