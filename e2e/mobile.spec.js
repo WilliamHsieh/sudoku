@@ -28,6 +28,7 @@ import { puzzleData } from "../src/puzzles.js";
 
 const SELECTED_BG = "rgb(211, 224, 248)";
 const key = (page, d) => page.locator(`.key[data-d="${d}"]`);
+// 0.5px absorbs subpixel rounding; header fit is strict: gap >= 8, scrollWidth <= clientWidth.
 const EPS = 0.5;
 
 function near(a, b, label) {
@@ -394,6 +395,7 @@ test.describe("narrow header", () => {
 
   function assertFit(state, width, view) {
     const where = `${view} @ ${width}`;
+    // 0.5px overflow/viewport allowances absorb subpixel rounding; strict header fit is checked below.
     expect(state.scrollW, `${where} scrolls horizontally`).toBeLessThanOrEqual(state.vw + 0.5);
     expect(state.padL, `${where} padding-left`).toBeGreaterThanOrEqual(8);
     expect(state.padR, `${where} padding-right`).toBeGreaterThanOrEqual(8);
@@ -502,6 +504,7 @@ test.describe("narrow header", () => {
       };
     });
     expect(overlapArea(result.hits[0], result.hits[1]), `${where} hits overlap`).toBe(0);
+    // 0.5px hit bounds absorb subpixel rounding; they do not measure header fit.
     for (const hit of result.hits) {
       expect(hit.w, `${where} hit width`).toBeGreaterThanOrEqual(44);
       expect(hit.h, `${where} hit height`).toBeGreaterThanOrEqual(44);
