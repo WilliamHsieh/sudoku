@@ -82,6 +82,34 @@
   let showCalendar = $state(true);
   let hasPlayed = $state(false);
   let isNarrow = $state(typeof window !== "undefined" && window.matchMedia(NARROW_MQ).matches);
+  /** Cover stays mounted through the fade-out. */
+  let showCover = $state(false);
+  let coverLeaving = $state(false);
+  /** Phone board stays painted until the cover is opaque, then hides. */
+  let concealBoard = $state(false);
+
+  function reduceMotion() {
+    return (
+      typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    );
+  }
+
+  $effect(() => {
+    if (playUi.paused) {
+      coverLeaving = false;
+      showCover = true;
+      concealBoard = reduceMotion();
+      return;
+    }
+    concealBoard = false;
+    if (!showCover) return;
+    if (reduceMotion()) {
+      showCover = false;
+      coverLeaving = false;
+      return;
+    }
+    coverLeaving = true;
+  });
   let wrapEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   let ringEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   let hdEl = $state(/** @type {HTMLElement | undefined} */ (undefined));
@@ -403,6 +431,9 @@
   <title>Sudoku</title>
 </svelte:head>
 
+<!-- Cover the PWA top blur without changing the safe-area padding. -->
+<div class="top-strip" aria-hidden="true"></div>
+
 <main class:on-journal={showCalendar}>
   <Api />
   {#if !isNarrow}
@@ -566,31 +597,44 @@
   {#if showCalendar}
     <Journal />
   {:else}
-    <div class="play" class:is-paused={playUi.paused}>
+    <div class="play" class:board-concealed={concealBoard}>
       <p class="sr-only" aria-live="polite" aria-atomic="true">
         {#key padUi.commitId}<span>{padUi.announcement}</span>{/key}
       </p>
-      <div class="board-wrap" bind:this={wrapEl}>
-        <div
-          use:paintBoard
-          class="board"
-          class:quiet={padUi.quiet}
-          class:shift-aim={isShiftAim()}
-          aria-hidden={playUi.paused ? "true" : undefined}
-          inert={playUi.paused}
-          data-cue-phase={playUi.phase}
-        >
-          {#each CELL_IDS as id (id)}
-            <Cell cell_id={id} />
-          {/each}
+      <div class="board-slot">
+        <div class="board-wrap" bind:this={wrapEl}>
+          <div
+            use:paintBoard
+            class="board"
+            class:quiet={padUi.quiet}
+            class:shift-aim={isShiftAim()}
+            aria-hidden={playUi.paused ? "true" : undefined}
+            inert={playUi.paused}
+            data-cue-phase={playUi.phase}
+          >
+            {#each CELL_IDS as id (id)}
+              <Cell cell_id={id} />
+            {/each}
+          </div>
+          {#if showCover}
+            <PausedCover
+              showKey={!isNarrow}
+              leaving={coverLeaving}
+              onresume={onResumeCover}
+              onopaque={() => {
+                if (playUi.paused && !coverLeaving) concealBoard = true;
+              }}
+              onleft={() => {
+                showCover = false;
+                coverLeaving = false;
+              }}
+            />
+          {/if}
+          <div class="undo-ring" bind:this={ringEl} aria-hidden="true"></div>
+          {#if padUi.toast}
+            <p class="toast" role="status">{padUi.toast}</p>
+          {/if}
         </div>
-        {#if playUi.paused}
-          <PausedCover showKey={!isNarrow} onresume={onResumeCover} />
-        {/if}
-        <div class="undo-ring" bind:this={ringEl} aria-hidden="true"></div>
-        {#if padUi.toast}
-          <p class="toast" role="status">{padUi.toast}</p>
-        {/if}
       </div>
       <div class="mobile-chrome">
         <div class="chrome-dim" class:dim={playUi.paused} inert={playUi.paused}>
@@ -639,21 +683,72 @@
     clip-path: inset(50%);
     white-space: nowrap;
   }
+  .top-strip {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: max(env(safe-area-inset-top), 6px);
+    background: var(--page-bg);
+    pointer-events: none;
+    /* Above page content, below page dialogs (30) and scrims (40). */
+    z-index: 20;
+  }
+
   main {
     width: 100%;
-    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100svh;
+    height: 100dvh;
+    max-height: 100dvh;
+    min-height: 0;
     padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
       max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
     font-family: var(--ui-font);
     color: var(--ui-ink);
     background: var(--page-bg);
-    overflow-x: hidden;
+    overflow: visible;
+  }
+
+  .header,
+  .hd {
+    flex: none;
+  }
+
+  .play {
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+  }
+
+  /* Desktop: no box, so the board wrap stays in normal flow. Phone: see 599px. */
+  .board-slot {
+    display: contents;
+  }
+
+  main :global(.journal) {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  main :global(.journal) :global(.mobile),
+  main :global(.journal) :global(.page.desktop) {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
   .header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    width: 100%;
     margin: 0 auto 24px;
     padding: 8px 0 16px;
     border-bottom: var(--line-thin-w) solid var(--line-thin);
@@ -832,6 +927,7 @@
     align-items: center;
     justify-content: center;
     z-index: 1000;
+    animation: overlay-in var(--motion) var(--ease-out);
   }
 
   .success-card {
@@ -843,6 +939,27 @@
     max-width: 400px;
     box-shadow: var(--shadow-dialog);
     position: relative;
+    animation: pop-in var(--motion) var(--ease-out);
+  }
+
+  @keyframes overlay-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
 
   .success-icon {
@@ -938,23 +1055,45 @@
       gap: 12px;
     }
 
+    /* Shrinks on a short viewport. The keypad stays in .mobile-chrome and does not scale. */
+    .board-slot {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      flex: 0 1 auto;
+      min-width: 0;
+      min-height: 0;
+      width: 100%;
+      max-height: 100%;
+      aspect-ratio: 1;
+      container-type: size;
+    }
+
+    .board-wrap {
+      width: min(100cqw, 100cqh);
+      max-width: 100%;
+      margin: 0;
+    }
+
     .mobile-chrome {
       display: flex;
       flex-direction: column;
       gap: 12px;
+      flex: none;
     }
 
     .chrome-dim {
       display: flex;
       flex-direction: column;
       gap: 12px;
+      transition: opacity var(--motion) var(--ease-out);
     }
 
     .chrome-dim.dim {
       opacity: 0.4;
     }
 
-    .play.is-paused .board {
+    .play.board-concealed .board {
       visibility: hidden;
     }
 
@@ -1225,7 +1364,37 @@
 
     main.on-journal {
       gap: 18px;
-      padding-bottom: max(40px, env(safe-area-inset-bottom));
+      /* The list scrolls to the screen edge. The safe area is padding inside .mobile. */
+      padding-bottom: 0;
+    }
+  }
+
+  /* Wide layout: the square is min(650px, the space under the header).
+     Below 160px the page scrolls instead of shrinking the grid further. */
+  @media (min-width: 600px) {
+    .play {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .board-slot {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      flex: 0 1 auto;
+      width: min(650px, 100%);
+      max-height: 100%;
+      aspect-ratio: 1;
+      min-width: 160px;
+      min-height: 160px;
+      container-type: size;
+    }
+
+    .board-wrap {
+      width: min(100cqw, 100cqh);
+      max-width: none;
+      margin: 0;
     }
   }
 
@@ -1321,6 +1490,15 @@
       font-size: 24px;
       font-weight: 700;
       letter-spacing: -0.01em;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .success-message,
+    .success-card,
+    .chrome-dim {
+      animation: none;
+      transition: none;
     }
   }
 

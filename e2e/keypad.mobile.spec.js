@@ -7,6 +7,12 @@ import { touchDriver } from "./touch.js";
 const key = (page, d) => page.locator(`.key[data-d="${d}"]`);
 const pad = (page) => page.locator("#keypad");
 
+/** Done eases the sheet out; the next gesture has to wait until it is gone. */
+async function closeOptions(page) {
+  await page.locator("#opts-done").click();
+  await expect(page.locator("dialog.opts")).toBeHidden();
+}
+
 /** Empty cells whose Auto notes include d. */
 async function cellsWithNote(page, d) {
   return page.evaluate((digit) => {
@@ -191,7 +197,7 @@ test("lock clears by key tap, another digit, swipe, Escape, pause, More and rest
   await expect(page.locator("dialog.opts")).toBeVisible();
   await expect(pad(page)).toHaveAttribute("data-locked", "0");
   await expect(pad(page)).toHaveAttribute("data-shown", "6");
-  await page.locator("#opts-done").click();
+  await closeOptions(page);
 
   await t.swipeDown(key(page, 6), 40);
   await t.tap(page.locator(".tools [data-more]"));
@@ -257,7 +263,7 @@ test("legacy mode flashes blockers on release, including a tap that enters", asy
 
   await t.tap(page.locator(".tools [data-more]"));
   await page.locator("#opt-tap-fill").click();
-  await page.locator("#opts-done").click();
+  await closeOptions(page);
 
   const k = key(page, 5);
   const p = await t.center(k);
@@ -287,7 +293,7 @@ test("legacy tap-to-fill is off by default, then a tap fills and a second tap cl
   await expect(page.locator("#tap-fill-desc")).toHaveText("Off: tap shows, double-tap fills");
   await row.click();
   await expect(row).toHaveAttribute("aria-checked", "true");
-  await page.locator("#opts-done").click();
+  await closeOptions(page);
   await expect(page.locator(".pad-hint")).toHaveText("Tap = answer · Swipe up = candidate");
 
   await t.tap(cell(page, 0));
@@ -318,7 +324,7 @@ test("screen-reader activation of a key fills, including in legacy mode", async 
 
   await t.tap(page.locator(".tools [data-more]"));
   await page.locator("#opt-tap-fill").click();
-  await page.locator("#opts-done").click();
+  await closeOptions(page);
   await t.tap(page.locator("#erase"));
   await expectValue(page, 0, 0);
   await key(page, 7).focus();

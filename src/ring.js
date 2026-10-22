@@ -1,7 +1,10 @@
 // Travelling undo/redo ring. Toolbar undo/redo delay the state change until
 // the ring lands (prototype). Keyboard Ctrl+Z stays immediate.
 
-import { RING, EASE_OUT, ringTiming } from "./game/pad.js";
+import { RING, ringTiming } from "./game/pad.js";
+
+/** Shared ease. The keypad keeps its own curve in pad.js. */
+const MOTION_EASE = "cubic-bezier(0.22, 0.8, 0.24, 1)";
 import { game } from "./game/game.svelte.js";
 import { padUi } from "./pad-ui.svelte.js";
 
@@ -127,8 +130,8 @@ export function createRingController() {
     ringEl.animate(
       [
         from === to
-          ? { transform: at(b, 1.4), opacity: 0, easing: EASE_OUT }
-          : { transform: at(a), opacity: 1, easing: EASE_OUT },
+          ? { transform: at(b, 1.4), opacity: 0, easing: MOTION_EASE }
+          : { transform: at(a), opacity: 1, easing: MOTION_EASE },
         { transform: at(b), opacity: 1, offset: t.travel / total },
         { transform: at(b), opacity: 1, offset: (t.travel + t.apply) / total },
         { transform: at(b), opacity: 0 },

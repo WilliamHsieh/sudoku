@@ -155,7 +155,7 @@
     border-radius: 11px;
     background: var(--switch-off);
     position: relative;
-    transition: background 160ms ease-out;
+    transition: background var(--toggle) var(--ease-out);
   }
 
   .knob {
@@ -167,7 +167,7 @@
     border-radius: 50%;
     background: var(--switch-knob);
     box-shadow: var(--shadow-knob);
-    transition: transform 160ms ease-out;
+    transition: transform var(--toggle) var(--ease-out);
   }
 
   .notes-switch[aria-checked="true"] .switch {

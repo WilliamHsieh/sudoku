@@ -185,19 +185,31 @@ for (const mobile of [false, true]) {
         await clearLog(page);
         await page.locator(`${grid} button[data-d="2026-10-${day}"]`).click();
         await expectCardAnnouncement(page);
-        if (mobile) await page.getByRole("button", { name: "Close", exact: true }).click();
+        if (mobile) {
+          await page.getByRole("button", { name: "Close", exact: true }).click();
+          // Closing now eases out before clearing the selection and announcing it.
+          await expect(page.locator(".sheet")).toHaveCount(0);
+        }
       }
       // Reselect the same date: mobile reopens it, desktop toggles it off.
       await clearLog(page);
       await page.locator(`${grid} button[data-d="2026-10-10"]`).click();
       await expectCardAnnouncement(page);
-      if (mobile) await page.getByRole("button", { name: "Close", exact: true }).click();
+      if (mobile) {
+        await page.getByRole("button", { name: "Close", exact: true }).click();
+        // Closing now eases out before clearing the selection and announcing it.
+        await expect(page.locator(".sheet")).toHaveCount(0);
+      }
       const header = page.locator(mobile ? ".mhead" : ".dmhead");
       await header.getByRole("button", { name: "Previous month" }).click();
       await expect(page.locator(".track")).toHaveCount(0);
       // Select away as well, so resetting the card would expose double speech.
       await page.locator(`${grid} button[data-d="2026-09-10"]`).click();
-      if (mobile) await page.getByRole("button", { name: "Close", exact: true }).click();
+      if (mobile) {
+        await page.getByRole("button", { name: "Close", exact: true }).click();
+        // Closing now eases out before clearing the selection and announcing it.
+        await expect(page.locator(".sheet")).toHaveCount(0);
+      }
       await clearLog(page);
       await header.locator(".month-title").click();
       await expect(header).toContainText("October");

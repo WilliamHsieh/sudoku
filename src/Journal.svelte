@@ -45,6 +45,9 @@
   let sel = $state(/** @type {string | null} */ (null));
   /** Mobile sheet: a day, unfinished, or closed. */
   let sheet = $state(/** @type {null | "day" | "unfinished"} */ (null));
+  /** Stays up through the close animation, then unmounts. */
+  let sheetClosing = $state(false);
+  let sheetCloseTimer = 0;
   let swipeX = $state(0);
   let swiping = $state(false);
   let touchX = 0;
@@ -219,6 +222,8 @@
     if (animating || swiping || !isAway(view, sel, latest, isMobile())) return;
     const selection = sel;
     sel = null;
+    window.clearTimeout(sheetCloseTimer);
+    sheetClosing = false;
     sheet = null;
     returning = true;
     announcement = "";
@@ -260,6 +265,8 @@
     if (!puzzleData[date]) return;
     if (isMobile()) {
       sel = date;
+      window.clearTimeout(sheetCloseTimer);
+      sheetClosing = false;
       sheet = "day";
       return;
     }
@@ -271,12 +278,33 @@
   function openUnfinished() {
     if (animating) return;
     sel = null;
+    window.clearTimeout(sheetCloseTimer);
+    sheetClosing = false;
     sheet = "unfinished";
   }
 
-  function closeSheet() {
+  function finishCloseSheet() {
+    window.clearTimeout(sheetCloseTimer);
+    sheetClosing = false;
     sheet = null;
     if (isMobile()) sel = null;
+  }
+
+  function closeSheet() {
+    if (!sheet || sheetClosing) return;
+    if (prefersReduced()) {
+      finishCloseSheet();
+      return;
+    }
+    sheetClosing = true;
+    sheetCloseTimer = window.setTimeout(finishCloseSheet, 320);
+  }
+
+  /** @param {AnimationEvent} e */
+  function onSheetAnimEnd(e) {
+    if (!sheetClosing || e.target !== e.currentTarget) return;
+    if (!e.animationName.includes("sheet-down")) return;
+    finishCloseSheet();
   }
 
   /**
@@ -407,6 +435,7 @@
     return () => {
       alive = false;
       window.clearTimeout(slideTimer);
+      window.clearTimeout(sheetCloseTimer);
       if (mobVp) mobVp.style.height = "";
       if (deskVp) deskVp.style.height = "";
     };
@@ -913,12 +942,14 @@
 
 {#if sheet}
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="scrim on" onclick={closeSheet}></div>
+  <div class="scrim on" class:closing={sheetClosing} onclick={closeSheet}></div>
   <div
     class="sheet on"
+    class:closing={sheetClosing}
     role="dialog"
     aria-modal="true"
     aria-label={sheet === "unfinished" ? "Unfinished puzzles" : "Day puzzles"}
+    onanimationend={onSheetAnimEnd}
   >
     <div class="grab"></div>
     {#if sheet === "unfinished"}
@@ -1185,7 +1216,7 @@
 
   /* —— mobile M1 + U2 —— */
   .mobile {
-    padding: 0 8px 8px;
+    padding: 0 8px max(16px, env(safe-area-inset-bottom));
   }
   .mobile .lcard {
     margin-top: 2px;
@@ -1389,7 +1420,7 @@
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     gap: 4px;
-    transition: transform 0.28s var(--ease);
+    transition: transform 300ms var(--ease);
     --dh: 54px;
   }
   .mgrid.swiping {
@@ -1466,6 +1497,10 @@
     inset: 0;
     background: rgb(28 26 22 / 0.34);
     z-index: 40;
+    animation: fade var(--motion) var(--ease-out);
+  }
+  .scrim.closing {
+    animation: fade-out var(--motion) var(--ease-out) forwards;
   }
   .sheet {
     display: flex;
@@ -1482,6 +1517,46 @@
     padding: 8px 16px calc(20px + env(safe-area-inset-bottom));
     box-shadow: 0 -6px 24px rgb(28 26 22 / 0.12);
     z-index: 41;
+    animation: sheet-up var(--motion) var(--ease-out);
+  }
+  .sheet.closing {
+    animation: sheet-down var(--motion) var(--ease-out) forwards;
+  }
+
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes sheet-up {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: none;
+    }
+  }
+
+  @keyframes sheet-down {
+    from {
+      transform: none;
+    }
+    to {
+      transform: translateY(100%);
+    }
+  }
+
+  @keyframes fade-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
   }
   .grab {
     width: 36px;
@@ -2159,6 +2234,10 @@
     .month-title .year,
     .return-icon {
       transition: none;
+    }
+    .scrim,
+    .sheet {
+      animation: none;
     }
   }
 </style>

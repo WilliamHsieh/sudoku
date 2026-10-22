@@ -1,4 +1,5 @@
 <script>
+  import { tick } from "svelte";
   import { playUi } from "./play/session.svelte.js";
   import { OPT_TAP_SUB, OPT_TAP_TITLE } from "./keypad-copy.js";
 
@@ -18,6 +19,60 @@
   let optsCloseDebt = 0;
   /** Esc is putting the sheet back; a nested cancel is not a dismiss. */
   let restoring = false;
+  /** Close animation is playing. The dialog stays open until it finishes. */
+  let optsClosing = $state(false);
+  let dismissLock = false;
+  let optsTimer = 0;
+  /** Sheet leaving under the confirm; the scrim never drops. */
+  let handoffAnim = /** @type {Animation | null} */ (null);
+  let handoffTimer = 0;
+  let sheetReturning = false;
+  /** Parked off-screen, still open, until Cancel starts a fresh opening. */
+  let sheetParked = $state(false);
+  /** Confirm exit is an opacity fade. The dialog stays open until it finishes. */
+  let confirmClosing = $state(false);
+  let confirmFade = /** @type {Animation | null} */ (null);
+  let confirmTimer = 0;
+  /** @type {null | 'cancel' | 'restart'} */
+  let confirmExit = null;
+  const CONFIRM_OUT_MS = 180;
+
+  function reduceMotion() {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  function finishOptsDismiss() {
+    if (!dismissLock) return;
+    dismissLock = false;
+    window.clearTimeout(optsTimer);
+    if (playUi.modal === "options") {
+      playUi.closeModal();
+      onclosed?.();
+    }
+    optsClosing = false;
+  }
+
+  function dismissOpts() {
+    if (playUi.modal !== "options" || dismissLock) return;
+    dropHandoff();
+    if (!optsEl?.open || reduceMotion()) {
+      playUi.closeModal();
+      // Restore focus after the effect closes the native dialog.
+      tick().then(() => onclosed?.());
+      return;
+    }
+    dismissLock = true;
+    optsClosing = true;
+    optsTimer = window.setTimeout(finishOptsDismiss, 320);
+  }
+
+  /** @param {AnimationEvent} e */
+  function onOptsAnimEnd(e) {
+    if (!optsClosing || e.target !== optsEl || e.pseudoElement) return;
+    const name = e.animationName;
+    if (!name.includes("sheet-down") && !name.includes("pop-out")) return;
+    finishOptsDismiss();
+  }
 
   const descId = $derived(playUi.cueReason ? "cue-why" : "cue-desc");
 
@@ -29,6 +84,160 @@
     if (!optsEl?.open) return;
     optsCloseDebt++;
     optsEl.close();
+  }
+
+  function motionMs() {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue("--motion").trim();
+    const n = parseFloat(raw);
+    if (!Number.isFinite(n)) return 260;
+    return raw.endsWith("s") && !raw.endsWith("ms") ? n * 1000 : n;
+  }
+
+  function motionEasing() {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue("--ease-out").trim();
+    return raw || "cubic-bezier(0.22, 0.8, 0.24, 1)";
+  }
+
+  function dropHandoff() {
+    window.clearTimeout(handoffTimer);
+    const anim = handoffAnim;
+    handoffAnim = null;
+    sheetReturning = false;
+    anim?.cancel();
+  }
+
+  /** @param {Animation} anim */
+  function armHandoffTimer(anim) {
+    window.clearTimeout(handoffTimer);
+    handoffTimer = window.setTimeout(() => {
+      if (handoffAnim !== anim || sheetReturning) return;
+      if (anim.playState === "finished" && playUi.modal === "confirm") sheetParked = true;
+    }, motionMs() + 80);
+  }
+
+  /** Ease the still-open sheet away. The confirm is already on top of the dim. */
+  function handoffSheet() {
+    if (!optsEl?.open) return;
+    if (reduceMotion()) {
+      dropHandoff();
+      closeOpts();
+      return;
+    }
+    if (handoffAnim && !sheetReturning && handoffAnim.playState !== "finished") return;
+    sheetParked = false;
+    dropHandoff();
+    for (const anim of optsEl.getAnimations()) anim.cancel();
+    const wide = window.matchMedia("(min-width: 600px)").matches;
+    const anim = optsEl.animate(
+      wide
+        ? [
+            { opacity: 1, transform: "none" },
+            { opacity: 0, transform: "translateY(8px)" },
+          ]
+        : [{ transform: "none" }, { transform: "translateY(100%)" }],
+      { duration: motionMs(), easing: motionEasing(), fill: "forwards" }
+    );
+    handoffAnim = anim;
+    armHandoffTimer(anim);
+    anim.onfinish = () => {
+      if (handoffAnim !== anim) return;
+      window.clearTimeout(handoffTimer);
+      // Keep the outgoing end pose until the fresh opening is installed.
+      sheetParked = true;
+    };
+  }
+
+  /** Open forward from off-screen, keeping the shared scrim in place. */
+  function returnSheet() {
+    if (!optsEl || !handoffAnim || sheetReturning) return;
+    // Discard the finished compositor animation before revealing the sheet.
+    // Install the new start pose in this task, so no open pose can paint first.
+    dropHandoff();
+    if (reduceMotion()) {
+      sheetParked = false;
+      return;
+    }
+    const anim = optsEl.animate([{ transform: "translateY(100%)" }, { transform: "none" }], {
+      duration: motionMs(),
+      easing: motionEasing(),
+      fill: "both",
+    });
+    handoffAnim = anim;
+    sheetReturning = true;
+    sheetParked = false;
+    anim.onfinish = () => {
+      if (handoffAnim !== anim) return;
+      dropHandoff();
+    };
+  }
+
+  function clearConfirmFade() {
+    window.clearTimeout(confirmTimer);
+    const anim = confirmFade;
+    confirmFade = null;
+    anim?.cancel();
+  }
+
+  function finishConfirmExit() {
+    if (!confirmExit) return;
+    const mode = confirmExit;
+    confirmExit = null;
+    clearConfirmFade();
+    confirmClosing = false;
+    closeConfirm();
+    if (mode === "cancel") {
+      focusEl(restartRow);
+      return;
+    }
+    tick().then(() => onclosed?.());
+  }
+
+  /** Opacity only. No translate and no scale. */
+  function startConfirmFade() {
+    if (!confirmEl) return;
+    clearConfirmFade();
+    for (const anim of confirmEl.getAnimations()) anim.cancel();
+    const anim = confirmEl.animate([{ opacity: 1 }, { opacity: 0 }], {
+      duration: CONFIRM_OUT_MS,
+      easing: motionEasing(),
+      fill: "forwards",
+    });
+    confirmFade = anim;
+    confirmTimer = window.setTimeout(finishConfirmExit, CONFIRM_OUT_MS + 50);
+    anim.onfinish = () => {
+      if (confirmFade !== anim) return;
+      finishConfirmExit();
+    };
+  }
+
+  async function finishRestartNow() {
+    onrestart();
+    playUi.closeModal();
+    await tick();
+    onclosed?.();
+  }
+
+  /** @param {'cancel' | 'restart'} mode */
+  function beginConfirmExit(mode) {
+    if (confirmExit) return;
+    if (reduceMotion() || !confirmEl?.open) {
+      if (mode === "cancel") restoreSheet();
+      else void finishRestartNow();
+      return;
+    }
+    confirmExit = mode;
+    confirmClosing = true;
+    if (mode === "cancel") {
+      // Sheet rise and confirm fade, both before the next paint. Scrim stays.
+      returnSheet();
+      startConfirmFade();
+      restoreSheet();
+      return;
+    }
+    // Confirm fade and scrim fade. closeModal drops .on on the scrim.
+    startConfirmFade();
+    onrestart();
+    playUi.closeModal();
   }
 
   function closeConfirm() {
@@ -51,16 +260,22 @@
     syncing = true;
     try {
       if (modal === "options") {
-        closeConfirm();
+        // Cancel already started the sheet opening and is fading the confirm.
+        if (!confirmExit) {
+          closeConfirm();
+          returnSheet();
+        }
         if (!optsEl.open) optsEl.showModal();
-        focusEl(where === "restart" ? restartRow : cueRow);
+        if (!confirmExit) focusEl(where === "restart" ? restartRow : cueRow);
       } else if (modal === "confirm") {
-        closeOpts();
         if (!confirmEl.open) confirmEl.showModal();
         focusEl(cancelBtn);
+        handoffSheet();
       } else {
+        dropHandoff();
+        sheetParked = false;
         closeOpts();
-        closeConfirm();
+        if (!confirmExit) closeConfirm();
       }
     } finally {
       syncing = false;
@@ -89,48 +304,48 @@
       if (playUi.modal === "confirm") restoreSheet();
       return;
     }
-    playUi.closeModal();
-    onclosed?.();
+    dismissOpts();
   }
 
   /** @param {MouseEvent} e */
   function onOptsClick(e) {
-    if (e.target === optsEl) {
-      playUi.closeModal();
-      onclosed?.();
-    }
+    if (e.target === optsEl) dismissOpts();
   }
 
   /** @param {Event} e */
   function onConfirmCancel(e) {
     e.preventDefault();
-    restoreSheet();
+    beginConfirmExit("cancel");
   }
 
   /** @param {MouseEvent} e */
   function onConfirmClick(e) {
-    if (e.target === confirmEl) restoreSheet();
+    if (e.target === confirmEl) beginConfirmExit("cancel");
   }
 
   function onDone() {
-    playUi.closeModal();
-    onclosed?.();
+    dismissOpts();
   }
 
   function onRestarted() {
-    onrestart();
-    playUi.closeModal();
-    onclosed?.();
+    beginConfirmExit("restart");
   }
+
+  const scrimOn = $derived(playUi.modal === "options" || playUi.modal === "confirm");
 </script>
+
+<div class="modal-scrim" class:on={scrimOn} class:out={optsClosing} aria-hidden="true"></div>
 
 <dialog
   class="opts"
+  class:closing={optsClosing}
+  class:parked={sheetParked}
   bind:this={optsEl}
   aria-labelledby="opts-title"
   onclose={onOptsClose}
   oncancel={onOptsCancel}
   onclick={onOptsClick}
+  onanimationend={onOptsAnimEnd}
 >
   <div class="opts-in">
     <span class="grabber" aria-hidden="true"></span>
@@ -196,6 +411,7 @@
 
 <dialog
   class="confirm"
+  class:closing={confirmClosing}
   bind:this={confirmEl}
   role="alertdialog"
   aria-labelledby="confirm-title"
@@ -211,7 +427,7 @@
       class="btn btn-secondary"
       id="confirm-cancel"
       bind:this={cancelBtn}
-      onclick={() => restoreSheet()}>Cancel</button
+      onclick={() => beginConfirmExit("cancel")}>Cancel</button
     >
     <button type="button" class="btn btn-danger" id="confirm-ok" onclick={onRestarted}
       >Restart</button
@@ -350,7 +566,7 @@
     background: var(--switch-off);
     position: relative;
     flex: none;
-    transition: background 160ms ease-out;
+    transition: background var(--toggle) var(--ease-out);
   }
 
   .knob {
@@ -362,7 +578,7 @@
     border-radius: 50%;
     background: var(--switch-knob);
     box-shadow: var(--shadow-knob);
-    transition: transform 160ms ease-out;
+    transition: transform var(--toggle) var(--ease-out);
   }
 
   .row[aria-checked="true"] .switch {
@@ -485,16 +701,49 @@
   }
 
   dialog.opts[open] {
-    animation: sheet-up 240ms cubic-bezier(0.22, 1, 0.36, 1);
+    animation: sheet-up var(--motion) var(--ease-out);
   }
 
-  dialog.opts[open]::backdrop {
-    background: var(--overlay-pr6);
-    animation: fade 200ms ease-out;
+  dialog.opts[open].closing {
+    animation: sheet-down var(--motion) var(--ease-out) forwards;
   }
 
-  dialog.confirm::backdrop {
+  /* One page scrim for both dialogs. Backdrops stay clear so the dim
+     does not double, and it does not restart when the sheet swaps. */
+  .modal-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
     background: var(--overlay-pr6);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--motion) var(--ease-out);
+  }
+
+  .modal-scrim.on {
+    opacity: 1;
+  }
+
+  .modal-scrim.on.out {
+    opacity: 0;
+  }
+
+  dialog.opts[open]::backdrop,
+  dialog.confirm[open]::backdrop {
+    background: transparent;
+  }
+
+  dialog.confirm[open] {
+    animation: pop var(--motion) var(--ease-out);
+  }
+
+  /* Exit is opacity only, driven by WAAPI so it can start with the sheet. */
+  dialog.confirm[open].closing {
+    animation: none;
+  }
+
+  dialog.opts.parked {
+    visibility: hidden;
   }
 
   @keyframes sheet-up {
@@ -506,12 +755,12 @@
     }
   }
 
-  @keyframes fade {
+  @keyframes sheet-down {
     from {
-      opacity: 0;
+      transform: none;
     }
     to {
-      opacity: 1;
+      transform: translateY(100%);
     }
   }
 
@@ -549,7 +798,22 @@
     }
 
     dialog.opts[open] {
-      animation: pop 180ms cubic-bezier(0.22, 1, 0.36, 1);
+      animation: pop var(--motion) var(--ease-out);
+    }
+
+    dialog.opts[open].closing {
+      animation: pop-out var(--motion) var(--ease-out) forwards;
+    }
+  }
+
+  @keyframes pop-out {
+    from {
+      opacity: 1;
+      transform: none;
+    }
+    to {
+      opacity: 0;
+      transform: translateY(8px);
     }
   }
 
@@ -570,8 +834,15 @@
       transition: none;
     }
     dialog.opts[open],
-    dialog.opts[open]::backdrop {
+    dialog.opts[open].closing,
+    dialog.opts[open]::backdrop,
+    dialog.opts[open].closing::backdrop,
+    dialog.confirm[open],
+    dialog.confirm[open]::backdrop {
       animation: none;
+    }
+    .modal-scrim {
+      transition: none;
     }
   }
 </style>
