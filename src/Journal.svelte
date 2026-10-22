@@ -1,5 +1,5 @@
 <script>
-  import { tick } from "svelte";
+  import { tick, untrack } from "svelte";
   import { get } from "svelte/store";
   import { solvedPuzzles, puzzleProgress } from "./store.js";
   import { puzzleData } from "./puzzles.js";
@@ -51,6 +51,9 @@
   let animating = $state(false);
   let returning = $state(false);
   let announcement = $state("");
+  /** @type {HTMLElement | null} */
+  let contextCard = $state(null);
+  let hasCardState = false;
   let slideGen = 0;
   let slideTimer = 0;
   let alive = true;
@@ -212,14 +215,13 @@
 
   /** @param {boolean} [openSheetAfter] */
   function goLatest(openSheetAfter = false) {
-    if (animating || !isAway(view, sel, latest, isMobile())) return;
+    if (animating || swiping || !isAway(view, sel, latest, isMobile())) return;
     const selection = sel;
     sel = null;
     sheet = null;
     returning = true;
     announcement = "";
     const done = async () => {
-      returning = false;
       await tick();
       if (!alive) return;
       const vp = isMobile() ? mobVp : deskVp;
@@ -227,10 +229,13 @@
         vp?.querySelector(`button.day[data-d="${latest}"]`)
       );
       cell?.focus({ preventScroll: true });
-      // The cards are not live regions. This persistent status is the sole
-      // announcement source, updated once after landing (also on repeated returns).
-      announcement = latestAnnouncement(latest);
       if (openSheetAfter) openDay(latest);
+      // Keep card changes silent through the optional sheet selection, then
+      // announce the completed return once through the shared status.
+      await tick();
+      if (!alive) return;
+      returning = false;
+      announcement = latestAnnouncement(latest);
     };
     const diff = monthsToLatest(view, latest);
     if (diff) shiftMonth(diff, 0, { selection, onfinish: done });
@@ -238,7 +243,7 @@
   }
 
   function openLatest() {
-    if (animating) return;
+    if (animating || swiping) return;
     if (monthsToLatest(view, latest)) goLatest(true);
     else openDay(latest);
   }
@@ -335,7 +340,7 @@
 
   /** @param {KeyboardEvent} e */
   function onKey(e) {
-    if (animating || isMobile()) return;
+    if (animating || swiping || isMobile()) return;
     if (isTodayShortcut(e)) {
       if (sheet || document.querySelector('dialog[open], [role="dialog"][aria-modal="true"]'))
         return;
@@ -368,6 +373,22 @@
       view = startOfMonth(t);
     }
   }
+
+  $effect(() => {
+    // Mirror the card's text for ordinary selection and puzzle-state changes.
+    // A single persistent region also works when the desktop card is hidden.
+    sel;
+    solved;
+    progress;
+    if (!hasCardState) {
+      hasCardState = true;
+      return;
+    }
+    if (untrack(() => returning)) return;
+    tick().then(() => {
+      if (alive && !returning) announcement = contextCard?.textContent?.trim() ?? "";
+    });
+  });
 
   $effect(() => {
     if (typeof document === "undefined") return;
@@ -786,7 +807,7 @@
 
     <aside class="right">
       {#if !sel || sel === latest}
-        <section class="card ctx" aria-label="Latest puzzles">
+        <section class="card ctx" aria-label="Latest puzzles" bind:this={contextCard}>
           <span class="kicker">Latest puzzles</span>
           <h2>{longDate(latest)}</h2>
           <p class="sub num">{solvedCount(solved, latest)} of 3 solved</p>
@@ -810,7 +831,7 @@
           {/if}
         </section>
       {:else}
-        <section class="card ctx" aria-label="Puzzles for {longDate(sel)}">
+        <section class="card ctx" aria-label="Puzzles for {longDate(sel)}" bind:this={contextCard}>
           <div class="back">
             <button type="button" onclick={() => goLatest()}
               ><Icon name="arrow-left" />Back to latest</button

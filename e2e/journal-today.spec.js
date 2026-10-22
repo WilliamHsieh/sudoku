@@ -193,15 +193,21 @@ test.describe("desktop home selection and shortcuts", () => {
       await expect(page.locator(".ctx .jump")).toBeVisible();
     }
     expect(await page.evaluate(() => window.__homeLog.tracks.length)).toBe(0);
-    expect(await page.evaluate(() => window.__homeLog.announcements)).toEqual([
-      SPOKEN,
-      SPOKEN,
-      SPOKEN,
-    ]);
+    expect(
+      await page.evaluate(
+        (spoken) => window.__homeLog.announcements.filter((text) => text === spoken),
+        SPOKEN
+      )
+    ).toEqual([SPOKEN, SPOKEN, SPOKEN]);
     await page.locator(`.dgrid button[data-d="${LATEST}"]`).click();
     await expect(title).toHaveAttribute("aria-disabled", "true");
     await page.keyboard.press("t");
-    expect(await page.evaluate(() => window.__homeLog.announcements.length)).toBe(3);
+    expect(
+      await page.evaluate(
+        (spoken) => window.__homeLog.announcements.filter((text) => text === spoken).length,
+        SPOKEN
+      )
+    ).toBe(3);
   });
 
   test("Esc only deselects; T then slides home; card hint and legend name the correct keys", async ({
@@ -270,7 +276,9 @@ test.describe("desktop home selection and shortcuts", () => {
       dialog.remove();
     });
     await expect(page.locator(".ctx h2")).toContainText("October 9");
-    await expect(page.getByRole("status")).toHaveText("");
+    await expect(page.getByRole("status")).toHaveText(
+      (await page.locator(".ctx").textContent()).trim()
+    );
     await page.keyboard.press("t");
     await expect(page.locator(".ctx .kicker")).toHaveText("Latest puzzles");
   });
@@ -334,7 +342,9 @@ test.describe("mobile Latest card", () => {
     await page.locator(".latest").click();
     await expect(page.getByRole("dialog")).toBeVisible();
     expect(await page.evaluate(() => window.__homeLog.tracks.length)).toBe(0);
-    expect(await page.evaluate(() => window.__homeLog.announcements)).toEqual([]);
+    expect(await page.evaluate(() => window.__homeLog.announcements)).toEqual([
+      (await page.locator(".ctx").textContent()).trim(),
+    ]);
   });
 });
 
