@@ -95,11 +95,11 @@
     }
   }
 
-  /* Fallback slot before the header measure runs. The fit pass replaces this
-     with the rendered width of "999:59" below 390. 390 and desktop stay on content width. */
+  /* The header keeps the measured 999:59 slot across view switches.
+     Use 6ch until the first measure. 390 and desktop stay on content width. */
   @media (max-width: 389px) {
     .timer2 b {
-      min-width: 6ch;
+      min-width: var(--time-slot, 6ch);
     }
   }
 </style>

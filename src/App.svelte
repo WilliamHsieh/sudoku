@@ -31,7 +31,7 @@
   import { headerStep, readHeaderFit } from "./header-fit.js";
   import PausedCover from "./PausedCover.svelte";
   import OptionsSheet from "./OptionsSheet.svelte";
-  import { onMount, tick } from "svelte";
+  import { flushSync, onMount, tick, untrack } from "svelte";
 
   game.setOnActivity(() => playUi.noteActivity());
   game.setOnLoad(() => {
@@ -87,17 +87,16 @@
   let iconStep = $state(false);
   let brandClip = $state(false);
 
-  /** One pass. Font loads and resizes share a microtask so a face cannot toggle the step. */
+  /** Measure the reserved label, never the live clock. Keep the slot across view switches. */
   function applyHeaderStep(hd) {
-    const timeEl = hd.querySelector(".timer2 b");
     if (!window.matchMedia("(max-width: 389px)").matches) {
-      if (timeEl) timeEl.style.minWidth = "";
+      hd.style.removeProperty("--time-slot");
       if (iconStep) iconStep = false;
       if (brandClip) brandClip = false;
       return;
     }
     const step = headerStep(readHeaderFit(hd));
-    if (timeEl) timeEl.style.minWidth = `${step.slot}px`;
+    hd.style.setProperty("--time-slot", `${step.slot}px`);
     if (iconStep !== step.icons) iconStep = step.icons;
     if (brandClip !== step.brandHidden) brandClip = step.brandHidden;
   }
@@ -342,29 +341,38 @@
 
   $effect(() => {
     if (!isNarrow || !hdEl) return;
-    void showCalendar;
     const hd = hdEl;
-    let pending = false;
+    let active = true;
+    // These probes persist in both views. Only size and font changes can alter
+    // the fit. Do not subscribe this effect to the state read by the fit pass.
     const run = () => {
-      pending = false;
-      if (hd.isConnected) applyHeaderStep(hd);
+      if (active && hd.isConnected) untrack(() => applyHeaderStep(hd));
     };
-    const schedule = () => {
-      if (pending) return;
-      pending = true;
-      queueMicrotask(run);
+    const beforePaint = () => flushSync(run);
+    const loading = () => {
+      // FontFace.loaded resolves before the font-set loadingdone event, which
+      // can arrive after the first paint with the new glyphs. Flush the class
+      // and slot together in that promise's microtask, before the next frame.
+      for (const face of document.fonts) {
+        if (face.status === "loading") face.loaded.then(beforePaint, () => {});
+      }
     };
     run();
-    const ro = new ResizeObserver(schedule);
+    // Also catch local fonts and already-loaded faces applied through CSS.
+    // ResizeObserver runs before paint; the probes never depend on the step.
+    const ro = new ResizeObserver(beforePaint);
     ro.observe(hd);
-    document.fonts.addEventListener("loadingdone", schedule);
-    window.addEventListener("resize", schedule);
-    const ready = document.fonts.ready.then(schedule);
+    for (const probe of hd.querySelectorAll(".hd-probe > span")) ro.observe(probe);
+    document.fonts.addEventListener("loading", loading);
+    document.fonts.addEventListener("loadingdone", beforePaint);
+    window.addEventListener("resize", beforePaint);
+    loading();
     return () => {
+      active = false;
       ro.disconnect();
-      document.fonts.removeEventListener("loadingdone", schedule);
-      window.removeEventListener("resize", schedule);
-      void ready;
+      document.fonts.removeEventListener("loading", loading);
+      document.fonts.removeEventListener("loadingdone", beforePaint);
+      window.removeEventListener("resize", beforePaint);
     };
   });
 
@@ -1171,10 +1179,11 @@
         white-space: nowrap;
         border: 0;
       }
-      /* 44px faces, and the hit is exactly that face. 2px of track padding
-         (radius 8, so the 7px button corners stay inside the pill) keeps the
-         icon cluster narrow enough for an 8px gap beside a wide "999:59".
-         The 4px Pause margin stays outside both hits. */
+      /* 92×32 track: padding is 3px vertical / 2px horizontal. Uniform
+         3px would make it 94px wide and leave only 7px before the timer at
+         260px in DejaVu Sans (8px required). Faces are 44×26; hits 44×44,
+         with no seam overlap. Pause has a 6px gap to the first hit.
+         The growth from the approved 78px track needs designer approval. */
       .hd.icon-step .mseg {
         padding-inline: var(--icon-track-pad);
         border-radius: 8px;

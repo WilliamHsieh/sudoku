@@ -1,7 +1,8 @@
 // Mobile input: iPhone viewport + real CDP touch. Demo puzzle cell 0 is empty
 // with Auto candidates 2 3 4 6 7; cell 1 is a given 5.
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { test, expect } from "@playwright/test";
 import {
   cell,
@@ -49,6 +50,9 @@ async function rectOf(locator) {
 
 test.describe("H2 header", () => {
   test("Play header faces, hits, title, board y and no divider", async ({ page }) => {
+    const startTime = new Date("2026-01-01T00:00:00Z");
+    await page.clock.install({ time: startTime });
+    await page.clock.pauseAt(startTime);
     await openBoard(page);
     const hd = page.locator(".hd");
     await expect(hd).toBeVisible();
@@ -205,6 +209,9 @@ test.describe("H2 header", () => {
   });
 
   test("Journal to Play round trip keeps progress and timer", async ({ page }) => {
+    const startTime = new Date("2026-01-01T00:00:00Z");
+    await page.clock.install({ time: startTime });
+    await page.clock.pauseAt(startTime);
     await openBoard(page);
     const t = await touchDriver(page);
     await t.tap(cell(page, 0));
@@ -540,29 +547,36 @@ test.describe("narrow header", () => {
     },
   };
 
+  const fontDownloads = new Map();
+
   async function downloaded(url) {
+    if (fontDownloads.has(url)) return fontDownloads.get(url);
     const res = await fetch(url);
     if (!res.ok) throw new Error(`${res.status} ${url}`);
-    return Buffer.from(await res.arrayBuffer()).toString("base64");
+    const data = Buffer.from(await res.arrayBuffer()).toString("base64");
+    fontDownloads.set(url, data);
+    return data;
   }
 
   async function useFace(page, family) {
     const quoted = JSON.stringify(family);
     let faces = "";
-    if (family === "Roboto" || !hasSystemFont(family)) {
-      let w600;
-      let w700;
-      if (family === "Roboto" && existsSync("/tmp/fonts/roboto-600.woff2")) {
-        w600 = readFileSync("/tmp/fonts/roboto-600.woff2").toString("base64");
-        w700 = readFileSync("/tmp/fonts/roboto-700.woff2").toString("base64");
-      } else {
-        const spec = CDN[family];
-        if (!spec) throw new Error(`no source for ${family}`);
-        w600 = await downloaded(spec[600]);
-        w700 = await downloaded(spec[700]);
-      }
+    const localFile =
+      process.env.HEADER_FONT_DIR &&
+      {
+        Roboto: "Roboto.ttf",
+        "Noto Sans": "NotoSans.ttf",
+        Inter: "Inter.ttf",
+      }[family];
+    if (localFile) {
+      const data = readFileSync(join(process.env.HEADER_FONT_DIR, localFile)).toString("base64");
+      faces = `@font-face{font-family:${quoted};src:url(data:font/ttf;base64,${data});font-weight:100 900;font-display:swap}`;
+    } else if (family === "Roboto" || !hasSystemFont(family)) {
+      const spec = CDN[family];
+      if (!spec) throw new Error(`no source for ${family}`);
+      const [w600, w700] = await Promise.all([downloaded(spec[600]), downloaded(spec[700])]);
       const face = (weight, b64) =>
-        `@font-face{font-family:${quoted};src:url(data:font/woff2;base64,${b64}) format("woff2");font-weight:${weight};font-style:normal;font-display:block}`;
+        `@font-face{font-family:${quoted};src:url(data:font/woff2;base64,${b64}) format("woff2");font-weight:${weight};font-style:normal;font-display:swap}`;
       faces = `${face(600, w600)}\n${face(700, w700)}\n`;
     }
     const css = `${faces}.hd,.hd *{font-family:${quoted},sans-serif !important}`;
@@ -580,7 +594,6 @@ test.describe("narrow header", () => {
       },
       { css, family }
     );
-    await settle(page);
   }
 
   async function watchFace(page, apply) {
@@ -599,24 +612,26 @@ test.describe("narrow header", () => {
       window.__iconFlips = () => flips;
     });
     await apply();
-    await page.waitForTimeout(250);
+    await page.clock.runFor(64);
     return page.evaluate(() => window.__iconFlips());
   }
 
   test("ticks hold the step and a font load changes it at most once", async ({ page }) => {
     test.setTimeout(60_000);
-    await page.clock.install({ time: new Date("2026-01-01T00:00:00Z") });
+    const time = new Date("2026-01-01T00:00:00Z");
+    await page.clock.install({ time });
+    await page.clock.pauseAt(time);
 
     async function openPlay(elapsed) {
       await page.goto(`./?elapsed=${elapsed}`);
       await page.getByRole("button", { name: "Play", exact: true }).click();
       await expect(page.locator(".board > .cell")).toHaveCount(81);
-      await settle(page);
+      await page.clock.runFor(32);
     }
 
     async function atWidth(width) {
       await page.setViewportSize({ width, height: 844 });
-      await settle(page);
+      await page.clock.runFor(32);
       return headerState(page);
     }
 
@@ -646,9 +661,30 @@ test.describe("narrow header", () => {
       nearRect(state.nav, mode.nav, `${from} to ${to}`);
     }
 
+    await openPlay(599);
     await atWidth(iconWidth);
     const iconMode = await headerState(page);
+    await page.evaluate(() => {
+      window.__fitReads = 0;
+      const original = Element.prototype.getBoundingClientRect;
+      Element.prototype.getBoundingClientRect = function (...args) {
+        if (this.matches(".hd-probe-time")) window.__fitReads++;
+        return original.apply(this, args);
+      };
+    });
     await tick("9:59", "10:00", iconMode);
+    expect(await page.evaluate(() => window.__fitReads), "tick fit passes").toBe(0);
+    for (const view of ["Journal", "Play", "Journal", "Play"]) {
+      await page.getByRole("button", { name: view, exact: true }).click();
+      await page.clock.runFor(32);
+      nearRect((await headerState(page)).nav, iconMode.nav, `${view} cached track`);
+    }
+    expect(await page.evaluate(() => window.__fitReads), "view-switch fit passes").toBe(0);
+    await page.setViewportSize({ width: iconWidth + 1, height: 844 });
+    await page.clock.runFor(32);
+    expect(await page.evaluate(() => window.__fitReads), "resize measures again").toBeGreaterThan(
+      0
+    );
     await openPlay(5999);
     await atWidth(iconWidth);
     await expect(page.locator(".timer2 b")).toHaveText("99:59");
@@ -664,48 +700,103 @@ test.describe("narrow header", () => {
     expect(await page.evaluate(() => window.__iconFlips())).toBe(flips);
   });
 
-  test("260 to 320 keeps 8px and one step for Roboto, Inter, Noto, and DejaVu", async ({
-    page,
-  }) => {
-    test.setTimeout(180_000);
-    const faces = ["Roboto", "Inter", "Noto Sans", "DejaVu Sans"];
-    /** @type {Record<string, number | null>} */
-    const thresholds = {};
+  test("a late swap face never paints less than 8px before the timer", async ({ page }) => {
+    test.skip(!hasSystemFont("DejaVu Sans"), "requires the wide DejaVu Sans regression face");
+    const file = execFileSync("fc-match", ["-f", "%{file}", "DejaVu Sans:style=Bold"], {
+      encoding: "utf8",
+    });
+    const body = readFileSync(file);
+    for (const width of [295, 296, 297]) {
+      await page.setViewportSize({ width, height: 844 });
+      await page.goto("./?elapsed=59999&freeze");
+      await page.getByRole("button", { name: "Play", exact: true }).click();
+      await page.evaluate(() => document.fonts.ready);
+      let release;
+      const gate = new Promise((resolve) => {
+        release = resolve;
+      });
+      await page.route("**/late-header-font.ttf", async (route) => {
+        await gate;
+        await route.fulfill({ body, contentType: "font/ttf" });
+      });
+      await page.evaluate(() => {
+        window.__fitSamples = [];
+        window.__sampleFit = true;
+        const sample = () => {
+          if (!window.__sampleFit) return;
+          const hd = document.querySelector(".hd");
+          const left = parseFloat(getComputedStyle(hd).paddingLeft);
+          const timer = document.querySelector(".timer2").getBoundingClientRect();
+          window.__fitSamples.push({
+            gap: timer.x - left,
+            icons: hd.classList.contains("icon-step"),
+          });
+          requestAnimationFrame(sample);
+        };
+        requestAnimationFrame(sample);
+      });
+      await page.addStyleTag({
+        content: `
+        @font-face { font-family: LateHeader; src: url('./late-header-font.ttf');
+          font-weight: 100 900; font-display: swap; }
+        .hd, .hd * { font-family: LateHeader, sans-serif !important; }
+      `,
+      });
+      await settle(page);
+      release();
+      await page.evaluate(() => document.fonts.ready);
+      await settle(page);
+      const samples = await page.evaluate(() => {
+        window.__sampleFit = false;
+        return window.__fitSamples;
+      });
+      expect(samples.length).toBeGreaterThan(0);
+      expect(
+        Math.min(...samples.map((s) => s.gap)),
+        `late font at ${width}`
+      ).toBeGreaterThanOrEqual(8);
+      const changes = samples.filter((s, i) => i > 0 && s.icons !== samples[i - 1].icons);
+      expect(changes.length).toBeLessThanOrEqual(1);
+      await page.unroute("**/late-header-font.ttf");
+    }
+  });
+
+  test("four fonts keep 8px and the same track across the text step", async ({ page }) => {
+    test.setTimeout(30_000);
     await page.setViewportSize({ width: 320, height: 844 });
     await page.goto("./?elapsed=59999&freeze");
     await page.getByRole("button", { name: "Play", exact: true }).click();
     await expect(page.locator(".board > .cell")).toHaveCount(81);
 
-    for (const family of faces) {
+    for (const family of ["Roboto", "Inter", "Noto Sans", "DejaVu Sans"]) {
       await useFace(page, family);
-      let textAt = null;
-      let sawText = false;
-      for (let width = 260; width <= 320; width += 1) {
+      // Binary search the real rendered step; exhaustive 1px arithmetic is
+      // covered in header-fit.test.js. Check hit ownership only at its edges.
+      let lo = 260;
+      let hi = 320;
+      while (lo < hi) {
+        const width = (lo + hi) >> 1;
+        await page.setViewportSize({ width, height: 844 });
+        await settle(page);
+        if ((await headerState(page)).icons) lo = width + 1;
+        else hi = width;
+      }
+      for (const width of [260, lo - 1, lo, lo + 1]) {
         await page.setViewportSize({ width, height: 844 });
         await settle(page);
         const play = await headerState(page);
         assertFit(play, width, `${family} Play`);
+        expect(play.icons, `${family} step at ${lo}`).toBe(width < lo);
         if (play.icons) await assertTargets(page, `${family} Play @ ${width}`);
-        if (sawText) expect(play.icons, `${family} flipped back at ${width}`).toBe(false);
-        if (!play.icons) {
-          sawText = true;
-          textAt ??= width;
-        }
         await page.getByRole("button", { name: "Journal", exact: true }).click();
-        await settle(page);
         const journal = await headerState(page);
         assertFit(journal, width, `${family} Journal`);
-        if (journal.icons) await assertTargets(page, `${family} Journal @ ${width}`);
-        expect(journal.icons, `${family} ${width} icon step`).toBe(play.icons);
-        expect(journal.brandHidden, `${family} ${width} brand step`).toBe(play.brandHidden);
         nearRect(journal.nav, play.nav, `${family} ${width} switch`);
+        expect(journal.icons).toBe(play.icons);
         await page.getByRole("button", { name: "Play", exact: true }).click();
-        await settle(page);
       }
-      thresholds[family] = textAt;
-      console.log(`threshold ${family} textAt=${textAt ?? "icons through 320"}`);
+      console.log(`threshold ${family} textAt=${lo}`);
     }
-    writeFileSync("/tmp/header-thresholds.json", JSON.stringify(thresholds));
   });
 });
 

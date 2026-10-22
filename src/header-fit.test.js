@@ -47,9 +47,15 @@ describe("headerStep", () => {
     expect(shorter.icons).toBe(false);
   });
 
-  it("sizes the icon track from the tighter icon padding", () => {
+  it("uses 3px vertical / 2px horizontal icon padding for a 92×32 track", () => {
     const step = headerStep(base);
     expect(step.iconCluster).toBe(base.timerChrome + 46 + base.pause + base.trackGap + 92);
+  });
+
+  it("uniform 3px padding fails the 8px gap at 260 in DejaVu Sans", () => {
+    const dejavu = { ...base, content: 244, time: 56 };
+    expect(dejavu.content - headerStep(dejavu).iconCluster).toBe(9);
+    expect(dejavu.content - headerStep({ ...dejavu, iconTrackPad: 3 }).iconCluster).toBe(7);
   });
 
   it("a wider label crosses to icons without a change in the zero width", () => {
@@ -61,4 +67,32 @@ describe("headerStep", () => {
     });
     expect(wider.icons).toBe(true);
   });
+});
+
+// Browser-measured probes: Google Fonts variable TTFs (Roboto, Noto Sans,
+// Inter) and system DejaVu Sans. Check every 1px width without browser round trips.
+describe("measured font steps from 260 to 320", () => {
+  it.each([
+    ["Roboto", 45.03125, 44.15625, 25.0625, 274],
+    ["Noto Sans", 45.140625, 45.5625, 26.40625, 276],
+    ["Inter", 50.421875, 47.53125, 26.703125, 283],
+    ["DejaVu Sans", 55.828125, 51.921875, 30.84375, 296],
+  ])(
+    "%s retains labels exactly where the reserved cluster clears 8px",
+    (_, time, journal, play, firstText) => {
+      let transitions = 0;
+      let previous = true;
+      for (let width = 260; width <= 320; width++) {
+        const input = { ...base, content: width - 16, time, journal, play };
+        const step = headerStep(input);
+        expect(step.icons).toBe(width < firstText);
+        expect(
+          input.content - (step.icons ? step.iconCluster : step.textCluster)
+        ).toBeGreaterThanOrEqual(8);
+        if (previous !== step.icons) transitions++;
+        previous = step.icons;
+      }
+      expect(transitions).toBe(1);
+    }
+  );
 });

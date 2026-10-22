@@ -21,6 +21,7 @@ async function openPlay(page) {
     localStorage.setItem("sudoku-keypad-coach", "1");
   });
   await page.clock.install({ time: T0 });
+  await page.clock.pauseAt(T0);
   await page.goto(`./?q=${DEMO_PUZZLE}`);
   if ((await page.locator(".board > .cell").count()) === 0) {
     await page.getByRole("button", { name: "Play", exact: true }).click();
