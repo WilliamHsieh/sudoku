@@ -25,7 +25,7 @@ export async function openBoard(page, path = "./") {
   await page.goto(dest);
   const board = page.locator(".board > .cell");
   if ((await board.count()) === 0) {
-    await page.getByRole("button", { name: /Play|Back to puzzle/ }).click();
+    await page.getByRole("button", { name: "Play", exact: true }).click();
   }
   await expect(board).toHaveCount(81);
 }

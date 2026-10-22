@@ -3,7 +3,10 @@
   import { done, timer, timerRunning } from "./store";
 
   onMount(() => {
-    const frozen = new URLSearchParams(window.location.search).has("freeze");
+    const params = new URLSearchParams(window.location.search);
+    const elapsed = params.get("elapsed");
+    if (elapsed && /^\d+$/.test(elapsed)) timer.set(Number(elapsed));
+    const frozen = params.has("freeze");
     const interval = setInterval(() => {
       if (frozen || !$timerRunning || $done) return;
       timer.update((t) => t + 1);
@@ -89,6 +92,14 @@
       font-variant-numeric: tabular-nums;
       line-height: 1;
       min-width: 0;
+    }
+  }
+
+  /* The header keeps the measured 999:59 slot across view switches.
+     Use 6ch until the first measure. 390 and desktop stay on content width. */
+  @media (max-width: 389px) {
+    .timer2 b {
+      min-width: var(--time-slot, 6ch);
     }
   }
 </style>

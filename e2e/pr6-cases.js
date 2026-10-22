@@ -21,9 +21,10 @@ async function openPlay(page) {
     localStorage.setItem("sudoku-keypad-coach", "1");
   });
   await page.clock.install({ time: T0 });
+  await page.clock.pauseAt(T0);
   await page.goto(`./?q=${DEMO_PUZZLE}`);
   if ((await page.locator(".board > .cell").count()) === 0) {
-    await page.getByRole("button", { name: /Play|Back to puzzle/ }).click();
+    await page.getByRole("button", { name: "Play", exact: true }).click();
   }
   await expect(page.locator(".board > .cell")).toHaveCount(81);
 }
@@ -286,7 +287,7 @@ export function registerPr6Tests(opts = {}) {
     digits[blank] = "0";
     await page.goto(`./?q=${digits.join("")}&cueMs=700`);
     if ((await page.locator(".board > .cell").count()) === 0) {
-      await page.getByRole("button", { name: /Play|Back to puzzle/ }).click();
+      await page.getByRole("button", { name: "Play", exact: true }).click();
     }
     await cell(page, blank).click();
     await page.keyboard.press(digit);
@@ -318,7 +319,7 @@ export function registerPr6Tests(opts = {}) {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.reload();
     if ((await page.locator(".board > .cell").count()) === 0) {
-      await page.getByRole("button", { name: /Play|Back to puzzle/ }).click();
+      await page.getByRole("button", { name: "Play", exact: true }).click();
     }
     await expect(page.locator(".board > .cell")).toHaveCount(81);
 
