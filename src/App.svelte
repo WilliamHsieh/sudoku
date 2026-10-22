@@ -447,7 +447,7 @@
             </span>
           </button>
         {/if}
-        <!-- Lucide grid-3x3 and calendar. ISC License.
+        <!-- Lucide grid-3x3 and calendar-days. ISC License.
              Copyright (c) 2026 Lucide Icons and Contributors. -->
         <nav class="mseg" aria-label="Views">
           <button
@@ -462,6 +462,12 @@
               <path d="M16 2v3"></path>
               <rect x="3" y="3" width="18" height="18" rx="2"></rect>
               <path d="M3 9h18"></path>
+              <path d="M8 13h.01"></path>
+              <path d="M12 13h.01"></path>
+              <path d="M16 13h.01"></path>
+              <path d="M8 17h.01"></path>
+              <path d="M12 17h.01"></path>
+              <path d="M16 17h.01"></path>
             </svg>
             <span class="mseg-label">Journal</span>
           </button>
@@ -1035,11 +1041,18 @@
     }
 
     /* Widths under 390. Padding and the segment inset shrink with the viewport,
-       floored at 8px and 10px. 1ch is the 13px/600 segment zero, so a wider face
-       crosses each step sooner. The threshold is the content box that still
-       leaves 8px between the brand and a timer reserved for 999:59:
-       8px gap + 39px timer chrome + 6 × 14.4/13 ch + 44px pause + 4px track gap
-       + 50px track chrome + 20.9ch of "Sudoku"+"Journal"+"Play". */
+       floored at 8px and 10px. Each step compares that content box to a length
+       built from the viewport plus a timer slot reserved for 999:59 — not the
+       glyphs on the clock. 7.4375px is the 13px/600 zero of the UI face, written
+       in px so a late web font cannot move the step (a live `ch` would).
+       Brand hides when the box can no longer keep 8px beside that slot:
+       8px gap + 39px timer chrome + 6 × 14.4/13 zeros + 44px pause + 4px track
+       gap + 50px track chrome + 20.9 zeros of "Sudoku"+"Journal"+"Play"
+       = 145px + 27.6 × 7.4375px.
+       Icons replace the labels once the text track itself no longer fits beside
+       the same slot. No hard cut at 320:
+       39px + 6 × 14.4/13 zeros + 44px + 4px + 50px + 10.05 zeros
+       = 137px + 16.7 × 7.4375px. */
     @media (max-width: 389px) {
       .hd {
         container-type: inline-size;
@@ -1055,7 +1068,7 @@
       .mseg button {
         padding-inline: clamp(10px, calc(10px + (100vw - 320px) / 69), 11px);
       }
-      @container hd (max-width: calc(145px + 27.6 * 1ch)) {
+      @container hd (max-width: calc(145px + 27.6 * 7.4375px)) {
         .hd-brand {
           position: absolute;
           width: 1px;
@@ -1069,8 +1082,10 @@
           border: 0;
         }
       }
-      /* Text segments still overflow this content box: icon faces, equal boxes. */
-      @container hd (max-width: calc(137px + 16.7 * 1ch)) {
+      /* Text segments still overflow this content box: icon faces, equal boxes.
+         The 36px face keeps its box; the hit grows to 44×44 inside the track's
+         padding and the header's own padding. */
+      @container hd (max-width: calc(137px + 16.7 * 7.4375px)) {
         .mseg-ic {
           display: block;
         }
@@ -1082,6 +1097,10 @@
           place-items: center;
           width: 36px;
           padding-inline: 0;
+        }
+        .mseg button::after {
+          left: -4px;
+          right: -4px;
         }
       }
     }

@@ -1,5 +1,7 @@
 // Mobile input: iPhone viewport + real CDP touch. Demo puzzle cell 0 is empty
 // with Auto candidates 2 3 4 6 7; cell 1 is a given 5.
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { test, expect } from "@playwright/test";
 import {
   cell,
@@ -278,7 +280,10 @@ test.describe("narrow header", () => {
       const hits = buttons.map((el) => {
         const r = el.getBoundingClientRect();
         const after = getComputedStyle(el, "::after");
-        return r.height - parseFloat(after.top) - parseFloat(after.bottom);
+        return {
+          w: r.width - parseFloat(after.left) - parseFloat(after.right),
+          h: r.height - parseFloat(after.top) - parseFloat(after.bottom),
+        };
       });
       return {
         vw: document.documentElement.clientWidth,
@@ -317,7 +322,10 @@ test.describe("narrow header", () => {
     near(state.nav.right, state.vw - state.padR, `${where} track right edge`);
     expect(state.nav.y, `${where} track in the header`).toBeGreaterThanOrEqual(0);
     expect(state.nav.y + state.nav.h, `${where} track below the header`).toBeLessThanOrEqual(49);
-    for (const hit of state.hits) expect(hit, `${where} segment hit`).toBeGreaterThanOrEqual(44);
+    for (const hit of state.hits) {
+      expect(hit.w, `${where} segment hit width`).toBeGreaterThanOrEqual(44);
+      expect(hit.h, `${where} segment hit height`).toBeGreaterThanOrEqual(44);
+    }
     for (const t of state.trunc) {
       if (!t) continue;
       expect(t.sw, `${where} truncated text`).toBeLessThanOrEqual(t.cw + 1);
@@ -341,12 +349,15 @@ test.describe("narrow header", () => {
     expect(state.buttons[0].x, `${where} Journal left of Play`).toBeLessThan(state.buttons[1].x);
     near(state.buttons[0].x + state.buttons[0].w, state.buttons[1].x, `${where} segment seam`);
     if (state.icons) {
-      near(state.buttons[0].w, state.buttons[1].w, `${where} icon segment width`);
-      near(state.buttons[0].h, state.buttons[1].h, `${where} icon segment height`);
+      near(state.buttons[0].w, 36, `${where} icon face width`);
+      near(state.buttons[1].w, 36, `${where} icon face width`);
+      near(state.buttons[0].h, 26, `${where} icon face height`);
+      near(state.buttons[1].h, 26, `${where} icon face height`);
+      near(state.nav.w, 78, `${where} icon track width`);
     }
   }
 
-  for (const width of widths) {
+  for (const width of [270, ...widths]) {
     test(`Play and Journal fit at ${width} with a reserved timer`, async ({ page }) => {
       await page.setViewportSize({ width, height: 844 });
       /** @type {Record<number, { play: Awaited<ReturnType<typeof headerState>>, journal: Awaited<ReturnType<typeof headerState>> }>} */
@@ -359,7 +370,7 @@ test.describe("narrow header", () => {
         await expect(page.locator(".timer2 b")).toHaveText(label);
         const play = await headerState(page);
         assertFit(play, width, "Play");
-        if (play.icons) {
+        if (play.icons && elapsed === 0) {
           await expect(page.getByRole("button", { name: "Play", exact: true })).toHaveAttribute(
             "title",
             "Play"
@@ -368,6 +379,25 @@ test.describe("narrow header", () => {
             "title",
             "Journal"
           );
+          const journalIcon = await page
+            .locator(".mseg button")
+            .first()
+            .locator("path, rect")
+            .evaluateAll((els) =>
+              els.map((el) => (el.tagName.toLowerCase() === "rect" ? "rect" : el.getAttribute("d")))
+            );
+          expect(journalIcon, `${width} Journal icon`).toEqual([
+            "M8 2v3",
+            "M16 2v3",
+            "rect",
+            "M3 9h18",
+            "M8 13h.01",
+            "M12 13h.01",
+            "M16 13h.01",
+            "M8 17h.01",
+            "M12 17h.01",
+            "M16 17h.01",
+          ]);
         }
         await page.getByRole("button", { name: "Journal", exact: true }).click();
         await expect(page.locator(".journal")).toBeVisible();
@@ -388,6 +418,134 @@ test.describe("narrow header", () => {
       }
     });
   }
+
+  test("the icon step ignores timer ticks and a late web font", async ({ page }) => {
+    test.setTimeout(60_000);
+    await page.clock.install({ time: new Date("2026-01-01T00:00:00Z") });
+
+    async function openPlay(elapsed) {
+      await page.goto(`./?elapsed=${elapsed}`);
+      await page.getByRole("button", { name: "Play", exact: true }).click();
+      await expect(page.locator(".board > .cell")).toHaveCount(81);
+    }
+
+    async function atWidth(width) {
+      await page.setViewportSize({ width, height: 844 });
+      return headerState(page);
+    }
+
+    /**
+     * A face already named in the UI stack, replaced the way a late web font
+     * finishes loading. `local()` does not win over the installed face, so the
+     * file rides in as a data URL on every family the stack tries first.
+     */
+    async function loadStackFace(family, styleName) {
+      const listed = execFileSync("fc-list", [`${family}:style=${styleName}`, "file"], {
+        encoding: "utf8",
+      });
+      const file = listed.split(":")[0]?.trim();
+      const b64 = readFileSync(file).toString("base64");
+      await page.evaluate(async (b64) => {
+        document.getElementById("late-face")?.remove();
+        const style = document.createElement("style");
+        style.id = "late-face";
+        const face = (name) =>
+          `@font-face{font-family:${name};src:url(data:font/ttf;base64,${b64}) format("truetype");font-weight:100 900;font-style:normal}`;
+        style.textContent = [
+          face("'-apple-system'"),
+          face("BlinkMacSystemFont"),
+          face("'SF Pro Text'"),
+          face("'Segoe UI'"),
+          face("Roboto"),
+        ].join("\n");
+        document.head.appendChild(style);
+        await document.fonts.load("600 13px -apple-system");
+        await document.fonts.ready;
+      }, b64);
+    }
+
+    async function zeroWidth() {
+      return page.evaluate(() => {
+        const family = getComputedStyle(document.querySelector(".hd")).fontFamily;
+        const probe = document.createElement("span");
+        probe.textContent = "0";
+        probe.style.position = "absolute";
+        probe.style.left = "-9999px";
+        probe.style.fontWeight = "600";
+        probe.style.fontSize = "13px";
+        probe.style.fontFamily = family;
+        document.body.appendChild(probe);
+        const w = probe.getBoundingClientRect().width;
+        probe.remove();
+        return w;
+      });
+    }
+
+    await openPlay(599);
+    await expect(page.locator(".timer2 b")).toHaveText("9:59");
+    let lo = 250;
+    let hi = 360;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      const state = await atWidth(mid);
+      if (state.icons) lo = mid + 1;
+      else hi = mid;
+    }
+    const textWidth = lo;
+    const iconWidth = lo - 1;
+    expect(iconWidth, "icon step below the search").toBeGreaterThan(250);
+    expect(textWidth, "icon step above the search").toBeLessThan(320);
+
+    const textSide = await atWidth(textWidth);
+    const iconSide = await atWidth(iconWidth);
+    expect(textSide.icons).toBe(false);
+    expect(iconSide.icons).toBe(true);
+    const resting = await zeroWidth();
+
+    async function stays(mode, label, box) {
+      const state = await headerState(page);
+      expect(state.icons, `${label} icon step`).toBe(mode.icons);
+      expect(state.brandHidden, `${label} brand step`).toBe(mode.brandHidden);
+      if (box) nearRect(state.nav, mode.nav, `${label} switch`);
+      return state;
+    }
+
+    await atWidth(textWidth);
+    await page.clock.fastForward(1000);
+    await expect(page.locator(".timer2 b")).toHaveText("10:00");
+    await stays(textSide, "9:59 to 10:00", true);
+
+    await openPlay(5999);
+    await atWidth(textWidth);
+    await expect(page.locator(".timer2 b")).toHaveText("99:59");
+    await stays(textSide, "99:59", true);
+    await page.clock.fastForward(1000);
+    await expect(page.locator(".timer2 b")).toHaveText("100:00");
+    await stays(textSide, "99:59 to 100:00", true);
+
+    await loadStackFace("DejaVu Sans", "Bold");
+    expect(await zeroWidth(), "wide face loaded").toBeGreaterThan(resting + 1);
+    await stays(textSide, "wide face at the text threshold", false);
+
+    await openPlay(599);
+    await atWidth(iconWidth);
+    await expect(page.locator(".timer2 b")).toHaveText("9:59");
+    const iconMode = await headerState(page);
+    expect(iconMode.icons).toBe(true);
+    await page.clock.fastForward(1000);
+    await expect(page.locator(".timer2 b")).toHaveText("10:00");
+    await stays(iconMode, "tick at the icon threshold", true);
+    await openPlay(5999);
+    await atWidth(iconWidth);
+    await expect(page.locator(".timer2 b")).toHaveText("99:59");
+    await stays(iconMode, "99:59 at the icon threshold", true);
+    await page.clock.fastForward(1000);
+    await expect(page.locator(".timer2 b")).toHaveText("100:00");
+    await stays(iconMode, "99:59 to 100:00 at the icon threshold", true);
+    await loadStackFace("Liberation Sans", "Regular");
+    expect(await zeroWidth(), "narrow face loaded").toBeLessThan(resting - 0.1);
+    await stays(iconMode, "narrow face at the icon threshold", true);
+  });
 });
 
 test.describe("pad", () => {
