@@ -4,7 +4,7 @@ import { appleTouchPng, rasterizeSvg } from "./apple-touch-plugin.js";
 
 /**
  * Mean x of the topmost and bottommost rows of matching pixels.
- * A -8° rotation puts the top of the note left of its bottom.
+ * A -8° rotation puts the top of the note to the right of its bottom.
  * @param {Buffer} pixels
  * @param {number} width
  * @param {(r: number, g: number, b: number, a: number) => boolean} match

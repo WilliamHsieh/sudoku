@@ -42,7 +42,22 @@ export function appleTouchPng() {
 /**
  * Emit the apple-touch PNG into the build, and serve the same bytes in dev.
  * Preview serves the file written to dist.
- * @returns {import('vite').Plugin}
+ * Vite's package types don't resolve under this jsconfig's moduleResolution,
+ * so the hook surface is typed here.
+ * @returns {{
+ *   name: string,
+ *   generateBundle: (this: { emitFile: (file: { type: "asset", fileName: string, source: Uint8Array }) => void }) => void,
+ *   configureServer: (server: {
+ *     config: { base: string },
+ *     middlewares: {
+ *       use: (fn: (
+ *         req: import("node:http").IncomingMessage,
+ *         res: import("node:http").ServerResponse,
+ *         next: () => void
+ *       ) => void) => void
+ *     }
+ *   }) => void
+ * }}
  */
 export function appleTouchIconPlugin() {
   return {
