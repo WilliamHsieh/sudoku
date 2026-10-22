@@ -1,5 +1,9 @@
 import { test, expect } from "@playwright/test";
 import { touchDriver } from "./touch.js";
+import { puzzleData } from "../src/puzzles.js";
+import { solve } from "./helpers.js";
+import { newGame } from "../src/game/game.js";
+import { toSnapshot } from "../src/game/snapshot.js";
 
 const NOW = new Date("2026-10-21T12:00:00");
 const SPOKEN = "October 2026, latest puzzles Wed, Oct 21";
@@ -39,6 +43,131 @@ async function expectCardAnnouncement(page) {
   await expect
     .poll(() => page.evaluate(() => window.__regressionLog.announcements))
     .toEqual([cardText.trim()]);
+}
+
+// Resume a real saved puzzle, then keep its selected cell when opening Journal.
+// The app's window keyboard handler still accepts moves in Journal. This reaches
+// the normal progress/solved store methods while the observed card stays mounted.
+async function resumeInJournal(page, date, remaining, mobile) {
+  const puzzle = puzzleData[date].easy;
+  const solution = solve(puzzle);
+  const missing = [...puzzle].flatMap((digit, i) => (digit === "0" ? [i] : [])).slice(0, remaining);
+  const state = newGame(puzzle);
+  state.answers = [...puzzle].map((digit, i) =>
+    digit === "0" && !missing.includes(i) ? Number(solution[i]) : 0
+  );
+  const entry = {
+    elapsed: 30,
+    filled: state.answers.filter(Boolean).length,
+    empty: [...puzzle].filter((digit) => digit === "0").length,
+    updatedAt: NOW.getTime(),
+    snapshot: toSnapshot(state),
+  };
+  await page.addInitScript(
+    ({ date, entry }) => {
+      localStorage.setItem("sudoku-progress", JSON.stringify({ [date]: { easy: entry } }));
+    },
+    { date, entry }
+  );
+  await page.clock.install({ time: NOW });
+  await page.clock.pauseAt(NOW);
+  await page.goto("./");
+  // Play resumes the most recent unfinished puzzle through the app's real path.
+  await page.getByRole("button", { name: mobile ? "Back to puzzle" : "Play", exact: true }).click();
+  await page.locator(".board > .cell").nth(missing[0]).click();
+  await page.getByRole("button", { name: "Journal", exact: true }).click();
+  await expect(page.locator(".ctx")).toContainText("October 21");
+  return solution[missing[0]];
+}
+
+async function expectQuiet(page) {
+  // A separate browser task lets the store effect, tick and MutationObserver run.
+  await page.evaluate(() => new Promise((resolve) => queueMicrotask(resolve)));
+  expect(await page.evaluate(() => window.__regressionLog.announcements)).toEqual([]);
+}
+
+for (const mobile of [false, true]) {
+  for (const kind of ["progress", "solved"]) {
+    for (const latest of [false, true]) {
+      test(`${mobile ? "mobile" : "desktop"} ${latest ? "latest" : "different"}-day ${kind} update ${latest ? "announces once" : "stays silent"}`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width: mobile ? 390 : 1280, height: 844 });
+        const date = latest ? "2026-10-21" : "2026-09-10";
+        const digit = await resumeInJournal(page, date, kind === "solved" ? 1 : 2, mobile);
+        const before = await page.locator(".ctx").textContent();
+        await watch(page);
+        await page.keyboard.press(digit);
+        const key = kind === "solved" ? "sudoku-solved" : "sudoku-progress";
+        const saved = await page.evaluate(
+          ({ key, date }) => JSON.parse(localStorage.getItem(key))[date].easy,
+          { key, date }
+        );
+        if (kind === "solved") expect(saved.completed).toBe(true);
+        else expect(saved.empty - saved.filled).toBe(1);
+        if (latest) {
+          await expectCardAnnouncement(page);
+          expect(await page.locator(".ctx").textContent()).not.toBe(before);
+        } else {
+          expect(await page.locator(".ctx").textContent()).toBe(before);
+          await expectQuiet(page);
+        }
+      });
+    }
+  }
+}
+
+test("an identical progress data copy stays silent", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 844 });
+  await resumeInJournal(page, "2026-09-10", 2, false);
+  await watch(page);
+  const before = await page.evaluate(() => localStorage.getItem("sudoku-progress"));
+  // With the clock paused, flushProgress saves a new object with identical data.
+  await page.getByRole("button", { name: "Journal", exact: true }).click();
+  expect(await page.evaluate(() => localStorage.getItem("sudoku-progress"))).toBe(before);
+  await expectQuiet(page);
+  await page.locator('.dgrid button[data-d="2026-10-09"]').click();
+  await expectCardAnnouncement(page);
+  await clearLog(page);
+  await page.locator(".back button").click();
+  await expect
+    .poll(() => page.evaluate(() => window.__regressionLog.announcements))
+    .toEqual([SPOKEN]);
+  await clearLog(page);
+  await page.getByRole("button", { name: "Journal", exact: true }).click();
+  await expectQuiet(page);
+});
+
+for (const mobile of [false, true]) {
+  test(`page load and ten clock ticks stay silent on ${mobile ? "mobile" : "desktop"}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: mobile ? 390 : 1280, height: 844 });
+    await page.clock.install({ time: NOW });
+    await page.clock.pauseAt(NOW);
+    await page.addInitScript(() => {
+      const previous = new Map();
+      window.__loadAnnouncements = [];
+      new MutationObserver(() => {
+        for (const region of document.querySelectorAll(
+          '.journal [aria-live="polite"], .journal [role="status"]'
+        )) {
+          const text = region.textContent.trim();
+          if (previous.has(region) && text && previous.get(region) !== text)
+            window.__loadAnnouncements.push(text);
+          previous.set(region, text);
+        }
+      }).observe(document, { subtree: true, childList: true, characterData: true });
+    });
+    await page.goto("./");
+    await expect(page.locator(".ctx")).toBeAttached();
+    expect(await page.evaluate(() => window.__loadAnnouncements)).toEqual([]);
+    await watch(page);
+    // Run each second, rather than fastForward, which can collapse interval ticks.
+    for (let i = 0; i < 10; i++) await page.clock.runFor(1000);
+    await expectQuiet(page);
+    expect(await page.evaluate(() => window.__loadAnnouncements)).toEqual([]);
+  });
 }
 
 for (const mobile of [false, true]) {

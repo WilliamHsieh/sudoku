@@ -54,6 +54,7 @@
   /** @type {HTMLElement | null} */
   let contextCard = $state(null);
   let hasCardState = false;
+  let lastAnnounced = "";
   let slideGen = 0;
   let slideTimer = 0;
   let alive = true;
@@ -234,6 +235,7 @@
       // announce the completed return once through the shared status.
       await tick();
       if (!alive) return;
+      lastAnnounced = contextCard?.textContent?.trim() ?? "";
       returning = false;
       announcement = latestAnnouncement(latest);
     };
@@ -380,13 +382,17 @@
     sel;
     solved;
     progress;
-    if (!hasCardState) {
-      hasCardState = true;
-      return;
-    }
+    const initial = !hasCardState;
+    hasCardState = true;
     if (untrack(() => returning)) return;
     tick().then(() => {
-      if (alive && !returning) announcement = contextCard?.textContent?.trim() ?? "";
+      if (!alive || returning) return;
+      const text = contextCard?.textContent?.trim() ?? "";
+      if (text === lastAnnounced) return;
+      // Seed the comparison silently on mount and after explicit returns.
+      // Store identity changes alone must not repeat an unchanged card.
+      lastAnnounced = text;
+      if (!initial) announcement = text;
     });
   });
 
