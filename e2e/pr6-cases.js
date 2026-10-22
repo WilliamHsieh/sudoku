@@ -91,19 +91,96 @@ export function registerPr6Tests(opts = {}) {
     expect((await timer.boundingBox()).height).toBe(30);
   });
 
-  test("the cue pulses every lone candidate together and selection resets it", async ({ page }) => {
+  test("the cue pulses every lone candidate together; selection and hover do not delay it", async ({
+    page,
+  }) => {
     const lones = await loneIds(page);
     expect(lones.length).toBeGreaterThan(1);
 
     await page.clock.runFor(20_000);
+    await cell(page, 0).hover();
+    await page.keyboard.down("Shift");
+    await page.keyboard.up("Shift");
     await cell(page, 0).click();
-    await page.clock.runFor(29_000);
+    await page.keyboard.press("ArrowRight");
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("Escape");
+    await page.locator("h1").click();
+    await expect(page.locator(".cell.selected")).toHaveCount(0);
+
+    await page.clock.runFor(9_000);
     await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "idle");
     await expect(page.locator(".pencil-box.cue")).toHaveCount(0);
 
     await page.clock.runFor(1_000);
     await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "flash");
     expect(await cueIds(page)).toEqual(lones);
+  });
+
+  test("a board change restarts the cue idle clock", async ({ page }) => {
+    await page.clock.runFor(25_000);
+    await cell(page, 0).click();
+    await page.keyboard.press("4");
+    await expectValue(page, 0, 4);
+
+    await page.clock.runFor(5_000);
+    await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "idle");
+    await expect(page.locator(".pencil-box.cue")).toHaveCount(0);
+
+    await page.clock.runFor(25_000);
+    await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "flash");
+
+    await page.keyboard.press("Control+z");
+    await expectValue(page, 0, 0);
+    await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "idle");
+    await page.clock.runFor(30_000);
+    await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "flash");
+
+    await page.keyboard.press("Control+y");
+    await expectValue(page, 0, 4);
+    await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "idle");
+    await page.clock.runFor(29_000);
+    await expect(page.locator(".pencil-box.cue")).toHaveCount(0);
+    await page.clock.runFor(1_000);
+    await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "flash");
+  });
+
+  test("an attempt that changes nothing does not delay the cue", async ({ page }) => {
+    await cell(page, 0).click();
+    await page.keyboard.press("4");
+    await expectValue(page, 0, 4);
+    await page.clock.runFor(20_000);
+
+    await page.keyboard.press("4");
+    await expectValue(page, 0, 4);
+    await cell(page, 1).click();
+    await page.keyboard.press("7");
+    await expectValue(page, 1, 5);
+    await page.keyboard.press("0");
+    await cell(page, 2).click();
+    await page.keyboard.press("0");
+    await cell(page, 2).click({ button: "right" });
+    await page.keyboard.press("Control+y");
+
+    await page.clock.runFor(10_000);
+    await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "flash");
+  });
+
+  test("switching Notes mode restarts the cue idle clock", async ({ page }) => {
+    const toggle = () =>
+      page.locator("#notes-mode").evaluate((el) => /** @type {HTMLButtonElement} */ (el).click());
+
+    await page.clock.runFor(25_000);
+    await toggle();
+    await expect(page.locator("#notes-mode")).toHaveAttribute("aria-checked", "false");
+    await toggle();
+    await expect(page.locator("#notes-mode")).toHaveAttribute("aria-checked", "true");
+
+    await page.clock.runFor(5_000);
+    await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "idle");
+    await expect(page.locator(".pencil-box.cue")).toHaveCount(0);
+    await page.clock.runFor(25_000);
+    await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "flash");
   });
 
   test("the cue stays off while paused or a dialog is open, then starts over", async ({ page }) => {
@@ -232,7 +309,9 @@ export function registerPr6Tests(opts = {}) {
     expect(gaps.find((g) => g.i === 74 && g.d === 6)?.min).toBeGreaterThanOrEqual(1);
   });
 
-  test("reduced motion holds a static tint with no ring until the next input", async ({ page }) => {
+  test("reduced motion holds a static tint with no ring until the next board change", async ({
+    page,
+  }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.reload();
     if ((await page.locator(".board > .cell").count()) === 0) {
@@ -260,7 +339,13 @@ export function registerPr6Tests(opts = {}) {
 
     await page.clock.runFor(60_000);
     await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "hold");
+    await cell(page, 0).hover();
     await cell(page, 0).click();
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "hold");
+    await expect(page.locator(".pencil-box.cue").first()).toBeVisible();
+    await page.keyboard.press("4");
+    await expectValue(page, 0, 4);
     await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "idle");
     await expect(page.locator(".pencil-box.cue")).toHaveCount(0);
   });

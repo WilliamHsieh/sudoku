@@ -156,7 +156,10 @@ export function createPlay(opts = {}) {
       schedule(t);
     },
 
-    /** Any puzzle input: answers, notes, erase, undo/redo, selection, the Notes toggle. */
+    /**
+     * Restart the idle clock after a board change or a Notes mode switch.
+     * Selection, hovering, and attempts that change nothing do not call this.
+     */
     noteActivity() {
       bump(now());
     },

@@ -56,7 +56,10 @@ export function createGame() {
   let lastBlockers = $state([]);
   /** @type {() => void} */
   let beforeMutate = () => {};
-  /** Puzzle input (including selection) so the cue can restart its idle clock. */
+  /**
+   * Restarts the cue idle clock. Board changes and Notes-mode switches only —
+   * not selection, hovering, or an attempt that changes nothing.
+   */
   /** @type {() => void} */
   let onActivity = () => {};
   /** A different puzzle was loaded. */
@@ -84,11 +87,11 @@ export function createGame() {
   function apply(result) {
     beforeMutate();
     lastBlockers = result.blockers;
-    activity();
     if (!result.changed) return result;
     history = commit(history, result);
     syncSolved();
     persistProgress();
+    activity();
     return result;
   }
 
@@ -151,7 +154,7 @@ export function createGame() {
       beforeMutate = fn ?? (() => {});
     },
 
-    /** @param {() => void} [fn] */
+    /** Board changes and Notes-mode switches. @param {() => void} [fn] */
     setOnActivity(fn) {
       onActivity = fn ?? (() => {});
     },
@@ -190,18 +193,19 @@ export function createGame() {
       return conflicts(state).has(i);
     },
 
-    /** @param {number} i */
+    /** Selection does not restart the cue. @param {number} i */
     select(i) {
       beforeMutate();
       selected = i;
-      activity();
     },
 
     /** @param {import('./game.js').NotesMode} mode */
     setNotesMode(mode) {
       beforeMutate();
-      history = replace(history, changeNotesMode(state, mode));
-      activity();
+      const prev = state;
+      const next = changeNotesMode(prev, mode);
+      history = replace(history, next);
+      if (next !== prev) activity();
     },
 
     /** @param {number} i */
@@ -277,34 +281,36 @@ export function createGame() {
 
     undo() {
       beforeMutate();
-      activity();
       if (!canUndo(history)) return;
       history = undoHistory(history);
       lastBlockers = [];
       syncSolved();
       persistProgress();
+      activity();
     },
     redo() {
       beforeMutate();
-      activity();
       if (!canRedo(history)) return;
       history = redoHistory(history);
       lastBlockers = [];
       syncSolved();
       persistProgress();
+      activity();
     },
 
     /** Clear answers, notes and undo/redo. Keeps the puzzle and the notes mode. */
     restart() {
       beforeMutate();
-      history = createHistory(restartState(state));
+      const next = restartState(state);
+      const changed = changedCells(state, next).length > 0;
+      history = createHistory(next);
       selected = -1;
       lastBlockers = [];
       marked = false;
       done.set(false);
       resetTimer();
       if (meta.dateStr && meta.difficulty) puzzleProgress.clear(meta.dateStr, meta.difficulty);
-      activity();
+      if (changed) activity();
     },
 
     /**

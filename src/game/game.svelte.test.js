@@ -3,6 +3,7 @@ import { get } from "svelte/store";
 import { createGame, DEMO_PUZZLE } from "./game.svelte.js";
 import { done, puzzleProgress, timer, timerRunning } from "../store.js";
 import { maskDigits } from "./board.js";
+import { createPlay } from "../play/session.svelte.js";
 
 /** @type {ReturnType<typeof createGame>} */
 let g;
@@ -191,5 +192,189 @@ describe("createGame", () => {
     const peek = g.peekUndo();
     expect(peek?.cells).toEqual([0]);
     expect(peek?.first).toBe(0);
+  });
+});
+
+describe("cue idle clock", () => {
+  /** @type {number} */
+  let n;
+
+  beforeEach(() => {
+    n = 0;
+    g.setOnActivity(() => {
+      n += 1;
+    });
+  });
+
+  it("does not restart for selection", () => {
+    g.select(0);
+    g.select(10);
+    g.select(-1);
+    expect(g.selected).toBe(-1);
+    expect(n).toBe(0);
+  });
+
+  it("does not restart when an attempt changes nothing", () => {
+    expect(g.enter(1, 7).changed).toBe(false);
+    expect(g.fill(1, 3).changed).toBe(false);
+    expect(g.erase(0).changed).toBe(false);
+    expect(g.clear(0).changed).toBe(false);
+    expect(g.clearAnswer(0).changed).toBe(false);
+    expect(g.fillLone(0).changed).toBe(false);
+    const refused = g.toggleNote(0, 5);
+    expect(refused.changed).toBe(false);
+    expect(refused.blockers.length).toBeGreaterThan(0);
+    g.undo();
+    g.redo();
+    g.setNotesMode("auto");
+    g.restart();
+    expect(g.value(1)).toBe(5);
+    expect(n).toBe(0);
+  });
+
+  it("restarts when an answer, note, or erase changes the board", () => {
+    g.enter(0, 4);
+    expect(g.value(0)).toBe(4);
+    expect(n).toBe(1);
+    g.fill(0, 4);
+    expect(n).toBe(1);
+    g.fill(0, 7);
+    expect(n).toBe(2);
+    g.clearAnswer(0);
+    expect(g.value(0)).toBe(0);
+    expect(n).toBe(3);
+    g.enter(0, 4);
+    g.erase(0);
+    expect(g.value(0)).toBe(0);
+    expect(n).toBe(5);
+    g.clear(0);
+    expect(n).toBe(5);
+
+    g.toggleNote(0, 2);
+    expect(g.hasNote(0, 2)).toBe(false);
+    expect(n).toBe(6);
+    g.toggleNote(0, 2);
+    expect(n).toBe(7);
+    g.toggleNote(0, 3);
+    g.erase(0);
+    expect(g.hasNote(0, 3)).toBe(true);
+    expect(n).toBe(9);
+
+    g.enter(0, 4);
+    g.clear(0);
+    expect(g.value(0)).toBe(0);
+    expect(n).toBe(11);
+  });
+
+  it("restarts for fillLone and for undo or redo that change state", () => {
+    for (const d of [3, 4, 6, 7]) g.toggleNote(0, d);
+    expect(g.noteCount(0)).toBe(1);
+    expect(n).toBe(4);
+    g.fillLone(0);
+    expect(g.value(0)).toBe(2);
+    expect(n).toBe(5);
+    g.fillLone(0);
+    expect(n).toBe(5);
+    g.undo();
+    expect(g.value(0)).toBe(0);
+    expect(n).toBe(6);
+    g.redo();
+    expect(g.value(0)).toBe(2);
+    expect(n).toBe(7);
+    g.undo();
+    g.redo();
+    expect(n).toBe(9);
+    g.redo();
+    expect(n).toBe(9);
+  });
+
+  it("restarts when Notes mode switches, including a manual note edit", () => {
+    g.setNotesMode("manual");
+    expect(g.notesMode).toBe("manual");
+    expect(n).toBe(1);
+    g.setNotesMode("manual");
+    expect(n).toBe(1);
+    g.toggleNote(0, 2);
+    expect(g.hasNote(0, 2)).toBe(true);
+    expect(n).toBe(2);
+    g.toggleNote(0, 2);
+    expect(g.hasNote(0, 2)).toBe(false);
+    expect(n).toBe(3);
+    g.toggleNote(0, 5);
+    expect(g.hasNote(0, 5)).toBe(false);
+    expect(n).toBe(3);
+    g.setNotesMode("auto");
+    expect(n).toBe(4);
+  });
+
+  it("restarts when restart clears progress and not when the board is already clear", () => {
+    g.restart();
+    expect(n).toBe(0);
+    g.enter(0, 4);
+    g.toggleNote(2, 3);
+    g.restart();
+    expect(g.value(0)).toBe(0);
+    expect(g.hasNote(2, 3)).toBe(true);
+    expect(n).toBe(3);
+    g.restart();
+    expect(n).toBe(3);
+  });
+
+  it("selection does not delay the cue; a board change does; a no-op does not", () => {
+    let time = 0;
+    const play = createPlay({ live: false, idleMs: 30_000, now: () => time });
+    play.bindLones(() => [2]);
+    g.setOnActivity(() => play.noteActivity());
+    play.start();
+
+    time = 20_000;
+    g.select(0);
+    g.select(-1);
+    g.enter(1, 7);
+    g.erase(0);
+    g.undo();
+    g.redo();
+    play.step();
+    expect(play.phase).toBe("idle");
+    time = 30_000;
+    play.step();
+    expect(play.phase).toBe("flash");
+    expect(play.showsCue(2)).toBe(true);
+
+    time = 31_000;
+    g.select(0);
+    g.enter(0, 4);
+    expect(play.phase).toBe("idle");
+    expect(play.showsCue(2)).toBe(false);
+    time = 60_999;
+    play.step();
+    expect(play.phase).toBe("idle");
+    time = 61_000;
+    play.step();
+    expect(play.phase).toBe("flash");
+
+    time = 70_000;
+    g.fill(0, 4);
+    g.enter(1, 9);
+    g.erase(2);
+    g.setNotesMode("auto");
+    play.step();
+    expect(play.phase).toBe("idle");
+    time = 90_999;
+    play.step();
+    expect(play.phase).toBe("idle");
+    time = 91_000;
+    play.step();
+    expect(play.phase).toBe("flash");
+
+    time = 92_000;
+    g.setNotesMode("manual");
+    expect(play.phase).toBe("idle");
+    time = 121_999;
+    play.step();
+    expect(play.phase).toBe("idle");
+    time = 122_000;
+    play.step();
+    expect(play.phase).toBe("flash");
   });
 });

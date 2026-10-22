@@ -46,7 +46,7 @@ describe("play session", () => {
     expect(play.showsCue(9)).toBe(true);
   });
 
-  it("resets the countdown when the player selects a cell", () => {
+  it("resets the countdown on a board change and ends a pulse that is showing", () => {
     time = 20_000;
     play.noteActivity();
     time = 49_999;

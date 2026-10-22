@@ -120,19 +120,11 @@
       return;
     }
     if (playUi.paused) return;
-    playUi.noteActivity();
     if (e.key === "Escape" && $done) {
       game.dismiss();
     } else {
       handleKeydown(e);
     }
-  }
-
-  /** @param {PointerEvent} e */
-  function onPlayPointer(e) {
-    if (playUi.paused) return;
-    if (!(e.target instanceof Element)) return;
-    if (e.target.closest(".play")) playUi.noteActivity();
   }
 
   function removeFocus() {
@@ -148,7 +140,6 @@
   function openJournal() {
     game.flushProgress();
     showCalendar = true;
-    playUi.noteActivity();
   }
 
   function hasQueryPuzzle() {
@@ -420,8 +411,7 @@
   {#if showCalendar}
     <Journal />
   {:else}
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="play" class:is-paused={playUi.paused} onpointerdown={onPlayPointer}>
+    <div class="play" class:is-paused={playUi.paused}>
       <div class="board-wrap" bind:this={wrapEl}>
         <div
           class="board"
