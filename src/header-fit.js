@@ -74,7 +74,7 @@ export function readHeaderFit(hd) {
   };
   const pad = getComputedStyle(hd.querySelector(".hd-probe-pad"));
   const timer = hd.querySelector(".timer2");
-  if (timer) timerChrome = measureChrome(timer);
+  if (timer instanceof HTMLElement) timerChrome = measureChrome(timer);
   const num = (name) => parseFloat(cs.getPropertyValue(name));
   return {
     content: hd.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
