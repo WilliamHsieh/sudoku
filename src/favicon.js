@@ -41,10 +41,16 @@ function msUntilLocalMidnight(date) {
  */
 export function applyWeekdayFavicon(doc, date, base = "/") {
   const digit = weekdayDigit(date);
-  const sizes = /** @type {const} */ ([16, 32]);
-  for (const size of sizes) {
+  // sizes=any and 16x16 both use the pixel-snapped 16px SVG. Chromium
+  // prefers sizes=any over 32x32, which keeps the 16px grid in the tab.
+  const slots = /** @type {const} */ ([
+    ["any", 16],
+    ["16x16", 16],
+    ["32x32", 32],
+  ]);
+  for (const [sizes, size] of slots) {
     const link = /** @type {HTMLLinkElement | null} */ (
-      doc.querySelector(`link[rel="icon"][sizes="${size}x${size}"]`)
+      doc.querySelector(`link[rel="icon"][sizes="${sizes}"]`)
     );
     if (link) link.href = faviconPath(digit, size, base);
   }

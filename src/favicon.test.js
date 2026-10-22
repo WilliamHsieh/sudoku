@@ -28,6 +28,7 @@ describe("faviconPath", () => {
 function fakeDocument(visibility = "visible") {
   /** @type {Record<string, { href: string }>} */
   const links = {
+    any: { href: "/sudoku/favicon/I7-16.svg" },
     "16x16": { href: "/sudoku/favicon/I7-16.svg" },
     "32x32": { href: "/sudoku/favicon/I7-32.svg" },
   };
@@ -73,10 +74,10 @@ function fakeDocument(visibility = "visible") {
       listeners.get(type)?.();
     },
     /**
-     * @param {16 | 32} size
+     * @param {"any" | "16x16" | "32x32"} slot
      */
-    href(size) {
-      return links[`${size}x${size}`].href;
+    href(slot) {
+      return links[slot].href;
     },
   };
 }
@@ -89,8 +90,9 @@ describe("watchWeekdayFavicon", () => {
   it("sets both tab icons from the local weekday on load", () => {
     const fake = fakeDocument();
     const stop = watchWeekdayFavicon(fake.doc, "/sudoku/", () => new Date(2026, 9, 19, 8, 30, 0));
-    expect(fake.href(16)).toBe("/sudoku/favicon/I1-16.svg");
-    expect(fake.href(32)).toBe("/sudoku/favicon/I1-32.svg");
+    expect(fake.href("any")).toBe("/sudoku/favicon/I1-16.svg");
+    expect(fake.href("16x16")).toBe("/sudoku/favicon/I1-16.svg");
+    expect(fake.href("32x32")).toBe("/sudoku/favicon/I1-32.svg");
     stop();
   });
 
@@ -100,14 +102,15 @@ describe("watchWeekdayFavicon", () => {
     const fake = fakeDocument();
     const stop = watchWeekdayFavicon(fake.doc, "/sudoku/", () => current);
 
-    expect(fake.href(16)).toBe("/sudoku/favicon/I4-16.svg");
-    expect(fake.href(32)).toBe("/sudoku/favicon/I4-32.svg");
+    expect(fake.href("16x16")).toBe("/sudoku/favicon/I4-16.svg");
+    expect(fake.href("32x32")).toBe("/sudoku/favicon/I4-32.svg");
 
     current = new Date(2026, 9, 23, 0, 0, 1);
     vi.advanceTimersByTime(11_000);
 
-    expect(fake.href(16)).toBe("/sudoku/favicon/I5-16.svg");
-    expect(fake.href(32)).toBe("/sudoku/favicon/I5-32.svg");
+    expect(fake.href("any")).toBe("/sudoku/favicon/I5-16.svg");
+    expect(fake.href("16x16")).toBe("/sudoku/favicon/I5-16.svg");
+    expect(fake.href("32x32")).toBe("/sudoku/favicon/I5-32.svg");
     stop();
   });
 
@@ -116,14 +119,15 @@ describe("watchWeekdayFavicon", () => {
     let current = new Date(2026, 9, 24, 23, 59, 59);
     const fake = fakeDocument();
     const stop = watchWeekdayFavicon(fake.doc, "/sudoku/", () => current);
-    expect(fake.href(16)).toBe("/sudoku/favicon/I6-16.svg");
+    expect(fake.href("16x16")).toBe("/sudoku/favicon/I6-16.svg");
 
     current = new Date(2026, 9, 25, 0, 0, 0);
     vi.advanceTimersByTime(1_000);
 
     expect(weekdayDigit(current)).toBe(7);
-    expect(fake.href(16)).toBe("/sudoku/favicon/I7-16.svg");
-    expect(fake.href(32)).toBe("/sudoku/favicon/I7-32.svg");
+    expect(fake.href("any")).toBe("/sudoku/favicon/I7-16.svg");
+    expect(fake.href("16x16")).toBe("/sudoku/favicon/I7-16.svg");
+    expect(fake.href("32x32")).toBe("/sudoku/favicon/I7-32.svg");
     stop();
   });
 
@@ -132,16 +136,16 @@ describe("watchWeekdayFavicon", () => {
     let current = new Date(2026, 9, 24, 21, 0, 0);
     const fake = fakeDocument("hidden");
     const stop = watchWeekdayFavicon(fake.doc, "/sudoku/", () => current);
-    expect(fake.href(16)).toBe("/sudoku/favicon/I6-16.svg");
+    expect(fake.href("16x16")).toBe("/sudoku/favicon/I6-16.svg");
 
     current = new Date(2026, 9, 25, 9, 0, 0);
     fake.emit("visibilitychange");
-    expect(fake.href(16)).toBe("/sudoku/favicon/I6-16.svg");
+    expect(fake.href("16x16")).toBe("/sudoku/favicon/I6-16.svg");
 
     fake.setVisibility("visible");
     fake.emit("visibilitychange");
-    expect(fake.href(16)).toBe("/sudoku/favicon/I7-16.svg");
-    expect(fake.href(32)).toBe("/sudoku/favicon/I7-32.svg");
+    expect(fake.href("16x16")).toBe("/sudoku/favicon/I7-16.svg");
+    expect(fake.href("32x32")).toBe("/sudoku/favicon/I7-32.svg");
     stop();
   });
 
@@ -153,7 +157,7 @@ describe("watchWeekdayFavicon", () => {
     stop();
     current = new Date(2026, 9, 23, 0, 0, 1);
     vi.advanceTimersByTime(20_000);
-    expect(fake.href(16)).toBe("/sudoku/favicon/I4-16.svg");
+    expect(fake.href("16x16")).toBe("/sudoku/favicon/I4-16.svg");
   });
 });
 
