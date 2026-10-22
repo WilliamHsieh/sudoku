@@ -62,6 +62,9 @@ export function finishPaint() {
   if (mode === "lock" && !s.rejected && !s.brush && s.visited.size === 1)
     showToast(toastLockedCell(s.d));
   padUi.announcement = strokeAnnouncement(s);
+  // Replace the live region's message child even when Svelte batches an
+  // identical keyboard announcement with beginPaint's clear.
+  padUi.commitId += 1;
   padUi.marks = { ...strokeMarks(s), phase: "hold" };
   timers.push(
     setTimeout(() => {

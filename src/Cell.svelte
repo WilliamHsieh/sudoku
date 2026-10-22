@@ -88,6 +88,7 @@
   class:paint-add={tint && brush === "add"}
   class:paint-remove={tint && brush === "remove"}
   class:paint-committed={tint && padUi.marks?.phase !== "live"}
+  class:paint-alternate={tint && padUi.commitId % 2 === 0}
   class:finger-add={padUi.finger === cell_id && brush === "add"}
   class:finger-remove={padUi.finger === cell_id && brush === "remove"}
   data-r={row}
@@ -201,7 +202,30 @@
   }
   .cell.paint-committed::after {
     opacity: 0;
-    transition: opacity 200ms ease-out;
+    /* Keyboard taps can begin and commit in one render. An animation has an
+       explicit starting opacity even when no live tint was painted first. */
+    animation: paint-tint 200ms ease-out both;
+  }
+  .cell.paint-committed.paint-alternate::after {
+    /* Restart even when two synchronous taps on the same cell keep the
+       committed class through Svelte's batched begin/finish updates. */
+    animation-name: paint-tint-alternate;
+  }
+  @keyframes paint-tint {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes paint-tint-alternate {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
   }
   .cell.finger-add {
     box-shadow: inset 0 0 0 3px var(--sel-ring);
@@ -303,8 +327,9 @@
       background-color: color-mix(in srgb, var(--undo-ring) 24%, var(--board-bg));
       box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--undo-ring) 70%, transparent);
     }
-    .cell.paint-committed::after {
-      transition: none;
+    .cell.paint-committed::after,
+    .cell.paint-committed.paint-alternate::after {
+      animation: none;
     }
     .cell.undo-target::before {
       animation: none;

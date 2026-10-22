@@ -567,7 +567,9 @@
     <Journal />
   {:else}
     <div class="play" class:is-paused={playUi.paused}>
-      <p class="sr-only" aria-live="polite" aria-atomic="true">{padUi.announcement}</p>
+      <p class="sr-only" aria-live="polite" aria-atomic="true">
+        {#key padUi.commitId}<span>{padUi.announcement}</span>{/key}
+      </p>
       <div class="board-wrap" bind:this={wrapEl}>
         <div
           use:paintBoard

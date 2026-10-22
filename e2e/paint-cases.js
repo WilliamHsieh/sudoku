@@ -43,6 +43,80 @@ export async function paintSetup(page, mobile, manual = true) {
 }
 
 export function paintCases(mobile) {
+  for (const key of ["Space", "Enter"]) {
+    test(`${key} re-announces identical keyboard commits`, async ({ page }) => {
+      await paintSetup(page, mobile);
+      await cell(page, 37).dispatchEvent("pointerdown", {
+        pointerType: "touch",
+        pointerId: 90,
+      });
+      await page.evaluate(() => document.activeElement?.blur());
+      await page.keyboard.press("Shift+Digit5");
+      const changes = await observeAnnouncements(page);
+      for (const i of [37, 38]) {
+        if (i === 38) await page.keyboard.press("ArrowRight");
+        await changes.evaluate((changes) => changes.splice(0));
+        await page.keyboard.press(key);
+        await expect(cell(page, i)).toHaveAttribute("data-notes", "5");
+        await expect
+          .poll(() => changes.evaluate((changes) => changes.filter(Boolean)))
+          .toContain("Added 5 to 1 cell");
+      }
+    });
+
+    test(`${key} renders a one-cell tint and fades it over 200ms`, async ({ page }) => {
+      await paintSetup(page, mobile);
+      await cell(page, 37).dispatchEvent("pointerdown", {
+        pointerType: "touch",
+        pointerId: 90,
+      });
+      await page.evaluate(() => document.activeElement?.blur());
+      await page.keyboard.press("Shift+Digit5");
+      // Sample in the page as soon as the commit renders. Protocol round trips
+      // must not consume the short animation window on a loaded test machine.
+      for (const notes of ["5", ""]) {
+        const samples = await cell(page, 37).evaluateHandle((el) => {
+          const done = new Promise((resolve) => {
+            const observer = new MutationObserver(() => {
+              if (!el.classList.contains("paint-committed")) return;
+              observer.disconnect();
+              const start = performance.now();
+              const opacity = () => Number(getComputedStyle(el, "::after").opacity);
+              const initial = opacity();
+              setTimeout(() => {
+                resolve({ initial, final: opacity(), elapsed: performance.now() - start });
+              }, 250);
+            });
+            observer.observe(el, { attributes: true, attributeFilter: ["class"] });
+          });
+          return { done };
+        });
+        await page.keyboard.press(key);
+        const result = await samples.evaluate((samples) => samples.done);
+        expect(result.initial).toBeGreaterThan(0.99);
+        expect(result.elapsed).toBeGreaterThanOrEqual(250);
+        expect(result.final).toBeLessThanOrEqual(0.01);
+        await expect(cell(page, 37)).toHaveAttribute("data-notes", notes);
+      }
+    });
+  }
+
+  test("identical pointer taps each update the live region", async ({ page }) => {
+    const t = await paintSetup(page, mobile);
+    await t.lock();
+    const changes = await observeAnnouncements(page);
+    for (const i of [37, 38]) {
+      await t.down(i);
+      // Count only commit mutations, excluding the clear at pointerdown.
+      await changes.evaluate((changes) => changes.splice(0));
+      await t.up();
+      await expect(cell(page, i)).toHaveAttribute("data-notes", "5");
+      await expect
+        .poll(() => changes.evaluate((changes) => changes.filter(Boolean)))
+        .toContain("Added 5 to 1 cell");
+    }
+  });
+
   test("LOCK add interpolates a row, skips given/refused cells, and undoes once", async ({
     page,
   }) => {
@@ -193,12 +267,22 @@ export function paintCases(mobile) {
     await t.to(37); // First editable cell is legal: choose add after skipping the given.
     await expect(cell(page, 38)).toHaveAttribute("data-notes", "5");
     await expect(cell(page, 37)).toHaveAttribute("data-notes", "5");
+    // Freeze timers before commit so machine load cannot spend the 700ms
+    // marker lifetime between assertions. CSS transitions are disabled by RM.
+    const now = new Date();
+    await page.clock.install({ time: now });
+    await page.clock.pauseAt(now);
     await t.up();
     await expect(pencil(page, 37, 5)).toHaveCSS("background-color", "rgb(223, 232, 250)");
-    await page.waitForTimeout(400);
+    await page.clock.runFor(400);
     await expect(pencil(page, 37, 5)).toHaveCSS("transition-duration", "0s");
     await expect(pencil(page, 37, 5)).toHaveCSS("background-color", "rgb(223, 232, 250)");
+    await page.clock.runFor(299);
+    await expect(pencil(page, 37, 5)).toHaveClass(/paint-added/);
+    await expect(pencil(page, 37, 5)).toHaveCSS("background-color", "rgb(223, 232, 250)");
+    await page.clock.runFor(1);
     await expect(pencil(page, 37, 5)).not.toHaveClass(/paint-added/);
+    await expect(pencil(page, 37, 5)).toHaveCSS("background-color", "rgb(252, 239, 190)");
   });
 
   test("blue add chip shares the yellow chip geometry and fades on the 700ms clock", async ({
@@ -257,5 +341,17 @@ export function paintCases(mobile) {
     if (!mobile) await page.mouse.move(0, 0);
     await expect(pencil(page, 37, 5)).not.toHaveClass(/paint-added/);
     expect(await pencil(page, 37, 5).evaluate(measure)).toEqual(yellow);
+  });
+}
+
+async function observeAnnouncements(page) {
+  return page.locator(".sr-only[aria-live]").evaluateHandle((region) => {
+    const changes = [];
+    new MutationObserver(() => changes.push(region.textContent.trim())).observe(region, {
+      subtree: true,
+      characterData: true,
+      childList: true,
+    });
+    return changes;
   });
 }

@@ -55,6 +55,7 @@ export const padUi = $state({
   marks: null,
   finger: -1,
   announcement: "",
+  commitId: 0,
   /** @type {KeyGestureView | null} */
   gesture: null,
   /** @type {KeyHold | null} */
