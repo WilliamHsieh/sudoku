@@ -1,4 +1,4 @@
-// Option B: one [Play | Journal] track, same box in both views.
+// Option B: one [Journal | Play] track, same box in both views.
 import { test, expect } from "@playwright/test";
 import { openBoard } from "./helpers.js";
 
@@ -53,6 +53,16 @@ test.describe("desktop view switch", () => {
     near(board.height, 650, "board h");
     near(playSeg.x + playSeg.w, 1248, "seg right");
     expect(playSeg.h).toBeGreaterThan(30);
+    const headerOrder = await header.evaluate((el) =>
+      [...el.querySelectorAll("button")].map((b) =>
+        (b.getAttribute("aria-label") || b.textContent).replace(/\s+/g, " ").trim()
+      )
+    );
+    expect(headerOrder).toEqual(["Pause", "More", "Journal", "Play"]);
+    const journalBox = await rectOf(page.getByRole("button", { name: "Journal", exact: true }));
+    const playBox = await rectOf(page.getByRole("button", { name: "Play", exact: true }));
+    expect(journalBox.x).toBeLessThan(playBox.x);
+    near(journalBox.x + journalBox.w, playBox.x, "segment seam");
     await expect(page.getByRole("button", { name: "Play", exact: true })).toHaveAttribute(
       "aria-current",
       "page"
@@ -68,6 +78,14 @@ test.describe("desktop view switch", () => {
     await expect(page.locator(".journal")).toBeVisible();
     await expect(page.locator(".board")).toHaveCount(0);
     await expect(page.locator(".timer")).toHaveCount(0);
+    const journalOrder = await page
+      .locator(".header")
+      .evaluate((el) =>
+        [...el.querySelectorAll("button")].map((b) =>
+          (b.getAttribute("aria-label") || b.textContent).replace(/\s+/g, " ").trim()
+        )
+      );
+    expect(journalOrder).toEqual(["Journal", "Play"]);
 
     const journalSeg = await rectOf(page.getByRole("navigation", { name: "Views" }));
     const journalHeader = await rectOf(page.locator(".header"));

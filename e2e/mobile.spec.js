@@ -119,7 +119,12 @@ test.describe("H2 header", () => {
     }
     const playBox = await rectOf(playSeg);
     const journalBox = await rectOf(journalSeg);
-    near(playBox.x + playBox.w, journalBox.x, "segment seam");
+    const order = await views.evaluate((nav) =>
+      [...nav.querySelectorAll("button")].map((el) => el.getAttribute("aria-label"))
+    );
+    expect(order).toEqual(["Journal", "Play"]);
+    expect(journalBox.x).toBeLessThan(playBox.x);
+    near(journalBox.x + journalBox.w, playBox.x, "segment seam");
 
     const timerCss = await page.locator(".timer2").evaluate((el) => {
       const icon = el.querySelector(".ic");
@@ -288,6 +293,7 @@ test.describe("narrow header", () => {
         timer: box(timer),
         time: box(time),
         pause: box(pause),
+        names: buttons.map((el) => el.getAttribute("aria-label")),
         buttons: buttons.map(box),
         hits,
         trunc: [
@@ -331,6 +337,9 @@ test.describe("narrow header", () => {
         8 - 0.5
       );
     }
+    expect(state.names, `${where} segment order`).toEqual(["Journal", "Play"]);
+    expect(state.buttons[0].x, `${where} Journal left of Play`).toBeLessThan(state.buttons[1].x);
+    near(state.buttons[0].x + state.buttons[0].w, state.buttons[1].x, `${where} segment seam`);
     if (state.icons) {
       near(state.buttons[0].w, state.buttons[1].w, `${where} icon segment width`);
       near(state.buttons[0].h, state.buttons[1].h, `${where} icon segment height`);

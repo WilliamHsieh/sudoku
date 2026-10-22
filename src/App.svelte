@@ -386,20 +386,6 @@
       <nav class="seg" aria-label="Views">
         <button
           type="button"
-          aria-current={!showCalendar ? "page" : undefined}
-          onclick={onViewPlay}
-        >
-          <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <rect width="18" height="18" x="3" y="3" rx="2"></rect>
-            <path d="M3 9h18"></path>
-            <path d="M3 15h18"></path>
-            <path d="M9 3v18"></path>
-            <path d="M15 3v18"></path>
-          </svg>
-          Play
-        </button>
-        <button
-          type="button"
           aria-current={showCalendar ? "page" : undefined}
           onclick={onViewJournal}
         >
@@ -416,6 +402,20 @@
             <path d="M16 17h.01"></path>
           </svg>
           Journal
+        </button>
+        <button
+          type="button"
+          aria-current={!showCalendar ? "page" : undefined}
+          onclick={onViewPlay}
+        >
+          <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+            <path d="M3 9h18"></path>
+            <path d="M3 15h18"></path>
+            <path d="M9 3v18"></path>
+            <path d="M15 3v18"></path>
+          </svg>
+          Play
         </button>
       </nav>
     </div>
@@ -452,6 +452,21 @@
         <nav class="mseg" aria-label="Views">
           <button
             type="button"
+            aria-label="Journal"
+            title="Journal"
+            aria-current={showCalendar ? "page" : undefined}
+            onclick={onViewJournal}
+          >
+            <svg class="mseg-ic" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M8 2v3"></path>
+              <path d="M16 2v3"></path>
+              <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+              <path d="M3 9h18"></path>
+            </svg>
+            <span class="mseg-label">Journal</span>
+          </button>
+          <button
+            type="button"
             aria-label="Play"
             title="Play"
             aria-current={!showCalendar ? "page" : undefined}
@@ -465,21 +480,6 @@
               <path d="M15 3v18"></path>
             </svg>
             <span class="mseg-label">Play</span>
-          </button>
-          <button
-            type="button"
-            aria-label="Journal"
-            title="Journal"
-            aria-current={showCalendar ? "page" : undefined}
-            onclick={onViewJournal}
-          >
-            <svg class="mseg-ic" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M8 2v3"></path>
-              <path d="M16 2v3"></path>
-              <rect x="3" y="3" width="18" height="18" rx="2"></rect>
-              <path d="M3 9h18"></path>
-            </svg>
-            <span class="mseg-label">Journal</span>
           </button>
         </nav>
       </div>
@@ -1039,7 +1039,7 @@
        crosses each step sooner. The threshold is the content box that still
        leaves 8px between the brand and a timer reserved for 999:59:
        8px gap + 39px timer chrome + 6 × 14.4/13 ch + 44px pause + 4px track gap
-       + 50px track chrome + 20.9ch of "Sudoku"+"Play"+"Journal". */
+       + 50px track chrome + 20.9ch of "Sudoku"+"Journal"+"Play". */
     @media (max-width: 389px) {
       .hd {
         container-type: inline-size;
