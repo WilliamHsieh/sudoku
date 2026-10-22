@@ -78,7 +78,7 @@
     onclick={toggleNotes}
   >
     <span class="switch" aria-hidden="true"><span class="knob"></span></span>
-    <span class="notes-label"><b>Auto</b></span>
+    <span class="notes-label">Auto</span>
   </button>
   <button class="tool" type="button" data-more aria-haspopup="dialog" onclick={openMore}>
     <svg viewBox="0 0 24 24" aria-hidden="true">
