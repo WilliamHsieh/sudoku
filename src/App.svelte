@@ -189,6 +189,7 @@
     }
     if (playUi.paused) return;
     if (e.key === "Escape") {
+      if (showCalendar) return;
       if (discardPaint()) {
         e.preventDefault();
         return;
