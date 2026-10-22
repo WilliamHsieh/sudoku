@@ -201,6 +201,30 @@ test("lock clears by key tap, another digit, swipe, Escape, pause, More and rest
   await expect(cell(page, 0)).toHaveAttribute("data-notes", "23467");
 });
 
+test("a second finger toggles only after the key is held 250 ms", async ({ page }) => {
+  const t = await touchDriver(page);
+  const [a] = await cellsWithNote(page, 2);
+  await t.tap(cell(page, a));
+  const notes = await cell(page, a).getAttribute("data-notes");
+
+  await t.holdAndTap(key(page, 2), [cell(page, a)], {
+    holdMs: 100,
+    afterHold: async () => {
+      await expect(key(page, 2)).not.toHaveClass(/holding/);
+    },
+  });
+  await expect(cell(page, a)).toHaveAttribute("data-notes", notes || "");
+  await expect(page.locator("#undo")).toBeDisabled();
+
+  await t.holdAndTap(key(page, 2), [cell(page, a)], {
+    holdMs: 300,
+    afterHold: async () => {
+      await expect(key(page, 2)).toHaveClass(/holding/);
+    },
+  });
+  await expect(cell(page, a)).not.toHaveAttribute("data-notes", /2/);
+});
+
 test("two-finger hold toggles candidates as one undo step", async ({ page }) => {
   const t = await touchDriver(page);
   const ids = await cellsWithNote(page, 2);
@@ -220,6 +244,31 @@ test("two-finger hold toggles candidates as one undo step", async ({ page }) => 
   await expect(cell(page, a)).toHaveAttribute("data-notes", /2/);
   await expect(cell(page, b)).toHaveAttribute("data-notes", /2/);
   await expect(page.locator("#undo")).toBeDisabled();
+});
+
+test("legacy mode flashes blockers on release, including a tap that enters", async ({ page }) => {
+  const t = await touchDriver(page);
+  await t.tap(cell(page, 0));
+  await t.tap(key(page, 5));
+  await expect(cell(page, 1)).not.toHaveClass(/blocked/);
+  await expectValue(page, 0, 0);
+
+  await t.tap(page.locator(".tools [data-more]"));
+  await page.locator("#opt-tap-fill").click();
+  await page.locator("#opts-done").click();
+
+  const k = key(page, 5);
+  const p = await t.center(k);
+  await t.start(p.x, p.y);
+  await t.move(p.x, p.y - 16);
+  await t.end(p.x, p.y - 16);
+  await expect(cell(page, 1)).toHaveClass(/blocked/);
+  await expectValue(page, 0, 0);
+  await expect(cell(page, 0)).toHaveAttribute("data-notes", "23467");
+
+  await t.tap(key(page, 5));
+  await expect(cell(page, 1)).toHaveClass(/blocked/);
+  await expectValue(page, 0, 5);
 });
 
 test("legacy tap-to-fill is off by default, then a tap fills and a second tap clears", async ({

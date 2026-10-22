@@ -58,12 +58,15 @@ export async function touchDriver(page) {
     /**
      * Hold `key` with one finger and tap each cell with a second finger.
      * The first finger stays down until every tap has landed.
+     * `holdMs` is how long the key is held before the second finger (the
+     * toggle arms at 250 ms). `afterHold` runs in that gap, before any tap.
      */
-    async holdAndTap(keyLocator, cellLocators, { beforeRelease } = {}) {
+    async holdAndTap(keyLocator, cellLocators, { beforeRelease, holdMs = 300, afterHold } = {}) {
       const k = await center(keyLocator);
       const finger = { x: k.x, y: k.y, id: 1, radiusX: 6, radiusY: 6, force: 1 };
       await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [finger] });
-      await page.waitForTimeout(40);
+      await page.waitForTimeout(holdMs);
+      if (afterHold) await afterHold();
       for (const loc of cellLocators) {
         const c = await center(loc);
         const second = { x: c.x, y: c.y, id: 2, radiusX: 6, radiusY: 6, force: 1 };

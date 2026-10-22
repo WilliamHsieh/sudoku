@@ -1,7 +1,14 @@
 // Desktop keyboard side of keypad r2. The pad itself is off-screen; Shift+digit,
 // Space and Escape still drive the lock.
 import { test, expect } from "@playwright/test";
-import { cell, openBoard, expectValue, expectShiftAgreement, moveToPencil } from "./helpers.js";
+import {
+  cell,
+  openBoard,
+  expectValue,
+  expectShiftAgreement,
+  moveToPencil,
+  pencil,
+} from "./helpers.js";
 
 test("Shift+digit locks without sticking shift-hover; Space toggles; digits still fill", async ({
   page,
@@ -42,4 +49,18 @@ test("Shift+digit locks without sticking shift-hover; Space toggles; digits stil
   await page.keyboard.press("Space");
   await expect(page.locator("#keypad")).toHaveAttribute("data-locked", "2");
   await expectValue(page, 0, 7);
+});
+
+test("a click on a pencil while locked toggles only the locked digit", async ({ page }) => {
+  await openBoard(page);
+  await cell(page, 0).click();
+  await page.keyboard.press("Shift+Digit5");
+  await expect(page.locator("#keypad")).toHaveAttribute("data-locked", "5");
+
+  await pencil(page, 0, 2).click();
+  await expect(cell(page, 1)).toHaveClass(/blocked/);
+  await expect(cell(page, 0)).not.toHaveClass(/blocked/);
+  await expect(cell(page, 0)).toHaveAttribute("data-notes", "23467");
+  await expect(page.locator(".toast")).toHaveText("Can't place 5 — already in row, column or box");
+  await expect(page.locator("#undo")).toBeDisabled();
 });

@@ -419,7 +419,12 @@
       wasShown: g.wasShown,
     });
 
-    if (!cancelled && kind === "swipe-up" && g.blockers.length) flashBlocked(g.blockers);
+    // Master flashes blockers on any release. r2 keeps that for an armed
+    // swipe-up only; legacy tap-to-fill matches master, including a tap that
+    // then enters the digit.
+    if (!cancelled && g.blockers.length && (g.legacy || kind === "swipe-up")) {
+      flashBlocked(g.blockers);
+    }
 
     if (kind === "lock" || kind === "switch-lock") {
       dropLift(g);

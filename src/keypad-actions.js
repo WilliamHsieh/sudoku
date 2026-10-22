@@ -193,13 +193,15 @@ export function lockTap(i) {
 
 /**
  * Second finger on a cell while a key is held. One undo step for the hold.
+ * A tap counts only after the same 250 ms still hold that shows the label.
  * @param {number} i
  */
 export function secondFingerToggle(i) {
   const hold = padUi.hold;
-  if (!hold || hold.travel >= TAP_MAX_TRAVEL) return;
+  const gesture = padUi.gesture;
+  if (!hold || !gesture || gesture.d !== hold.d || !gesture.holding) return;
+  if (hold.travel >= TAP_MAX_TRAVEL) return;
   const d = hold.d;
-  if (padUi.gesture && padUi.gesture.d === d) padUi.gesture.holding = true;
   const result = game.toggleNote(i, d, { merge: hold.toggled > 0 });
   if (!result.changed) {
     const cells = result.blockers.length ? result.blockers : [i];

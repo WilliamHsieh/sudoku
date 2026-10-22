@@ -41,6 +41,8 @@
   const cueHold = $derived(cued && playUi.phase === "hold");
 
   function handleClick(e) {
+    // The cell click is the lock toggle. A pencil click must not also edit.
+    if (padUi.locked) return;
     if (e.shiftKey) {
       e.stopPropagation();
       const target = getShiftHover();
