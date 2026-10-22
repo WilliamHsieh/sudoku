@@ -208,26 +208,42 @@ test.describe("H2 header", () => {
     expect(wrapped).toBe("nowrap");
   });
 
-  test("Journal to Play round trip keeps progress and timer", async ({ page }) => {
-    const startTime = new Date("2026-01-01T00:00:00Z");
-    await page.clock.install({ time: startTime });
-    await page.clock.pauseAt(startTime);
-    await openBoard(page);
-    const t = await touchDriver(page);
-    await t.tap(cell(page, 0));
-    await t.doubleTap(key(page, 4));
-    await expectValue(page, 0, 4);
-    const time = await page.locator(".timer2 b, .timer .time").innerText();
+  for (const paused of [false, true]) {
+    test(`Play → Journal → Play keeps progress and a non-zero ${paused ? "paused" : "running"} timer`, async ({
+      page,
+    }) => {
+      const startTime = new Date("2026-01-01T00:00:00Z");
+      await page.clock.install({ time: startTime });
+      await page.clock.pauseAt(startTime);
+      await openBoard(page);
+      const t = await touchDriver(page);
+      await t.tap(cell(page, 0));
+      await t.doubleTap(key(page, 4));
+      await expectValue(page, 0, 4);
+      const timer = page.locator(".timer2 b");
+      await page.clock.runFor(7_000);
+      await expect(timer).toHaveText("0:07");
+      if (paused) await page.locator("#pause").click();
+      await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", String(paused));
 
-    await t.tap(page.getByRole("button", { name: "Journal", exact: true }));
-    await expect(page.locator(".journal")).toBeVisible();
-    await expect(page.locator(".board")).toHaveCount(0);
-
-    await t.tap(page.getByRole("button", { name: "Play", exact: true }));
-    await expect(page.locator(".board > .cell")).toHaveCount(81);
-    await expectValue(page, 0, 4);
-    await expect(page.locator(".timer2 b, .timer .time")).toHaveText(time);
-  });
+      await t.tap(page.getByRole("button", { name: "Journal", exact: true }));
+      await expect(page.locator(".journal")).toBeVisible();
+      await expect(page.locator(".board")).toHaveCount(0);
+      await t.tap(page.getByRole("button", { name: "Play", exact: true }));
+      await expect(page.locator(".board > .cell")).toHaveCount(81);
+      await expectValue(page, 0, 4);
+      await expect(timer).toHaveText("0:07");
+      await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", String(paused));
+      await expect(page.locator(".paused-cover")).toHaveCount(paused ? 1 : 0);
+      await page.clock.runFor(3_000);
+      await expect(timer).toHaveText(paused ? "0:07" : "0:10");
+      if (paused) {
+        await page.locator("#pause").click();
+        await page.clock.runFor(2_000);
+        await expect(timer).toHaveText("0:09");
+      }
+    });
+  }
 
   test("Play with no history opens the first unsolved of the latest day", async ({ page }) => {
     const pick = firstUnsolvedLatest(puzzleData, {});
@@ -262,8 +278,8 @@ test.describe("H2 header", () => {
 test.describe("narrow header", () => {
   const widths = [320, 360, 375, 390];
 
-  async function headerState(page) {
-    return page.evaluate(() => {
+  function readHeaderState({ sampleFrames = false } = {}) {
+    const read = () => {
       const box = (el) => {
         if (!el) return null;
         const r = el.getBoundingClientRect();
@@ -297,6 +313,7 @@ test.describe("narrow header", () => {
         scrollW: document.documentElement.scrollWidth,
         padL: parseFloat(getComputedStyle(hd).paddingLeft),
         padR: parseFloat(getComputedStyle(hd).paddingRight),
+        timeSlot: getComputedStyle(hd).getPropertyValue("--time-slot"),
         brandDisplay: brandCs.display,
         brandHidden,
         icons,
@@ -320,14 +337,66 @@ test.describe("narrow header", () => {
           }),
         ],
       };
-    });
+    };
+    if (sampleFrames) {
+      window.__fitSamples = [];
+      window.__sampleFit = true;
+      window.__lateFontLoaded = false;
+      Promise.all(
+        [...document.fonts]
+          .filter((face) => face.family === "LateHeader")
+          .map((face) => face.loaded)
+      ).then(() => {
+        window.__lateFontLoaded = true;
+      });
+      // rAF runs before ResizeObserver. A raw rAF read can see new glyphs
+      // before the app corrects its fit later in the SAME rendering update.
+      // Observe a changing sentinel and the probes to retain the last layout
+      // of every frame, after the app's observers and before paint.
+      const sentinel = document.createElement("div");
+      sentinel.style.cssText = "position:fixed;width:1px;height:0;pointer-events:none";
+      document.body.appendChild(sentinel);
+      let frame = 0;
+      const observer = new ResizeObserver(() => {
+        queueMicrotask(() => {
+          if (!window.__sampleFit) return;
+          const sample = {
+            ...read(),
+            loaded: window.__lateFontLoaded,
+            frame,
+            at: performance.now(),
+          };
+          const last = window.__fitSamples.at(-1);
+          if (last?.frame === frame) window.__fitSamples[window.__fitSamples.length - 1] = sample;
+          else window.__fitSamples.push(sample);
+        });
+      });
+      observer.observe(sentinel);
+      for (const probe of document.querySelectorAll(".hd-probe > span")) observer.observe(probe);
+      const tick = () => {
+        if (!window.__sampleFit) {
+          observer.disconnect();
+          sentinel.remove();
+          return;
+        }
+        frame++;
+        sentinel.style.width = `${1 + (frame % 2)}px`;
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }
+    return read();
+  }
+
+  async function headerState(page) {
+    return page.evaluate(readHeaderState);
   }
 
   function assertFit(state, width, view) {
     const where = `${view} @ ${width}`;
     expect(state.scrollW, `${where} scrolls horizontally`).toBeLessThanOrEqual(state.vw + 0.5);
-    expect(state.padL, `${where} padding-left`).toBeGreaterThanOrEqual(8 - 0.5);
-    expect(state.padR, `${where} padding-right`).toBeGreaterThanOrEqual(8 - 0.5);
+    expect(state.padL, `${where} padding-left`).toBeGreaterThanOrEqual(8);
+    expect(state.padR, `${where} padding-right`).toBeGreaterThanOrEqual(8);
     expect(state.brandDisplay, `${where} brand display`).not.toBe("none");
     expect(state.nav.right, `${where} track past the viewport`).toBeLessThanOrEqual(state.vw + 0.5);
     expect(state.nav.x, `${where} track left`).toBeGreaterThanOrEqual(-0.5);
@@ -340,7 +409,7 @@ test.describe("narrow header", () => {
     }
     for (const t of state.trunc) {
       if (!t) continue;
-      expect(t.sw, `${where} truncated text`).toBeLessThanOrEqual(t.cw + 1);
+      expect(t.sw, `${where} truncated text`).toBeLessThanOrEqual(t.cw);
     }
     const boxes = [state.nav, state.timer, state.pause, state.brand].filter(Boolean);
     for (const b of boxes) {
@@ -349,16 +418,14 @@ test.describe("narrow header", () => {
     }
     if (state.brand && state.timer) {
       expect(state.timer.x - state.brand.right, `${where} brand to timer`).toBeGreaterThanOrEqual(
-        8 - 0.5
+        8
       );
     }
     if (!state.brand && state.timer) {
-      expect(state.timer.x - state.padL, `${where} left of timer`).toBeGreaterThanOrEqual(8 - 0.5);
+      expect(state.timer.x - state.padL, `${where} left of timer`).toBeGreaterThanOrEqual(8);
     }
     if (state.brand && !state.timer) {
-      expect(state.nav.x - state.brand.right, `${where} brand to switch`).toBeGreaterThanOrEqual(
-        8 - 0.5
-      );
+      expect(state.nav.x - state.brand.right, `${where} brand to switch`).toBeGreaterThanOrEqual(8);
     }
     expect(state.names, `${where} segment order`).toEqual(["Journal", "Play"]);
     expect(state.buttons[0].x, `${where} Journal left of Play`).toBeLessThan(state.buttons[1].x);
@@ -700,66 +767,140 @@ test.describe("narrow header", () => {
     expect(await page.evaluate(() => window.__iconFlips())).toBe(flips);
   });
 
-  test("a late swap face never paints less than 8px before the timer", async ({ page }) => {
-    test.skip(!hasSystemFont("DejaVu Sans"), "requires the wide DejaVu Sans regression face");
-    const file = execFileSync("fc-match", ["-f", "%{file}", "DejaVu Sans:style=Bold"], {
-      encoding: "utf8",
-    });
-    const body = readFileSync(file);
-    for (const width of [295, 296, 297]) {
-      await page.setViewportSize({ width, height: 844 });
-      await page.goto("./?elapsed=59999&freeze");
-      await page.getByRole("button", { name: "Play", exact: true }).click();
-      await page.evaluate(() => document.fonts.ready);
-      let release;
-      const gate = new Promise((resolve) => {
-        release = resolve;
+  // Serve bytes from the test. HEADER_FONT_DIR allows offline runs with the
+  // verifier's TTFs; CI can use the same in-memory CDN faces as useFace().
+  async function lateFontBodies(family) {
+    if (family === "DejaVu Sans") {
+      expect(hasSystemFont(family), "DejaVu Sans must be installed").toBe(true);
+      const file = execFileSync("fc-match", ["-f", "%{file}", "DejaVu Sans:style=Bold"], {
+        encoding: "utf8",
       });
-      await page.route("**/late-header-font.ttf", async (route) => {
-        await gate;
-        await route.fulfill({ body, contentType: "font/ttf" });
-      });
-      await page.evaluate(() => {
-        window.__fitSamples = [];
-        window.__sampleFit = true;
-        const sample = () => {
-          if (!window.__sampleFit) return;
-          const hd = document.querySelector(".hd");
-          const left = parseFloat(getComputedStyle(hd).paddingLeft);
-          const timer = document.querySelector(".timer2").getBoundingClientRect();
-          window.__fitSamples.push({
-            gap: timer.x - left,
-            icons: hd.classList.contains("icon-step"),
-          });
-          requestAnimationFrame(sample);
-        };
-        requestAnimationFrame(sample);
-      });
-      await page.addStyleTag({
-        content: `
-        @font-face { font-family: LateHeader; src: url('./late-header-font.ttf');
-          font-weight: 100 900; font-display: swap; }
-        .hd, .hd * { font-family: LateHeader, sans-serif !important; }
-      `,
-      });
-      await settle(page);
-      release();
-      await page.evaluate(() => document.fonts.ready);
-      await settle(page);
-      const samples = await page.evaluate(() => {
-        window.__sampleFit = false;
-        return window.__fitSamples;
-      });
-      expect(samples.length).toBeGreaterThan(0);
-      expect(
-        Math.min(...samples.map((s) => s.gap)),
-        `late font at ${width}`
-      ).toBeGreaterThanOrEqual(8);
-      const changes = samples.filter((s, i) => i > 0 && s.icons !== samples[i - 1].icons);
-      expect(changes.length).toBeLessThanOrEqual(1);
-      await page.unroute("**/late-header-font.ttf");
+      const body = readFileSync(file);
+      return { 600: body, 700: body };
     }
-  });
+    if (process.env.HEADER_FONT_DIR) {
+      const file = { Inter: "Inter.ttf", Roboto: "Roboto.ttf", "Noto Sans": "NotoSans.ttf" }[
+        family
+      ];
+      const body = readFileSync(join(process.env.HEADER_FONT_DIR, file));
+      return { 600: body, 700: body };
+    }
+    const [w600, w700] = await Promise.all([
+      downloaded(CDN[family][600]),
+      downloaded(CDN[family][700]),
+    ]);
+    return { 600: Buffer.from(w600, "base64"), 700: Buffer.from(w700, "base64") };
+  }
+
+  for (const [family, step] of [
+    ["Roboto", 274],
+    ["Inter", 283],
+    ["Noto Sans", 276],
+    ["DejaVu Sans", 296],
+  ]) {
+    test(`late ${family} keeps 8px, full text and the current fit on every frame`, async ({
+      page,
+    }) => {
+      test.setTimeout(60_000);
+      const bodies = await lateFontBodies(family);
+      for (const width of [step - 1, step, step + 1]) {
+        await page.setViewportSize({ width, height: 844 });
+        await page.goto("./?elapsed=59999&freeze");
+        await page.getByRole("button", { name: "Play", exact: true }).click();
+        await page.evaluate(() => document.fonts.ready);
+        let release;
+        const gate = new Promise((resolve) => {
+          release = resolve;
+        });
+        const pattern = "**/late-header-font-*.ttf";
+        await page.route(pattern, async (route) => {
+          await gate;
+          const weight = route.request().url().includes("-600.") ? 600 : 700;
+          await route.fulfill({ body: bodies[weight], contentType: "font/ttf" });
+        });
+        const requested = page.waitForRequest(pattern);
+        const faces =
+          bodies[600] === bodies[700]
+            ? `@font-face { font-family: LateHeader; src: url('./late-header-font-600.ttf');
+              font-weight: 100 900; font-display: swap; }`
+            : [600, 700]
+                .map(
+                  (weight) => `@font-face { font-family: LateHeader;
+              src: url('./late-header-font-${weight}.ttf'); font-weight: ${weight}; font-display: swap; }`
+                )
+                .join("\n");
+        await page.addStyleTag({
+          content: `${faces}
+          .hd, .hd * { font-family: LateHeader, sans-serif !important; }
+        `,
+        });
+        await requested;
+        // Start while the requests are blocked, then retain every rAF through
+        // FontFace.loaded, FontFaceSet.ready, and two further animation frames.
+        await page.evaluate(readHeaderState, { sampleFrames: true });
+        await settle(page);
+        expect(
+          await page.evaluate(() =>
+            [...document.fonts]
+              .filter((face) => face.family === "LateHeader")
+              .every((face) => face.status === "loading")
+          ),
+          "real delayed font requests"
+        ).toBe(true);
+        release();
+        await page.evaluate(async () => {
+          await Promise.all(
+            [...document.fonts]
+              .filter((face) => face.family === "LateHeader")
+              .map((face) => face.loaded)
+          );
+          await document.fonts.ready;
+        });
+        await settle(page);
+        const samples = await page.evaluate(() => {
+          window.__sampleFit = false;
+          return window.__fitSamples;
+        });
+        await test.info().attach(`${family}-${width}-frames`, {
+          body: JSON.stringify(samples),
+          contentType: "application/json",
+        });
+        const final = await headerState(page);
+        const loaded = samples.filter((s) => s.loaded);
+        expect(
+          samples.filter((s) => !s.loaded).length,
+          "fallback frames sampled"
+        ).toBeGreaterThanOrEqual(2);
+        expect(loaded.length, "at least two frames after FontFace.loaded").toBeGreaterThanOrEqual(
+          2
+        );
+        for (const [i, sample] of samples.entries()) {
+          const where = `${family} frame ${i}, loaded=${sample.loaded}, t=${sample.at}`;
+          assertFit(sample, width, where);
+          if (sample.loaded) {
+            expect(sample.icons, `${where} uses the settled fit`).toBe(final.icons);
+            expect(sample.timeSlot, `${where} reserves the current font's timer slot`).toBe(
+              final.timeSlot
+            );
+          }
+        }
+        const changes = samples.filter((s, i) => i > 0 && s.icons !== samples[i - 1].icons);
+        expect(changes.length, "font load toggles").toBeLessThanOrEqual(1);
+        const minGap = Math.min(...samples.map((s) => s.timer.x - (s.brand?.right ?? s.padL)));
+        console.log(
+          JSON.stringify({
+            family,
+            width,
+            frames: samples.length,
+            loadedFrames: loaded.length,
+            minGap,
+            changes: changes.length,
+          })
+        );
+        await page.unroute(pattern);
+      }
+    });
+  }
 
   test("four fonts keep 8px and the same track across the text step", async ({ page }) => {
     test.setTimeout(30_000);
@@ -770,8 +911,9 @@ test.describe("narrow header", () => {
 
     for (const family of ["Roboto", "Inter", "Noto Sans", "DejaVu Sans"]) {
       await useFace(page, family);
-      // Binary search the real rendered step; exhaustive 1px arithmetic is
-      // covered in header-fit.test.js. Check hit ownership only at its edges.
+      // Binary search the rendered step; exhaustive 1px arithmetic is covered
+      // in header-fit.test.js. Check both views at the edges and at 260/320px.
+      const measurements = [];
       let lo = 260;
       let hi = 320;
       while (lo < hi) {
@@ -781,21 +923,23 @@ test.describe("narrow header", () => {
         if ((await headerState(page)).icons) lo = width + 1;
         else hi = width;
       }
-      for (const width of [260, lo - 1, lo, lo + 1]) {
+      for (const width of [260, lo - 1, lo, lo + 1, 320]) {
         await page.setViewportSize({ width, height: 844 });
         await settle(page);
         const play = await headerState(page);
         assertFit(play, width, `${family} Play`);
+        measurements.push({ width, gap: play.timer.x - (play.brand?.right ?? play.padL) });
         expect(play.icons, `${family} step at ${lo}`).toBe(width < lo);
-        if (play.icons) await assertTargets(page, `${family} Play @ ${width}`);
+        await assertTargets(page, `${family} Play @ ${width}`);
         await page.getByRole("button", { name: "Journal", exact: true }).click();
         const journal = await headerState(page);
         assertFit(journal, width, `${family} Journal`);
+        await assertTargets(page, `${family} Journal @ ${width}`);
         nearRect(journal.nav, play.nav, `${family} ${width} switch`);
         expect(journal.icons).toBe(play.icons);
         await page.getByRole("button", { name: "Play", exact: true }).click();
       }
-      console.log(`threshold ${family} textAt=${lo}`);
+      console.log(JSON.stringify({ family, textAt: lo, measurements }));
     }
   });
 });
