@@ -225,6 +225,17 @@
     showCalendar = false;
   }
 
+  /** The selected segment is a no-op so the cue clock and pause state stay put. */
+  function onViewPlay() {
+    if (!showCalendar) return;
+    playFromJournal();
+  }
+
+  function onViewJournal() {
+    if (showCalendar) return;
+    openJournal();
+  }
+
   function handleLoadPuzzle(event) {
     console.log("Puzzle loaded from calendar:", event.detail);
     playUi.start();
@@ -376,7 +387,7 @@
         <button
           type="button"
           aria-current={!showCalendar ? "page" : undefined}
-          onclick={playFromJournal}
+          onclick={onViewPlay}
         >
           <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
             <rect width="18" height="18" x="3" y="3" rx="2"></rect>
@@ -390,7 +401,7 @@
         <button
           type="button"
           aria-current={showCalendar ? "page" : undefined}
-          onclick={openJournal}
+          onclick={onViewJournal}
         >
           <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M8 2v3"></path>
@@ -413,55 +424,7 @@
       <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
       <h1 class="hd-brand" onclick={removeFocus}>Sudoku</h1>
       <div class="hd-r">
-        {#if showCalendar}
-          <button class="hpill" type="button" aria-label="Back to puzzle" onclick={playFromJournal}>
-            <span class="face"
-              ><svg
-                class="ic"
-                aria-hidden="true"
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <rect width="18" height="18" x="3" y="3" rx="2"></rect>
-                <path d="M3 9h18"></path>
-                <path d="M3 15h18"></path>
-                <path d="M9 3v18"></path>
-                <path d="M15 3v18"></path></svg
-              >Play</span
-            >
-          </button>
-        {:else}
-          <button class="hbtn cal" type="button" aria-label="Journal" onclick={openJournal}>
-            <span class="face"
-              ><svg
-                class="ic"
-                aria-hidden="true"
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M8 2v3"></path>
-                <path d="M16 2v3"></path>
-                <rect x="3" y="3" width="18" height="18" rx="2"></rect>
-                <path d="M3 9h18"></path>
-                <path d="M8 13h.01"></path>
-                <path d="M12 13h.01"></path>
-                <path d="M16 13h.01"></path>
-                <path d="M8 17h.01"></path>
-                <path d="M12 17h.01"></path>
-                <path d="M16 17h.01"></path>
-              </svg></span
-            >
-          </button>
+        {#if !showCalendar}
           <Timer />
           <button
             class="hbtn"
@@ -484,6 +447,18 @@
             </span>
           </button>
         {/if}
+        <nav class="mseg" aria-label="Views">
+          <button
+            type="button"
+            aria-current={!showCalendar ? "page" : undefined}
+            onclick={onViewPlay}>Play</button
+          >
+          <button
+            type="button"
+            aria-current={showCalendar ? "page" : undefined}
+            onclick={onViewJournal}>Journal</button
+          >
+        </nav>
       </div>
     </header>
   {/if}
@@ -617,6 +592,16 @@
     background: var(--card);
     color: var(--ink);
     box-shadow: 0 1px 2px rgb(28 26 22 / 0.12);
+  }
+  .seg button:active:not([aria-current]) {
+    color: var(--ink);
+  }
+  .seg button:focus {
+    outline: none;
+  }
+  .seg button:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 1px;
   }
 
   .btn-icon {
@@ -958,35 +943,57 @@
     .hbtn:active .face {
       background: var(--key-pressed);
     }
-    .hbtn.cal {
-      margin-right: 3px;
-    }
-    .hd-r > .hbtn:last-child {
-      margin-right: -7px;
-    }
-    .hpill {
-      height: 44px;
+    /* Compact text-only seg. Track ends on the header's 16px padding (x 374). */
+    .mseg {
       display: flex;
       align-items: center;
-      padding: 0;
-      border: 0;
-      background: none;
-      color: inherit;
-      cursor: pointer;
+      flex: none;
+      background: var(--neutral);
+      border-radius: 9px;
+      padding: 3px;
+      gap: 0;
+      position: relative;
+      margin-left: 4px;
+    }
+    .mseg button {
       font: inherit;
-    }
-    .hpill .face {
-      height: 30px;
-      width: 69.75px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 0 10px 0 8px;
-      border: 1px solid var(--hd-line, rgb(0 0 0 / 0.08));
-      border-radius: 8px;
-      background: var(--hd-face, rgb(255 255 255 / 0.7));
-      font-size: 14.4px;
+      height: 26px;
+      padding: 0 11px;
+      border-radius: 7px;
+      font-size: 13px;
       font-weight: 600;
+      color: var(--ink2);
+      position: relative;
+      white-space: nowrap;
+      background: none;
+      border: 0;
+      margin: 0;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    /* 44px hit: 9px above and below the 26px face, no gap between segments. */
+    .mseg button::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: -9px;
+      bottom: -9px;
+    }
+    .mseg button[aria-current] {
+      background: var(--card);
+      color: var(--ink);
+      box-shadow: 0 1px 2px rgb(28 26 22 / 0.12);
+    }
+    .mseg button:focus {
+      outline: none;
+    }
+    .mseg button:focus-visible {
+      outline: 2px solid var(--focus);
+      outline-offset: 1px;
+    }
+    .mseg button:active:not([aria-current]) {
+      color: var(--ink);
     }
     main > .hd {
       margin: -3px -8px -7px;
@@ -1066,18 +1073,27 @@
       stroke: none;
     }
 
-    main.on-journal {
+    /* Journal's 64px bar in both views, so the seg stays at the same box.
+       Play's old 16px page inset moves onto .play; the bar keeps a 24px gap under it. */
+    main {
       padding: 0;
     }
-    main.on-journal .header {
+    main:not(.on-journal) > .play {
+      padding: 0 16px 16px;
+    }
+    main .header {
       height: 64px;
-      margin: 0;
+      margin: 0 0 24px;
       max-width: none;
       padding: 0 32px;
       border-bottom: 1px solid var(--hair);
       box-sizing: border-box;
+      gap: 8px;
     }
-    main.on-journal .header h1 {
+    main.on-journal .header {
+      margin-bottom: 0;
+    }
+    main .header h1 {
       font-size: 24px;
       font-weight: 700;
       letter-spacing: -0.01em;

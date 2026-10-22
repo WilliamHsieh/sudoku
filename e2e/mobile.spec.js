@@ -74,20 +74,52 @@ test.describe("H2 header", () => {
     expect(hdBorder).toBe("0px");
     expect(title.border).toBe("0px");
 
-    const cal = page.getByRole("button", { name: "Journal" });
+    const views = page.getByRole("navigation", { name: "Views" });
+    const playSeg = page.getByRole("button", { name: "Play", exact: true });
+    const journalSeg = page.getByRole("button", { name: "Journal", exact: true });
     const pause = page.getByRole("button", { name: "Pause" });
-    const calHit = await rectOf(cal);
-    const pauseHit = await rectOf(pause);
-    nearRect(calHit, { x: 222.41, y: 5, w: 44, h: 44 }, "calendar hit");
-    nearRect(pauseHit, { x: 337, y: 5, w: 44, h: 44 }, "pause hit");
+    await expect(playSeg).toHaveAttribute("aria-current", "page");
+    await expect(journalSeg).not.toHaveAttribute("aria-current");
+    await expect(page.locator(".hbtn.cal, .hpill")).toHaveCount(0);
 
-    const calFace = await rectOf(cal.locator(".face"));
+    const track = await rectOf(views);
+    const pauseHit = await rectOf(pause);
     const pauseFace = await rectOf(pause.locator(".face"));
     const timer = await rectOf(page.locator(".timer2"));
-    nearRect(calFace, { x: 229.41, y: 12, w: 30, h: 30 }, "calendar face");
-    nearRect(timer, { x: 269.41, y: 12, h: 30 }, "timer pill");
-    nearRect(pauseFace, { x: 344, y: 12, w: 30, h: 30 }, "pause face");
-    near(pauseFace.x + pauseFace.w, 374, "pause face right");
+    near(track.y, 11, "seg y");
+    near(track.h, 32, "seg h");
+    near(track.x + track.w, 374, "seg right");
+    near(track.x - (pauseHit.x + pauseHit.w), 4, "pause to seg");
+    expect(pauseHit.w).toBeGreaterThanOrEqual(44);
+    expect(pauseHit.h).toBeGreaterThanOrEqual(44);
+    expect(pauseHit.x).toBeLessThan(track.x);
+    expect(timer.x).toBeLessThan(pauseHit.x);
+    near(pauseFace.w, 30, "pause face w");
+    near(pauseFace.h, 30, "pause face h");
+    expect(timer.x + timer.w).toBeLessThanOrEqual(pauseHit.x + EPS);
+
+    const hits = await views.evaluate((nav) =>
+      [...nav.querySelectorAll("button")].map((el) => {
+        const r = el.getBoundingClientRect();
+        const after = getComputedStyle(el, "::after");
+        const top = parseFloat(after.top);
+        const bottom = parseFloat(after.bottom);
+        return {
+          h: r.height - top - bottom,
+          gapL: parseFloat(after.left),
+          gapR: parseFloat(after.right),
+        };
+      })
+    );
+    expect(hits).toHaveLength(2);
+    for (const hit of hits) {
+      expect(hit.h).toBeGreaterThanOrEqual(44);
+      expect(hit.gapL).toBe(0);
+      expect(hit.gapR).toBe(0);
+    }
+    const playBox = await rectOf(playSeg);
+    const journalBox = await rectOf(journalSeg);
+    near(playBox.x + playBox.w, journalBox.x, "segment seam");
 
     const timerCss = await page.locator(".timer2").evaluate((el) => {
       const icon = el.querySelector(".ic");
@@ -105,11 +137,6 @@ test.describe("H2 header", () => {
     const board = await page.locator(".board").boundingBox();
     near(board.y, 54, "board y");
 
-    for (const hit of [calHit, pauseHit]) {
-      expect(hit.w).toBeGreaterThanOrEqual(44);
-      expect(hit.h).toBeGreaterThanOrEqual(44);
-    }
-
     const t = await touchDriver(page);
     const before = await page.locator(".timer2 b, .timer .time").innerText();
     await t.tap(pause);
@@ -117,7 +144,9 @@ test.describe("H2 header", () => {
     await expect(page.locator(".timer2 b, .timer .time")).toHaveText(before);
   });
 
-  test("Journal header: Sudoku + Play pill", async ({ page }) => {
+  test("Journal header: same segment track, Journal selected", async ({ page }) => {
+    await openBoard(page);
+    const playTrack = await rectOf(page.getByRole("navigation", { name: "Views" }));
     await page.goto("./");
     await expect(page.locator(".journal")).toBeVisible();
     const hd = page.locator(".hd");
@@ -135,16 +164,37 @@ test.describe("H2 header", () => {
     expect(title.fs).toBe("22px");
     expect(title.fw).toBe("700");
 
-    const play = page.getByRole("button", { name: "Back to puzzle" });
-    const playHit = await rectOf(play);
-    const playFace = await rectOf(play.locator(".face"));
-    nearRect(playFace, { x: 304.25, y: 12, w: 69.75, h: 30 }, "play face");
-    near(playHit.y, 5, "play hit y");
-    near(playHit.h, 44, "play hit h");
-    expect(playHit.w).toBeGreaterThanOrEqual(44);
-    expect(playHit.h).toBeGreaterThanOrEqual(44);
-    await expect(play).toContainText("Play");
+    const play = page.getByRole("button", { name: "Play", exact: true });
+    const journal = page.getByRole("button", { name: "Journal", exact: true });
+    await expect(journal).toHaveAttribute("aria-current", "page");
+    await expect(play).not.toHaveAttribute("aria-current");
+    await expect(page.locator(".timer2")).toHaveCount(0);
+    await expect(page.locator("#pause")).toHaveCount(0);
+    const track = await rectOf(page.getByRole("navigation", { name: "Views" }));
+    nearRect(track, playTrack, "seg box matches Play");
+    near(track.x + track.w, 374, "seg right");
     await expect(page.locator(".hd")).toHaveCSS("border-bottom-width", "0px");
+  });
+
+  test("a long timer grows to the left and the segment track stays put", async ({ page }) => {
+    await openBoard(page);
+    const before = await rectOf(page.getByRole("navigation", { name: "Views" }));
+    await page.locator("#pause").click();
+    await page.locator(".timer2 b").evaluate((el) => {
+      el.textContent = "1:02:03";
+    });
+    const after = await rectOf(page.getByRole("navigation", { name: "Views" }));
+    nearRect(after, before, "seg stays");
+    const brand = await rectOf(page.locator(".hd-brand"));
+    const timer = await rectOf(page.locator(".timer2"));
+    const pause = await rectOf(page.locator("#pause"));
+    expect(timer.x, "timer clears the brand").toBeGreaterThanOrEqual(brand.x + brand.w - EPS);
+    expect(timer.x + timer.w).toBeLessThanOrEqual(pause.x + EPS);
+    near(after.x - (pause.x + pause.w), 4, "pause gap");
+    const scrollW = await page.evaluate(() => document.documentElement.scrollWidth);
+    expect(scrollW).toBeLessThanOrEqual(390);
+    const wrapped = await page.locator(".hd-r").evaluate((el) => getComputedStyle(el).flexWrap);
+    expect(wrapped).toBe("nowrap");
   });
 
   test("Journal to Play round trip keeps progress and timer", async ({ page }) => {
@@ -155,11 +205,11 @@ test.describe("H2 header", () => {
     await expectValue(page, 0, 4);
     const time = await page.locator(".timer2 b, .timer .time").innerText();
 
-    await t.tap(page.getByRole("button", { name: "Journal" }));
+    await t.tap(page.getByRole("button", { name: "Journal", exact: true }));
     await expect(page.locator(".journal")).toBeVisible();
     await expect(page.locator(".board")).toHaveCount(0);
 
-    await t.tap(page.getByRole("button", { name: "Back to puzzle" }));
+    await t.tap(page.getByRole("button", { name: "Play", exact: true }));
     await expect(page.locator(".board > .cell")).toHaveCount(81);
     await expectValue(page, 0, 4);
     await expect(page.locator(".timer2 b, .timer .time")).toHaveText(time);
@@ -170,7 +220,7 @@ test.describe("H2 header", () => {
     expect(pick, "a latest unsolved puzzle exists").toBeTruthy();
     await page.goto("./");
     await expect(page.locator(".journal")).toBeVisible();
-    await page.getByRole("button", { name: "Back to puzzle" }).click();
+    await page.getByRole("button", { name: "Play", exact: true }).click();
     await expect(page.locator(".board > .cell")).toHaveCount(81);
     // Not the in-memory demo (cell 1 = 5). Same pick the app uses for today.
     await expectValue(page, 1, Number(pick.puzzle[1]));
