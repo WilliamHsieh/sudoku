@@ -48,7 +48,7 @@ async function expectCardAnnouncement(page) {
 // Resume a real saved puzzle, then keep its selected cell when opening Journal.
 // The app's window keyboard handler still accepts moves in Journal. This reaches
 // the normal progress/solved store methods while the observed card stays mounted.
-async function resumeInJournal(page, date, remaining, mobile) {
+async function resumeInJournal(page, date, remaining) {
   const puzzle = puzzleData[date].easy;
   const solution = solve(puzzle);
   const missing = [...puzzle].flatMap((digit, i) => (digit === "0" ? [i] : [])).slice(0, remaining);
@@ -73,7 +73,7 @@ async function resumeInJournal(page, date, remaining, mobile) {
   await page.clock.pauseAt(NOW);
   await page.goto("./");
   // Play resumes the most recent unfinished puzzle through the app's real path.
-  await page.getByRole("button", { name: mobile ? "Back to puzzle" : "Play", exact: true }).click();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
   await page.locator(".board > .cell").nth(missing[0]).click();
   await page.getByRole("button", { name: "Journal", exact: true }).click();
   await expect(page.locator(".ctx")).toContainText("October 21");
@@ -94,7 +94,7 @@ for (const mobile of [false, true]) {
       }) => {
         await page.setViewportSize({ width: mobile ? 390 : 1280, height: 844 });
         const date = latest ? "2026-10-21" : "2026-09-10";
-        const digit = await resumeInJournal(page, date, kind === "solved" ? 1 : 2, mobile);
+        const digit = await resumeInJournal(page, date, kind === "solved" ? 1 : 2);
         const before = await page.locator(".ctx").textContent();
         await watch(page);
         await page.keyboard.press(digit);
