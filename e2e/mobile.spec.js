@@ -1,7 +1,7 @@
 // Mobile input: iPhone viewport + real CDP touch. Demo puzzle cell 0 is empty
 // with Auto candidates 2 3 4 6 7; cell 1 is a given 5.
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { test, expect } from "@playwright/test";
 import {
   cell,
@@ -305,8 +305,7 @@ test.describe("narrow header", () => {
           brandHidden ? null : trunc(brand),
           trunc(time),
           ...labels.map(trunc),
-          // Icon faces are 36px on purpose. The 44px hit is an absolute ::after,
-          // and that extension is not truncated text.
+          // Icon labels are display:none. The hit is the 44px face, not extra text.
           ...buttons.map((el) => {
             const label = el.querySelector(".mseg-label");
             if (label && getComputedStyle(label).display === "none") return null;
@@ -346,6 +345,9 @@ test.describe("narrow header", () => {
         8 - 0.5
       );
     }
+    if (!state.brand && state.timer) {
+      expect(state.timer.x - state.padL, `${where} left of timer`).toBeGreaterThanOrEqual(8 - 0.5);
+    }
     if (state.brand && !state.timer) {
       expect(state.nav.x - state.brand.right, `${where} brand to switch`).toBeGreaterThanOrEqual(
         8 - 0.5
@@ -355,11 +357,90 @@ test.describe("narrow header", () => {
     expect(state.buttons[0].x, `${where} Journal left of Play`).toBeLessThan(state.buttons[1].x);
     near(state.buttons[0].x + state.buttons[0].w, state.buttons[1].x, `${where} segment seam`);
     if (state.icons) {
-      near(state.buttons[0].w, 36, `${where} icon face width`);
-      near(state.buttons[1].w, 36, `${where} icon face width`);
+      near(state.buttons[0].w, 44, `${where} icon face width`);
+      near(state.buttons[1].w, 44, `${where} icon face width`);
       near(state.buttons[0].h, 26, `${where} icon face height`);
       near(state.buttons[1].h, 26, `${where} icon face height`);
-      near(state.nav.w, 78, `${where} icon track width`);
+      near(state.nav.w, 92, `${where} icon track width`);
+    }
+  }
+
+  function overlapArea(a, b) {
+    const w = Math.min(a.right, b.right) - Math.max(a.x, b.x);
+    const h = Math.min(a.bottom, b.bottom) - Math.max(a.y, b.y);
+    if (w <= 0 || h <= 0) return 0;
+    return w * h;
+  }
+
+  async function assertTargets(page, where) {
+    const result = await page.evaluate(() => {
+      const buttons = [...document.querySelectorAll(".mseg button")];
+      const pause = document.querySelector("#pause");
+      const hitOf = (el) => {
+        const r = el.getBoundingClientRect();
+        const after = getComputedStyle(el, "::after");
+        const left = parseFloat(after.left);
+        const right = parseFloat(after.right);
+        const top = parseFloat(after.top);
+        const bottom = parseFloat(after.bottom);
+        const x = r.x + left;
+        const y = r.y + top;
+        const w = r.width - left - right;
+        const h = r.height - top - bottom;
+        return { x, y, w, h, right: x + w, bottom: y + h };
+      };
+      const ownerAt = (x, y) => {
+        const el = document.elementFromPoint(x, y);
+        return el?.closest(".mseg button")?.getAttribute("aria-label") ?? "none";
+      };
+      const hits = buttons.map(hitOf);
+      const samples = buttons.flatMap((el) => {
+        const r = el.getBoundingClientRect();
+        const hit = hitOf(el);
+        const name = el.getAttribute("aria-label");
+        const xs = [r.x + 2, r.x + r.width / 2, r.x + r.width - 4];
+        const points = xs.map((x) => ({
+          name,
+          got: ownerAt(x, r.y + r.height / 2),
+        }));
+        points.push(
+          { name, got: ownerAt(hit.x + hit.w / 2, hit.y + 2) },
+          { name, got: ownerAt(hit.x + hit.w / 2, hit.bottom - 2) }
+        );
+        return points;
+      });
+      const pauseBox = pause?.getBoundingClientRect();
+      return {
+        hits,
+        samples,
+        pause: pauseBox
+          ? {
+              x: pauseBox.x,
+              y: pauseBox.y,
+              w: pauseBox.width,
+              h: pauseBox.height,
+              right: pauseBox.right,
+              bottom: pauseBox.bottom,
+            }
+          : null,
+        vw: document.documentElement.clientWidth,
+        vh: document.documentElement.clientHeight,
+      };
+    });
+    expect(overlapArea(result.hits[0], result.hits[1]), `${where} hits overlap`).toBe(0);
+    for (const hit of result.hits) {
+      expect(hit.w, `${where} hit width`).toBeGreaterThanOrEqual(44);
+      expect(hit.h, `${where} hit height`).toBeGreaterThanOrEqual(44);
+      expect(hit.x, `${where} hit left`).toBeGreaterThanOrEqual(-0.5);
+      expect(hit.right, `${where} hit right`).toBeLessThanOrEqual(result.vw + 0.5);
+      expect(hit.y, `${where} hit top`).toBeGreaterThanOrEqual(-0.5);
+      expect(hit.bottom, `${where} hit bottom`).toBeLessThanOrEqual(result.vh + 0.5);
+      if (result.pause) {
+        expect(overlapArea(hit, result.pause), `${where} hit meets Pause`).toBe(0);
+      }
+    }
+    for (const sample of result.samples) {
+      expect(sample.got, `${where} face pixel`).toBe(sample.name);
     }
   }
 
@@ -376,6 +457,7 @@ test.describe("narrow header", () => {
         await expect(page.locator(".timer2 b")).toHaveText(label);
         const play = await headerState(page);
         assertFit(play, width, "Play");
+        if (play.icons) await assertTargets(page, `Play @ ${width}`);
         if (play.icons && elapsed === 0) {
           await expect(page.getByRole("button", { name: "Play", exact: true })).toHaveAttribute(
             "title",
@@ -410,6 +492,7 @@ test.describe("narrow header", () => {
         await expect(page.getByRole("heading", { name: "Sudoku" })).toBeAttached();
         const journal = await headerState(page);
         assertFit(journal, width, "Journal");
+        if (journal.icons) await assertTargets(page, `Journal @ ${width}`);
         nearRect(journal.nav, play.nav, `${width} switch Play vs Journal at ${label}`);
         expect(journal.icons, `${width} icon step`).toBe(play.icons);
         expect(journal.brandHidden, `${width} brand step`).toBe(play.brandHidden);
@@ -425,7 +508,102 @@ test.describe("narrow header", () => {
     });
   }
 
-  test("the icon step ignores timer ticks and a late web font", async ({ page }) => {
+  async function settle(page) {
+    await page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(resolve));
+        })
+    );
+  }
+
+  function hasSystemFont(family) {
+    try {
+      return execFileSync("fc-list", [family, "file"], { encoding: "utf8" }).trim().length > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  const CDN = {
+    Roboto: {
+      600: "https://cdn.jsdelivr.net/fontsource/fonts/roboto@5.2.6/latin-600-normal.woff2",
+      700: "https://cdn.jsdelivr.net/fontsource/fonts/roboto@5.2.6/latin-700-normal.woff2",
+    },
+    Inter: {
+      600: "https://cdn.jsdelivr.net/fontsource/fonts/inter@5.2.8/latin-600-normal.woff2",
+      700: "https://cdn.jsdelivr.net/fontsource/fonts/inter@5.2.8/latin-700-normal.woff2",
+    },
+    "Noto Sans": {
+      600: "https://cdn.jsdelivr.net/fontsource/fonts/noto-sans@5.2.8/latin-600-normal.woff2",
+      700: "https://cdn.jsdelivr.net/fontsource/fonts/noto-sans@5.2.8/latin-700-normal.woff2",
+    },
+  };
+
+  async function downloaded(url) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`${res.status} ${url}`);
+    return Buffer.from(await res.arrayBuffer()).toString("base64");
+  }
+
+  async function useFace(page, family) {
+    const quoted = JSON.stringify(family);
+    let faces = "";
+    if (family === "Roboto" || !hasSystemFont(family)) {
+      let w600;
+      let w700;
+      if (family === "Roboto" && existsSync("/tmp/fonts/roboto-600.woff2")) {
+        w600 = readFileSync("/tmp/fonts/roboto-600.woff2").toString("base64");
+        w700 = readFileSync("/tmp/fonts/roboto-700.woff2").toString("base64");
+      } else {
+        const spec = CDN[family];
+        if (!spec) throw new Error(`no source for ${family}`);
+        w600 = await downloaded(spec[600]);
+        w700 = await downloaded(spec[700]);
+      }
+      const face = (weight, b64) =>
+        `@font-face{font-family:${quoted};src:url(data:font/woff2;base64,${b64}) format("woff2");font-weight:${weight};font-style:normal;font-display:block}`;
+      faces = `${face(600, w600)}\n${face(700, w700)}\n`;
+    }
+    const css = `${faces}.hd,.hd *{font-family:${quoted},sans-serif !important}`;
+    await page.evaluate(
+      async ({ css, family }) => {
+        document.getElementById("fit-face")?.remove();
+        const style = document.createElement("style");
+        style.id = "fit-face";
+        style.textContent = css;
+        document.head.appendChild(style);
+        const name = family.includes(" ") ? `"${family}"` : family;
+        await document.fonts.load(`600 13px ${name}`);
+        await document.fonts.load(`700 22px ${name}`);
+        await document.fonts.ready;
+      },
+      { css, family }
+    );
+    await settle(page);
+  }
+
+  async function watchFace(page, apply) {
+    await page.evaluate(() => {
+      const hd = document.querySelector(".hd");
+      let last = hd.classList.contains("icon-step");
+      let flips = 0;
+      const obs = new MutationObserver(() => {
+        const now = hd.classList.contains("icon-step");
+        if (now !== last) {
+          flips += 1;
+          last = now;
+        }
+      });
+      obs.observe(hd, { attributes: true, attributeFilter: ["class"] });
+      window.__iconFlips = () => flips;
+    });
+    await apply();
+    await page.waitForTimeout(250);
+    return page.evaluate(() => window.__iconFlips());
+  }
+
+  test("ticks hold the step and a font load changes it at most once", async ({ page }) => {
     test.setTimeout(60_000);
     await page.clock.install({ time: new Date("2026-01-01T00:00:00Z") });
 
@@ -433,64 +611,19 @@ test.describe("narrow header", () => {
       await page.goto(`./?elapsed=${elapsed}`);
       await page.getByRole("button", { name: "Play", exact: true }).click();
       await expect(page.locator(".board > .cell")).toHaveCount(81);
+      await settle(page);
     }
 
     async function atWidth(width) {
       await page.setViewportSize({ width, height: 844 });
+      await settle(page);
       return headerState(page);
-    }
-
-    /**
-     * A face already named in the UI stack, replaced the way a late web font
-     * finishes loading. `local()` does not win over the installed face, so the
-     * file rides in as a data URL on every family the stack tries first.
-     */
-    async function loadStackFace(family, styleName) {
-      const listed = execFileSync("fc-list", [`${family}:style=${styleName}`, "file"], {
-        encoding: "utf8",
-      });
-      const file = listed.split(":")[0]?.trim();
-      const b64 = readFileSync(file).toString("base64");
-      await page.evaluate(async (b64) => {
-        document.getElementById("late-face")?.remove();
-        const style = document.createElement("style");
-        style.id = "late-face";
-        const face = (name) =>
-          `@font-face{font-family:${name};src:url(data:font/ttf;base64,${b64}) format("truetype");font-weight:100 900;font-style:normal}`;
-        style.textContent = [
-          face("'-apple-system'"),
-          face("BlinkMacSystemFont"),
-          face("'SF Pro Text'"),
-          face("'Segoe UI'"),
-          face("Roboto"),
-        ].join("\n");
-        document.head.appendChild(style);
-        await document.fonts.load("600 13px -apple-system");
-        await document.fonts.ready;
-      }, b64);
-    }
-
-    async function zeroWidth() {
-      return page.evaluate(() => {
-        const family = getComputedStyle(document.querySelector(".hd")).fontFamily;
-        const probe = document.createElement("span");
-        probe.textContent = "0";
-        probe.style.position = "absolute";
-        probe.style.left = "-9999px";
-        probe.style.fontWeight = "600";
-        probe.style.fontSize = "13px";
-        probe.style.fontFamily = family;
-        document.body.appendChild(probe);
-        const w = probe.getBoundingClientRect().width;
-        probe.remove();
-        return w;
-      });
     }
 
     await openPlay(599);
     await expect(page.locator(".timer2 b")).toHaveText("9:59");
-    let lo = 250;
-    let hi = 360;
+    let lo = 260;
+    let hi = 390;
     while (lo < hi) {
       const mid = (lo + hi) >> 1;
       const state = await atWidth(mid);
@@ -498,59 +631,81 @@ test.describe("narrow header", () => {
       else hi = mid;
     }
     const textWidth = lo;
-    const iconWidth = lo - 1;
-    expect(iconWidth, "icon step below the search").toBeGreaterThan(250);
-    expect(textWidth, "icon step above the search").toBeLessThan(320);
-
-    const textSide = await atWidth(textWidth);
+    const iconWidth = Math.max(260, lo - 1);
+    const textSide = await atWidth(Math.min(textWidth, 389));
     const iconSide = await atWidth(iconWidth);
-    expect(textSide.icons).toBe(false);
-    expect(iconSide.icons).toBe(true);
-    const resting = await zeroWidth();
+    if (textWidth <= 389) expect(textSide.icons).toBe(false);
+    if (textWidth > 260) expect(iconSide.icons).toBe(true);
 
-    async function stays(mode, label, box) {
+    async function tick(from, to, mode) {
+      await page.clock.fastForward(1000);
+      await expect(page.locator(".timer2 b")).toHaveText(to);
       const state = await headerState(page);
-      expect(state.icons, `${label} icon step`).toBe(mode.icons);
-      expect(state.brandHidden, `${label} brand step`).toBe(mode.brandHidden);
-      if (box) nearRect(state.nav, mode.nav, `${label} switch`);
-      return state;
+      expect(state.icons, `${from} to ${to}`).toBe(mode.icons);
+      expect(state.brandHidden, `${from} to ${to} brand`).toBe(mode.brandHidden);
+      nearRect(state.nav, mode.nav, `${from} to ${to}`);
     }
 
-    await atWidth(textWidth);
-    await page.clock.fastForward(1000);
-    await expect(page.locator(".timer2 b")).toHaveText("10:00");
-    await stays(textSide, "9:59 to 10:00", true);
-
-    await openPlay(5999);
-    await atWidth(textWidth);
-    await expect(page.locator(".timer2 b")).toHaveText("99:59");
-    await stays(textSide, "99:59", true);
-    await page.clock.fastForward(1000);
-    await expect(page.locator(".timer2 b")).toHaveText("100:00");
-    await stays(textSide, "99:59 to 100:00", true);
-
-    await loadStackFace("DejaVu Sans", "Bold");
-    expect(await zeroWidth(), "wide face loaded").toBeGreaterThan(resting + 1);
-    await stays(textSide, "wide face at the text threshold", false);
-
-    await openPlay(599);
     await atWidth(iconWidth);
-    await expect(page.locator(".timer2 b")).toHaveText("9:59");
     const iconMode = await headerState(page);
-    expect(iconMode.icons).toBe(true);
-    await page.clock.fastForward(1000);
-    await expect(page.locator(".timer2 b")).toHaveText("10:00");
-    await stays(iconMode, "tick at the icon threshold", true);
+    await tick("9:59", "10:00", iconMode);
     await openPlay(5999);
     await atWidth(iconWidth);
     await expect(page.locator(".timer2 b")).toHaveText("99:59");
-    await stays(iconMode, "99:59 at the icon threshold", true);
+    await tick("99:59", "100:00", iconMode);
+
+    if (textWidth <= 389) await atWidth(textWidth);
+    const flips = await watchFace(page, () => useFace(page, "DejaVu Sans"));
+    expect(flips, "font load toggles").toBeLessThanOrEqual(1);
+    const afterWide = await headerState(page);
     await page.clock.fastForward(1000);
-    await expect(page.locator(".timer2 b")).toHaveText("100:00");
-    await stays(iconMode, "99:59 to 100:00 at the icon threshold", true);
-    await loadStackFace("Liberation Sans", "Regular");
-    expect(await zeroWidth(), "narrow face loaded").toBeLessThan(resting - 0.1);
-    await stays(iconMode, "narrow face at the icon threshold", true);
+    const afterTick = await headerState(page);
+    expect(afterTick.icons).toBe(afterWide.icons);
+    expect(await page.evaluate(() => window.__iconFlips())).toBe(flips);
+  });
+
+  test("260 to 320 keeps 8px and one step for Roboto, Inter, Noto, and DejaVu", async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+    const faces = ["Roboto", "Inter", "Noto Sans", "DejaVu Sans"];
+    /** @type {Record<string, number | null>} */
+    const thresholds = {};
+    await page.setViewportSize({ width: 320, height: 844 });
+    await page.goto("./?elapsed=59999&freeze");
+    await page.getByRole("button", { name: "Play", exact: true }).click();
+    await expect(page.locator(".board > .cell")).toHaveCount(81);
+
+    for (const family of faces) {
+      await useFace(page, family);
+      let textAt = null;
+      let sawText = false;
+      for (let width = 260; width <= 320; width += 1) {
+        await page.setViewportSize({ width, height: 844 });
+        await settle(page);
+        const play = await headerState(page);
+        assertFit(play, width, `${family} Play`);
+        if (play.icons) await assertTargets(page, `${family} Play @ ${width}`);
+        if (sawText) expect(play.icons, `${family} flipped back at ${width}`).toBe(false);
+        if (!play.icons) {
+          sawText = true;
+          textAt ??= width;
+        }
+        await page.getByRole("button", { name: "Journal", exact: true }).click();
+        await settle(page);
+        const journal = await headerState(page);
+        assertFit(journal, width, `${family} Journal`);
+        if (journal.icons) await assertTargets(page, `${family} Journal @ ${width}`);
+        expect(journal.icons, `${family} ${width} icon step`).toBe(play.icons);
+        expect(journal.brandHidden, `${family} ${width} brand step`).toBe(play.brandHidden);
+        nearRect(journal.nav, play.nav, `${family} ${width} switch`);
+        await page.getByRole("button", { name: "Play", exact: true }).click();
+        await settle(page);
+      }
+      thresholds[family] = textAt;
+      console.log(`threshold ${family} textAt=${textAt ?? "icons through 320"}`);
+    }
+    writeFileSync("/tmp/header-thresholds.json", JSON.stringify(thresholds));
   });
 });
 

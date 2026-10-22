@@ -28,6 +28,7 @@
   import { playUi } from "./play/session.svelte.js";
   import { applyShot } from "./play/shot.js";
   import { applyKeypadShot } from "./play/keypad-shot.js";
+  import { headerStep, readHeaderFit } from "./header-fit.js";
   import PausedCover from "./PausedCover.svelte";
   import OptionsSheet from "./OptionsSheet.svelte";
   import { onMount, tick } from "svelte";
@@ -82,6 +83,24 @@
   let isNarrow = $state(typeof window !== "undefined" && window.matchMedia(NARROW_MQ).matches);
   let wrapEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   let ringEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
+  let hdEl = $state(/** @type {HTMLElement | undefined} */ (undefined));
+  let iconStep = $state(false);
+  let brandClip = $state(false);
+
+  /** One pass. Font loads and resizes share a microtask so a face cannot toggle the step. */
+  function applyHeaderStep(hd) {
+    const timeEl = hd.querySelector(".timer2 b");
+    if (!window.matchMedia("(max-width: 389px)").matches) {
+      if (timeEl) timeEl.style.minWidth = "";
+      if (iconStep) iconStep = false;
+      if (brandClip) brandClip = false;
+      return;
+    }
+    const step = headerStep(readHeaderFit(hd));
+    if (timeEl) timeEl.style.minWidth = `${step.slot}px`;
+    if (iconStep !== step.icons) iconStep = step.icons;
+    if (brandClip !== step.brandHidden) brandClip = step.brandHidden;
+  }
 
   /** A filled cell shows its digit. An empty cell leaves a keypad highlight up. */
   function revealSelection(i) {
@@ -322,6 +341,34 @@
   });
 
   $effect(() => {
+    if (!isNarrow || !hdEl) return;
+    void showCalendar;
+    const hd = hdEl;
+    let pending = false;
+    const run = () => {
+      pending = false;
+      if (hd.isConnected) applyHeaderStep(hd);
+    };
+    const schedule = () => {
+      if (pending) return;
+      pending = true;
+      queueMicrotask(run);
+    };
+    run();
+    const ro = new ResizeObserver(schedule);
+    ro.observe(hd);
+    document.fonts.addEventListener("loadingdone", schedule);
+    window.addEventListener("resize", schedule);
+    const ready = document.fonts.ready.then(schedule);
+    return () => {
+      ro.disconnect();
+      document.fonts.removeEventListener("loadingdone", schedule);
+      window.removeEventListener("resize", schedule);
+      void ready;
+    };
+  });
+
+  $effect(() => {
     if (showCalendar) return;
     if (wrapEl && ringEl) ring.bind(wrapEl, ringEl);
     const mobile = window.matchMedia("(max-width: 599px)").matches;
@@ -420,7 +467,14 @@
       </nav>
     </div>
   {:else}
-    <header class="hd">
+    <header class="hd" class:icon-step={iconStep} class:brand-clip={brandClip} bind:this={hdEl}>
+      <span class="hd-probe" aria-hidden="true">
+        <span class="hd-probe-brand">Sudoku</span>
+        <span class="hd-probe-journal">Journal</span>
+        <span class="hd-probe-play">Play</span>
+        <span class="hd-probe-time">999:59</span>
+        <span class="hd-probe-pad"></span>
+      </span>
       <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
       <h1 class="hd-brand" onclick={removeFocus}>Sudoku</h1>
       <div class="hd-r">
@@ -1041,22 +1095,59 @@
     }
 
     /* Widths under 390. Padding and the segment inset shrink with the viewport,
-       floored at 8px and 10px. Each step compares that content box to a length
-       built from the viewport plus a timer slot reserved for 999:59 — not the
-       glyphs on the clock. 7.4375px is the 13px/600 zero of the UI face, written
-       in px so a late web font cannot move the step (a live `ch` would).
-       Brand hides when the box can no longer keep 8px beside that slot:
-       8px gap + 39px timer chrome + 6 × 14.4/13 zeros + 44px pause + 4px track
-       gap + 50px track chrome + 20.9 zeros of "Sudoku"+"Journal"+"Play"
-       = 145px + 27.6 × 7.4375px.
-       Icons replace the labels once the text track itself no longer fits beside
-       the same slot. No hard cut at 320:
-       39px + 6 × 14.4/13 zeros + 44px + 4px + 50px + 10.05 zeros
-       = 137px + 16.7 × 7.4375px. */
+       floored at 8px and 10px. The icon and brand classes come from a measure
+       of the rendered labels plus the reserved 999:59 slot (see header-fit.js),
+       on resize and on document.fonts, never from the live clock. */
+    .hd-probe {
+      position: absolute;
+      left: 0;
+      top: 0;
+      visibility: hidden;
+      pointer-events: none;
+      margin: 0;
+      padding: 0;
+      border: 0;
+    }
+    .hd-probe-brand,
+    .hd-probe-journal,
+    .hd-probe-play,
+    .hd-probe-time {
+      display: block;
+      width: max-content;
+      line-height: 1;
+      white-space: nowrap;
+    }
+    .hd-probe-brand {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .hd-probe-journal,
+    .hd-probe-play {
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .hd-probe-time {
+      font-size: 14.4px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+    .hd-probe-pad {
+      display: block;
+      box-sizing: content-box;
+      width: var(--icon-face, 44px);
+      height: 0;
+      padding: 0 0 0 var(--seg-pad, 10px);
+    }
     @media (max-width: 389px) {
       .hd {
-        container-type: inline-size;
-        container-name: hd;
+        --seg-pad: clamp(10px, calc(10px + (100vw - 320px) / 69), 11px);
+        --track-pad: 3px;
+        --icon-track-pad: 2px;
+        --track-gap: 4px;
+        --icon-face: 44px;
+        --pause-hit: 44px;
+        --fit-gap: 8px;
         position: relative;
         font-size: 13px;
         font-weight: 600;
@@ -1066,42 +1157,39 @@
         margin-left: auto;
       }
       .mseg button {
-        padding-inline: clamp(10px, calc(10px + (100vw - 320px) / 69), 11px);
+        padding-inline: var(--seg-pad);
       }
-      @container hd (max-width: calc(145px + 27.6 * 7.4375px)) {
-        .hd-brand {
-          position: absolute;
-          width: 1px;
-          height: 1px;
-          padding: 0;
-          margin: -1px;
-          overflow: hidden;
-          clip: rect(0, 0, 0, 0);
-          clip-path: inset(50%);
-          white-space: nowrap;
-          border: 0;
-        }
+      .hd.brand-clip .hd-brand {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        clip-path: inset(50%);
+        white-space: nowrap;
+        border: 0;
       }
-      /* Text segments still overflow this content box: icon faces, equal boxes.
-         The 36px face keeps its box; the hit grows to 44×44 inside the track's
-         padding and the header's own padding. */
-      @container hd (max-width: calc(137px + 16.7 * 7.4375px)) {
-        .mseg-ic {
-          display: block;
-        }
-        .mseg-label {
-          display: none;
-        }
-        .mseg button {
-          display: grid;
-          place-items: center;
-          width: 36px;
-          padding-inline: 0;
-        }
-        .mseg button::after {
-          left: -4px;
-          right: -4px;
-        }
+      /* 44px faces, and the hit is exactly that face. 2px of track padding
+         (radius 8, so the 7px button corners stay inside the pill) keeps the
+         icon cluster narrow enough for an 8px gap beside a wide "999:59".
+         The 4px Pause margin stays outside both hits. */
+      .hd.icon-step .mseg {
+        padding-inline: var(--icon-track-pad);
+        border-radius: 8px;
+      }
+      .hd.icon-step .mseg-ic {
+        display: block;
+      }
+      .hd.icon-step .mseg-label {
+        display: none;
+      }
+      .hd.icon-step .mseg button {
+        display: grid;
+        place-items: center;
+        width: var(--icon-face);
+        padding-inline: 0;
       }
     }
 

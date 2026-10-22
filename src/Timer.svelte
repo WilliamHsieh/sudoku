@@ -95,8 +95,8 @@
     }
   }
 
-  /* Reserve "999:59" below 390. 6ch is six tabular zeros; the colon is narrower,
-     so the slot does not grow as the clock ticks and 390/desktop stay on content width. */
+  /* Fallback slot before the header measure runs. The fit pass replaces this
+     with the rendered width of "999:59" below 390. 390 and desktop stay on content width. */
   @media (max-width: 389px) {
     .timer2 b {
       min-width: 6ch;
