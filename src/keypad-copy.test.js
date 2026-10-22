@@ -5,6 +5,7 @@ import {
   COACH_TITLE,
   HINT_IDLE,
   HINT_LEGACY,
+  LABEL_HOLD,
   OPT_TAP_SUB,
   OPT_TAP_TITLE,
   TOAST_GIVEN,
@@ -54,11 +55,17 @@ describe("hint line", () => {
 
 describe("other keypad copy", () => {
   it("ships the English strings the designer signs off", () => {
+    expect(HINT_IDLE).toBe("Tap = show · Double-tap = fill · Swipe ↑ candidate, ↓ lock");
+    expect(LABEL_HOLD).toBe("Tap cells: candidate");
     expect(OPT_TAP_TITLE).toBe("Tap to fill");
     expect(OPT_TAP_SUB).toBe("Off: tap shows, double-tap fills");
     expect(COACH_TITLE).toBe("New way to use the keys");
     expect(COACH_OK).toBe("Got it");
-    expect(COACH_ROWS.map((row) => row.label)).toEqual(["Tap", "Double-tap", "Swipe down"]);
+    expect(COACH_ROWS).toEqual([
+      { label: "Tap", body: "Highlights this digit and its candidates" },
+      { label: "Double-tap", body: "Fills the selected cell" },
+      { label: "Swipe down", body: "Locks it; tap empty cells to toggle candidates" },
+    ]);
     expect(toastLockedCell(5)).toBe("5 locked — tap an empty cell");
     expect(toastBlocked(5)).toBe("Can't place 5 — already in row, column or box");
     expect(TOAST_NO_CELL).toBe("Select a cell, then double-tap");

@@ -210,6 +210,7 @@ test("two-finger hold toggles candidates as one undo step", async ({ page }) => 
   await t.holdAndTap(key(page, 2), [cell(page, a), cell(page, b)], {
     beforeRelease: async () => {
       await expect(key(page, 2)).toHaveClass(/holding/);
+      await expect(key(page, 2).locator(".label:not(.bottom)")).toHaveText("Tap cells: candidate");
     },
   });
   await expect(cell(page, a)).toHaveClass(/selected/);
@@ -226,7 +227,7 @@ test("legacy tap-to-fill is off by default, then a tap fills and a second tap cl
 }) => {
   const t = await touchDriver(page);
   await expect(page.locator(".pad-hint")).toHaveText(
-    "Tap = show · Double-tap = fill · Swipe up = candidate · Swipe down = lock"
+    "Tap = show · Double-tap = fill · Swipe ↑ candidate, ↓ lock"
   );
   await t.tap(page.locator(".tools [data-more]"));
   const row = page.locator("#opt-tap-fill");
@@ -320,6 +321,8 @@ test("the first-run coach shows once", async ({ page }) => {
   const coach = page.locator(".coach");
   await expect(coach).toBeVisible();
   await expect(coach).toContainText("New way to use the keys");
+  await expect(coach).toContainText("Highlights this digit and its candidates");
+  await expect(coach).toContainText("Locks it; tap empty cells to toggle candidates");
   await expect(coach).toContainText("Double-tap");
   await page.locator("#coach-ok").click();
   await expect(coach).toHaveCount(0);

@@ -4,7 +4,7 @@ import { DEMO_PUZZLE } from "../game/game.svelte.js";
 import { padUi } from "../pad-ui.svelte.js";
 import { timer, timerRunning } from "../store.js";
 import { showToast } from "../keypad-actions.js";
-import { TOAST_NO_CELL, toastBlocked, toastLockedCell } from "../keypad-copy.js";
+import { LABEL_HOLD, TOAST_NO_CELL, toastBlocked, toastLockedCell } from "../keypad-copy.js";
 
 /** @param {number[]} grid */
 function solve(grid) {
@@ -152,7 +152,7 @@ export function applyKeypadShot(game, name) {
       remove: false,
       illegal: false,
       showLabel: true,
-      label: "Tap cells: note",
+      label: LABEL_HOLD,
       bottom: "",
     };
   }

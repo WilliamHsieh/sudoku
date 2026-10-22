@@ -3,11 +3,10 @@
 
 /** @typedef {{ kind: 'plain', text: string } | { kind: 'rich', lead: string, rest: string }} Hint */
 
-export const HINT_IDLE =
-  "Tap = show · Double-tap = fill · Swipe up = candidate · Swipe down = lock";
+export const HINT_IDLE = "Tap = show · Double-tap = fill · Swipe ↑ candidate, ↓ lock";
 export const HINT_LEGACY = "Tap = answer · Swipe up = candidate";
 
-export const LABEL_HOLD = "Tap cells: note";
+export const LABEL_HOLD = "Tap cells: candidate";
 export const LABEL_LOCK = "Release: lock";
 export const LABEL_UNLOCK = "Release: unlock";
 
@@ -18,9 +17,9 @@ export const COACH_TITLE = "New way to use the keys";
 export const COACH_OK = "Got it";
 /** @type {{ label: string, body: string }[]} */
 export const COACH_ROWS = [
-  { label: "Tap", body: "Highlights this digit and its notes" },
+  { label: "Tap", body: "Highlights this digit and its candidates" },
   { label: "Double-tap", body: "Fills the selected cell" },
-  { label: "Swipe down", body: "Locks it, then tap empty cells to add or remove notes" },
+  { label: "Swipe down", body: "Locks it; tap empty cells to toggle candidates" },
 ];
 
 /** @param {number} d */
