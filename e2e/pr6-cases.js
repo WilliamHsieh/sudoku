@@ -8,6 +8,7 @@ import {
   measureChipLineGaps,
   solve,
 } from "./helpers.js";
+import { touchDriver } from "./touch.js";
 
 const T0 = new Date("2026-01-01T00:00:00Z");
 
@@ -91,6 +92,21 @@ async function setTabHidden(page, hidden) {
     }
     doc.__pr6Vis(flag);
   }, hidden);
+}
+
+/**
+ * Playwright's clock keeps following real time after `runFor`. A swipe's
+ * waits outlast the 470ms resume, so pause the in-page clock at the current
+ * instant. Later `runFor` calls stay paused and only move the time we ask for.
+ * @param {import('@playwright/test').Page} page
+ */
+async function freezeClock(page) {
+  await page.evaluate(() => {
+    const clock = /** @type {{ controller: { pauseAt: (t: number) => Promise<number> } }} */ (
+      globalThis.__pwClock
+    ).controller;
+    return clock.pauseAt(Date.now());
+  });
 }
 
 /**
@@ -863,4 +879,61 @@ export function registerPr6Tests(opts = {}) {
     await page.locator("#opts-done").click();
     await expect(moreButton(page)).toBeFocused();
   });
+
+  if (mobile) {
+    test("keypad gestures do nothing during the resume hold and reveal", async ({ page }) => {
+      const t = await touchDriver(page);
+      const key = (d) => page.locator(`.key[data-d="${d}"]`);
+      const pad = page.locator("#keypad");
+      await t.tap(cell(page, 0));
+      const notes = await cell(page, 0).getAttribute("data-notes");
+
+      const beginHold = async () => {
+        await setTabHidden(page, true);
+        await page.clock.runFor(1_500);
+        await freezeClock(page);
+        await setTabHidden(page, false);
+        await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "hold");
+        await expect(page.locator(".chrome-dim")).toHaveAttribute("inert", "");
+      };
+
+      await beginHold();
+      await t.tap(key(4));
+      await expect(pad).toHaveAttribute("data-shown", "0");
+      await expect(pad).toHaveAttribute("data-locked", "0");
+      await expectValue(page, 0, 0);
+      await expect(cell(page, 0)).toHaveAttribute("data-notes", notes);
+      await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "hold");
+
+      await beginHold();
+      await t.doubleTap(key(4));
+      await expectValue(page, 0, 0);
+      await expect(pad).toHaveAttribute("data-shown", "0");
+      await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "true");
+
+      await beginHold();
+      await page.clock.runFor(150);
+      await freezeClock(page);
+      await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "reveal");
+      await t.tap(key(4));
+      await expect(pad).toHaveAttribute("data-shown", "0");
+      await expectValue(page, 0, 0);
+      await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "reveal");
+      await expect(page.locator(".chrome-dim")).toHaveAttribute("inert", "");
+
+      await beginHold();
+      await t.swipeUp(key(2), 60);
+      await expect(cell(page, 0)).toHaveAttribute("data-notes", notes);
+      await expect(pad).toHaveAttribute("data-locked", "0");
+      await expectValue(page, 0, 0);
+      await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "true");
+
+      await beginHold();
+      await t.holdAndTap(key(2), [cell(page, 0)], { holdMs: 280 });
+      await expect(cell(page, 0)).toHaveAttribute("data-notes", notes);
+      await expectValue(page, 0, 0);
+      await expect(key(2)).not.toHaveClass(/holding/);
+      await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "true");
+    });
+  }
 }
