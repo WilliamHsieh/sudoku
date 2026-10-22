@@ -73,11 +73,12 @@
     type="button"
     role="switch"
     aria-checked={auto}
-    aria-label="Auto notes"
+    aria-label="Auto candidates"
+    title="Auto candidates"
     onclick={toggleNotes}
   >
     <span class="switch" aria-hidden="true"><span class="knob"></span></span>
-    <span class="notes-label">Notes: <b>{auto ? "Auto" : "Manual"}</b></span>
+    <span class="notes-label"><b>Auto</b></span>
   </button>
   <button class="tool" type="button" data-more aria-haspopup="dialog" onclick={openMore}>
     <svg viewBox="0 0 24 24" aria-hidden="true">

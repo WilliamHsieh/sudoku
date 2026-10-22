@@ -153,7 +153,7 @@
             >Flash lone candidates after 30 s without input</small
           >
           <small id="cue-why" hidden={!playUi.cueReason}
-            >Needs Auto notes. Your choice is kept.</small
+            >Needs Auto candidates. Your choice is kept.</small
           >
         </span>
         <span class="switch" aria-hidden="true"><span class="knob"></span></span>
@@ -204,7 +204,9 @@
   onclick={onConfirmClick}
 >
   <h2 id="confirm-title">Restart this puzzle?</h2>
-  <p id="confirm-body">This clears your answers, notes and the time. Undo can’t bring them back.</p>
+  <p id="confirm-body">
+    This clears your answers, candidates and the time. Undo can’t bring them back.
+  </p>
   <div class="acts">
     <button
       type="button"

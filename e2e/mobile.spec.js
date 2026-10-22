@@ -31,6 +31,41 @@ const key = (page, d) => page.locator(`.key[data-d="${d}"]`);
 // 0.5px absorbs subpixel rounding; header fit is strict: gap >= 8, scrollWidth <= clientWidth.
 const EPS = 0.5;
 
+for (const width of [390, 320]) {
+  test(`Auto candidates label stays on one line in both states at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await openBoard(page);
+    const toggle = page.getByRole("switch", { name: "Auto candidates", exact: true });
+    const label = toggle.locator(".notes-label");
+
+    for (const checked of [true, false]) {
+      await expect(toggle).toHaveAccessibleName("Auto candidates");
+      await expect(toggle).toHaveAttribute("aria-checked", String(checked));
+      await expect(toggle).toHaveAttribute("title", "Auto candidates");
+      await expect(toggle).toHaveText("Auto");
+      await expect(label).toHaveText("Auto");
+      const geometry = await label.evaluate((el) => {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const lines = new Set([...range.getClientRects()].map((r) => r.top));
+        const box = el.getBoundingClientRect();
+        const text = range.getBoundingClientRect();
+        return {
+          lines: lines.size,
+          scrollWidth: el.scrollWidth,
+          clientWidth: el.clientWidth,
+          contained: text.left >= box.left && text.right <= box.right,
+        };
+      });
+      expect(geometry.lines).toBe(1);
+      expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth);
+      expect(geometry.contained).toBe(true);
+      await toggle.tap();
+    }
+    await expect(toggle).toHaveAttribute("aria-checked", "true");
+  });
+}
+
 function near(a, b, label) {
   expect(Math.abs(a - b), `${label}: ${a} ≉ ${b}`).toBeLessThanOrEqual(EPS);
 }
@@ -1113,7 +1148,7 @@ test.describe("pad", () => {
     await expect(page.locator(".toast")).toHaveText("Given digits can't change");
   });
 
-  test("Notes switch Auto/Manual; Manual starts empty and Auto restores computed notes", async ({
+  test("Auto candidates switch; Manual starts empty and Auto restores computed candidates", async ({
     page,
   }) => {
     const t = await touchDriver(page);
@@ -1121,7 +1156,7 @@ test.describe("pad", () => {
     await expect(cell(page, 0)).toHaveAttribute("data-notes", "23467");
     await t.tap(page.locator("#notes-mode"));
     await expect(page.locator("#notes-mode")).toHaveAttribute("aria-checked", "false");
-    await expect(page.locator("#notes-mode")).toContainText("Manual");
+    await expect(page.locator("#notes-mode")).toHaveText("Auto");
     await expect(cell(page, 0)).toHaveAttribute("data-notes", "");
     await t.tap(page.locator("#notes-mode"));
     await expect(cell(page, 0)).toHaveAttribute("data-notes", "23467");

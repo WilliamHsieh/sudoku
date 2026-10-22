@@ -227,7 +227,9 @@ export function registerPr6Tests(opts = {}) {
     await expect(cue).toBeDisabled();
     await expect(cue).toHaveAttribute("aria-checked", "false");
     await expect(page.locator("#cue-why")).toBeVisible();
-    await expect(page.locator("#cue-why")).toHaveText("Needs Auto notes. Your choice is kept.");
+    await expect(page.locator("#cue-why")).toHaveText(
+      "Needs Auto candidates. Your choice is kept."
+    );
     await page.locator("#opts-done").click();
 
     await page.clock.runFor(40_000);
@@ -448,7 +450,7 @@ export function registerPr6Tests(opts = {}) {
     await expect(page.locator("dialog.confirm")).toBeVisible();
     await expect(page.locator("#confirm-title")).toHaveText("Restart this puzzle?");
     await expect(page.locator("#confirm-body")).toHaveText(
-      "This clears your answers, notes and the time. Undo can’t bring them back."
+      "This clears your answers, candidates and the time. Undo can’t bring them back."
     );
     await expect(page.locator("#confirm-cancel")).toBeFocused();
 
