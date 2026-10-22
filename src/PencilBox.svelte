@@ -21,9 +21,9 @@
   const highlight = $derived(
     padUi.locked || padUi.shown || (game.selected >= 0 ? game.value(game.selected) : 0)
   );
-  const ghost = $derived(
-    !visible && (padUi.ghosts[cell_id] === idx + 1 || padUi.holdGhosts[cell_id] === idx + 1)
-  );
+  const added = $derived(padUi.marks?.d === idx + 1 && padUi.marks.add.has(cell_id));
+  const ghost = $derived(!visible && padUi.marks?.d === idx + 1 && padUi.marks.rem.has(cell_id));
+  const fading = $derived(padUi.marks?.phase === "fade");
   const isMatchingNumber = $derived(highlight !== 0 && idx + 1 === highlight && visible && !ghost);
   const isOnlyCandidate = $derived(
     game.value(cell_id) === 0 && visible && game.noteCount(cell_id) === 1
@@ -37,7 +37,7 @@
       padUi.preview?.kind === "remove"
   );
   const hiddenPending = $derived(padUi.pending?.cell === cell_id && padUi.pending?.d === idx + 1);
-  const cued = $derived(isOnlyCandidate && playUi.showsCue(cell_id));
+  const cued = $derived(!added && !ghost && isOnlyCandidate && playUi.showsCue(cell_id));
   const cueHold = $derived(cued && playUi.phase === "hold");
 
   function handleClick(e) {
@@ -63,6 +63,9 @@
   <div
     class="pencil-box"
     class:invisible={!visible && !previewAdd && !ghost}
+    class:paint-added={added}
+    class:paint-blue={added && !fading}
+    class:paint-fading={fading && (added || ghost)}
     class:ghost
     class:selected={isSelected}
     class:aim={isShiftSlot}
@@ -129,9 +132,9 @@
     background: transparent;
     color: var(--cand-on-selected);
   }
-  :global(.board.shift-aim) .pencil-box.matching-number:hover:not(.aim) {
-    background: var(--chip-bg);
-    color: var(--chip-ink);
+  :global(.board.shift-aim) .pencil-box:is(.matching-number, .paint-added):hover:not(.aim) {
+    background: var(--paint-chip-bg, var(--chip-bg));
+    color: var(--paint-chip-ink, var(--chip-ink));
   }
   :global(.board.shift-aim) .pencil-box {
     cursor: crosshair;
@@ -158,31 +161,31 @@
     animation: none;
     cursor: crosshair;
   }
-  .pencil-box.aim.matching-number,
-  .pencil-box.aim.matching-number:hover,
-  .pencil-box.aim.matching-number.selected:hover {
-    background: var(--chip-bg);
-    color: var(--chip-ink);
+  .pencil-box.aim:is(.matching-number, .paint-added),
+  .pencil-box.aim:is(.matching-number, .paint-added):hover,
+  .pencil-box.aim:is(.matching-number, .paint-added).selected:hover {
+    background: var(--paint-chip-bg, var(--chip-bg));
+    color: var(--paint-chip-ink, var(--chip-ink));
     font-weight: var(--chip-weight);
     box-shadow: 0 0 0 1.5px var(--ink);
   }
 
-  .pencil-box.matching-number {
+  .pencil-box:is(.matching-number, .paint-added) {
     place-self: center;
     box-sizing: border-box;
     width: min(calc(var(--cell) * var(--chip-size)), calc(100cqw - 4px));
     height: min(calc(var(--cell) * var(--chip-size)), calc(100cqh - 4px));
     max-width: calc(100cqw - 4px);
     max-height: calc(100cqh - 4px);
-    color: var(--chip-ink);
+    color: var(--paint-chip-ink, var(--chip-ink));
     font-weight: var(--chip-weight);
-    background: var(--chip-bg);
-    box-shadow: 0 0 0 0.5px var(--chip-line);
+    background: var(--paint-chip-bg, var(--chip-bg));
+    box-shadow: 0 0 0 0.5px var(--paint-chip-line, var(--chip-line));
     border-radius: 3.5px;
   }
 
-  .pencil-box.matching-number.selected {
-    color: var(--chip-ink);
+  .pencil-box:is(.matching-number, .paint-added).selected {
+    color: var(--paint-chip-ink, var(--chip-ink));
   }
 
   .pencil-box.ghost {
@@ -346,11 +349,52 @@
     /* No Shift aim on the pad. Size chips to 0.32 of --cell, leaving 1px
        in the slot so the 0.5px chip line stays ≥1px from every grid line.
        Include .aim so a match chip does not change size if Shift is held. */
-    .pencil-box.matching-number {
+    .pencil-box:is(.matching-number, .paint-added) {
       width: min(calc(var(--cell) * var(--chip-size)), calc(100cqw - 1px));
       height: min(calc(var(--cell) * var(--chip-size)), calc(100cqh - 1px));
       max-width: calc(100cqw - 1px);
       max-height: calc(100cqh - 1px);
+    }
+  }
+  .pencil-box.paint-blue {
+    --paint-chip-bg: var(--add-chip-bg);
+    --paint-chip-ink: var(--add-chip-ink);
+    --paint-chip-line: var(--add-chip-line);
+  }
+  .pencil-box.paint-blue.selected:hover {
+    background: var(--add-chip-bg);
+    color: var(--add-chip-ink);
+  }
+  .pencil-box.paint-fading {
+    transition:
+      background-color 315ms ease-out,
+      color 315ms ease-out,
+      box-shadow 315ms ease-out;
+  }
+  .pencil-box.paint-added.paint-fading:not(.matching-number) {
+    background: transparent;
+    color: var(--cand);
+    box-shadow: none;
+  }
+  .pencil-box.ghost.paint-fading {
+    opacity: 0;
+    transition: opacity 315ms ease-out;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pencil-box.paint-fading {
+      transition: none;
+    }
+    .pencil-box.paint-added.paint-fading,
+    .pencil-box.paint-added.paint-fading:not(.matching-number) {
+      --paint-chip-bg: var(--add-chip-bg);
+      --paint-chip-ink: var(--add-chip-ink);
+      --paint-chip-line: var(--add-chip-line);
+      background: var(--add-chip-bg);
+      color: var(--add-chip-ink);
+      box-shadow: 0 0 0 0.5px var(--add-chip-line);
+    }
+    .pencil-box.ghost.paint-fading {
+      opacity: 0.8;
     }
   }
 </style>

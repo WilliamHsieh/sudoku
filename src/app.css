@@ -48,6 +48,9 @@
   --sel-ring-w: 2px;
   --sel-bg: #d3e0f8;
   --sel-ink: #1c1a16;
+  --add-chip-bg: #dfe8fa;
+  --add-chip-ink: #2249ad;
+  --add-chip-line: #8fa8e0;
   --chip-bg: #fcefbe;
   --chip-line: #e1c76e;
   --chip-ink: #7a4b08;

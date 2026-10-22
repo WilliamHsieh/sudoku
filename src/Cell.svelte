@@ -6,7 +6,7 @@
   import { nextDoubleTap } from "./game/pad.js";
   import { maskDigits } from "./game/board.js";
   import { getShiftHover } from "./shift-hover.svelte.js";
-  import { lockTap, secondFingerToggle } from "./keypad-actions.js";
+  import { lockTap } from "./keypad-actions.js";
 
   /** Touch pointerdowns also synthesize a click; ignore that click.
    * -Infinity so a mouse click in the first 700ms of the page is not swallowed. */
@@ -25,8 +25,8 @@
     padUi.locked || padUi.shown || (game.selected >= 0 ? game.value(game.selected) : 0)
   );
   const same = $derived(value !== 0 && highlight === value);
-  const tick = $derived(padUi.ticks[cell_id]);
-  const holdMark = $derived(padUi.holds[cell_id]);
+  const tint = $derived(padUi.marks?.tint.has(cell_id));
+  const brush = $derived(padUi.marks?.brush);
   const conflict = $derived(game.inConflict(cell_id));
   const notes = $derived(maskDigits(game.notes(cell_id)).join(""));
   const blocking = $derived(padUi.blocking.includes(cell_id));
@@ -65,14 +65,6 @@
     if (e.pointerType === "mouse" || (e.button !== undefined && e.button > 0)) return;
     touchAt = performance.now();
     e.preventDefault();
-    if (padUi.hold && e.pointerId !== padUi.hold.pid) {
-      secondFingerToggle(cell_id);
-      return;
-    }
-    if (padUi.locked) {
-      lockTap(cell_id);
-      return;
-    }
     const highlighted = padUi.shown || (game.selected >= 0 ? game.value(game.selected) : 0);
     const step = nextDoubleTap(padUi.lastTap, cell_id, performance.now(), highlighted);
     padUi.lastTap = step.next;
@@ -93,10 +85,11 @@
   class:blocking
   class:blocked
   class:undo-target={undoTarget}
-  class:tick-add={tick === "add"}
-  class:tick-rem={tick === "remove"}
-  class:t-add={holdMark === "add"}
-  class:t-rem={holdMark === "remove"}
+  class:paint-add={tint && brush === "add"}
+  class:paint-remove={tint && brush === "remove"}
+  class:paint-committed={tint && padUi.marks?.phase !== "live"}
+  class:finger-add={padUi.finger === cell_id && brush === "add"}
+  class:finger-remove={padUi.finger === cell_id && brush === "remove"}
   data-r={row}
   data-c={col}
   data-i={cell_id}
@@ -194,29 +187,30 @@
     animation: blocked 300ms ease-out;
   }
 
-  .cell.t-add,
-  .cell.tick-add,
-  .cell.t-rem,
-  .cell.tick-rem {
-    z-index: 2;
+  .cell.paint-add::after,
+  .cell.paint-remove::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: color-mix(in srgb, var(--sel-ring) 12%, transparent);
+    opacity: 1;
   }
-  .cell.t-add,
-  .cell.tick-add {
-    box-shadow: inset 0 0 0 2px var(--sel-ring);
+  .cell.paint-remove::after {
+    background: color-mix(in srgb, var(--conflict) 10%, transparent);
   }
-  .cell.t-rem,
-  .cell.tick-rem {
-    box-shadow: inset 0 0 0 2px var(--conflict);
+  .cell.paint-committed::after {
+    opacity: 0;
+    transition: opacity 200ms ease-out;
   }
-  .cell.tick-add,
-  .cell.tick-rem {
-    animation: tick 700ms ease-out forwards;
+  .cell.finger-add {
+    box-shadow: inset 0 0 0 3px var(--sel-ring);
   }
-  .cell.tick-add {
-    --tick: var(--sel-ring);
+  .cell.finger-remove {
+    box-shadow: inset 0 0 0 3px var(--conflict);
   }
-  .cell.tick-rem {
-    --tick: var(--conflict);
+  .candidate {
+    z-index: 1;
   }
 
   .cell.undo-target {
@@ -232,16 +226,6 @@
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--undo-ring) 18%, transparent);
     pointer-events: none;
     animation: undo-target var(--ring-ms, 620ms) cubic-bezier(0.22, 1, 0.36, 1) forwards;
-  }
-
-  @keyframes tick {
-    0%,
-    55% {
-      box-shadow: inset 0 0 0 2px var(--tick);
-    }
-    100% {
-      box-shadow: inset 0 0 0 2px transparent;
-    }
   }
 
   @keyframes blocked {
@@ -305,8 +289,6 @@
     }
   }
 
-  :global(html.kp-freeze) .cell.tick-add,
-  :global(html.kp-freeze) .cell.tick-rem,
   :global(html.kp-freeze) .cell.blocked {
     animation: none;
   }
@@ -321,9 +303,8 @@
       background-color: color-mix(in srgb, var(--undo-ring) 24%, var(--board-bg));
       box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--undo-ring) 70%, transparent);
     }
-    .cell.tick-add,
-    .cell.tick-rem {
-      animation: none;
+    .cell.paint-committed::after {
+      transition: none;
     }
     .cell.undo-target::before {
       animation: none;

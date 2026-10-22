@@ -2,13 +2,13 @@
   import { onMount } from "svelte";
   import { FLY_MS, RETURN_MS, EASE_OUT, rubberBand, nextArmed, shouldLift } from "./game/pad.js";
   import { HOLD_MS, classifyPress, classifyRelease, nextLockArmed } from "./game/key-gesture.js";
+  import { finishPaint, discardPaint } from "./paint-actions.js";
   import { game } from "./game/game.svelte.js";
   import { padUi } from "./pad-ui.svelte.js";
   import { playUi } from "./play/session.svelte.js";
   import {
     activateKey,
     clearHideTimer,
-    clearHoldMarks,
     fillFocused,
     flashBlocked,
     lastKeyPress,
@@ -227,7 +227,7 @@
     } else if (press.show) {
       padUi.shown = d;
     }
-    padUi.hold = { d, pid: e.pointerId, travel: 0, toggled: 0 };
+    padUi.hold = { d, pid: e.pointerId, travel: 0, toggled: 0, painting: false };
     g.holdTimer = setTimeout(() => {
       if (gesture !== g || g.maxTravel >= 8) return;
       g.holding = true;
@@ -273,7 +273,7 @@
   /** @param {PointerEvent} e */
   function moveGesture(e) {
     const g = gesture;
-    if (!g) return;
+    if (!g || padUi.hold?.painting) return;
     const dx = e.clientX - g.startX;
     const up = g.startY - e.clientY;
     const down = e.clientY - g.startY;
@@ -400,7 +400,12 @@
     clearTimeout(g.holdTimer);
     padUi.preview = null;
     padUi.blocking = [];
-    const toggled = padUi.hold && padUi.hold.pid === g.id ? padUi.hold.toggled : 0;
+    const painting = !!padUi.hold?.painting;
+    const toggled = painting ? 1 : 0;
+    if (painting) {
+      if (cancelled) discardPaint();
+      else finishPaint();
+    }
     padUi.hold = null;
     padUi.gesture = null;
     if (g.key.hasPointerCapture?.(g.id)) g.key.releasePointerCapture(g.id);
@@ -410,8 +415,8 @@
       maxTravel: g.maxTravel,
       elapsed,
       toggled,
-      armLock: g.armLock,
-      armed: g.armed,
+      armLock: painting ? false : g.armLock,
+      armed: painting ? false : g.armed,
       dbl: g.dbl,
       legacy: g.legacy,
       d: g.d,
@@ -434,7 +439,6 @@
       unlockKeepShown();
     } else if (kind === "held") {
       dropLift(g);
-      clearHoldMarks();
       if (padUi.locked) padUi.shown = padUi.locked;
     } else if (kind === "swipe-up" && g.blockers.length) {
       if (g.lift) flyHome(g);
@@ -463,7 +467,6 @@
     }
 
     if (padUi.locked) padUi.shown = padUi.locked;
-    clearHoldMarks();
   }
 
   /** @param {PointerEvent} e */

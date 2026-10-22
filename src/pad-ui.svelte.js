@@ -28,6 +28,7 @@
  * @property {number} pid
  * @property {number} travel
  * @property {number} toggled
+ * @property {boolean} painting
  */
 
 export const padUi = $state({
@@ -50,14 +51,10 @@ export const padUi = $state({
   locked: 0,
   /** Toast over the board, or "". */
   toast: "",
-  /** Lock-tap ring still showing. @type {Record<number, 'add' | 'remove'>} */
-  ticks: {},
-  /** Removed candidate, struck through until its ring ends. @type {Record<number, number>} */
-  ghosts: {},
-  /** Two-finger rings, cleared on release. @type {Record<number, 'add' | 'remove'>} */
-  holds: {},
-  /** @type {Record<number, number>} */
-  holdGhosts: {},
+  /** @type {ReturnType<typeof import('./game/paint.js').strokeMarks> | null} */
+  marks: null,
+  finger: -1,
+  announcement: "",
   /** @type {KeyGestureView | null} */
   gesture: null,
   /** @type {KeyHold | null} */

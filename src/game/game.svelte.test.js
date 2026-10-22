@@ -391,3 +391,52 @@ describe("cue idle clock", () => {
     expect(play.phase).toBe("flash");
   });
 });
+
+describe("paint draft transactions", () => {
+  it("previews without history, discards exactly, and commits one step without merging an earlier edit", async () => {
+    const { createStroke, paintCell, strokeResult } = await import("./paint.js");
+    g.enter(2, 4);
+    const before = g.state;
+    const s = createStroke(before, 2);
+    paintCell(s, 0);
+    paintCell(s, 5);
+    g.previewStroke(s.state);
+    expect(g.hasNote(0, 2)).toBe(false);
+    g.previewStroke(null);
+    expect(g.state).toBe(before);
+    g.previewStroke(s.state);
+    g.commitStroke(strokeResult(s));
+    g.undo();
+    expect(g.state).toBe(before);
+    expect(g.value(2)).toBe(4);
+    g.undo();
+    expect(g.value(2)).toBe(0);
+  });
+
+  it("adds no history for an unchanged draft", () => {
+    const before = g.state;
+    g.previewStroke(before);
+    g.commitStroke(before);
+    expect(g.canUndo).toBe(false);
+  });
+});
+
+it("persists progress once per stroke and never saves a draft or discard", async () => {
+  const { vi } = await import("vitest");
+  const { createStroke, paintCell, strokeResult } = await import("./paint.js");
+  g.load(DEMO_PUZZLE, { dateStr: "2026-10-22", difficulty: "easy" });
+  timer.set(12);
+  const save = vi.spyOn(puzzleProgress, "save");
+  const s = createStroke(g.state, 2);
+  paintCell(s, 0);
+  g.previewStroke(s.state);
+  paintCell(s, 2);
+  g.previewStroke(s.state);
+  expect(save).not.toHaveBeenCalled();
+  g.previewStroke(null);
+  expect(save).not.toHaveBeenCalled();
+  g.previewStroke(s.state);
+  g.commitStroke(strokeResult(s));
+  expect(save).toHaveBeenCalledTimes(1);
+  save.mockRestore();
+});

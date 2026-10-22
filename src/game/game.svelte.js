@@ -70,7 +70,14 @@ export function createGame() {
     onActivity();
   }
 
-  const state = $derived(history.present);
+  /** @type {import("./game.js").GameState | null} */
+  let draft = $state(null);
+  const state = $derived(draft ?? history.present);
+
+  function prepareMutation() {
+    beforeMutate();
+    draft = null;
+  }
 
   /**
    * Cells that undo/redo would change, and the cell the ring should land on.
@@ -85,7 +92,7 @@ export function createGame() {
 
   /** @param {import('./game.js').ActionResult} result */
   function apply(result) {
-    beforeMutate();
+    prepareMutation();
     lastBlockers = result.blockers;
     if (!result.changed) return result;
     history = commit(history, result);
@@ -149,6 +156,23 @@ export function createGame() {
       return state.notesMode;
     },
 
+    /** Flush pending undo before taking the stroke baseline. */
+    beginStroke() {
+      prepareMutation();
+      return history.present;
+    },
+
+    /** Draft updates never write history or saved progress. @param {import('./game.js').GameState | null} next */
+    previewStroke(next) {
+      draft = next;
+    },
+
+    /** @param {import('./game.js').GameState} next */
+    commitStroke(next) {
+      draft = null;
+      return apply({ state: next, changed: next !== history.present, blockers: [] });
+    },
+
     /** Flush a pending undo/redo ring before the next mutation. @param {() => void} [fn] */
     setBeforeMutate(fn) {
       beforeMutate = fn ?? (() => {});
@@ -195,14 +219,14 @@ export function createGame() {
 
     /** Selection does not restart the cue. @param {number} i */
     select(i) {
-      beforeMutate();
+      prepareMutation();
       selected = i;
     },
 
     /** @param {import('./game.js').NotesMode} mode */
     setNotesMode(mode) {
-      beforeMutate();
-      const prev = state;
+      prepareMutation();
+      const prev = history.present;
       const next = changeNotesMode(prev, mode);
       history = replace(history, next);
       if (next !== prev) activity();
@@ -219,7 +243,7 @@ export function createGame() {
      * @param {number} i @param {number} [highlighted]
      */
     fillLone(i, highlighted = 0) {
-      return apply(fillLoneAction(state, i, highlighted));
+      return apply(fillLoneAction(history.present, i, highlighted));
     },
 
     /** @param {number} i @param {number} d */
@@ -240,7 +264,7 @@ export function createGame() {
 
     /** @param {number} i @param {number} d */
     enter(i, d) {
-      return apply(setAnswer(state, i, d));
+      return apply(setAnswer(history.present, i, d));
     },
 
     /**
@@ -250,7 +274,7 @@ export function createGame() {
      */
     fill(i, d) {
       if (state.answers[i] === d) return { state, changed: false, blockers: [] };
-      return apply(setAnswer(state, i, d));
+      return apply(setAnswer(history.present, i, d));
     },
 
     /**
@@ -261,8 +285,8 @@ export function createGame() {
      * @param {{ merge?: boolean }} [opts]
      */
     toggleNote(i, d, opts = {}) {
-      const result = toggleCandidate(state, i, d);
-      beforeMutate();
+      const result = toggleCandidate(history.present, i, d);
+      prepareMutation();
       lastBlockers = result.blockers;
       if (!result.changed) return result;
       history = opts.merge ? replace(history, result.state) : commit(history, result);
@@ -279,7 +303,7 @@ export function createGame() {
 
     /** @param {number} i */
     erase(i) {
-      return apply(erase(state, i));
+      return apply(erase(history.present, i));
     },
 
     /**
@@ -288,18 +312,18 @@ export function createGame() {
      * @param {number} i
      */
     clear(i) {
-      return apply(clearCell(state, i));
+      return apply(clearCell(history.present, i));
     },
 
     /** Typing 0: drop the answer only, keep note overrides. @param {number} i */
     clearAnswer(i) {
       const d = state.answers[i];
       if (!d) return { state, changed: false, blockers: [] };
-      return apply(setAnswer(state, i, d));
+      return apply(setAnswer(history.present, i, d));
     },
 
     undo() {
-      beforeMutate();
+      prepareMutation();
       if (!canUndo(history)) return;
       history = undoHistory(history);
       lastBlockers = [];
@@ -308,7 +332,7 @@ export function createGame() {
       activity();
     },
     redo() {
-      beforeMutate();
+      prepareMutation();
       if (!canRedo(history)) return;
       history = redoHistory(history);
       lastBlockers = [];
@@ -319,7 +343,7 @@ export function createGame() {
 
     /** Clear answers, notes and undo/redo. Keeps the puzzle and the notes mode. */
     restart() {
-      beforeMutate();
+      prepareMutation();
       const next = restartState(state);
       const changed = changedCells(state, next).length > 0;
       history = createHistory(next);
@@ -337,7 +361,7 @@ export function createGame() {
      * @param {LoadMeta & { snapshot?: import('./snapshot.js').Snapshot, elapsed?: number }} [info]
      */
     load(puzzle, info = {}) {
-      beforeMutate();
+      prepareMutation();
       persistProgress();
       if (info.snapshot) {
         history = createHistory(fromSnapshot(info.snapshot));
