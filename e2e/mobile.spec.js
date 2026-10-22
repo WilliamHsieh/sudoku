@@ -398,7 +398,7 @@ test.describe("pad", () => {
     await t.move(p.x, p.y - 12);
     await expect(k).toHaveClass(/pressed/);
     await expect(k).toHaveClass(/show-label/);
-    await expect(k.locator(".label")).toHaveText("+ candidate");
+    await expect(k.locator(".label:not(.bottom)")).toHaveText("+ candidate");
     await expect(pencil(page, 0, 3)).toHaveClass(/preview-add/);
     await expect(k).not.toHaveClass(/armed/);
 
@@ -433,7 +433,7 @@ test.describe("pad", () => {
     const p = await t.center(k);
     await t.start(p.x, p.y);
     await t.move(p.x, p.y - 40);
-    await expect(k.locator(".label")).toHaveText("Not allowed");
+    await expect(k.locator(".label:not(.bottom)")).toHaveText("Not allowed");
     await expect(k).toHaveClass(/illegal/);
     await expect(cell(page, 1)).toHaveClass(/blocking/);
     await t.end(p.x, p.y - 40);

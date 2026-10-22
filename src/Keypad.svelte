@@ -865,7 +865,7 @@
   }
   .coach li {
     display: grid;
-    grid-template-columns: 92px 1fr;
+    grid-template-columns: 96px 1fr;
     font-size: 13px;
     line-height: 1.35;
     color: var(--ui-soft);

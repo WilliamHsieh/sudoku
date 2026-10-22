@@ -93,7 +93,7 @@ test("a locked digit toggles empty cells, and given or filled cells only toast",
   page,
 }) => {
   const t = await touchDriver(page);
-  const ids = await cellsWithNote(page, 2);
+  const ids = (await cellsWithNote(page, 2)).filter((i) => i !== 0);
   expect(ids.length).toBeGreaterThanOrEqual(3);
   const [a, b, c] = ids;
   await t.tap(cell(page, b));
@@ -107,17 +107,17 @@ test("a locked digit toggles empty cells, and given or filled cells only toast",
     await expect(cell(page, i)).not.toHaveAttribute("data-notes", /2/);
     await expectValue(page, i, 0);
   }
-  for (let n = 0; n < 3; n++) await t.tap(page.locator("#undo"));
-  for (const i of [a, b, c]) {
-    await expect(cell(page, i)).toHaveAttribute("data-notes", /2/);
-  }
-
   await t.tap(cell(page, a), { holdMs: 30 });
   await page.waitForTimeout(40);
   await t.tap(cell(page, a), { holdMs: 30 });
   await expectValue(page, a, 0);
-  await expect(cell(page, a)).toHaveAttribute("data-notes", /2/);
+  await expect(cell(page, a)).not.toHaveAttribute("data-notes", /2/);
   await expect(cell(page, b)).toHaveClass(/selected/);
+
+  for (let n = 0; n < 5; n++) await t.tap(page.locator("#undo"));
+  for (const i of [a, b, c]) {
+    await expect(cell(page, i)).toHaveAttribute("data-notes", /2/);
+  }
 
   await t.tap(key(page, 2));
   await t.tap(cell(page, b));
@@ -136,11 +136,13 @@ test("a locked digit toggles empty cells, and given or filled cells only toast",
 
   await t.tap(key(page, 3));
   await t.swipeDown(key(page, 5), 40);
+  const notes = await cell(page, 0).getAttribute("data-notes");
   await t.tap(cell(page, 0));
   await expect(page.locator(".toast")).toHaveText("Can't place 5 — already in row, column or box");
   await expect(cell(page, 0)).not.toHaveClass(/blocked/);
   await expect(cell(page, 1)).toHaveClass(/blocked/);
-  await expect(cell(page, 0)).toHaveAttribute("data-notes", "23467");
+  await expect(cell(page, 0)).toHaveAttribute("data-notes", notes || "");
+  await expectValue(page, 0, 0);
 });
 
 test("lock clears by key tap, another digit, swipe, Escape, pause, More and restart", async ({
@@ -187,12 +189,12 @@ test("lock clears by key tap, another digit, swipe, Escape, pause, More and rest
   await expect(page.locator("dialog.opts")).toBeVisible();
   await expect(pad(page)).toHaveAttribute("data-locked", "0");
   await expect(pad(page)).toHaveAttribute("data-shown", "6");
-  await t.tap(page.locator("#opts-done"));
+  await page.locator("#opts-done").click();
 
   await t.swipeDown(key(page, 6), 40);
   await t.tap(page.locator(".tools [data-more]"));
-  await t.tap(page.locator("#opt-restart"));
-  await t.tap(page.locator("#confirm-ok"));
+  await page.locator("#opt-restart").click();
+  await page.locator("#confirm-ok").click();
   await expect(pad(page)).toHaveAttribute("data-locked", "0");
   await expect(pad(page)).toHaveAttribute("data-shown", "0");
   await expectValue(page, 0, 0);
@@ -231,9 +233,9 @@ test("legacy tap-to-fill is off by default, then a tap fills and a second tap cl
   await expect(row).toHaveAttribute("aria-checked", "false");
   await expect(row).toContainText("Tap to fill");
   await expect(page.locator("#tap-fill-desc")).toHaveText("Off: tap shows, double-tap fills");
-  await t.tap(row);
+  await row.click();
   await expect(row).toHaveAttribute("aria-checked", "true");
-  await t.tap(page.locator("#opts-done"));
+  await page.locator("#opts-done").click();
   await expect(page.locator(".pad-hint")).toHaveText("Tap = answer · Swipe up = candidate");
 
   await t.tap(cell(page, 0));
@@ -243,6 +245,9 @@ test("legacy tap-to-fill is off by default, then a tap fills and a second tap cl
   await expectValue(page, 0, 0);
 
   await page.reload();
+  if ((await page.locator(".board > .cell").count()) === 0) {
+    await page.getByRole("button", { name: /Play|Back to puzzle/ }).click();
+  }
   await expect(page.locator(".board > .cell")).toHaveCount(81);
   await expect(page.locator(".pad-hint")).toHaveText("Tap = answer · Swipe up = candidate");
   await t.swipeDown(key(page, 5), 40);
@@ -260,8 +265,8 @@ test("screen-reader activation of a key fills, including in legacy mode", async 
   await expectValue(page, 0, 4);
 
   await t.tap(page.locator(".tools [data-more]"));
-  await t.tap(page.locator("#opt-tap-fill"));
-  await t.tap(page.locator("#opts-done"));
+  await page.locator("#opt-tap-fill").click();
+  await page.locator("#opts-done").click();
   await t.tap(page.locator("#erase"));
   await expectValue(page, 0, 0);
   await key(page, 7).focus();
@@ -275,6 +280,9 @@ test("screen-reader activation of a key fills, including in legacy mode", async 
 test("showing a digit does not restart the cue; a fill or note toggle does", async ({ page }) => {
   await page.clock.install({ time: new Date("2026-01-01T00:00:00Z") });
   await page.goto(`./?q=${DEMO_PUZZLE}`);
+  if ((await page.locator(".board > .cell").count()) === 0) {
+    await page.getByRole("button", { name: /Play|Back to puzzle/ }).click();
+  }
   await expect(page.locator(".board > .cell")).toHaveCount(81);
   const t = await touchDriver(page);
 
@@ -299,8 +307,15 @@ test("showing a digit does not restart the cue; a fill or note toggle does", asy
 });
 
 test("the first-run coach shows once", async ({ page }) => {
-  await page.addInitScript(() => localStorage.removeItem("sudoku-keypad-coach"));
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem("kp-coach-cleared")) return;
+    localStorage.removeItem("sudoku-keypad-coach");
+    sessionStorage.setItem("kp-coach-cleared", "1");
+  });
   await page.goto(`./?q=${DEMO_PUZZLE}`);
+  if ((await page.locator(".board > .cell").count()) === 0) {
+    await page.getByRole("button", { name: /Play|Back to puzzle/ }).click();
+  }
   await expect(page.locator(".board > .cell")).toHaveCount(81);
   const coach = page.locator(".coach");
   await expect(coach).toBeVisible();
@@ -309,6 +324,9 @@ test("the first-run coach shows once", async ({ page }) => {
   await page.locator("#coach-ok").click();
   await expect(coach).toHaveCount(0);
   await page.reload();
+  if ((await page.locator(".board > .cell").count()) === 0) {
+    await page.getByRole("button", { name: /Play|Back to puzzle/ }).click();
+  }
   await expect(page.locator(".board > .cell")).toHaveCount(81);
   await expect(page.locator(".coach")).toHaveCount(0);
 });

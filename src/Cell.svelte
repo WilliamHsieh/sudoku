@@ -8,8 +8,9 @@
   import { getShiftHover } from "./shift-hover.svelte.js";
   import { lockTap, secondFingerToggle } from "./keypad-actions.js";
 
-  /** Touch pointerdowns also synthesize a click; ignore that click. */
-  let touchAt = 0;
+  /** Touch pointerdowns also synthesize a click; ignore that click.
+   * -Infinity so a mouse click in the first 700ms of the page is not swallowed. */
+  let touchAt = -Infinity;
 
   /** @type {{ cell_id: number }} */
   let { cell_id } = $props();
@@ -305,8 +306,13 @@
   }
 
   :global(html.kp-freeze) .cell.tick-add,
-  :global(html.kp-freeze) .cell.tick-rem {
+  :global(html.kp-freeze) .cell.tick-rem,
+  :global(html.kp-freeze) .cell.blocked {
     animation: none;
+  }
+  :global(html.kp-freeze) .cell.blocked {
+    background-color: color-mix(in srgb, var(--undo-ring) 24%, var(--board-bg));
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--undo-ring) 70%, transparent);
   }
 
   @media (prefers-reduced-motion: reduce) {

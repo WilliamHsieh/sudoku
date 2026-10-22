@@ -1,13 +1,14 @@
 // Desktop keyboard side of keypad r2. The pad itself is off-screen; Shift+digit,
 // Space and Escape still drive the lock.
 import { test, expect } from "@playwright/test";
-import { cell, openBoard, expectValue, expectShiftAgreement } from "./helpers.js";
+import { cell, openBoard, expectValue, expectShiftAgreement, moveToPencil } from "./helpers.js";
 
 test("Shift+digit locks without sticking shift-hover; Space toggles; digits still fill", async ({
   page,
 }) => {
   await openBoard(page);
   await cell(page, 0).click();
+  await moveToPencil(page, 0, 2);
   await page.keyboard.down("Shift");
   await expectShiftAgreement(page, { cell: 0, d: 2 });
 
