@@ -4,6 +4,7 @@ import { timerRunning } from "../store.js";
 import { createCueClock, idleMsFromSearch } from "./cue-clock.js";
 
 const CUE_KEY = "sudoku-cue";
+const TAP_FILL_KEY = "sudoku-tap-fill";
 
 /** @returns {boolean} */
 function readCuePref() {
@@ -15,6 +16,18 @@ function readCuePref() {
 function writeCuePref(on) {
   if (typeof localStorage === "undefined") return;
   localStorage.setItem(CUE_KEY, on ? "1" : "0");
+}
+
+/** Off unless the player turned legacy tap-to-fill on. @returns {boolean} */
+function readTapFill() {
+  if (typeof localStorage === "undefined") return false;
+  return localStorage.getItem(TAP_FILL_KEY) === "1";
+}
+
+/** @param {boolean} on */
+function writeTapFill(on) {
+  if (typeof localStorage === "undefined") return;
+  localStorage.setItem(TAP_FILL_KEY, on ? "1" : "0");
 }
 
 /**
@@ -42,6 +55,7 @@ export function createPlay(opts = {}) {
   let focus = $state("cue");
   const initialCue = readCuePref();
   let cuePref = $state(initialCue);
+  let tapFill = $state(readTapFill());
   let auto = $state(true);
   let reduced = $state(false);
   let solved = $state(false);
@@ -108,6 +122,10 @@ export function createPlay(opts = {}) {
     },
     get cuePref() {
       return cuePref;
+    },
+    /** Legacy tap-to-fill. Off by default. */
+    get tapFill() {
+      return tapFill;
     },
     get auto() {
       return auto;
@@ -181,6 +199,11 @@ export function createPlay(opts = {}) {
     setReduced(v) {
       reduced = !!v;
       clock.setReduced(reduced);
+    },
+
+    toggleTapFill() {
+      tapFill = !tapFill;
+      writeTapFill(tapFill);
     },
 
     toggleCue() {

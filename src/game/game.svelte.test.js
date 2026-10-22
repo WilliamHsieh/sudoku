@@ -266,6 +266,19 @@ describe("cue idle clock", () => {
     expect(n).toBe(11);
   });
 
+  it("folds a merged note toggle into the same undo step and still counts as activity", () => {
+    g.toggleNote(0, 2);
+    g.toggleNote(0, 3, { merge: true });
+    expect(g.hasNote(0, 2)).toBe(false);
+    expect(g.hasNote(0, 3)).toBe(false);
+    expect(n).toBe(2);
+    g.undo();
+    expect(g.hasNote(0, 2)).toBe(true);
+    expect(g.hasNote(0, 3)).toBe(true);
+    expect(g.canUndo).toBe(false);
+    expect(n).toBe(3);
+  });
+
   it("restarts for fillLone and for undo or redo that change state", () => {
     for (const d of [3, 4, 6, 7]) g.toggleNote(0, d);
     expect(g.noteCount(0)).toBe(1);

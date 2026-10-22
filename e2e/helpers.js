@@ -18,6 +18,9 @@ export const DEMO_PUZZLE =
   "050900000800040307000280190538607940020301000109804623907400000045000209000030070";
 
 export async function openBoard(page, path = "./") {
+  await page.addInitScript(() => {
+    localStorage.setItem("sudoku-keypad-coach", "1");
+  });
   const dest = path === "./" ? `./?q=${DEMO_PUZZLE}` : path;
   await page.goto(dest);
   const board = page.locator(".board > .cell");

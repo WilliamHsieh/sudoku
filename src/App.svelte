@@ -14,15 +14,29 @@
   import { ring } from "./ring.js";
   import { padUi } from "./pad-ui.svelte.js";
   import { installIosZoomGuards } from "./ios-zoom.js";
-  import { installShiftHover, isShiftAim } from "./shift-hover.svelte.js";
+  import { installShiftHover, isShiftAim, releaseShiftHover } from "./shift-hover.svelte.js";
+  import { digitFromCode } from "./game/key-gesture.js";
+  import {
+    clearToast,
+    lockDigit,
+    lockTap,
+    placedCount,
+    resetKeypad,
+    unlockKeepShown,
+  } from "./keypad-actions.js";
+  import { hintModel } from "./keypad-copy.js";
   import { playUi } from "./play/session.svelte.js";
   import { applyShot } from "./play/shot.js";
+  import { applyKeypadShot } from "./play/keypad-shot.js";
   import PausedCover from "./PausedCover.svelte";
   import OptionsSheet from "./OptionsSheet.svelte";
   import { onMount, tick } from "svelte";
 
   game.setOnActivity(() => playUi.noteActivity());
-  game.setOnLoad(() => playUi.resetForLoad());
+  game.setOnLoad(() => {
+    playUi.resetForLoad();
+    resetKeypad();
+  });
   playUi.bindLones(() => {
     if (game.notesMode !== "auto") return [];
     const ids = [];
@@ -69,6 +83,13 @@
   let wrapEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   let ringEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
 
+  /** A filled cell shows its digit. An empty cell leaves a keypad highlight up. */
+  function revealSelection(i) {
+    if (padUi.locked) return;
+    const v = game.value(i);
+    if (v) padUi.shown = v;
+  }
+
   function handleKeydown(e) {
     const cmd = e.ctrlKey || e.metaKey;
     // Only these chords are undo/redo. Ctrl/Alt/Meta+digit follows master and
@@ -96,18 +117,46 @@
       const d = parseInt(e.key, 10);
       if (d === 0) game.clearAnswer(id);
       else game.fill(id, d);
+      revealSelection(id);
     } else if (e.key == "ArrowLeft" && id % 9) {
       game.select(id - 1);
+      revealSelection(id - 1);
     } else if (e.key == "ArrowRight" && (id + 1) % 9) {
       game.select(id + 1);
+      revealSelection(id + 1);
     } else if (e.key == "ArrowUp" && id >= 9) {
       game.select(id - 9);
+      revealSelection(id - 9);
     } else if (e.key == "ArrowDown" && id + 9 < 81) {
       game.select(id + 9);
+      revealSelection(id + 9);
     } else {
       return;
     }
     e.preventDefault();
+  }
+
+  /** Shift+digit locks. Match `code`, because Shift turns the character into a symbol. */
+  function tryShiftLock(e) {
+    if (!e.shiftKey || e.ctrlKey || e.metaKey || e.altKey || e.repeat) return false;
+    const d = digitFromCode(e.code);
+    if (!d) return false;
+    e.preventDefault();
+    if (padUi.locked === d) unlockKeepShown();
+    else lockDigit(d);
+    releaseShiftHover();
+    return true;
+  }
+
+  /** Space or Enter toggles the locked digit in the selected cell, unless a control has focus. */
+  function tryLockedSpace(e) {
+    if (!padUi.locked || (e.key !== " " && e.key !== "Enter")) return false;
+    if (e.target instanceof Element && e.target.closest("button, a, input, textarea, select")) {
+      return false;
+    }
+    e.preventDefault();
+    if (game.selected >= 0) lockTap(game.selected);
+    return true;
   }
 
   function handleGlobalKeydown(e) {
@@ -120,11 +169,17 @@
       return;
     }
     if (playUi.paused) return;
-    if (e.key === "Escape" && $done) {
-      game.dismiss();
-    } else {
-      handleKeydown(e);
+    if (e.key === "Escape") {
+      if (padUi.locked) {
+        e.preventDefault();
+        unlockKeepShown();
+        return;
+      }
+      if ($done) game.dismiss();
+      return;
     }
+    if (tryShiftLock(e) || tryLockedSpace(e)) return;
+    handleKeydown(e);
   }
 
   function removeFocus() {
@@ -198,9 +253,16 @@
       if (playUi.pause()) focusAfterPause(true);
     };
     document.addEventListener("visibilitychange", onVis);
+    if (shotParams.has("freeze")) document.documentElement.classList.add("kp-freeze");
     const shot = shotParams.get("shot");
     if (shot) {
       applyShot(game, shot === "manual");
+      hasPlayed = true;
+      showCalendar = false;
+    }
+    const kp = shotParams.get("kp");
+    if (kp) {
+      applyKeypadShot(game, kp);
       hasPlayed = true;
       showCalendar = false;
     }
@@ -215,6 +277,24 @@
       stopShiftHover();
       window.removeEventListener("loadPuzzle", handleLoadPuzzle);
     };
+  });
+
+  const hint = $derived.by(() => {
+    const locked = padUi.locked;
+    const shown = locked || padUi.shown;
+    return hintModel({
+      legacy: playUi.tapFill,
+      locked,
+      shown: locked ? 0 : padUi.shown,
+      placed: placedCount(shown),
+    });
+  });
+
+  $effect(() => {
+    if (playUi.paused || playUi.modal) {
+      unlockKeepShown();
+      clearToast();
+    }
   });
 
   $effect(() => {
@@ -429,17 +509,33 @@
           <PausedCover showKey={!isNarrow} onresume={onResumeCover} />
         {/if}
         <div class="undo-ring" bind:this={ringEl} aria-hidden="true"></div>
+        {#if padUi.toast}
+          <p class="toast" role="status">{padUi.toast}</p>
+        {/if}
       </div>
       <div class="mobile-chrome">
         <div class="chrome-dim" class:dim={playUi.paused} inert={playUi.paused}>
           <Tools />
           <Keypad />
         </div>
-        <p class="pad-hint">Tap = answer · Swipe up = candidate</p>
+        <p class="pad-hint" aria-live="polite">
+          {#if hint.kind === "plain"}
+            {hint.text}
+          {:else}
+            <b>{hint.lead}</b>
+            {hint.rest}
+          {/if}
+        </p>
       </div>
     </div>
 
-    <OptionsSheet onclosed={focusMore} onrestart={() => game.restart()} />
+    <OptionsSheet
+      onclosed={focusMore}
+      onrestart={() => {
+        game.restart();
+        resetKeypad();
+      }}
+    />
 
     {#if $done}
       <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
@@ -558,6 +654,7 @@
     -webkit-user-select: none;
     user-select: none;
     touch-action: manipulation;
+    overscroll-behavior: none;
   }
 
   .undo-ring {
@@ -598,7 +695,36 @@
     margin: 0;
     text-align: center;
     font-size: 12px;
+    line-height: normal;
     color: var(--ui-soft);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .pad-hint b {
+    font-weight: 600;
+    color: var(--ui-ink);
+  }
+
+  .toast {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 12px;
+    background: var(--primary);
+    color: var(--on-accent);
+    font-family: var(--ui-font);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.3;
+    padding: 9px 14px;
+    border-radius: 10px;
+    box-shadow: var(--shadow-dialog);
+    white-space: nowrap;
+    z-index: 30;
+    pointer-events: none;
+    margin: 0;
   }
 
   .success-message {
@@ -701,6 +827,8 @@
     .board {
       grid-template-columns: repeat(9, minmax(0, 1fr));
       grid-template-rows: repeat(9, minmax(0, 1fr));
+      touch-action: none;
+      overscroll-behavior: none;
     }
 
     .board-wrap {

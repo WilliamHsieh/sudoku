@@ -21,9 +21,22 @@ export function installIosZoomGuards() {
 
   const board = document.querySelector(".board");
   const keypad = document.querySelector(".keypad");
+
+  /** A second finger on the board must not pinch-zoom. */
+  const preventPinch = (e) => {
+    if (e.touches.length >= 2) e.preventDefault();
+  };
+  /** Swipe-down on a key must not pull-to-refresh. */
+  const preventPadScroll = (e) => {
+    e.preventDefault();
+  };
+
   board?.addEventListener("touchend", preventSingleFinger, opts);
+  board?.addEventListener("touchstart", preventPinch, opts);
+  board?.addEventListener("touchmove", preventPinch, opts);
   keypad?.addEventListener("touchend", preventSingleFinger, opts);
   keypad?.addEventListener("touchstart", preventKeyStart, opts);
+  keypad?.addEventListener("touchmove", preventPadScroll, opts);
 
   let last = { t: -Infinity, x: 0, y: 0 };
   /** @param {TouchEvent} e */
@@ -41,8 +54,11 @@ export function installIosZoomGuards() {
 
   return () => {
     board?.removeEventListener("touchend", preventSingleFinger, opts);
+    board?.removeEventListener("touchstart", preventPinch, opts);
+    board?.removeEventListener("touchmove", preventPinch, opts);
     keypad?.removeEventListener("touchend", preventSingleFinger, opts);
     keypad?.removeEventListener("touchstart", preventKeyStart, opts);
+    keypad?.removeEventListener("touchmove", preventPadScroll, opts);
     document.removeEventListener("touchend", secondTap, opts);
   };
 }

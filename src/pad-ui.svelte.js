@@ -7,6 +7,29 @@
  * @typedef {{ cell: number, d: number } | null} PendingNote
  */
 
+/**
+ * @typedef {Object} KeyGestureView
+ * @property {number} d
+ * @property {boolean} pressed
+ * @property {boolean} holding
+ * @property {boolean} armed
+ * @property {boolean} armLock
+ * @property {boolean} remove
+ * @property {boolean} illegal
+ * @property {boolean} showLabel
+ * @property {string} label
+ * @property {string} bottom
+ */
+
+/**
+ * Second finger while a key is held.
+ * @typedef {Object} KeyHold
+ * @property {number} d
+ * @property {number} pid
+ * @property {number} travel
+ * @property {number} toggled
+ */
+
 export const padUi = $state({
   /** @type {{ i: number, t: number, hl: number }} */
   lastTap: { i: -1, t: -Infinity, hl: 0 },
@@ -21,4 +44,26 @@ export const padUi = $state({
   /** @type {number[]} */
   undoTargets: [],
   quiet: false,
+  /** Digit highlighted from the keypad or a filled cell. 0 = none. */
+  shown: 0,
+  /** Locked digit. 0 = none. Never persisted. */
+  locked: 0,
+  /** Toast over the board, or "". */
+  toast: "",
+  /** Lock-tap ring still showing. @type {Record<number, 'add' | 'remove'>} */
+  ticks: {},
+  /** Removed candidate, struck through until its ring ends. @type {Record<number, number>} */
+  ghosts: {},
+  /** Two-finger rings, cleared on release. @type {Record<number, 'add' | 'remove'>} */
+  holds: {},
+  /** @type {Record<number, number>} */
+  holdGhosts: {},
+  /** @type {KeyGestureView | null} */
+  gesture: null,
+  /** @type {KeyHold | null} */
+  hold: null,
+  /** First-run coach over the keypad. */
+  coach: false,
+  /** Digit whose glyph is hidden while it flies. 0 = none. */
+  lifted: 0,
 });

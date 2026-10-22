@@ -16,7 +16,10 @@ const T0 = new Date("2026-01-01T00:00:00Z");
  * @param {{ mobile?: boolean }} [opts]
  */
 async function openPlay(page) {
-  await page.addInitScript(() => localStorage.removeItem("sudoku-cue"));
+  await page.addInitScript(() => {
+    localStorage.removeItem("sudoku-cue");
+    localStorage.setItem("sudoku-keypad-coach", "1");
+  });
   await page.clock.install({ time: T0 });
   await page.goto(`./?q=${DEMO_PUZZLE}`);
   if ((await page.locator(".board > .cell").count()) === 0) {
