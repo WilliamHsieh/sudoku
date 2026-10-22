@@ -44,6 +44,14 @@ export function isShiftAim() {
   return shiftAim;
 }
 
+/**
+ * Shift+digit locks a keypad digit and must not leave the aim crosshair up.
+ * Releasing Shift still clears it, so this cannot stick the flag on.
+ */
+export function releaseShiftHover() {
+  shiftInput.down = false;
+}
+
 function readSlot(clientX, clientY) {
   const el = document.elementFromPoint(clientX, clientY);
   const cellEl = el instanceof Element ? el.closest(".cell") : null;

@@ -163,6 +163,14 @@ describe("play session", () => {
     expect(play.showsCue(2)).toBe(false);
   });
 
+  it("keeps legacy tap-to-fill off until the player turns it on", () => {
+    expect(play.tapFill).toBe(false);
+    play.toggleTapFill();
+    expect(play.tapFill).toBe(true);
+    play.toggleTapFill();
+    expect(play.tapFill).toBe(false);
+  });
+
   it("pauses on hide and does not auto-resume", () => {
     expect(get(timerRunning)).toBe(true);
     play.noteHidden();

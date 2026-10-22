@@ -151,7 +151,7 @@ test.describe("H2 header", () => {
     await openBoard(page);
     const t = await touchDriver(page);
     await t.tap(cell(page, 0));
-    await t.tap(key(page, 4));
+    await t.doubleTap(key(page, 4));
     await expectValue(page, 0, 4);
     const time = await page.locator(".timer2 b, .timer .time").innerText();
 
@@ -217,7 +217,7 @@ test.describe("pad", () => {
     const scrollW = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(scrollW).toBeLessThanOrEqual(390);
     expect(await page.locator(".board").evaluate((el) => getComputedStyle(el).touchAction)).toBe(
-      "manipulation"
+      "none"
     );
     const timer = await page.locator(".timer").boundingBox();
     expect(timer.height).toBe(30);
@@ -230,7 +230,7 @@ test.describe("pad", () => {
 
     await t.tap(cell(page, 1)); // given 5: same-digit chips
     await t.tap(cell(page, 0));
-    await t.tap(key(page, 5)); // conflict, notes still in peers
+    await t.doubleTap(key(page, 5)); // conflict, notes still in peers
     await expect(cell(page, 0).locator(".conflict")).toHaveCount(1);
     await expect(page.locator(".pencil-box.matching-number").first()).toBeVisible();
     const geo = await readChipGeometry(page);
@@ -263,7 +263,7 @@ test.describe("pad", () => {
   }) => {
     const t = await touchDriver(page);
     await t.tap(cell(page, 0));
-    await t.tap(key(page, 4));
+    await t.doubleTap(key(page, 4));
     const fonts = await readDigitFonts(page);
     expect(fonts.pad.family).toMatch(/Atkinson Hyperlegible/);
     expect(fonts.pad.weight).toBe("400");
@@ -275,22 +275,22 @@ test.describe("pad", () => {
     expect(fonts.atkinsonBold).toBe(0);
   });
 
-  test("tap on a key writes the answer; tapping the same key clears it", async ({ page }) => {
+  test("double-tap writes the answer and does not clear it", async ({ page }) => {
     const t = await touchDriver(page);
     await t.tap(cell(page, 0));
     await expect(cell(page, 0)).toHaveCSS("background-color", SELECTED_BG);
-    await t.tap(key(page, 4));
+    await t.doubleTap(key(page, 4));
     await expectValue(page, 0, 4);
-    await t.tap(key(page, 7));
+    await t.doubleTap(key(page, 7));
     await expectValue(page, 0, 7);
-    await t.tap(key(page, 7));
-    await expectValue(page, 0, 0);
+    await t.doubleTap(key(page, 7));
+    await expectValue(page, 0, 7);
   });
 
   test("a conflict on a same-digit given uses the pink conflict fill", async ({ page }) => {
     const t = await touchDriver(page);
     await t.tap(cell(page, 0));
-    await t.tap(key(page, 5));
+    await t.doubleTap(key(page, 5));
     await expect(cell(page, 1)).toHaveClass(/given/);
     await expect(cell(page, 1)).toHaveClass(/same/);
     await expect(cell(page, 1)).toHaveClass(/conflict/);
@@ -300,7 +300,7 @@ test.describe("pad", () => {
   test("every conflicting cell draws Combo C's 5×5 inset conflict dot", async ({ page }) => {
     const t = await touchDriver(page);
     await t.tap(cell(page, 0));
-    await t.tap(key(page, 5));
+    await t.doubleTap(key(page, 5));
     await expect(cell(page, 0)).toHaveClass(/conflict/);
     await expect(cell(page, 1)).toHaveClass(/given/);
     await expect(cell(page, 1)).toHaveClass(/conflict/);
@@ -353,11 +353,12 @@ test.describe("pad", () => {
     }
   });
 
-  test("tap does not overwrite a given", async ({ page }) => {
+  test("double-tap does not overwrite a given", async ({ page }) => {
     const t = await touchDriver(page);
     await t.tap(cell(page, 1));
-    await t.tap(key(page, 9));
+    await t.doubleTap(key(page, 9));
     await expectValue(page, 1, 5);
+    await expect(page.locator(".toast")).toHaveText("Given digits can't change");
   });
 
   test("Notes switch Auto/Manual; Manual starts empty and Auto restores computed notes", async ({
@@ -445,7 +446,7 @@ test.describe("pad", () => {
     await t.tap(cell(page, 0));
     await t.swipeUp(key(page, 2), 60);
     await expect(cell(page, 0)).toHaveAttribute("data-notes", "3467");
-    await t.tap(key(page, 4));
+    await t.doubleTap(key(page, 4));
     await expectValue(page, 0, 4);
     await t.tap(page.locator("#erase"));
     await expectValue(page, 0, 0);
@@ -457,7 +458,7 @@ test.describe("pad", () => {
   test("undo/redo: the ring travels, then the change applies", async ({ page }) => {
     const t = await touchDriver(page);
     await t.tap(cell(page, 0));
-    await t.tap(key(page, 4));
+    await t.doubleTap(key(page, 4));
     await expectValue(page, 0, 4);
     await t.tap(page.locator("#undo"));
     await expectValue(page, 0, 0);

@@ -1,5 +1,6 @@
 <script>
   import { playUi } from "./play/session.svelte.js";
+  import { OPT_TAP_SUB, OPT_TAP_TITLE } from "./keypad-copy.js";
 
   /** @type {{ onclosed?: () => void, onrestart: () => void }} */
   let { onclosed, onrestart } = $props();
@@ -154,6 +155,21 @@
           <small id="cue-why" hidden={!playUi.cueReason}
             >Needs Auto notes. Your choice is kept.</small
           >
+        </span>
+        <span class="switch" aria-hidden="true"><span class="knob"></span></span>
+      </button>
+      <button
+        type="button"
+        class="row"
+        id="opt-tap-fill"
+        role="switch"
+        aria-checked={playUi.tapFill}
+        aria-describedby="tap-fill-desc"
+        onclick={() => playUi.toggleTapFill()}
+      >
+        <span class="tx">
+          <b>{OPT_TAP_TITLE}</b>
+          <small id="tap-fill-desc">{OPT_TAP_SUB}</small>
         </span>
         <span class="switch" aria-hidden="true"><span class="knob"></span></span>
       </button>

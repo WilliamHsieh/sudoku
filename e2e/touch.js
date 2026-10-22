@@ -22,6 +22,15 @@ export async function touchDriver(page) {
       await send("touchEnd", p.x, p.y);
     },
 
+    /**
+     * Two presses inside the 300ms double-tap window (measured press to press).
+     */
+    async doubleTap(locator) {
+      await this.tap(locator, { holdMs: 30 });
+      await page.waitForTimeout(40);
+      await this.tap(locator, { holdMs: 30 });
+    },
+
     /** Drag upward by `dy` px in `steps`, optionally pausing before release. */
     async swipeUp(locator, dy, { steps = 12, stepMs = 16, holdMs = 60 } = {}) {
       const p = await center(locator);
@@ -32,6 +41,42 @@ export async function touchDriver(page) {
       }
       await page.waitForTimeout(holdMs);
       await send("touchEnd", p.x, p.y - dy);
+    },
+
+    /** Drag downward by `dy` px. Same pacing as {@link swipeUp}. */
+    async swipeDown(locator, dy, { steps = 12, stepMs = 16, holdMs = 60 } = {}) {
+      const p = await center(locator);
+      await send("touchStart", p.x, p.y);
+      for (let s = 1; s <= steps; s++) {
+        await page.waitForTimeout(stepMs);
+        await send("touchMove", p.x, p.y + (dy * s) / steps);
+      }
+      await page.waitForTimeout(holdMs);
+      await send("touchEnd", p.x, p.y + dy);
+    },
+
+    /**
+     * Hold `key` with one finger and tap each cell with a second finger.
+     * The first finger stays down until every tap has landed.
+     */
+    async holdAndTap(keyLocator, cellLocators, { beforeRelease } = {}) {
+      const k = await center(keyLocator);
+      const finger = { x: k.x, y: k.y, id: 1, radiusX: 6, radiusY: 6, force: 1 };
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [finger] });
+      await page.waitForTimeout(40);
+      for (const loc of cellLocators) {
+        const c = await center(loc);
+        const second = { x: c.x, y: c.y, id: 2, radiusX: 6, radiusY: 6, force: 1 };
+        await cdp.send("Input.dispatchTouchEvent", {
+          type: "touchStart",
+          touchPoints: [finger, second],
+        });
+        await page.waitForTimeout(40);
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [second] });
+        await page.waitForTimeout(40);
+      }
+      if (beforeRelease) await beforeRelease();
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     },
 
     start: (x, y) => send("touchStart", x, y),

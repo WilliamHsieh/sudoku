@@ -253,9 +253,28 @@ export function createGame() {
       return apply(setAnswer(state, i, d));
     },
 
-    /** @param {number} i @param {number} d */
-    toggleNote(i, d) {
-      return apply(toggleCandidate(state, i, d));
+    /**
+     * Toggle note d. `merge` folds the edit into the current undo step so one
+     * two-finger hold is a single undo. The first toggle of a hold must not merge.
+     * @param {number} i
+     * @param {number} d
+     * @param {{ merge?: boolean }} [opts]
+     */
+    toggleNote(i, d, opts = {}) {
+      const result = toggleCandidate(state, i, d);
+      beforeMutate();
+      lastBlockers = result.blockers;
+      if (!result.changed) return result;
+      history = opts.merge ? replace(history, result.state) : commit(history, result);
+      syncSolved();
+      persistProgress();
+      activity();
+      return result;
+    },
+
+    /** Drop undo and redo without changing the board. Shot presets only. */
+    discardHistory() {
+      history = createHistory(state);
     },
 
     /** @param {number} i */

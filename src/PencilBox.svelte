@@ -18,8 +18,13 @@
     const target = getShiftHover();
     return !!target && target.cell === cell_id && target.slot === idx;
   });
-  const focusedValue = $derived(game.selected === -1 ? 0 : game.value(game.selected));
-  const isMatchingNumber = $derived(focusedValue !== 0 && idx + 1 === focusedValue && visible);
+  const highlight = $derived(
+    padUi.locked || padUi.shown || (game.selected >= 0 ? game.value(game.selected) : 0)
+  );
+  const ghost = $derived(
+    !visible && (padUi.ghosts[cell_id] === idx + 1 || padUi.holdGhosts[cell_id] === idx + 1)
+  );
+  const isMatchingNumber = $derived(highlight !== 0 && idx + 1 === highlight && visible && !ghost);
   const isOnlyCandidate = $derived(
     game.value(cell_id) === 0 && visible && game.noteCount(cell_id) === 1
   );
@@ -55,7 +60,8 @@
 <div class="note-slot">
   <div
     class="pencil-box"
-    class:invisible={!visible && !previewAdd}
+    class:invisible={!visible && !previewAdd && !ghost}
+    class:ghost
     class:selected={isSelected}
     class:aim={isShiftSlot}
     class:matching-number={isMatchingNumber}
@@ -175,6 +181,13 @@
 
   .pencil-box.matching-number.selected {
     color: var(--chip-ink);
+  }
+
+  .pencil-box.ghost {
+    color: var(--conflict);
+    text-decoration: line-through;
+    text-decoration-thickness: 1.5px;
+    opacity: 0.8;
   }
 
   /* Single-candidate cue: 0.34-equivalent chip, same box as the match chip, 4px radius. */

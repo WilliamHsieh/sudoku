@@ -6,6 +6,10 @@
   import { nextDoubleTap } from "./game/pad.js";
   import { maskDigits } from "./game/board.js";
   import { getShiftHover } from "./shift-hover.svelte.js";
+  import { lockTap, secondFingerToggle } from "./keypad-actions.js";
+
+  /** Touch pointerdowns also synthesize a click; ignore that click. */
+  let touchAt = 0;
 
   /** @type {{ cell_id: number }} */
   let { cell_id } = $props();
@@ -16,8 +20,12 @@
   const value = $derived(game.value(cell_id));
   const given = $derived(game.given(cell_id));
   const selected = $derived(game.selected === cell_id);
-  const focusedValue = $derived(game.selected === -1 ? 0 : game.value(game.selected));
-  const same = $derived(value !== 0 && focusedValue === value);
+  const highlight = $derived(
+    padUi.locked || padUi.shown || (game.selected >= 0 ? game.value(game.selected) : 0)
+  );
+  const same = $derived(value !== 0 && highlight === value);
+  const tick = $derived(padUi.ticks[cell_id]);
+  const holdMark = $derived(padUi.holds[cell_id]);
   const conflict = $derived(game.inConflict(cell_id));
   const notes = $derived(maskDigits(game.notes(cell_id)).join(""));
   const blocking = $derived(padUi.blocking.includes(cell_id));
@@ -31,21 +39,44 @@
     }
   }
 
+  function revealFilled() {
+    if (padUi.locked) return;
+    const v = game.value(cell_id);
+    if (v) padUi.shown = v;
+  }
+
   function handleClick(e) {
+    if (performance.now() - touchAt < 700) return;
+    if (padUi.locked) {
+      lockTap(cell_id);
+      return;
+    }
     const target = getShiftHover();
     if (e.shiftKey && target && target.cell === cell_id) {
       game.enter(cell_id, target.d);
     }
     game.select(cell_id);
+    revealFilled();
   }
 
   /** Touch: select on pointerdown (no 300ms delay) and detect double-tap fill. */
   function handlePointerDown(e) {
     if (e.pointerType === "mouse" || (e.button !== undefined && e.button > 0)) return;
-    const highlighted = game.selected >= 0 ? game.value(game.selected) : 0;
+    touchAt = performance.now();
+    e.preventDefault();
+    if (padUi.hold && e.pointerId !== padUi.hold.pid) {
+      secondFingerToggle(cell_id);
+      return;
+    }
+    if (padUi.locked) {
+      lockTap(cell_id);
+      return;
+    }
+    const highlighted = padUi.shown || (game.selected >= 0 ? game.value(game.selected) : 0);
     const step = nextDoubleTap(padUi.lastTap, cell_id, performance.now(), highlighted);
     padUi.lastTap = step.next;
     game.select(cell_id);
+    revealFilled();
     if (step.isDouble) game.fillLone(cell_id, step.highlighted);
   }
 </script>
@@ -61,6 +92,10 @@
   class:blocking
   class:blocked
   class:undo-target={undoTarget}
+  class:tick-add={tick === "add"}
+  class:tick-rem={tick === "remove"}
+  class:t-add={holdMark === "add"}
+  class:t-rem={holdMark === "remove"}
   data-r={row}
   data-c={col}
   data-i={cell_id}
@@ -98,6 +133,8 @@
     background: var(--board-bg);
     color: var(--answer-ink);
     touch-action: manipulation;
+    -webkit-touch-callout: none;
+    user-select: none;
   }
 
   .cell[data-c="2"],
@@ -156,6 +193,31 @@
     animation: blocked 300ms ease-out;
   }
 
+  .cell.t-add,
+  .cell.tick-add,
+  .cell.t-rem,
+  .cell.tick-rem {
+    z-index: 2;
+  }
+  .cell.t-add,
+  .cell.tick-add {
+    box-shadow: inset 0 0 0 2px var(--sel-ring);
+  }
+  .cell.t-rem,
+  .cell.tick-rem {
+    box-shadow: inset 0 0 0 2px var(--conflict);
+  }
+  .cell.tick-add,
+  .cell.tick-rem {
+    animation: tick 700ms ease-out forwards;
+  }
+  .cell.tick-add {
+    --tick: var(--sel-ring);
+  }
+  .cell.tick-rem {
+    --tick: var(--conflict);
+  }
+
   .cell.undo-target {
     z-index: 3;
   }
@@ -169,6 +231,16 @@
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--undo-ring) 18%, transparent);
     pointer-events: none;
     animation: undo-target var(--ring-ms, 620ms) cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  @keyframes tick {
+    0%,
+    55% {
+      box-shadow: inset 0 0 0 2px var(--tick);
+    }
+    100% {
+      box-shadow: inset 0 0 0 2px transparent;
+    }
   }
 
   @keyframes blocked {
@@ -202,6 +274,8 @@
       min-width: 0;
       min-height: 0;
       overflow: hidden;
+      touch-action: none;
+      overscroll-behavior: none;
     }
 
     .candidate {
@@ -230,11 +304,20 @@
     }
   }
 
+  :global(html.kp-freeze) .cell.tick-add,
+  :global(html.kp-freeze) .cell.tick-rem {
+    animation: none;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .cell.blocked {
       animation: none;
       background-color: color-mix(in srgb, var(--undo-ring) 24%, var(--board-bg));
       box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--undo-ring) 70%, transparent);
+    }
+    .cell.tick-add,
+    .cell.tick-rem {
+      animation: none;
     }
     .cell.undo-target::before {
       animation: none;
