@@ -2,8 +2,19 @@
   import { onMount } from "svelte";
   import { timer } from "./store.js";
 
-  /** @type {{ showKey?: boolean, onresume: () => void }} */
-  let { showKey = false, onresume } = $props();
+  /** @type {{ showKey?: boolean, leaving?: boolean, onresume: () => void, onleft?: () => void, onopaque?: () => void }} */
+  let { showKey = false, leaving = false, onresume, onleft, onopaque } = $props();
+
+  /** @param {AnimationEvent} e */
+  function onAnimEnd(e) {
+    if (e.target !== e.currentTarget) return;
+    if (e.animationName.includes("cover-in")) {
+      if (!leaving) onopaque?.();
+      return;
+    }
+    if (!leaving || !e.animationName.includes("cover-out")) return;
+    onleft?.();
+  }
 
   onMount(() => {
     document.getElementById("resume")?.focus({ preventScroll: true });
@@ -16,7 +27,7 @@
   });
 </script>
 
-<div class="paused-cover">
+<div class={leaving ? "paused-leave" : "paused-cover"} onanimationend={onAnimEnd}>
   <p class="paused-kicker">Paused</p>
   <p class="paused-time" data-time>{label}</p>
   <p class="paused-line">The board is hidden and the clock is stopped.</p>
@@ -33,7 +44,8 @@
 </div>
 
 <style>
-  .paused-cover {
+  .paused-cover,
+  .paused-leave {
     position: absolute;
     inset: 0;
     z-index: 20;
@@ -47,6 +59,37 @@
     gap: 6px;
     text-align: center;
     padding: 24px;
+  }
+
+  .paused-cover {
+    animation: cover-in var(--motion) var(--ease-out);
+  }
+
+  @keyframes cover-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .paused-leave {
+    pointer-events: none;
+    animation: cover-out var(--motion) var(--ease-out) forwards;
+  }
+
+  @keyframes cover-out {
+    from {
+      opacity: 1;
+      transform: none;
+    }
+    to {
+      opacity: 0;
+      transform: translateY(8px);
+    }
   }
 
   .paused-kicker {
@@ -81,6 +124,29 @@
     margin: 10px 0 0;
   }
 
+  /* .board-slot is the size container. Below the 390×844 square (374px) the
+     time and the gaps shrink with the board; at 374px and above they stay
+     the phone sizes, so that screen does not move. */
+  @container (max-height: 373px) {
+    .paused-cover,
+    .paused-leave {
+      gap: calc(100cqh * 6 / 374);
+      padding: calc(100cqh * 24 / 374);
+    }
+
+    .paused-time {
+      font-size: calc(100cqh * 56 / 374);
+    }
+
+    .paused-line {
+      margin-bottom: calc(100cqh * 16 / 374);
+    }
+
+    .paused-kbd {
+      margin-top: calc(100cqh * 10 / 374);
+    }
+  }
+
   kbd {
     display: inline-block;
     min-width: 20px;
@@ -100,8 +166,10 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    flex: none;
     gap: 8px;
     height: 44px;
+    min-height: 44px;
     padding: 0 22px;
     border-radius: 10px;
     border: 0;
@@ -146,6 +214,35 @@
     }
     .paused-line {
       font-size: 15px;
+    }
+
+    /* Below the 1280×800 square (650px), same idea: 72px time and the
+       desktop gaps only while the board is that tall. */
+    @container (max-height: 649px) {
+      .paused-cover,
+      .paused-leave {
+        gap: calc(100cqh * 6 / 650);
+        padding: calc(100cqh * 24 / 650);
+      }
+
+      .paused-time {
+        font-size: calc(100cqh * 72 / 650);
+      }
+
+      .paused-line {
+        margin-bottom: calc(100cqh * 16 / 650);
+      }
+
+      .paused-kbd {
+        margin-top: calc(100cqh * 10 / 650);
+      }
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .paused-cover,
+    .paused-leave {
+      animation: none;
     }
   }
 </style>

@@ -185,7 +185,7 @@
   }
 
   .cell.blocked {
-    animation: blocked 300ms ease-out;
+    animation: blocked var(--motion) var(--ease-out);
   }
 
   .cell.paint-add::after,
@@ -249,7 +249,7 @@
     border-radius: 4px;
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--undo-ring) 18%, transparent);
     pointer-events: none;
-    animation: undo-target var(--ring-ms, 620ms) cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    animation: undo-target var(--ring-ms, 620ms) var(--ease-out) forwards;
   }
 
   @keyframes blocked {
