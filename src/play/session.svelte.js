@@ -54,6 +54,8 @@ export function createPlay(opts = {}) {
   const clock = createCueClock({ idleMs });
 
   let paused = $state(false);
+  /** True from hide until the page is visible again. Resume is refused. */
+  let pageHidden = false;
   /**
    * Why the game is paused. Manual wins: hiding the page does not
    * turn a chosen pause into an automatic one. Cleared on any resume.
@@ -328,17 +330,19 @@ export function createPlay(opts = {}) {
     },
 
     /**
+     * Refused while the page is hidden, so the clock cannot run off screen.
+     * The cover, the reason, and focus stay as they are.
      * @returns {boolean} whether the game was paused
      */
     resume() {
-      if (!paused) return false;
+      if (!paused || pageHidden) return false;
       unpause();
       return true;
     },
 
     /** @returns {'paused' | 'resumed' | 'ignored'} */
     toggle() {
-      if (modal) return "ignored";
+      if (modal || (paused && pageHidden)) return "ignored";
       return this.pause() ? "paused" : this.resume() ? "resumed" : "ignored";
     },
 
@@ -359,6 +363,7 @@ export function createPlay(opts = {}) {
      */
     noteHidden() {
       cancelReveal();
+      pageHidden = true;
       if (solved || paused) return false;
       paused = true;
       reason = "auto";
@@ -377,6 +382,7 @@ export function createPlay(opts = {}) {
      * @returns {'stayed' | 'quiet' | 'announced' | 'hold'}
      */
     noteVisible(awayMs, opts = {}) {
+      pageHidden = false;
       if (!paused || reason !== "auto") return "stayed";
       const silent = !!opts.silent;
       const short = awayMs < RESUME_SHORT_MS;

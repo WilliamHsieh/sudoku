@@ -560,6 +560,59 @@ export function registerPr6Tests(opts = {}) {
     await expect(page.locator(".timer .time")).toHaveText("0:03");
   });
 
+  test("Resume and P do nothing while the tab is hidden", async ({ page }) => {
+    await page.clock.runFor(2_000);
+    await expect(page.locator(".timer .time")).toHaveText("0:02");
+    await setTabHidden(page, true);
+    await expect(page.locator("#resume")).toBeFocused();
+    await page.keyboard.press("p");
+    await expect(page.locator("#resume")).toBeFocused();
+    await page.locator("#pause").click({ force: true });
+    await page.locator("#resume").click({ force: true });
+    await page.clock.runFor(3_000);
+    await expect(page.locator(".paused-cover")).toBeVisible();
+    await expect(page.locator(".play")).toHaveAttribute("data-pause-reason", "auto");
+    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator(".timer .time")).toHaveText("0:02");
+  });
+
+  test("a manual pause ignores Resume and P while the tab is hidden", async ({ page }) => {
+    await page.clock.runFor(2_000);
+    await page.keyboard.press("p");
+    await expect(page.locator(".play")).toHaveAttribute("data-pause-reason", "manual");
+    await expect(page.locator("#resume")).toBeFocused();
+    await expect(page.locator(".timer .time")).toHaveText("0:02");
+    await setTabHidden(page, true);
+    await page.keyboard.press("p");
+    await expect(page.locator("#resume")).toBeFocused();
+    await page.locator("#pause").click({ force: true });
+    await page.locator("#resume").click({ force: true });
+    await page.clock.runFor(3_000);
+    await expect(page.locator(".paused-cover")).toBeVisible();
+    await expect(page.locator(".play")).toHaveAttribute("data-pause-reason", "manual");
+    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator(".timer .time")).toHaveText("0:02");
+    await setTabHidden(page, false);
+    await expect(page.locator(".paused-cover")).toBeVisible();
+    await expect(page.locator("#resume-status")).toHaveText("");
+  });
+
+  test("hiding the tab clears a stale Resumed announcement", async ({ page }) => {
+    await page.clock.runFor(2_000);
+    await setTabHidden(page, true);
+    await page.clock.runFor(1_500);
+    await setTabHidden(page, false);
+    await page.clock.runFor(150 + 320);
+    await expect(page.locator("#resume-status")).toHaveText("Resumed");
+    await setTabHidden(page, true);
+    await expect(page.locator("#resume-status")).toHaveText("");
+    await page.clock.runFor(400);
+    await setTabHidden(page, false);
+    await expect(page.locator("#resume-status")).toHaveText("");
+    await expect(page.locator(".paused-cover")).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe("pause");
+  });
+
   test("a pointer auto-resume focuses Pause without the ring", async ({ page }) => {
     await cell(page, 0).click();
     await page.clock.runFor(2_000);

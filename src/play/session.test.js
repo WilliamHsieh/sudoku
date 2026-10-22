@@ -296,6 +296,44 @@ describe("play session", () => {
     expect(play.paused).toBe(false);
   });
 
+  it("ignores Resume and P while the page is hidden", () => {
+    expect(play.noteHidden()).toBe(true);
+    time = 4_000;
+    expect(play.resume()).toBe(false);
+    expect(play.toggle()).toBe("ignored");
+    expect(play.paused).toBe(true);
+    expect(play.reason).toBe("auto");
+    expect(play.resumePhase).toBe("idle");
+    expect(get(timerRunning)).toBe(false);
+    time = 9_000;
+    play.step();
+    expect(play.paused).toBe(true);
+    expect(play.reason).toBe("auto");
+    expect(get(timerRunning)).toBe(false);
+
+    expect(play.noteVisible(9_000)).toBe("hold");
+    expect(play.resume()).toBe(true);
+    expect(play.paused).toBe(false);
+    expect(get(timerRunning)).toBe(true);
+
+    expect(play.pause()).toBe(true);
+    expect(play.noteHidden()).toBe(false);
+    time = 15_000;
+    expect(play.resume()).toBe(false);
+    expect(play.toggle()).toBe("ignored");
+    expect(play.paused).toBe(true);
+    expect(play.reason).toBe("manual");
+    expect(get(timerRunning)).toBe(false);
+    time = 20_000;
+    play.step();
+    expect(play.paused).toBe(true);
+    expect(play.reason).toBe("manual");
+    expect(get(timerRunning)).toBe(false);
+    expect(play.noteVisible(5_000)).toBe("stayed");
+    expect(play.resume()).toBe(true);
+    expect(get(timerRunning)).toBe(true);
+  });
+
   it("resumes at once when Resume or P cancels the hold", () => {
     play.noteHidden();
     time = 2_000;

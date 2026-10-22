@@ -363,6 +363,7 @@
       const hidden = document.hidden || document.visibilityState === "hidden";
       if (hidden) {
         hiddenAt = Date.now();
+        resumeStatus = "";
         if (playUi.noteHidden()) void focusAfterPause(true);
         return;
       }
