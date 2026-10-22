@@ -580,7 +580,7 @@
       </h2>
       <ul>
         {#each COACH_ROWS as row (row.label)}
-          <li><b>{row.label}</b>{row.body}</li>
+          <li><b>{row.label}</b><span>{row.body}</span></li>
         {/each}
       </ul>
       <div class="acts">
@@ -879,6 +879,9 @@
     color: var(--ui-ink);
     font-weight: 600;
     white-space: nowrap;
+  }
+  .coach li span {
+    text-wrap: balance;
   }
   .coach .acts {
     display: flex;
