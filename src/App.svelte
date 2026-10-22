@@ -447,17 +447,40 @@
             </span>
           </button>
         {/if}
+        <!-- Lucide grid-3x3 and calendar. ISC License.
+             Copyright (c) 2026 Lucide Icons and Contributors. -->
         <nav class="mseg" aria-label="Views">
           <button
             type="button"
+            aria-label="Play"
+            title="Play"
             aria-current={!showCalendar ? "page" : undefined}
-            onclick={onViewPlay}>Play</button
+            onclick={onViewPlay}
           >
+            <svg class="mseg-ic" viewBox="0 0 24 24" aria-hidden="true">
+              <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+              <path d="M3 9h18"></path>
+              <path d="M3 15h18"></path>
+              <path d="M9 3v18"></path>
+              <path d="M15 3v18"></path>
+            </svg>
+            <span class="mseg-label">Play</span>
+          </button>
           <button
             type="button"
+            aria-label="Journal"
+            title="Journal"
             aria-current={showCalendar ? "page" : undefined}
-            onclick={onViewJournal}>Journal</button
+            onclick={onViewJournal}
           >
+            <svg class="mseg-ic" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M8 2v3"></path>
+              <path d="M16 2v3"></path>
+              <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+              <path d="M3 9h18"></path>
+            </svg>
+            <span class="mseg-label">Journal</span>
+          </button>
         </nav>
       </div>
     </header>
@@ -995,8 +1018,72 @@
     .mseg button:active:not([aria-current]) {
       color: var(--ink);
     }
+    /* Icons stay out of the text segments until the container step below. */
+    .mseg-ic {
+      display: none;
+      width: 16px;
+      height: 16px;
+      flex: none;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
     main > .hd {
       margin: -3px -8px -7px;
+    }
+
+    /* Widths under 390. Padding and the segment inset shrink with the viewport,
+       floored at 8px and 10px. 1ch is the 13px/600 segment zero, so a wider face
+       crosses each step sooner. The threshold is the content box that still
+       leaves 8px between the brand and a timer reserved for 999:59:
+       8px gap + 39px timer chrome + 6 × 14.4/13 ch + 44px pause + 4px track gap
+       + 50px track chrome + 20.9ch of "Sudoku"+"Play"+"Journal". */
+    @media (max-width: 389px) {
+      .hd {
+        container-type: inline-size;
+        container-name: hd;
+        position: relative;
+        font-size: 13px;
+        font-weight: 600;
+        padding-inline: clamp(8px, calc(8px + (100vw - 320px) * 8 / 69), 16px);
+      }
+      .hd-r {
+        margin-left: auto;
+      }
+      .mseg button {
+        padding-inline: clamp(10px, calc(10px + (100vw - 320px) / 69), 11px);
+      }
+      @container hd (max-width: calc(145px + 27.6 * 1ch)) {
+        .hd-brand {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          padding: 0;
+          margin: -1px;
+          overflow: hidden;
+          clip: rect(0, 0, 0, 0);
+          clip-path: inset(50%);
+          white-space: nowrap;
+          border: 0;
+        }
+      }
+      /* Text segments still overflow this content box: icon faces, equal boxes. */
+      @container hd (max-width: calc(137px + 16.7 * 1ch)) {
+        .mseg-ic {
+          display: block;
+        }
+        .mseg-label {
+          display: none;
+        }
+        .mseg button {
+          display: grid;
+          place-items: center;
+          width: 36px;
+          padding-inline: 0;
+        }
+      }
     }
 
     main.on-journal {

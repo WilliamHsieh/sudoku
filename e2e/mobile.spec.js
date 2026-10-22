@@ -245,6 +245,142 @@ test.describe("H2 header", () => {
   });
 });
 
+test.describe("narrow header", () => {
+  const widths = [320, 360, 375, 390];
+
+  async function headerState(page) {
+    return page.evaluate(() => {
+      const box = (el) => {
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return { x: r.x, y: r.y, w: r.width, h: r.height, right: r.right };
+      };
+      const hd = document.querySelector(".hd");
+      const brand = document.querySelector(".hd-brand");
+      const nav = document.querySelector(".mseg");
+      const timer = document.querySelector(".timer2");
+      const time = document.querySelector(".timer2 b");
+      const pause = document.querySelector("#pause");
+      const buttons = [...document.querySelectorAll(".mseg button")];
+      const brandCs = getComputedStyle(brand);
+      const brandHidden = brandCs.position === "absolute";
+      const labels = [...document.querySelectorAll(".mseg-label")];
+      const icons = labels.length > 0 && getComputedStyle(labels[0]).display === "none";
+      const trunc = (el) =>
+        !el || getComputedStyle(el).display === "none"
+          ? null
+          : { sw: el.scrollWidth, cw: el.clientWidth };
+      const hits = buttons.map((el) => {
+        const r = el.getBoundingClientRect();
+        const after = getComputedStyle(el, "::after");
+        return r.height - parseFloat(after.top) - parseFloat(after.bottom);
+      });
+      return {
+        vw: document.documentElement.clientWidth,
+        scrollW: document.documentElement.scrollWidth,
+        padL: parseFloat(getComputedStyle(hd).paddingLeft),
+        padR: parseFloat(getComputedStyle(hd).paddingRight),
+        brandDisplay: brandCs.display,
+        brandHidden,
+        icons,
+        brand: brandHidden ? null : box(brand),
+        nav: box(nav),
+        timer: box(timer),
+        time: box(time),
+        pause: box(pause),
+        buttons: buttons.map(box),
+        hits,
+        trunc: [
+          brandHidden ? null : trunc(brand),
+          trunc(time),
+          ...labels.map(trunc),
+          ...buttons.map(trunc),
+        ],
+      };
+    });
+  }
+
+  function assertFit(state, width, view) {
+    const where = `${view} @ ${width}`;
+    expect(state.scrollW, `${where} scrolls horizontally`).toBeLessThanOrEqual(state.vw + 0.5);
+    expect(state.padL, `${where} padding-left`).toBeGreaterThanOrEqual(8 - 0.5);
+    expect(state.padR, `${where} padding-right`).toBeGreaterThanOrEqual(8 - 0.5);
+    expect(state.brandDisplay, `${where} brand display`).not.toBe("none");
+    expect(state.nav.right, `${where} track past the viewport`).toBeLessThanOrEqual(state.vw + 0.5);
+    expect(state.nav.x, `${where} track left`).toBeGreaterThanOrEqual(-0.5);
+    near(state.nav.right, state.vw - state.padR, `${where} track right edge`);
+    expect(state.nav.y, `${where} track in the header`).toBeGreaterThanOrEqual(0);
+    expect(state.nav.y + state.nav.h, `${where} track below the header`).toBeLessThanOrEqual(49);
+    for (const hit of state.hits) expect(hit, `${where} segment hit`).toBeGreaterThanOrEqual(44);
+    for (const t of state.trunc) {
+      if (!t) continue;
+      expect(t.sw, `${where} truncated text`).toBeLessThanOrEqual(t.cw + 1);
+    }
+    const boxes = [state.nav, state.timer, state.pause, state.brand].filter(Boolean);
+    for (const b of boxes) {
+      expect(b.x, `${where} left overflow`).toBeGreaterThanOrEqual(-0.5);
+      expect(b.right, `${where} right overflow`).toBeLessThanOrEqual(state.vw + 0.5);
+    }
+    if (state.brand && state.timer) {
+      expect(state.timer.x - state.brand.right, `${where} brand to timer`).toBeGreaterThanOrEqual(
+        8 - 0.5
+      );
+    }
+    if (state.brand && !state.timer) {
+      expect(state.nav.x - state.brand.right, `${where} brand to switch`).toBeGreaterThanOrEqual(
+        8 - 0.5
+      );
+    }
+    if (state.icons) {
+      near(state.buttons[0].w, state.buttons[1].w, `${where} icon segment width`);
+      near(state.buttons[0].h, state.buttons[1].h, `${where} icon segment height`);
+    }
+  }
+
+  for (const width of widths) {
+    test(`Play and Journal fit at ${width} with a reserved timer`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 });
+      /** @type {Record<number, { play: Awaited<ReturnType<typeof headerState>>, journal: Awaited<ReturnType<typeof headerState>> }>} */
+      const shots = {};
+      for (const elapsed of [0, 3725, 59999]) {
+        await page.goto(`./?elapsed=${elapsed}&freeze`);
+        await page.getByRole("button", { name: "Play", exact: true }).click();
+        await expect(page.locator(".board > .cell")).toHaveCount(81);
+        const label = elapsed === 0 ? "0:00" : elapsed === 3725 ? "62:05" : "999:59";
+        await expect(page.locator(".timer2 b")).toHaveText(label);
+        const play = await headerState(page);
+        assertFit(play, width, "Play");
+        if (play.icons) {
+          await expect(page.getByRole("button", { name: "Play", exact: true })).toHaveAttribute(
+            "title",
+            "Play"
+          );
+          await expect(page.getByRole("button", { name: "Journal", exact: true })).toHaveAttribute(
+            "title",
+            "Journal"
+          );
+        }
+        await page.getByRole("button", { name: "Journal", exact: true }).click();
+        await expect(page.locator(".journal")).toBeVisible();
+        await expect(page.getByRole("heading", { name: "Sudoku" })).toBeAttached();
+        const journal = await headerState(page);
+        assertFit(journal, width, "Journal");
+        nearRect(journal.nav, play.nav, `${width} switch Play vs Journal at ${label}`);
+        expect(journal.icons, `${width} icon step`).toBe(play.icons);
+        expect(journal.brandHidden, `${width} brand step`).toBe(play.brandHidden);
+        shots[elapsed] = { play, journal };
+      }
+      nearRect(shots[59999].play.nav, shots[0].play.nav, `${width} switch 0:00 vs 999:59`);
+      nearRect(shots[59999].journal.nav, shots[0].journal.nav, `${width} journal switch stable`);
+      expect(shots[59999].play.icons).toBe(shots[0].play.icons);
+      expect(shots[59999].play.brandHidden).toBe(shots[0].play.brandHidden);
+      if (width <= 389) {
+        near(shots[59999].play.timer.w, shots[0].play.timer.w, `${width} timer slot`);
+      }
+    });
+  }
+});
+
 test.describe("pad", () => {
   test.beforeEach(async ({ page }) => {
     await openBoard(page);

@@ -3,7 +3,10 @@
   import { done, timer, timerRunning } from "./store";
 
   onMount(() => {
-    const frozen = new URLSearchParams(window.location.search).has("freeze");
+    const params = new URLSearchParams(window.location.search);
+    const elapsed = params.get("elapsed");
+    if (elapsed && /^\d+$/.test(elapsed)) timer.set(Number(elapsed));
+    const frozen = params.has("freeze");
     const interval = setInterval(() => {
       if (frozen || !$timerRunning || $done) return;
       timer.update((t) => t + 1);
@@ -89,6 +92,14 @@
       font-variant-numeric: tabular-nums;
       line-height: 1;
       min-width: 0;
+    }
+  }
+
+  /* Reserve "999:59" below 390. 6ch is six tabular zeros; the colon is narrower,
+     so the slot does not grow as the clock ticks and 390/desktop stay on content width. */
+  @media (max-width: 389px) {
+    .timer2 b {
+      min-width: 6ch;
     }
   }
 </style>
