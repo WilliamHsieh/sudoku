@@ -96,6 +96,7 @@ it("computes net marks against the baseline and returns it by identity for a net
   s.state = toggleCandidate(s.state, 0, 5).state;
   expect(strokeMarks(s).add.size).toBe(0);
   expect(strokeMarks(s).rem.size).toBe(0);
+  expect(strokeAnnouncement(s)).toBe("");
   expect(strokeResult(s)).toBe(before);
   const h = createHistory(before);
   expect(commit(h, strokeResult(s))).toBe(h);

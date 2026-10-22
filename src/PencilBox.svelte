@@ -3,6 +3,7 @@
   import { padUi } from "./pad-ui.svelte.js";
   import { getShiftHover } from "./shift-hover.svelte.js";
   import { playUi } from "./play/session.svelte.js";
+  import { focusedDigit, revealCellDigit } from "./keypad-actions.js";
 
   /**
    * @typedef {Object} Props
@@ -18,9 +19,7 @@
     const target = getShiftHover();
     return !!target && target.cell === cell_id && target.slot === idx;
   });
-  const highlight = $derived(
-    padUi.locked || padUi.shown || (game.selected >= 0 ? game.value(game.selected) : 0)
-  );
+  const highlight = $derived(focusedDigit());
   const added = $derived(padUi.marks?.d === idx + 1 && padUi.marks.add.has(cell_id));
   const ghost = $derived(!visible && padUi.marks?.d === idx + 1 && padUi.marks.rem.has(cell_id));
   const fading = $derived(padUi.marks?.phase === "fade");
@@ -50,6 +49,7 @@
         game.enter(cell_id, target.d);
       }
       game.select(cell_id);
+      revealCellDigit(cell_id);
       return;
     }
     if (game.selected == cell_id) {

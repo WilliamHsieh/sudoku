@@ -246,16 +246,21 @@ export function setNotesMode(state, mode) {
 }
 
 /**
- * The digit a fill gesture (double-tap) would enter in cell i, or 0. Auto mode
- * only: the highlighted digit if it is one of the cell's shown candidates,
- * otherwise the cell's lone candidate.
- * @param {GameState} state @param {number} i @param {number} [highlighted] digit highlighted before the gesture, 0 for none
+ * The digit a fill gesture (double-tap) would enter in cell i, or 0. Uses
+ * shown Manual notes or Auto candidates, including overrides. A cell with
+ * exactly one shown candidate takes that candidate, even
+ * when a different digit is focused. Otherwise a focused digit is entered,
+ * including when it is not a shown candidate. With nothing focused and no
+ * lone candidate, nothing is entered. Givens and cells that already hold a
+ * digit are left alone.
+ * @param {GameState} state @param {number} i @param {number} [highlighted] digit focused before the gesture, 0 for none
  */
 export function fillDigit(state, i, highlighted = 0) {
-  if (state.notesMode !== "auto" || !isEditable(state, i) || state.answers[i]) return 0;
+  if (!isEditable(state, i) || state.answers[i]) return 0;
   const cand = candidates(state, i);
-  if (isDigit(highlighted) && cand & bit(highlighted)) return highlighted;
-  return popcount(cand) === 1 ? maskDigits(cand)[0] : 0;
+  if (popcount(cand) === 1) return maskDigits(cand)[0];
+  if (isDigit(highlighted)) return highlighted;
+  return 0;
 }
 
 /**
