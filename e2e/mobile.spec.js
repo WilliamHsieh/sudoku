@@ -305,7 +305,13 @@ test.describe("narrow header", () => {
           brandHidden ? null : trunc(brand),
           trunc(time),
           ...labels.map(trunc),
-          ...buttons.map(trunc),
+          // Icon faces are 36px on purpose. The 44px hit is an absolute ::after,
+          // and that extension is not truncated text.
+          ...buttons.map((el) => {
+            const label = el.querySelector(".mseg-label");
+            if (label && getComputedStyle(label).display === "none") return null;
+            return trunc(el);
+          }),
         ],
       };
     });
