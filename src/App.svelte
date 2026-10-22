@@ -1,4 +1,5 @@
 <script>
+  import { paintBoard, discardPaint } from "./paint-actions.js";
   import Api from "./Api.svelte";
   import Cell from "./Cell.svelte";
   import Timer from "./Timer.svelte";
@@ -188,6 +189,10 @@
     }
     if (playUi.paused) return;
     if (e.key === "Escape") {
+      if (discardPaint()) {
+        e.preventDefault();
+        return;
+      }
       if (padUi.locked) {
         e.preventDefault();
         unlockKeepShown();
@@ -268,7 +273,10 @@
       isNarrow = mq.matches;
     };
     mq.addEventListener("change", onNarrow);
-    game.setBeforeMutate(() => ring.flush());
+    game.setBeforeMutate(() => {
+      discardPaint();
+      ring.flush();
+    });
     window.addEventListener("loadPuzzle", handleLoadPuzzle);
     const stopShiftHover = installShiftHover();
     const reduceMq = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -321,6 +329,7 @@
 
   $effect(() => {
     if (playUi.paused || playUi.modal) {
+      discardPaint();
       unlockKeepShown();
       clearToast();
     }
@@ -558,8 +567,12 @@
     <Journal />
   {:else}
     <div class="play" class:is-paused={playUi.paused}>
+      <p class="sr-only" aria-live="polite" aria-atomic="true">
+        {#key padUi.commitId}<span>{padUi.announcement}</span>{/key}
+      </p>
       <div class="board-wrap" bind:this={wrapEl}>
         <div
+          use:paintBoard
           class="board"
           class:quiet={padUi.quiet}
           class:shift-aim={isShiftAim()}
@@ -618,6 +631,14 @@
 </main>
 
 <style>
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
   main {
     width: 100%;
     min-height: 100vh;
@@ -757,7 +778,7 @@
   .board.quiet :global(.cell.same.given:not(.conflict)) {
     background: var(--given-bg);
   }
-  .board.quiet :global(.pencil-box.matching-number:not(.cue)) {
+  .board.quiet :global(.pencil-box.matching-number:not(.cue, .paint-added)) {
     color: var(--cand);
     background: transparent;
     box-shadow: none;

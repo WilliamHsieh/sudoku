@@ -6,7 +6,7 @@
 export const HINT_IDLE = "Tap = show · Double-tap = fill · Swipe ↑ candidate, ↓ lock";
 export const HINT_LEGACY = "Tap = answer · Swipe up = candidate";
 
-export const LABEL_HOLD = "Tap cells: candidate";
+export const LABEL_HOLD = "Tap or slide cells";
 export const LABEL_LOCK = "Release: lock";
 export const LABEL_UNLOCK = "Release: unlock";
 
@@ -19,7 +19,7 @@ export const COACH_OK = "Got it";
 export const COACH_ROWS = [
   { label: "Tap", body: "Highlights this digit and its candidates" },
   { label: "Double-tap", body: "Fills the selected cell" },
-  { label: "Swipe down", body: "Locks it; tap empty cells to toggle candidates" },
+  { label: "Swipe down", body: "Locks it; tap or slide across empty cells to toggle candidates" },
 ];
 
 /** @param {number} d */
@@ -31,7 +31,7 @@ export const TOAST_GIVEN = "Given digits can't change";
 
 /** @param {number} d */
 export const ariaLocked = (d) =>
-  `Digit ${d}, locked: tap empty cells to toggle, tap again to unlock`;
+  `Digit ${d}, locked: tap or slide across empty cells to toggle, tap again to unlock`;
 /** @param {number} d */
 export const ariaShow = (d) => `Digit ${d}: tap to show, double-tap to fill`;
 /** @param {number} d */
@@ -48,7 +48,7 @@ export function hintModel(s) {
     return {
       kind: "rich",
       lead: `${s.locked} locked`,
-      rest: `· Tap empty cells to toggle · Tap ${s.locked} to unlock`,
+      rest: `· Tap or slide across cells · Tap ${s.locked} to unlock`,
     };
   }
   if (s.legacy) return { kind: "plain", text: HINT_LEGACY };

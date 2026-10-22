@@ -104,16 +104,14 @@ export function applyKeypadShot(game, name) {
     const b = firstWith(game, 5, (cell) => cell !== a && boxOf(cell) === boxOf(a));
     if (a >= 0) game.toggleNote(a, 5);
     if (b >= 0) game.toggleNote(b, 5);
-    padUi.ticks = {};
-    padUi.ghosts = {};
-    if (a >= 0) {
-      padUi.ticks[a] = "remove";
-      padUi.ghosts[a] = 5;
-    }
-    if (b >= 0) {
-      padUi.ticks[b] = "remove";
-      padUi.ghosts[b] = 5;
-    }
+    padUi.marks = {
+      d: 5,
+      add: new Set(),
+      rem: new Set([a, b].filter((i) => i >= 0)),
+      tint: new Set([a, b].filter((i) => i >= 0)),
+      brush: "remove",
+      phase: "live",
+    };
     if (name === "locked-hint") showToast(toastLockedCell(5), true);
     if (name === "locked-blocked") {
       const blockers = game.noteBlockers(4, 5);
@@ -129,20 +127,14 @@ export function applyKeypadShot(game, name) {
     const b = firstWith(game, 5, (cell) => cell !== a && boxOf(cell) === boxOf(a));
     if (a >= 0) game.toggleNote(a, 5);
     if (b >= 0) game.toggleNote(b, 5, { merge: true });
-    /** @type {Record<number, 'add' | 'remove'>} */
-    const holds = {};
-    /** @type {Record<number, number>} */
-    const ghosts = {};
-    if (a >= 0) {
-      holds[a] = "remove";
-      ghosts[a] = 5;
-    }
-    if (b >= 0) {
-      holds[b] = "remove";
-      ghosts[b] = 5;
-    }
-    padUi.holds = holds;
-    padUi.holdGhosts = ghosts;
+    padUi.marks = {
+      d: 5,
+      add: new Set(),
+      rem: new Set([a, b].filter((i) => i >= 0)),
+      tint: new Set([a, b].filter((i) => i >= 0)),
+      brush: "remove",
+      phase: "live",
+    };
     padUi.gesture = {
       d: 5,
       pressed: true,

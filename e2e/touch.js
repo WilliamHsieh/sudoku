@@ -82,6 +82,13 @@ export async function touchDriver(page) {
       await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     },
 
+    // CDP touchEnd lists the contacts being released (empty releases all).
+    contacts: (type, points) =>
+      cdp.send("Input.dispatchTouchEvent", {
+        type,
+        touchPoints: points.map((p) => ({ ...p, radiusX: 6, radiusY: 6, force: 1 })),
+      }),
+    cancel: () => cdp.send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] }),
     start: (x, y) => send("touchStart", x, y),
     move: (x, y) => send("touchMove", x, y),
     end: (x, y) => send("touchEnd", x, y),

@@ -137,10 +137,12 @@ test("a locked digit toggles empty cells, and given or filled cells only toast",
   await t.tap(key(page, 3));
   await t.swipeDown(key(page, 5), 40);
   const notes = await cell(page, 0).getAttribute("data-notes");
-  await t.tap(cell(page, 0));
+  const first = await t.center(cell(page, 0));
+  await t.start(first.x, first.y);
+  await expect(cell(page, 1)).toHaveClass(/blocked/);
   await expect(page.locator(".toast")).toHaveText("Can't place 5 — already in row, column or box");
   await expect(cell(page, 0)).not.toHaveClass(/blocked/);
-  await expect(cell(page, 1)).toHaveClass(/blocked/);
+  await t.end(first.x, first.y);
   await expect(cell(page, 0)).toHaveAttribute("data-notes", notes || "");
   await expectValue(page, 0, 0);
 });
@@ -208,7 +210,7 @@ test("a second finger toggles only after the key is held 250 ms", async ({ page 
   const notes = await cell(page, a).getAttribute("data-notes");
 
   await t.holdAndTap(key(page, 2), [cell(page, a)], {
-    holdMs: 100,
+    holdMs: 0,
     afterHold: async () => {
       await expect(key(page, 2)).not.toHaveClass(/holding/);
     },
@@ -234,7 +236,7 @@ test("two-finger hold toggles candidates as one undo step", async ({ page }) => 
   await t.holdAndTap(key(page, 2), [cell(page, a), cell(page, b)], {
     beforeRelease: async () => {
       await expect(key(page, 2)).toHaveClass(/holding/);
-      await expect(key(page, 2).locator(".label:not(.bottom)")).toHaveText("Tap cells: candidate");
+      await expect(key(page, 2).locator(".label:not(.bottom)")).toHaveText("Tap or slide cells");
     },
   });
   await expect(cell(page, a)).toHaveClass(/selected/);
@@ -371,7 +373,9 @@ test("the first-run coach shows once", async ({ page }) => {
   await expect(coach).toBeVisible();
   await expect(coach).toContainText("New way to use the keys");
   await expect(coach).toContainText("Highlights this digit and its candidates");
-  await expect(coach).toContainText("Locks it; tap empty cells to toggle candidates");
+  await expect(coach).toContainText(
+    "Locks it; tap or slide across empty cells to toggle candidates"
+  );
   await expect(coach).toContainText("Double-tap");
   await page.locator("#coach-ok").click();
   await expect(coach).toHaveCount(0);
