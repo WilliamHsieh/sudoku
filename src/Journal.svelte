@@ -1,5 +1,5 @@
 <script>
-  import { tick } from "svelte";
+  import { tick, untrack } from "svelte";
   import { get } from "svelte/store";
   import { solvedPuzzles, puzzleProgress } from "./store.js";
   import { puzzleData } from "./puzzles.js";
@@ -35,6 +35,7 @@
   import DiffLabel from "./journal/DiffLabel.svelte";
   import PuzzleRow from "./journal/PuzzleRow.svelte";
   import { SLIDE_EASE, SLIDE_MS, slideOffsets } from "./journal/slide.js";
+  import { isAway, isTodayShortcut, latestAnnouncement, monthsToLatest } from "./journal/home.js";
 
   const today = formatDay(new Date());
   const latest = latestPuzzleDay(puzzleData, today) ?? today;
@@ -47,7 +48,13 @@
   let swipeX = $state(0);
   let swiping = $state(false);
   let touchX = 0;
-  let animating = false;
+  let animating = $state(false);
+  let returning = $state(false);
+  let announcement = $state("");
+  /** @type {HTMLElement | null} */
+  let contextCard = $state(null);
+  let hasCardState = false;
+  let lastAnnounced = "";
   let slideGen = 0;
   let slideTimer = 0;
   let alive = true;
@@ -59,6 +66,9 @@
    * Dual-grid slide. `view` (title + stats) stays put until the track settles.
    * @typedef {{
    *   dir: -1 | 1,
+   *   destination: Date,
+   *   selection: string | null,
+   *   onfinish?: () => void,
    *   fromPx: number,
    *   width: number,
    *   phase: "prep" | "run",
@@ -83,12 +93,16 @@
     `${m === 11 ? y + 1 : y}-${String(m === 11 ? 1 : m + 2).padStart(2, "0")}-01`
   );
   const canNext = $derived(nextStart <= today);
-  const isCur = $derived(`${y}-${String(m + 1).padStart(2, "0")}` === latest.slice(0, 7));
+  const mobileAway = $derived(!returning && isAway(view, sel, latest, true));
+  const desktopAway = $derived(!returning && isAway(view, sel, latest, false));
+  const home = startOfMonth(latest);
+  const homeLabel = `${MONTHS[home.getMonth()]} ${home.getFullYear()}`;
+  const backLabel = `Back to ${homeLabel}, latest puzzles`;
   const shownDay = $derived(sel || latest);
   const otherUnfinished = $derived(unfinished.filter((x) => x.date !== shownDay));
   const sheetDay = $derived(sheet === "day" ? sel : null);
   const incomingCells = $derived(
-    slide ? monthCells(puzzleData, latest, today, new Date(y, m + slide.dir, 1)) : cells
+    slide ? monthCells(puzzleData, latest, today, slide.destination) : cells
   );
 
   /** @param {string} date */
@@ -111,7 +125,8 @@
     window.clearTimeout(slideTimer);
     const vp = current.target === "mobile" ? mobVp : deskVp;
     if (vp) vp.style.height = "";
-    view = new Date(view.getFullYear(), view.getMonth() + current.dir, 1);
+    view = current.destination;
+    current.onfinish?.();
   }
 
   /**
@@ -163,8 +178,9 @@
    * `fromPx` continues a finger drag into the dual-grid slide.
    * @param {number} n
    * @param {number} [fromPx]
+   * @param {{ selection?: string | null, onfinish?: () => void }} [options]
    */
-  function shiftMonth(n, fromPx = 0) {
+  function shiftMonth(n, fromPx = 0, options = {}) {
     if (animating) return;
     if (n > 0 && !canNext) return;
     if (n === 0) return;
@@ -176,6 +192,7 @@
       swipeX = 0;
       swiping = false;
       view = next;
+      options.onfinish?.();
       return;
     }
     vp.style.height = `${grid.offsetHeight}px`;
@@ -185,6 +202,9 @@
     const gen = ++slideGen;
     slide = {
       dir: n < 0 ? -1 : 1,
+      destination: next,
+      selection: options.selection === undefined ? sel : options.selection,
+      onfinish: options.onfinish,
       fromPx,
       width: vp.clientWidth,
       phase: "prep",
@@ -194,11 +214,40 @@
     armSlide(gen, vp);
   }
 
-  function goLatest() {
-    if (animating) return;
-    view = startOfMonth(latest);
+  /** @param {boolean} [openSheetAfter] */
+  function goLatest(openSheetAfter = false) {
+    if (animating || swiping || !isAway(view, sel, latest, isMobile())) return;
+    const selection = sel;
     sel = null;
     sheet = null;
+    returning = true;
+    announcement = "";
+    const done = async () => {
+      await tick();
+      if (!alive) return;
+      const vp = isMobile() ? mobVp : deskVp;
+      const cell = /** @type {HTMLButtonElement | null | undefined} */ (
+        vp?.querySelector(`button.day[data-d="${latest}"]`)
+      );
+      cell?.focus({ preventScroll: true });
+      if (openSheetAfter) openDay(latest);
+      // Keep card changes silent through the optional sheet selection, then
+      // announce the completed return once through the shared status.
+      await tick();
+      if (!alive) return;
+      lastAnnounced = contextCard?.textContent?.trim() ?? "";
+      returning = false;
+      announcement = latestAnnouncement(latest);
+    };
+    const diff = monthsToLatest(view, latest);
+    if (diff) shiftMonth(diff, 0, { selection, onfinish: done });
+    else void done();
+  }
+
+  function openLatest() {
+    if (animating || swiping) return;
+    if (monthsToLatest(view, latest)) goLatest(true);
+    else openDay(latest);
   }
 
   function isMobile() {
@@ -293,7 +342,16 @@
 
   /** @param {KeyboardEvent} e */
   function onKey(e) {
-    if (animating || isMobile()) return;
+    if (animating || swiping || isMobile()) return;
+    if (isTodayShortcut(e)) {
+      if (sheet || document.querySelector('dialog[open], [role="dialog"][aria-modal="true"]'))
+        return;
+      if (desktopAway) {
+        e.preventDefault();
+        goLatest();
+      }
+      return;
+    }
     if (e.key === "Escape" && sel) {
       sel = null;
       return;
@@ -319,6 +377,26 @@
   }
 
   $effect(() => {
+    // Mirror the card's text for ordinary selection and puzzle-state changes.
+    // A single persistent region also works when the desktop card is hidden.
+    sel;
+    solved;
+    progress;
+    const initial = !hasCardState;
+    hasCardState = true;
+    if (untrack(() => returning)) return;
+    tick().then(() => {
+      if (!alive || returning) return;
+      const text = contextCard?.textContent?.trim() ?? "";
+      if (text === lastAnnounced) return;
+      // Seed the comparison silently on mount and after explicit returns.
+      // Store identity changes alone must not repeat an unchanged card.
+      lastAnnounced = text;
+      if (!initial) announcement = text;
+    });
+  });
+
+  $effect(() => {
     if (typeof document === "undefined") return;
     document.body.classList.toggle("journal-sheet", !!sheet);
     return () => document.body.classList.remove("journal-sheet");
@@ -337,7 +415,37 @@
 
 <svelte:window onkeydown={onKey} />
 
+{#snippet monthTitle(away)}
+  <button
+    class="month-title"
+    class:away
+    type="button"
+    aria-disabled={!away || animating ? "true" : undefined}
+    aria-label={away && !animating ? backLabel : returning ? homeLabel : `${MONTHS[m]} ${y}`}
+    title={away && !animating ? "Back to latest" : undefined}
+    onclick={() => goLatest()}
+  >
+    <span class="month-text">{MONTHS[m]} <span class="num year">{y}</span></span>
+    <span class="return-icon" aria-hidden="true"
+      ><svg
+        width="22"
+        height="22"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.25"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        ><path d="M9 14 4 9l5-5" /><path
+          d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"
+        /></svg
+      ></span
+    >
+  </button>
+{/snippet}
+
 <div class="journal">
+  <div class="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</div>
   <div class="mobile">
     <div class="lcard">
       <button
@@ -346,7 +454,7 @@
         type="button"
         data-d={latest}
         aria-label="Latest puzzles, {longDate(latest)}"
-        onclick={() => openDay(latest)}
+        onclick={openLatest}
       >
         <span>
           <span class="k">Latest puzzles</span>
@@ -375,7 +483,7 @@
     </div>
 
     <div class="mhead">
-      <h1>{MONTHS[m]} <span class="num">{y}</span></h1>
+      <h1>{@render monthTitle(mobileAway)}</h1>
       <button
         class="iconbtn"
         type="button"
@@ -423,7 +531,7 @@
     </section>
 
     <div class="cal">
-      {#snippet mobGrid(gridCells, dragging)}
+      {#snippet mobGrid(gridCells, dragging, selection = sel)}
         <div
           class="grid mgrid"
           class:swiping={dragging}
@@ -453,7 +561,7 @@
               <button
                 class="day"
                 class:is-latest={cell.date === latest}
-                class:sel={sel === cell.date && sheet === "day"}
+                class:sel={selection === cell.date}
                 type="button"
                 data-d={cell.date}
                 aria-label="{longDate(cell.date)}{cell.date === latest
@@ -485,9 +593,9 @@
           >
             {#if slide.dir < 0}
               {@render mobGrid(incomingCells, false)}
-              {@render mobGrid(cells, false)}
+              {@render mobGrid(cells, false, slide.selection)}
             {:else}
-              {@render mobGrid(cells, false)}
+              {@render mobGrid(cells, false, slide.selection)}
               {@render mobGrid(incomingCells, false)}
             {/if}
           </div>
@@ -588,6 +696,7 @@
         </div>
       </div>
       <div class="dmhead">
+        <h2>{@render monthTitle(desktopAway)}</h2>
         <button
           class="navbtn"
           type="button"
@@ -596,7 +705,6 @@
         >
           <Icon name="chevron-left" />
         </button>
-        <h2>{MONTHS[m]} <span class="num">{y}</span></h2>
         <button
           class="navbtn"
           type="button"
@@ -616,12 +724,8 @@
         <span class="dot">·</span>
         <Icon name="flame" />
         <span>{streak}-day streak</span>
-        {#if !isCur}
-          <span class="dot">·</span>
-          <button class="textlink" type="button" onclick={goLatest}>Go to latest</button>
-        {/if}
       </div>
-      {#snippet deskGrid(gridCells)}
+      {#snippet deskGrid(gridCells, selection = sel)}
         <div class="grid dgrid" role="grid">
           {#each WEEKDAYS as w (w)}
             <div class="wd">{w}</div>
@@ -652,10 +756,10 @@
               <button
                 class="day"
                 class:is-latest={cell.date === latest}
-                class:sel={sel === cell.date || (!sel && cell.date === latest)}
+                class:sel={selection === cell.date || (!selection && cell.date === latest)}
                 type="button"
                 data-d={cell.date}
-                aria-pressed={sel === cell.date || (!sel && cell.date === latest)}
+                aria-pressed={selection === cell.date || (!selection && cell.date === latest)}
                 aria-label="{longDate(cell.date)}{cell.date === latest
                   ? ' (latest)'
                   : ''}: {dayDesc(solved, progress, cell.date)}"
@@ -678,9 +782,9 @@
           >
             {#if slide.dir < 0}
               {@render deskGrid(incomingCells)}
-              {@render deskGrid(cells)}
+              {@render deskGrid(cells, slide.selection)}
             {:else}
-              {@render deskGrid(cells)}
+              {@render deskGrid(cells, slide.selection)}
               {@render deskGrid(incomingCells)}
             {/if}
           </div>
@@ -702,13 +806,14 @@
         <span><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> move day</span>
         <span><kbd>↵</kbd> play</span>
         <span><kbd>[</kbd><kbd>]</kbd> month</span>
-        <span><kbd>Esc</kbd> back to latest</span>
+        <span><kbd>T</kbd> today</span>
+        <span><kbd>Esc</kbd> deselect</span>
       </div>
     </section>
 
     <aside class="right">
       {#if !sel || sel === latest}
-        <section class="card ctx" aria-label="Latest puzzles" aria-live="polite">
+        <section class="card ctx" aria-label="Latest puzzles" bind:this={contextCard}>
           <span class="kicker">Latest puzzles</span>
           <h2>{longDate(latest)}</h2>
           <p class="sub num">{solvedCount(solved, latest)} of 3 solved</p>
@@ -732,12 +837,12 @@
           {/if}
         </section>
       {:else}
-        <section class="card ctx" aria-label="Puzzles for {longDate(sel)}" aria-live="polite">
+        <section class="card ctx" aria-label="Puzzles for {longDate(sel)}" bind:this={contextCard}>
           <div class="back">
-            <button type="button" onclick={goLatest}
+            <button type="button" onclick={() => goLatest()}
               ><Icon name="arrow-left" />Back to latest</button
             >
-            <kbd>Esc</kbd>
+            <kbd>T</kbd>
           </div>
           <span class="kicker">Puzzles for</span>
           <h2>{longDate(sel)}</h2>
@@ -992,17 +1097,71 @@
     background: var(--blue);
     color: #fff;
   }
-  .textlink {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--ink);
-    text-decoration: underline;
-    text-underline-offset: 3px;
-    text-decoration-color: var(--line-thin);
-    background: none;
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .month-title {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0;
     border: 0;
+    border-radius: 4px;
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    letter-spacing: inherit;
+    text-align: inherit;
+    white-space: nowrap;
+    cursor: default;
+    -webkit-tap-highlight-color: transparent;
+    transition: color 150ms var(--ease);
+  }
+  .month-title::after {
+    content: "";
+    position: absolute;
+    inset: -4px -6px;
+  }
+  .month-title.away:not([aria-disabled]) {
     cursor: pointer;
-    font-family: inherit;
+  }
+  .month-title .year {
+    color: var(--ink2);
+    font-weight: 500;
+    transition: color 150ms var(--ease);
+  }
+  .return-icon {
+    display: inline-flex;
+    width: 22px;
+    height: 22px;
+    flex: none;
+    translate: 0 -1px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 150ms var(--ease);
+  }
+  .month-title.away .return-icon {
+    opacity: 1;
+  }
+  @media (hover: hover) {
+    .month-title.away:not([aria-disabled]):hover {
+      color: var(--ink2);
+    }
+  }
+  .month-title.away:not([aria-disabled]):active,
+  .month-title.away:not([aria-disabled]):active .year {
+    color: #73716d;
+  }
+  .month-title:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 3px;
   }
   kbd {
     font: 600 11px/1 var(--ui-font);
@@ -1141,10 +1300,6 @@
     letter-spacing: -0.015em;
     flex: 1;
     margin: 0;
-  }
-  .mhead h1 span {
-    color: var(--ink2);
-    font-weight: 500;
   }
   .iconbtn {
     width: 40px;
@@ -1617,15 +1772,30 @@
       align-items: center;
     }
     .dmhead h2 {
+      grid-column: 2;
+      grid-row: 1;
       text-align: center;
       font-size: 24px;
       font-weight: 700;
       letter-spacing: -0.01em;
       margin: 0;
     }
-    .dmhead h2 span {
-      color: var(--ink2);
-      font-weight: 500;
+    .dmhead .return-icon {
+      position: absolute;
+      left: 100%;
+      margin-left: 6px;
+      top: 50%;
+      translate: 0 calc(-50% - 1px);
+    }
+    .dmhead .month-title::after {
+      right: -34px;
+    }
+    .dmhead .navbtn {
+      grid-row: 1;
+      grid-column: 1;
+    }
+    .dmhead .navbtn:last-child {
+      grid-column: 3;
     }
     .navbtn {
       width: 44px;
@@ -1783,11 +1953,12 @@
       margin-top: 10px;
       display: flex;
       justify-content: center;
-      gap: 16px;
+      gap: 6px 14px;
       font-size: 12px;
       color: var(--ink2);
     }
     .keys span {
+      white-space: nowrap;
       display: inline-flex;
       align-items: center;
       gap: 4px;
@@ -1972,11 +2143,21 @@
     }
   }
 
+  /* Keep the title and its hit area clear of the arrows at narrow desktop widths. */
+  @media (min-width: 600px) and (max-width: 799px) {
+    .desktop {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .mgrid,
     .ulnk,
     .dgrid .day,
-    .track {
+    .track,
+    .month-title,
+    .month-title .year,
+    .return-icon {
       transition: none;
     }
   }
