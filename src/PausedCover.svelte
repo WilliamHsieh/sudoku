@@ -2,14 +2,22 @@
   import { onMount } from "svelte";
   import { timer } from "./store.js";
 
-  /** @type {{ showKey?: boolean, leaving?: boolean, onresume: () => void, onleft?: () => void, onopaque?: () => void }} */
-  let { showKey = false, leaving = false, onresume, onleft, onopaque } = $props();
+  /** @type {{ showKey?: boolean, away?: boolean, revealing?: boolean, leaving?: boolean, onresume: () => void, onleft?: () => void, onopaque?: () => void }} */
+  let {
+    showKey = false,
+    away = false,
+    revealing = false,
+    leaving = false,
+    onresume,
+    onleft,
+    onopaque,
+  } = $props();
 
   /** @param {AnimationEvent} e */
   function onAnimEnd(e) {
     if (e.target !== e.currentTarget) return;
     if (e.animationName.includes("cover-in")) {
-      if (!leaving) onopaque?.();
+      if (!leaving && !revealing) onopaque?.();
       return;
     }
     if (!leaving || !e.animationName.includes("cover-out")) return;
@@ -27,10 +35,16 @@
   });
 </script>
 
-<div class={leaving ? "paused-leave" : "paused-cover"} onanimationend={onAnimEnd}>
+<div class={leaving ? "paused-leave" : "paused-cover"} class:revealing onanimationend={onAnimEnd}>
   <p class="paused-kicker">Paused</p>
   <p class="paused-time" data-time>{label}</p>
-  <p class="paused-line">The board is hidden and the clock is stopped.</p>
+  <p class="paused-line">
+    {#if away}
+      Paused while you were away. It picks up when you come back.
+    {:else}
+      The board is hidden and the clock is stopped.
+    {/if}
+  </p>
   <button type="button" class="btn btn-primary" id="resume" onclick={onresume}>
     <svg class="ic play-ic" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"
@@ -44,6 +58,21 @@
 </div>
 
 <style>
+  .paused-cover.revealing {
+    pointer-events: none;
+    animation: rv-cover var(--resume-ms, 320ms) var(--resume-ease, cubic-bezier(0.22, 1, 0.36, 1))
+      both;
+  }
+
+  @keyframes rv-cover {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+
   .paused-cover,
   .paused-leave {
     position: absolute;
@@ -243,6 +272,13 @@
     .paused-cover,
     .paused-leave {
       animation: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .paused-cover.revealing {
+      animation: none;
+      opacity: 0;
     }
   }
 </style>

@@ -404,17 +404,44 @@ export function registerPr6Tests(opts = {}) {
     await expect(page.locator("dialog.opts")).toBeVisible();
   });
 
-  test("hiding the tab pauses and showing it does not resume", async ({ page }) => {
+  test("hiding the tab pauses and showing it auto-resumes after the reveal", async ({ page }) => {
     await page.clock.runFor(2_000);
     await expect(page.locator(".timer .time")).toHaveText("0:02");
     await setTabHidden(page, true);
     await expect(page.locator(".paused-cover")).toBeVisible();
+    await expect(page.locator(".paused-line")).toHaveText(
+      "Paused while you were away. It picks up when you come back."
+    );
+    await expect(page.locator("#resume")).toBeFocused();
+    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "true");
+    // Away long enough that the return is a reveal, not an instant resume.
+    await page.clock.runFor(1_500);
     await setTabHidden(page, false);
+    await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "hold");
+    await expect(page.locator(".play")).toHaveAttribute("data-pause-reason", "auto");
     await expect(page.locator(".paused-cover")).toBeVisible();
-    await page.clock.runFor(4_000);
+    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator(".board")).toHaveAttribute("aria-hidden", "true");
+    await expect(page.locator(".board")).toHaveAttribute("inert", "");
+    if (mobile) await expect(page.locator(".chrome-dim")).toHaveAttribute("inert", "");
+
+    await page.clock.runFor(150);
+    await expect(page.locator(".play")).toHaveClass(/revealing/);
+    await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "reveal");
+    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator(".board")).toHaveAttribute("inert", "");
     await expect(page.locator(".timer .time")).toHaveText("0:02");
     if (mobile) await expect(page.locator(".chrome-dim")).toHaveAttribute("inert", "");
-    else await expect(moreButton(page)).toBeDisabled();
+
+    await page.clock.runFor(320);
+    await expect(page.locator(".paused-cover")).toHaveCount(0);
+    await expect(page.locator("#pause")).toBeFocused();
+    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "false");
+    await expect(page.locator("#resume-status")).toHaveText("Resumed");
+    await expect(page.locator(".board")).not.toHaveAttribute("inert", "");
+    await expect(page.locator(".timer .time")).toHaveText("0:02");
+    await page.clock.runFor(1_000);
+    await expect(page.locator(".timer .time")).toHaveText("0:03");
   });
 
   test("Escape as soon as Restart is clicked returns to the sheet", async ({ page }) => {
@@ -472,6 +499,261 @@ export function registerPr6Tests(opts = {}) {
     await expect(page.locator(".cell.selected")).toHaveCount(0);
     await expect(page.locator("#undo")).toBeDisabled();
     await expect(moreButton(page)).toBeFocused();
+  });
+
+  test("a manual pause stays paused when the tab comes back", async ({ page }) => {
+    await page.clock.runFor(2_000);
+    await page.locator("#pause").click();
+    await expect(page.locator(".paused-line")).toHaveText(
+      "The board is hidden and the clock is stopped."
+    );
+    await setTabHidden(page, true);
+    await page.clock.runFor(3_000);
+    await setTabHidden(page, false);
+    await page.clock.runFor(150 + 320);
+    await expect(page.locator(".paused-cover")).toBeVisible();
+    await expect(page.locator(".paused-line")).toHaveText(
+      "The board is hidden and the clock is stopped."
+    );
+    await expect(page.locator(".play")).toHaveAttribute("data-pause-reason", "manual");
+    await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "idle");
+    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator(".timer .time")).toHaveText("0:02");
+    await page.locator("#resume").click();
+    await expect(page.locator(".paused-cover")).toHaveCount(0);
+    await expect(page.locator("#pause")).toBeFocused();
+    await expect(page.locator("#resume-status")).toHaveText("");
+    await page.clock.runFor(1_000);
+    await expect(page.locator(".timer .time")).toHaveText("0:03");
+  });
+
+  test("an absence under 1s resumes instantly with nothing announced", async ({ page }) => {
+    await page.clock.runFor(2_000);
+    await expect(page.locator(".timer .time")).toHaveText("0:02");
+    await setTabHidden(page, true);
+    await page.clock.runFor(500);
+    await setTabHidden(page, false);
+    await expect(page.locator(".paused-cover")).toHaveCount(0);
+    await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "idle");
+    await expect(page.locator(".play")).not.toHaveClass(/revealing/);
+    await expect(page.locator("#resume-status")).toHaveText("");
+    await expect(page.locator("#pause")).not.toBeFocused();
+    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "false");
+    await expect(page.locator(".timer .time")).toHaveText("0:02");
+    await page.clock.runFor(1_000);
+    await expect(page.locator(".timer .time")).toHaveText("0:03");
+  });
+
+  test("reduced motion resumes instantly", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.reload();
+    if ((await page.locator(".board > .cell").count()) === 0) {
+      await page.getByRole("button", { name: /Play|Back to puzzle/ }).click();
+    }
+    await expect(page.locator(".board > .cell")).toHaveCount(81);
+    await page.clock.runFor(2_000);
+    await setTabHidden(page, true);
+    await page.clock.runFor(2_000);
+    await setTabHidden(page, false);
+    await expect(page.locator(".paused-cover")).toHaveCount(0);
+    await expect(page.locator(".play")).not.toHaveClass(/revealing/);
+    await expect(page.locator("#pause")).toBeFocused();
+    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "false");
+    await expect(page.locator("#resume-status")).toHaveText("Resumed");
+    await expect(page.locator(".timer .time")).toHaveText("0:02");
+    await page.clock.runFor(1_000);
+    await expect(page.locator(".timer .time")).toHaveText("0:03");
+  });
+
+  test("input and the clock stay blocked during the reveal", async ({ page }) => {
+    await cell(page, 0).click();
+    await page.clock.runFor(2_000);
+    await setTabHidden(page, true);
+    await page.clock.runFor(1_500);
+    await setTabHidden(page, false);
+    await page.clock.runFor(150);
+    await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "reveal");
+    await page.keyboard.press("4");
+    await expectValue(page, 0, 0);
+    if (mobile) await expect(page.locator(".chrome-dim")).toHaveAttribute("inert", "");
+    else await expect(moreButton(page)).toBeDisabled();
+    await expect(page.locator(".board")).toHaveAttribute("inert", "");
+    await expect(page.locator(".timer .time")).toHaveText("0:02");
+    await page.clock.runFor(320);
+    await expect(page.locator(".paused-cover")).toHaveCount(0);
+    await expect(page.locator(".timer .time")).toHaveText("0:02");
+    await page.keyboard.press("4");
+    await expectValue(page, 0, 4);
+  });
+
+  test("hiding again during the reveal covers the board and the next return reveals", async ({
+    page,
+  }) => {
+    await page.clock.runFor(1_000);
+    await setTabHidden(page, true);
+    await page.clock.runFor(1_500);
+    await setTabHidden(page, false);
+    await page.clock.runFor(150);
+    await expect(page.locator(".play")).toHaveClass(/revealing/);
+    await setTabHidden(page, true);
+    await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "idle");
+    await expect(page.locator(".play")).not.toHaveClass(/revealing/);
+    await expect(page.locator(".paused-cover")).toBeVisible();
+    await expect(page.locator(".paused-line")).toHaveText(
+      "Paused while you were away. It picks up when you come back."
+    );
+    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "true");
+    await page.clock.runFor(1_500);
+    await setTabHidden(page, false);
+    await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "hold");
+    await page.clock.runFor(150);
+    await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "reveal");
+    await page.clock.runFor(320);
+    await expect(page.locator(".paused-cover")).toHaveCount(0);
+    await expect(page.locator("#resume-status")).toHaveText("Resumed");
+    await expect(page.locator(".timer .time")).toHaveText("0:01");
+  });
+
+  test("Resume or P during the hold resumes at once", async ({ page }) => {
+    await page.clock.runFor(1_000);
+    await setTabHidden(page, true);
+    await page.clock.runFor(1_500);
+    await setTabHidden(page, false);
+    await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "hold");
+    await page.locator("#resume").click();
+    await expect(page.locator(".paused-cover")).toHaveCount(0);
+    await expect(page.locator("#pause")).toBeFocused();
+    await expect(page.locator("#resume-status")).toHaveText("");
+    await page.clock.runFor(500);
+    await expect(page.locator(".paused-cover")).toHaveCount(0);
+    await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "idle");
+
+    await setTabHidden(page, true);
+    await page.clock.runFor(1_500);
+    await setTabHidden(page, false);
+    await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "hold");
+    await page.keyboard.press("p");
+    await expect(page.locator(".paused-cover")).toHaveCount(0);
+    await expect(page.locator("#pause")).toBeFocused();
+    await expect(page.locator("#resume-status")).toHaveText("");
+    await page.clock.runFor(500);
+    await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "idle");
+  });
+
+  test("a solved board is not auto-paused", async ({ page }) => {
+    const solution = solve(DEMO_PUZZLE);
+    const digits = solution.split("");
+    const blank = [...DEMO_PUZZLE].findIndex((ch) => ch === "0");
+    const digit = digits[blank];
+    digits[blank] = "0";
+    await page.goto(`./?q=${digits.join("")}`);
+    if ((await page.locator(".board > .cell").count()) === 0) {
+      await page.getByRole("button", { name: /Play|Back to puzzle/ }).click();
+    }
+    await cell(page, blank).click();
+    await page.keyboard.press(digit);
+    await expect(page.locator(".success-card")).toBeVisible();
+    await page.clock.runFor(1_000);
+    const shown = await page.locator(".timer .time").innerText();
+    await setTabHidden(page, true);
+    await page.clock.runFor(2_000);
+    await expect(page.locator(".paused-cover")).toHaveCount(0);
+    await expect(page.locator(".success-card")).toBeVisible();
+    await setTabHidden(page, false);
+    await page.clock.runFor(150 + 320);
+    await expect(page.locator(".paused-cover")).toHaveCount(0);
+    await expect(page.locator(".success-card")).toBeVisible();
+    await expect(page.locator("#resume-status")).toHaveText("");
+    await expect(page.locator(".timer .time")).toHaveText(shown);
+  });
+
+  test("the journal resumes a hidden game silently", async ({ page }) => {
+    await page.clock.runFor(2_000);
+    await expect(page.locator(".timer .time")).toHaveText("0:02");
+    await page.getByRole("button", { name: "Journal" }).click();
+    await setTabHidden(page, true);
+    await page.clock.runFor(2_000);
+    await setTabHidden(page, false);
+    await page.clock.runFor(150 + 320);
+    await expect(page.locator(".paused-cover")).toHaveCount(0);
+    await expect(page.locator("#resume-status")).toHaveText("");
+    await page.getByRole("button", { name: /Play|Back to puzzle/ }).click();
+    await expect(page.locator(".board > .cell")).toHaveCount(81);
+    await expect(page.locator(".paused-cover")).toHaveCount(0);
+    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "false");
+    await expect(page.locator(".timer .time")).toHaveText("0:02");
+    await page.clock.runFor(1_000);
+    await expect(page.locator(".timer .time")).toHaveText("0:03");
+  });
+
+  test("an open Options sheet closes on hide and stays closed when the game resumes", async ({
+    page,
+  }) => {
+    await moreButton(page).click();
+    await expect(page.locator("dialog.opts")).toBeVisible();
+    await page.clock.runFor(1_000);
+    await setTabHidden(page, true);
+    await expect(page.locator("dialog.opts")).toBeHidden();
+    await expect(page.locator(".paused-cover")).toBeVisible();
+    await page.clock.runFor(1_500);
+    await setTabHidden(page, false);
+    await page.clock.runFor(150 + 320);
+    await expect(page.locator(".paused-cover")).toHaveCount(0);
+    await expect(page.locator("dialog.opts")).toBeHidden();
+    await expect(page.locator("dialog.confirm")).toBeHidden();
+    await expect(page.locator("#resume-status")).toHaveText("Resumed");
+  });
+
+  test("an open Restart confirm closes on hide and stays closed when the game resumes", async ({
+    page,
+  }) => {
+    await moreButton(page).click();
+    await page.locator("#opt-restart").click();
+    await expect(page.locator("dialog.confirm")).toBeVisible();
+    await setTabHidden(page, true);
+    await expect(page.locator("dialog.confirm")).toBeHidden();
+    await expect(page.locator("dialog.opts")).toBeHidden();
+    await expect(page.locator(".paused-cover")).toBeVisible();
+    await page.clock.runFor(1_500);
+    await setTabHidden(page, false);
+    await page.clock.runFor(150 + 320);
+    await expect(page.locator(".paused-cover")).toHaveCount(0);
+    await expect(page.locator("dialog.confirm")).toBeHidden();
+    await expect(page.locator("dialog.opts")).toBeHidden();
+    await expectValue(page, 0, 0);
+  });
+
+  test("the cue idle restarts when the reveal ends", async ({ page }) => {
+    await page.goto("./?q=" + DEMO_PUZZLE + "&cueMs=3000");
+    if ((await page.locator(".board > .cell").count()) === 0) {
+      await page.getByRole("button", { name: /Play|Back to puzzle/ }).click();
+    }
+    await expect(page.locator(".board > .cell")).toHaveCount(81);
+    await page.clock.runFor(2_000);
+    await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "idle");
+    await setTabHidden(page, true);
+    await page.clock.runFor(5_000);
+    await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "idle");
+    await setTabHidden(page, false);
+    await page.clock.runFor(150 + 320);
+    await expect(page.locator(".paused-cover")).toHaveCount(0);
+    await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "idle");
+    await page.clock.runFor(2_999);
+    await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "idle");
+    await page.clock.runFor(1);
+    await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "flash");
+  });
+
+  test("blurring the window while the tab is visible does not pause", async ({ page }) => {
+    await page.clock.runFor(1_000);
+    await page.evaluate(() => {
+      window.dispatchEvent(new Event("blur"));
+      window.dispatchEvent(new Event("focus"));
+    });
+    await page.clock.runFor(1_000);
+    await expect(page.locator(".paused-cover")).toHaveCount(0);
+    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "false");
+    await expect(page.locator(".timer .time")).toHaveText("0:02");
   });
 
   test("More is unavailable while paused and Done restores focus", async ({ page }) => {

@@ -71,6 +71,13 @@
     if (playUi.resume()) focusAfterPause(false);
   }
 
+  async function announceResumed() {
+    resumeStatus = "";
+    await tick();
+    resumeStatus = "Resumed";
+    await focusAfterPause(false);
+  }
+
   function focusMore() {
     const el = [...document.querySelectorAll("[data-more]")].find(
       (node) => node instanceof HTMLElement && node.offsetParent
@@ -89,6 +96,7 @@
   let coverLeaving = $state(false);
   /** Phone board stays painted until the cover is opaque, then hides. */
   let concealBoard = $state(false);
+  let automaticCover = $state(false);
 
   function reduceMotion() {
     return (
@@ -100,18 +108,23 @@
     if (playUi.paused) {
       coverLeaving = false;
       showCover = true;
-      concealBoard = reduceMotion();
+      automaticCover = playUi.reason === "auto";
+      concealBoard = playUi.resumePhase !== "reveal" && reduceMotion();
       return;
     }
     concealBoard = false;
     if (!showCover) return;
-    if (reduceMotion()) {
+    if (automaticCover || reduceMotion()) {
       showCover = false;
       coverLeaving = false;
       return;
     }
     coverLeaving = true;
   });
+  /** Polite "Resumed". Stays empty for a short-absence instant resume. */
+  let resumeStatus = $state("");
+  /** `?reveal=mid` freezes the reveal at 32ms for a still. */
+  let revealMid = $state(false);
   let wrapEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   let ringEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   let hdEl = $state(/** @type {HTMLElement | undefined} */ (undefined));
@@ -318,12 +331,26 @@
     playUi.setReduced(reducedOn());
     const onReduce = () => playUi.setReduced(reducedOn());
     reduceMq.addEventListener("change", onReduce);
+    playUi.onAutoResume((info) => {
+      if (info.announce) void announceResumed();
+    });
+    let hiddenAt = 0;
     const onVis = () => {
-      if (!document.hidden && document.visibilityState !== "hidden") return;
-      if (playUi.pause()) focusAfterPause(true);
+      const hidden = document.hidden || document.visibilityState === "hidden";
+      if (hidden) {
+        hiddenAt = Date.now();
+        if (playUi.noteHidden()) void focusAfterPause(true);
+        return;
+      }
+      if (!hiddenAt) return;
+      const away = Date.now() - hiddenAt;
+      hiddenAt = 0;
+      const result = playUi.noteVisible(away, { silent: showCalendar });
+      if (result === "announced") void announceResumed();
     };
     document.addEventListener("visibilitychange", onVis);
     if (shotParams.has("freeze")) document.documentElement.classList.add("kp-freeze");
+    revealMid = shotParams.get("reveal") === "mid";
     const shot = shotParams.get("shot");
     if (shot) {
       applyShot(game, shot === "manual");
@@ -341,6 +368,7 @@
       mq.removeEventListener("change", onNarrow);
       reduceMq.removeEventListener("change", onReduce);
       document.removeEventListener("visibilitychange", onVis);
+      playUi.onAutoResume(null);
       game.setBeforeMutate(() => {});
       game.setOnActivity(() => {});
       game.setOnLoad(() => {});
@@ -441,6 +469,7 @@
 <div class="top-strip" aria-hidden="true"></div>
 
 <main class:on-journal={showCalendar}>
+  <p id="resume-status" class="sr-only" aria-live="polite">{resumeStatus}</p>
   <Api />
   {#if !isNarrow}
     <div class="header" class:playing={!showCalendar}>
@@ -603,7 +632,15 @@
   {#if showCalendar}
     <Journal />
   {:else}
-    <div class="play" class:board-concealed={concealBoard}>
+    <div
+      class="play"
+      class:board-concealed={concealBoard}
+      class:is-paused={playUi.paused}
+      class:revealing={playUi.resumePhase === "reveal"}
+      class:reveal-mid={revealMid}
+      data-pause-reason={playUi.reason ?? "none"}
+      data-resume-phase={playUi.resumePhase}
+    >
       <p class="sr-only" aria-live="polite" aria-atomic="true">
         {#key padUi.commitId}<span>{padUi.announcement}</span>{/key}
       </p>
@@ -626,9 +663,12 @@
             <PausedCover
               showKey={!isNarrow}
               leaving={coverLeaving}
+              away={playUi.reason === "auto"}
+              revealing={playUi.resumePhase === "reveal"}
               onresume={onResumeCover}
               onopaque={() => {
-                if (playUi.paused && !coverLeaving) concealBoard = true;
+                if (playUi.paused && playUi.resumePhase !== "reveal" && !coverLeaving)
+                  concealBoard = true;
               }}
               onleft={() => {
                 showCover = false;
@@ -1499,10 +1539,56 @@
     }
   }
 
+  .play {
+    --resume-ms: 320ms;
+    --resume-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* Reveal after an automatic pause. Opacity and a 6px blur only. */
+  .play.revealing .board {
+    visibility: visible !important;
+    animation: rv-board var(--resume-ms) var(--resume-ease) both;
+  }
+
+  .play.revealing .chrome-dim {
+    opacity: 1 !important;
+    transition: opacity var(--resume-ms) var(--resume-ease);
+  }
+
+  .play.revealing.reveal-mid .board,
+  .play.revealing.reveal-mid :global(.paused-cover) {
+    animation-play-state: paused;
+    animation-delay: calc(var(--resume-ms) * -0.1);
+  }
+
+  .play.revealing.reveal-mid .chrome-dim {
+    opacity: 0.7 !important;
+    transition: none;
+  }
+
+  @keyframes rv-board {
+    from {
+      opacity: 0;
+      filter: blur(6px);
+    }
+    to {
+      opacity: 1;
+      filter: blur(0);
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
+    .play.revealing .board,
+    .play.revealing :global(.paused-cover) {
+      animation: none;
+    }
+    .play.revealing :global(.paused-cover) {
+      opacity: 0;
+    }
     .success-message,
     .success-card,
-    .chrome-dim {
+    .chrome-dim,
+    .play.revealing .chrome-dim {
       animation: none;
       transition: none;
     }
