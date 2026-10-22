@@ -226,9 +226,14 @@
     outline: none;
   }
 
-  .btn:focus-visible {
+  .btn:focus-visible,
+  .btn:global(.modality-focus-ring):focus {
     outline: 2px solid var(--focus);
     outline-offset: 2px;
+  }
+
+  :global(:root[data-modality="pointer"]) .btn:focus-visible {
+    outline: none;
   }
 
   @media (hover: hover) {

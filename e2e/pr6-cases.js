@@ -57,6 +57,22 @@ async function cueIds(page) {
   );
 }
 
+/** @param {import('@playwright/test').Page} page */
+async function pauseRingOn(page) {
+  return page.locator("#pause").evaluate((btn) => {
+    const nodes = [btn, ...btn.querySelectorAll(".face")];
+    return nodes.some((el) => {
+      const style = getComputedStyle(el);
+      const color = style.outlineColor.replace(/\s/g, "");
+      return (
+        style.outlineStyle === "solid" &&
+        parseFloat(style.outlineWidth) >= 2 &&
+        (color === "rgb(42,86,198)" || color === "#2a56c6")
+      );
+    });
+  });
+}
+
 /** @param {import('@playwright/test').Page} page @param {boolean} hidden */
 async function setTabHidden(page, hidden) {
   await page.evaluate((flag) => {
@@ -537,11 +553,37 @@ export function registerPr6Tests(opts = {}) {
     await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "idle");
     await expect(page.locator(".play")).not.toHaveClass(/revealing/);
     await expect(page.locator("#resume-status")).toHaveText("");
-    await expect(page.locator("#pause")).not.toBeFocused();
+    await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe("pause");
     await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "false");
     await expect(page.locator(".timer .time")).toHaveText("0:02");
     await page.clock.runFor(1_000);
     await expect(page.locator(".timer .time")).toHaveText("0:03");
+  });
+
+  test("a pointer auto-resume focuses Pause without the ring", async ({ page }) => {
+    await cell(page, 0).click();
+    await page.clock.runFor(2_000);
+    await setTabHidden(page, true);
+    await page.clock.runFor(1_500);
+    await setTabHidden(page, false);
+    await page.clock.runFor(150 + 320);
+    await expect(page.locator(".paused-cover")).toHaveCount(0);
+    await expect(page.locator("#resume-status")).toHaveText("Resumed");
+    await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe("pause");
+    await expect.poll(() => pauseRingOn(page)).toBe(false);
+  });
+
+  test("a keyboard auto-resume focuses Pause with the ring", async ({ page }) => {
+    await page.keyboard.press("ArrowRight");
+    await page.clock.runFor(2_000);
+    await setTabHidden(page, true);
+    await page.clock.runFor(1_500);
+    await setTabHidden(page, false);
+    await page.clock.runFor(150 + 320);
+    await expect(page.locator(".paused-cover")).toHaveCount(0);
+    await expect(page.locator("#resume-status")).toHaveText("Resumed");
+    await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe("pause");
+    await expect.poll(() => pauseRingOn(page)).toBe(true);
   });
 
   test("reduced motion resumes instantly", async ({ page }) => {

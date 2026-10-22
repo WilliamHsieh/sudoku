@@ -50,9 +50,23 @@
     return ids;
   });
 
-  /** @param {string} id */
+  /**
+   * Move focus after a pause or resume.
+   * The ring follows the last input: keyboard keeps `:focus-visible`,
+   * pointer and touch do not. `focusVisible` is set where the browser
+   * supports it; `modality-focus-ring` and `data-modality` cover the rest.
+   * @param {string} id
+   */
   function focusId(id) {
-    document.getElementById(id)?.focus({ preventScroll: true });
+    const el = document.getElementById(id);
+    if (!(el instanceof HTMLElement)) return;
+    const keyboard = document.documentElement.dataset.modality === "keyboard";
+    for (const other of ["pause", "resume"]) {
+      if (other !== id) document.getElementById(other)?.classList.remove("modality-focus-ring");
+    }
+    el.classList.toggle("modality-focus-ring", keyboard);
+    const options = { preventScroll: true, focusVisible: keyboard };
+    el.focus(options);
   }
 
   /** @param {boolean} nowPaused */
@@ -123,7 +137,7 @@
   });
   /** Polite "Resumed". Stays empty for a short-absence instant resume. */
   let resumeStatus = $state("");
-  /** `?reveal=mid` freezes the reveal at 32ms for a still. */
+  /** `?reveal=mid` freezes the reveal at 32ms, about 40% visible under the ease. */
   let revealMid = $state(false);
   let wrapEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   let ringEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
@@ -334,6 +348,16 @@
     playUi.onAutoResume((info) => {
       if (info.announce) void announceResumed();
     });
+    /** @param {KeyboardEvent} event */
+    const noteKey = (event) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      document.documentElement.dataset.modality = "keyboard";
+    };
+    const notePointer = () => {
+      document.documentElement.dataset.modality = "pointer";
+    };
+    window.addEventListener("keydown", noteKey, true);
+    window.addEventListener("pointerdown", notePointer, true);
     let hiddenAt = 0;
     const onVis = () => {
       const hidden = document.hidden || document.visibilityState === "hidden";
@@ -345,8 +369,10 @@
       if (!hiddenAt) return;
       const away = Date.now() - hiddenAt;
       hiddenAt = 0;
-      const result = playUi.noteVisible(away, { silent: showCalendar });
+      const silent = showCalendar;
+      const result = playUi.noteVisible(away, { silent });
       if (result === "announced") void announceResumed();
+      else if (result === "quiet" && !silent) void focusAfterPause(false);
     };
     document.addEventListener("visibilitychange", onVis);
     if (shotParams.has("freeze")) document.documentElement.classList.add("kp-freeze");
@@ -368,6 +394,8 @@
       mq.removeEventListener("change", onNarrow);
       reduceMq.removeEventListener("change", onReduce);
       document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("keydown", noteKey, true);
+      window.removeEventListener("pointerdown", notePointer, true);
       playUi.onAutoResume(null);
       game.setBeforeMutate(() => {});
       game.setOnActivity(() => {});
@@ -1233,9 +1261,13 @@
     .hbtn:focus-visible {
       outline: none;
     }
-    .hbtn:focus-visible .face {
+    .hbtn:focus-visible .face,
+    .hbtn:global(.modality-focus-ring):focus .face {
       outline: 2px solid var(--focus);
       outline-offset: 1px;
+    }
+    :global(:root[data-modality="pointer"]) .hbtn:focus-visible .face {
+      outline: none;
     }
     .hbtn:active .face {
       background: var(--key-pressed);
@@ -1489,9 +1521,13 @@
     .dhbtn:focus {
       outline: none;
     }
-    .dhbtn:focus-visible {
+    .dhbtn:focus-visible,
+    .dhbtn:global(.modality-focus-ring):focus {
       outline: 2px solid var(--focus);
       outline-offset: 2px;
+    }
+    :global(:root[data-modality="pointer"]) .dhbtn:focus-visible {
+      outline: none;
     }
     .dhbtn:disabled {
       opacity: 1;
@@ -1555,6 +1591,7 @@
     transition: opacity var(--resume-ms) var(--resume-ease);
   }
 
+  /* 32ms is a tenth of the 320ms ease-out, which is about 40% visible. */
   .play.revealing.reveal-mid .board,
   .play.revealing.reveal-mid :global(.paused-cover) {
     animation-play-state: paused;
