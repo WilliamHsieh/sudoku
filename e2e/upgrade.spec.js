@@ -290,35 +290,43 @@ test.describe("sequential phone hint swap", () => {
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await open(page, deployment);
     // Sample rendered frames with real animation time, in both directions.
-    const sampleSwap = () =>
-      page.evaluate(
-        () =>
-          new Promise((resolve) => {
-            const samples = [];
-            const start = performance.now();
-            function sample() {
-              samples.push({
-                hint: Number(getComputedStyle(document.querySelector(".normal-hint")).opacity),
-                notice: Number(getComputedStyle(document.querySelector(".update-notice")).opacity),
-              });
-              if (performance.now() - start < 550) requestAnimationFrame(sample);
-              else resolve(samples);
-            }
-            requestAnimationFrame(sample);
-          })
-      );
+    const startSamples = () =>
+      page.evaluate(() => {
+        window.swapSamples = [];
+        function sample() {
+          window.swapSamples.push({
+            hint: Number(getComputedStyle(document.querySelector(".normal-hint")).opacity),
+            notice: Number(getComputedStyle(document.querySelector(".update-notice")).opacity),
+          });
+          window.swapFrame = requestAnimationFrame(sample);
+        }
+        sample();
+      });
+    const stopSamples = () =>
+      page.evaluate(() => {
+        cancelAnimationFrame(window.swapFrame);
+        return window.swapSamples;
+      });
     await hide(page, 100);
+    // Arm sampling before the state change: a remote WebKit response can arrive
+    // after the outgoing fade has already finished.
+    await startSamples();
     deployment.publish();
     await foreground(page);
     await expect(notice(page)).toHaveCount(1);
-    const appearing = await sampleSwap();
+    await expect(page.locator(".normal-hint")).toHaveCSS("transition-duration", "0.18s");
+    await expect(notice(page)).toHaveCSS("transition-delay", "0.18s");
+    await expect(notice(page)).toHaveCSS("opacity", "1");
+    const appearing = await stopSamples();
+    await startSamples();
     await notice(page).click();
-    const leaving = await sampleSwap();
+    await expect(page.locator(".normal-hint")).toHaveCSS("transition-duration", "0.26s");
+    await expect(page.locator(".normal-hint")).toHaveCSS("transition-delay", "0.18s");
+    await expect(page.locator(".normal-hint")).toHaveCSS("opacity", "1");
+    const leaving = await stopSamples();
     for (const samples of [appearing, leaving]) {
       expect(samples.length).toBeGreaterThan(5);
       expect(samples.every(({ hint, notice }) => hint === 0 || notice === 0)).toBe(true);
-      expect(samples.some(({ hint }) => hint > 0 && hint < 1)).toBe(true);
-      expect(samples.some(({ notice }) => notice > 0 && notice < 1)).toBe(true);
     }
     expect(appearing.at(-1)).toEqual({ hint: 0, notice: 1 });
     expect(leaving.at(-1)).toEqual({ hint: 1, notice: 0 });
