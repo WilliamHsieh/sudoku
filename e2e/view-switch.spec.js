@@ -54,11 +54,11 @@ test.describe("desktop view switch", () => {
     near(playSeg.x + playSeg.w, 1248, "seg right");
     expect(playSeg.h).toBeGreaterThan(30);
     const headerOrder = await header.evaluate((el) =>
-      [...el.querySelectorAll("button")].map((b) =>
-        (b.getAttribute("aria-label") || b.textContent).replace(/\s+/g, " ").trim()
-      )
+      [...el.querySelectorAll("button")]
+        .filter((b) => b.getBoundingClientRect().width > 0)
+        .map((b) => (b.getAttribute("aria-label") || b.textContent).replace(/\s+/g, " ").trim())
     );
-    expect(headerOrder).toEqual(["Pause", "More", "Journal", "Play"]);
+    expect(headerOrder).toEqual(["Pause", "Notes mode: Auto", "More", "Journal", "Play"]);
     const journalBox = await rectOf(page.getByRole("button", { name: "Journal", exact: true }));
     const playBox = await rectOf(page.getByRole("button", { name: "Play", exact: true }));
     expect(journalBox.x).toBeLessThan(playBox.x);
@@ -81,9 +81,9 @@ test.describe("desktop view switch", () => {
     const journalOrder = await page
       .locator(".header")
       .evaluate((el) =>
-        [...el.querySelectorAll("button")].map((b) =>
-          (b.getAttribute("aria-label") || b.textContent).replace(/\s+/g, " ").trim()
-        )
+        [...el.querySelectorAll("button")]
+          .filter((b) => b.getBoundingClientRect().width > 0)
+          .map((b) => (b.getAttribute("aria-label") || b.textContent).replace(/\s+/g, " ").trim())
       );
     expect(journalOrder).toEqual(["Journal", "Play"]);
 

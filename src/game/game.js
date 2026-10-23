@@ -11,7 +11,7 @@ import {
   parsePuzzle,
 } from "./board.js";
 
-/** @typedef {'auto' | 'manual'} NotesMode */
+/** @typedef {'auto' | 'tidy' | 'manual'} NotesMode */
 
 /**
  * @typedef {Object} GameState
@@ -108,7 +108,7 @@ export function computedCandidates(state, i) {
  */
 export function candidates(state, i) {
   if (valueAt(state, i)) return 0;
-  if (state.notesMode === "manual") return state.manualNotes[i];
+  if (state.notesMode !== "auto") return state.manualNotes[i];
   return (computedCandidates(state, i) & ~state.autoRemoved[i]) | state.autoAdded[i];
 }
 
@@ -146,7 +146,14 @@ export function isSolved(state) {
 export function setAnswer(state, i, d) {
   if (!isDigit(d)) throw new RangeError(`digit must be 1-9, got ${d}`);
   if (!isEditable(state, i)) return unchanged(state);
-  return update(state, i, { answers: state.answers[i] === d ? 0 : d });
+  const answer = state.answers[i] === d ? 0 : d;
+  const result = update(state, i, { answers: answer });
+  if (state.notesMode === "tidy" && answer) {
+    const manualNotes = state.manualNotes.slice();
+    for (const peer of PEERS[i]) manualNotes[peer] &= ~bit(answer);
+    result.state = { ...result.state, manualNotes };
+  }
+  return result;
 }
 
 /** Whether toggling d in cell i would add it to the shown notes. @param {GameState} state @param {number} i @param {number} d */
@@ -169,7 +176,7 @@ export function toggleCandidate(state, i, d) {
     const blockers = blockersOf(state, i, d);
     if (blockers.length) return { state, changed: false, blockers };
   }
-  if (state.notesMode === "manual")
+  if (state.notesMode !== "auto")
     return update(state, i, { manualNotes: state.manualNotes[i] ^ b });
 
   let added = state.autoAdded[i];
@@ -241,7 +248,8 @@ export function clearCell(state, i) {
 
 /** Switches which note set is shown; both sets are kept. @param {GameState} state @param {NotesMode} mode @returns {GameState} */
 export function setNotesMode(state, mode) {
-  if (mode !== "auto" && mode !== "manual") throw new RangeError(`unknown notes mode ${mode}`);
+  if (mode !== "auto" && mode !== "tidy" && mode !== "manual")
+    throw new RangeError(`unknown notes mode ${mode}`);
   return state.notesMode === mode ? state : { ...state, notesMode: mode };
 }
 
