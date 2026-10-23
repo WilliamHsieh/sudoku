@@ -216,7 +216,7 @@ for (const selected of [true, false]) {
     await expect(pad).toHaveAttribute("data-locked", "5");
     await expect(five).toHaveAttribute("aria-pressed", "true");
 
-    await page.getByRole("button", { name: "Journal", exact: true }).click();
+    await page.locator(".dbtn").click();
     const day = page.locator('.dgrid .day[data-d="2026-10-15"]');
     await day.click();
     await expect(page.locator(".dgrid .day.sel")).toHaveAttribute("data-d", "2026-10-15");
@@ -227,7 +227,7 @@ for (const selected of [true, false]) {
     await expect(day).toHaveAttribute("aria-pressed", "false");
     await expect(page.locator(".ctx .kicker")).toHaveText("Latest puzzles");
 
-    await page.getByRole("button", { name: "Play", exact: true }).click();
+    await page.locator("#time-control").click();
     await expect(pad).toHaveAttribute("data-locked", "5");
     await expect(five).toHaveAttribute("aria-pressed", "true");
     await page.keyboard.press("Escape");
@@ -238,10 +238,10 @@ for (const selected of [true, false]) {
 }
 
 for (const target of ["board", "keypad"]) {
-  test(`390px: ${target} input releases segment focus before keyboard lock`, async ({ page }) => {
+  test(`390px: ${target} input releases header focus before keyboard lock`, async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await openBoard(page);
-    const play = page.getByRole("button", { name: "Play", exact: true });
+    const play = page.locator("#time-control");
     await play.focus();
     await expect(play).toBeFocused();
     if (target === "board") {

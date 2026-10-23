@@ -111,7 +111,7 @@ for (const width of [390, 1280]) {
           const first = page.locator(manual ? "#opt-tap-fill" : "#opt-cue");
           // Start navigation at the visible header after the mobile setup and
           // resize, rather than at a notes control that desktop has hidden.
-          await page.locator("h1").filter({ visible: true }).click();
+          await page.locator("#time-control").focus();
           await tabTo(page, more);
           await page.keyboard.press("Enter");
           await expectRing(first);

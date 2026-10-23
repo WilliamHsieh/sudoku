@@ -28,6 +28,9 @@ export async function openBoard(page, path = "./") {
     await page.getByRole("button", { name: "Play", exact: true }).click();
   }
   await expect(board).toHaveCount(81);
+  await page
+    .locator(".play")
+    .evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
 }
 
 export async function expectValue(page, i, v) {
@@ -251,6 +254,16 @@ export async function aimFirstNoteIn(page, want) {
   return hit;
 }
 
+/** Clear the board selection through the brand, now shown in Journal. */
+export async function clearSelection(page) {
+  await page.locator(".dbtn").click();
+  await page.locator(".header h1").click();
+  await page.locator("#time-control").click();
+  await page
+    .locator(".play")
+    .evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
+}
+
 export async function expectNoGridShift(page) {
   const deltas = [];
   const idle = await readBoardRects(page);
@@ -258,7 +271,7 @@ export async function expectNoGridShift(page) {
   const many = await readBoardRects(page);
   deltas.push(expectZeroLayoutShift(idle, many, "many yellow chips"));
 
-  await page.locator("h1").click();
+  await clearSelection(page);
   const none = await readBoardRects(page);
   deltas.push(expectZeroLayoutShift(idle, none, "0 chips"));
 

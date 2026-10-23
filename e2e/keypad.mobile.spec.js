@@ -1,7 +1,7 @@
 // Keypad r2 on the iPhone viewport: show, double-tap fill, swipe-down lock,
 // lock-mode taps, two-finger hold, the legacy option, and the cue clock.
 import { test, expect } from "@playwright/test";
-import { cell, openBoard, expectValue, pencil, DEMO_PUZZLE } from "./helpers.js";
+import { clearSelection, cell, openBoard, expectValue, pencil, DEMO_PUZZLE } from "./helpers.js";
 import { touchDriver } from "./touch.js";
 
 const key = (page, d) => page.locator(`.key[data-d="${d}"]`);
@@ -95,7 +95,7 @@ test(
     await clockDoubleTap(page, t, key(page, 4));
     await expectValue(page, 0, 4);
 
-    await page.locator(".hd-brand").click();
+    await clearSelection(page);
     await expect(cell(page, 0)).not.toHaveClass(/selected/);
     await clockDoubleTap(page, t, key(page, 6));
     await expect(page.locator(".toast")).toHaveText("Select a cell, then double-tap");
@@ -275,7 +275,7 @@ test("lock clears by key tap, another digit, swipe, Escape, pause, More and rest
   await expect(pad(page)).toHaveAttribute("data-shown", "6");
 
   await t.swipeDown(key(page, 6), 40);
-  await t.tap(page.locator("#pause"));
+  await t.tap(page.locator("#time-control"));
   await expect(page.locator(".paused-cover")).toBeVisible();
   await expect(pad(page)).toHaveAttribute("data-locked", "0");
   await expect(pad(page)).toHaveAttribute("data-shown", "6");
@@ -507,7 +507,7 @@ test("legacy tap-to-fill is off by default, then a tap fills and a second tap cl
 
   await page.reload();
   if ((await page.locator(".board > .cell").count()) === 0) {
-    await page.getByRole("button", { name: /Play|Back to puzzle/ }).click();
+    await page.getByRole("button", { name: /Play|Back to game/ }).click();
   }
   await expect(page.locator(".board > .cell")).toHaveCount(81);
   await expect(page.locator(".pad-hint")).toHaveText("Tap = answer · Swipe up = candidate");
@@ -584,7 +584,7 @@ test("the first-run coach shows once", async ({ page }) => {
   });
   await page.goto(`./?q=${DEMO_PUZZLE}`);
   if ((await page.locator(".board > .cell").count()) === 0) {
-    await page.getByRole("button", { name: /Play|Back to puzzle/ }).click();
+    await page.getByRole("button", { name: /Play|Back to game/ }).click();
   }
   await expect(page.locator(".board > .cell")).toHaveCount(81);
   const coach = page.locator(".coach");
@@ -599,7 +599,7 @@ test("the first-run coach shows once", async ({ page }) => {
   await expect(coach).toHaveCount(0);
   await page.reload();
   if ((await page.locator(".board > .cell").count()) === 0) {
-    await page.getByRole("button", { name: /Play|Back to puzzle/ }).click();
+    await page.getByRole("button", { name: /Play|Back to game/ }).click();
   }
   await expect(page.locator(".board > .cell")).toHaveCount(81);
   await expect(page.locator(".coach")).toHaveCount(0);

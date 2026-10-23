@@ -47,6 +47,21 @@ describe("elapsed timer", () => {
     vi.useRealTimers();
   });
 
+  it("a non-attaching Journal snapshot freezes time and preserves the partial second", () => {
+    vi.advanceTimersByTime(224700);
+    detach();
+    detach = undefined;
+    const snapshot = get(timer);
+    expect(snapshot).toBe(224);
+    vi.advanceTimersByTime(120000);
+    expect(get(timer)).toBe(snapshot);
+    detach = attachElapsedTimer();
+    vi.advanceTimersByTime(299);
+    expect(get(timer)).toBe(snapshot);
+    vi.advanceTimersByTime(1);
+    expect(get(timer)).toBe(225);
+  });
+
   it("a manual pause resumes on the remainder and skips the gap", () => {
     const play = createPlay({ live: false, now: () => Date.now() });
     expectGapSkipped(

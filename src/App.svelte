@@ -2,12 +2,12 @@
   import { paintBoard, discardPaint } from "./paint-actions.js";
   import Api from "./Api.svelte";
   import Cell from "./Cell.svelte";
-  import Timer from "./Timer.svelte";
+  import PlayHeader from "./PlayHeader.svelte";
   import Journal from "./Journal.svelte";
   import Tools from "./Tools.svelte";
   import Keypad from "./Keypad.svelte";
   import { get } from "svelte/store";
-  import { done, puzzleProgress, solvedPuzzles } from "./store";
+  import { done, puzzleProgress, solvedPuzzles, timer, formatTime } from "./store";
   import { game } from "./game/game.svelte.js";
   import { firstUnsolvedLatest } from "./game/daily.js";
   import { puzzleData } from "./puzzles.js";
@@ -31,10 +31,10 @@
   import { playUi } from "./play/session.svelte.js";
   import { applyShot } from "./play/shot.js";
   import { applyKeypadShot } from "./play/keypad-shot.js";
-  import { headerStep, readHeaderFit } from "./header-fit.js";
   import PausedCover from "./PausedCover.svelte";
   import OptionsSheet from "./OptionsSheet.svelte";
-  import { flushSync, onMount, tick, untrack } from "svelte";
+  import { onMount, tick } from "svelte";
+  import { longDate } from "./journal/format.js";
 
   game.setOnActivity(() => playUi.noteActivity());
   game.setOnLoad(() => {
@@ -61,7 +61,7 @@
     const el = document.getElementById(id);
     if (!(el instanceof HTMLElement)) return;
     const keyboard = document.documentElement.dataset.modality === "keyboard";
-    for (const other of ["pause", "resume"]) {
+    for (const other of ["time-control", "resume"]) {
       if (other !== id) document.getElementById(other)?.classList.remove("modality-focus-ring");
     }
     el.classList.toggle("modality-focus-ring", keyboard);
@@ -72,10 +72,14 @@
   /** @param {boolean} nowPaused */
   async function focusAfterPause(nowPaused) {
     await tick();
-    focusId(nowPaused ? "resume" : "pause");
+    focusId(nowPaused ? "resume" : "time-control");
   }
 
   function onPauseClick() {
+    if (showCalendar) {
+      playFromJournal();
+      return;
+    }
     const result = playUi.toggle();
     if (result === "paused") focusAfterPause(true);
     else if (result === "resumed") focusAfterPause(false);
@@ -104,6 +108,11 @@
 
   let showCalendar = $state(true);
   let hasPlayed = $state(false);
+  let frozenElapsed = $state(0);
+  let viewMotion = $state(false);
+  /** @type {{date: string} | null} */
+  let journalEntry = $state(null);
+  const freshTarget = $derived(unfinishedList($puzzleProgress, $solvedPuzzles)[0] ?? null);
   let isNarrow = $state(typeof window !== "undefined" && window.matchMedia(NARROW_MQ).matches);
   /** Cover stays mounted through the fade-out. */
   let showCover = $state(false);
@@ -141,24 +150,6 @@
   let revealMid = $state(false);
   let wrapEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   let ringEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
-  let hdEl = $state(/** @type {HTMLElement | undefined} */ (undefined));
-  let iconStep = $state(false);
-  let brandClip = $state(false);
-
-  /** Measure the reserved label, never the live clock. Keep the slot across view switches. */
-  function applyHeaderStep(hd) {
-    if (!window.matchMedia("(max-width: 389px)").matches) {
-      hd.style.removeProperty("--time-slot");
-      if (iconStep) iconStep = false;
-      if (brandClip) brandClip = false;
-      return;
-    }
-    const step = headerStep(readHeaderFit(hd));
-    hd.style.setProperty("--time-slot", `${step.slot}px`);
-    if (iconStep !== step.icons) iconStep = step.icons;
-    if (brandClip !== step.brandHidden) brandClip = step.brandHidden;
-  }
-
   function handleKeydown(e) {
     const cmd = e.ctrlKey || e.metaKey;
     // Only these chords are undo/redo. Ctrl/Alt/Meta+digit follows master and
@@ -257,11 +248,11 @@
     handleKeydown(e);
   }
 
-  /** Board/keypad pointer input releases the view segment's keyboard focus. */
+  /** Board/keypad pointer input releases the header's keyboard focus. */
   function releaseViewFocus(e) {
     if (!(e.target instanceof Element) || !e.target.closest(".board, #keypad")) return;
     const active = document.activeElement;
-    if (active instanceof HTMLElement && active.closest(".seg, .mseg")) active.blur();
+    if (active instanceof HTMLElement && active.closest(".tp, .dbtn, .notes-mode")) active.blur();
   }
 
   function removeFocus() {
@@ -274,9 +265,15 @@
     }
   }
 
-  function openJournal() {
+  async function openJournal() {
     game.flushProgress();
+    frozenElapsed = get(timer);
+    journalEntry = game.dateStr ? { date: game.dateStr } : null;
+    viewMotion = true;
     showCalendar = true;
+    resumeStatus = `Journal${game.dateStr ? ", " + longDate(game.dateStr) : ""}. Game paused at ${formatTime(frozenElapsed)}.`;
+    await tick();
+    if (isNarrow || !journalEntry) focusId("time-control");
   }
 
   function hasQueryPuzzle() {
@@ -302,26 +299,27 @@
         }
       }
     }
+    backToGame();
+  }
+
+  /** Shared by C, P, and Resume for the current puzzle. Never reload history. */
+  function backToGame(fromSheet = false) {
     playUi.start();
+    playUi.resume();
+    if (!playUi.paused) {
+      showCover = false;
+      coverLeaving = false;
+    }
+    viewMotion = !fromSheet;
     hasPlayed = true;
     showCalendar = false;
-  }
-
-  /** The selected segment is a no-op so the cue clock and pause state stay put. */
-  function onViewPlay() {
-    if (!showCalendar) return;
-    playFromJournal();
-  }
-
-  function onViewJournal() {
-    if (showCalendar) return;
-    openJournal();
+    void announceResumed();
   }
 
   function handleLoadPuzzle(event) {
-    console.log("Puzzle loaded from calendar:", event.detail);
     playUi.start();
     hasPlayed = true;
+    viewMotion = !event.detail?.fromSheet;
     showCalendar = false;
   }
 
@@ -341,6 +339,8 @@
     const stopShiftHover = installShiftHover();
     const reduceMq = window.matchMedia("(prefers-reduced-motion: reduce)");
     const shotParams = new URLSearchParams(window.location.search);
+    const elapsed = shotParams.get("elapsed");
+    if (elapsed && /^\d+$/.test(elapsed)) timer.set(Number(elapsed));
     const reducedOn = () => reduceMq.matches || shotParams.get("rm") === "1";
     playUi.setReduced(reducedOn());
     const onReduce = () => playUi.setReduced(reducedOn());
@@ -451,43 +451,6 @@
   });
 
   $effect(() => {
-    if (!isNarrow || !hdEl) return;
-    const hd = hdEl;
-    let active = true;
-    // These probes persist in both views. Only size and font changes can alter
-    // the fit. Do not subscribe this effect to the state read by the fit pass.
-    const run = () => {
-      if (active && hd.isConnected) untrack(() => applyHeaderStep(hd));
-    };
-    const beforePaint = () => flushSync(run);
-    const loading = () => {
-      // FontFace.loaded resolves before the font-set loadingdone event, which
-      // can arrive after the first paint with the new glyphs. Flush the class
-      // and slot together in that promise's microtask, before the next frame.
-      for (const face of document.fonts) {
-        if (face.status === "loading") face.loaded.then(beforePaint, () => {});
-      }
-    };
-    run();
-    // Also catch local fonts and already-loaded faces applied through CSS.
-    // ResizeObserver runs before paint; the probes never depend on the step.
-    const ro = new ResizeObserver(beforePaint);
-    ro.observe(hd);
-    for (const probe of hd.querySelectorAll(".hd-probe > span")) ro.observe(probe);
-    document.fonts.addEventListener("loading", loading);
-    document.fonts.addEventListener("loadingdone", beforePaint);
-    window.addEventListener("resize", beforePaint);
-    loading();
-    return () => {
-      active = false;
-      ro.disconnect();
-      document.fonts.removeEventListener("loading", loading);
-      document.fonts.removeEventListener("loadingdone", beforePaint);
-      window.removeEventListener("resize", beforePaint);
-    };
-  });
-
-  $effect(() => {
     if (showCalendar) return;
     if (wrapEl && ringEl) ring.bind(wrapEl, ringEl);
     const mobile = window.matchMedia("(max-width: 599px)").matches;
@@ -511,169 +474,30 @@
 <main class:on-journal={showCalendar}>
   <p id="resume-status" class="sr-only" aria-live="polite">{resumeStatus}</p>
   <Api />
-  {#if !isNarrow}
-    <div class="header" class:playing={!showCalendar}>
-      <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
-      <h1 onclick={removeFocus}>Sudoku</h1>
-      {#if !showCalendar}
-        <Timer />
-        <button
-          class="dhbtn"
-          id="pause"
-          type="button"
-          aria-pressed={playUi.paused}
-          aria-label={playUi.paused ? "Resume" : "Pause"}
-          title={playUi.paused ? "Resume (P)" : "Pause (P)"}
-          onclick={onPauseClick}
-        >
-          <svg class="ic pz ic-pause" viewBox="0 0 24 24" aria-hidden="true">
-            <rect x="6.5" y="5" width="3.6" height="14" rx="1"></rect>
-            <rect x="13.9" y="5" width="3.6" height="14" rx="1"></rect>
-          </svg>
-          <svg class="ic play-ic ic-play" viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"
-            ></path>
-          </svg>
-        </button>
-        <button
-          class="dhbtn"
-          type="button"
-          data-more
-          aria-label="More"
-          title="More options"
-          aria-haspopup="dialog"
-          disabled={playUi.paused}
-          onclick={() => playUi.openOptions()}
-        >
-          <svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-            <circle cx="12" cy="12" r="1"></circle>
-            <circle cx="19" cy="12" r="1"></circle>
-            <circle cx="5" cy="12" r="1"></circle>
-          </svg>
-        </button>
-      {/if}
-      <nav class="seg" aria-label="Views">
-        <button
-          type="button"
-          aria-current={showCalendar ? "page" : undefined}
-          onclick={onViewJournal}
-        >
-          <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M8 2v3"></path>
-            <path d="M16 2v3"></path>
-            <rect x="3" y="3" width="18" height="18" rx="2"></rect>
-            <path d="M3 9h18"></path>
-            <path d="M8 13h.01"></path>
-            <path d="M12 13h.01"></path>
-            <path d="M16 13h.01"></path>
-            <path d="M8 17h.01"></path>
-            <path d="M12 17h.01"></path>
-            <path d="M16 17h.01"></path>
-          </svg>
-          Journal
-        </button>
-        <button
-          type="button"
-          aria-current={!showCalendar ? "page" : undefined}
-          onclick={onViewPlay}
-        >
-          <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <rect width="18" height="18" x="3" y="3" rx="2"></rect>
-            <path d="M3 9h18"></path>
-            <path d="M3 15h18"></path>
-            <path d="M9 3v18"></path>
-            <path d="M15 3v18"></path>
-          </svg>
-          Play
-        </button>
-      </nav>
-    </div>
-  {:else}
-    <header class="hd" class:icon-step={iconStep} class:brand-clip={brandClip} bind:this={hdEl}>
-      <span class="hd-probe" aria-hidden="true">
-        <span class="hd-probe-brand">Sudoku</span>
-        <span class="hd-probe-journal">Journal</span>
-        <span class="hd-probe-play">Play</span>
-        <span class="hd-probe-time">999:59</span>
-        <span class="hd-probe-pad"></span>
-      </span>
-      <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
-      <h1 class="hd-brand" onclick={removeFocus}>Sudoku</h1>
-      <div class="hd-r">
-        {#if !showCalendar}
-          <Timer />
-          <button
-            class="hbtn"
-            id="pause"
-            type="button"
-            aria-pressed={playUi.paused}
-            aria-label={playUi.paused ? "Resume" : "Pause"}
-            onclick={onPauseClick}
-          >
-            <span class="face">
-              <svg class="ic pz ic-pause" viewBox="0 0 24 24" aria-hidden="true">
-                <rect x="6.5" y="5" width="3.6" height="14" rx="1"></rect>
-                <rect x="13.9" y="5" width="3.6" height="14" rx="1"></rect>
-              </svg>
-              <svg class="ic play-ic ic-play" viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"
-                ></path>
-              </svg>
-            </span>
-          </button>
-        {/if}
-        <!-- Lucide grid-3x3 and calendar-days. ISC License.
-             Copyright (c) 2026 Lucide Icons and Contributors. -->
-        <nav class="mseg" aria-label="Views">
-          <button
-            type="button"
-            aria-label="Journal"
-            title="Journal"
-            aria-current={showCalendar ? "page" : undefined}
-            onclick={onViewJournal}
-          >
-            <svg class="mseg-ic" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M8 2v3"></path>
-              <path d="M16 2v3"></path>
-              <rect x="3" y="3" width="18" height="18" rx="2"></rect>
-              <path d="M3 9h18"></path>
-              <path d="M8 13h.01"></path>
-              <path d="M12 13h.01"></path>
-              <path d="M16 13h.01"></path>
-              <path d="M8 17h.01"></path>
-              <path d="M12 17h.01"></path>
-              <path d="M16 17h.01"></path>
-            </svg>
-            <span class="mseg-label">Journal</span>
-          </button>
-          <button
-            type="button"
-            aria-label="Play"
-            title="Play"
-            aria-current={!showCalendar ? "page" : undefined}
-            onclick={onViewPlay}
-          >
-            <svg class="mseg-ic" viewBox="0 0 24 24" aria-hidden="true">
-              <rect width="18" height="18" x="3" y="3" rx="2"></rect>
-              <path d="M3 9h18"></path>
-              <path d="M3 15h18"></path>
-              <path d="M9 3v18"></path>
-              <path d="M15 3v18"></path>
-            </svg>
-            <span class="mseg-label">Play</span>
-          </button>
-        </nav>
-      </div>
-    </header>
-  {/if}
+  <PlayHeader
+    journal={showCalendar}
+    {hasPlayed}
+    {frozenElapsed}
+    {freshTarget}
+    ondate={openJournal}
+    ontime={onPauseClick}
+    onbrand={removeFocus}
+  />
 
   {#if showCalendar}
-    <Journal />
+    <div class="journal-view" class:enter-journal={viewMotion && !playUi.reduced}>
+      <Journal
+        openOn={journalEntry}
+        current={hasPlayed
+          ? { date: game.dateStr, diff: game.difficulty, elapsed: frozenElapsed }
+          : null}
+        onback={backToGame}
+      />
+    </div>
   {:else}
     <div
       class="play"
+      class:enter-play={viewMotion && !playUi.reduced}
       class:board-concealed={concealBoard}
       class:is-paused={playUi.paused}
       class:revealing={playUi.resumePhase === "reveal"}
@@ -798,11 +622,6 @@
     overflow: visible;
   }
 
-  .header,
-  .hd {
-    flex: none;
-  }
-
   .play {
     flex: 1 1 auto;
     min-height: 0;
@@ -828,88 +647,6 @@
     min-height: 0;
     overflow-y: auto;
     overscroll-behavior: contain;
-  }
-
-  .header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
-    margin: 0 auto 24px;
-    padding: 8px 0 16px;
-    border-bottom: var(--line-thin-w) solid var(--line-thin);
-    max-width: 1200px;
-  }
-
-  .header h1 {
-    margin: 0;
-    font-size: 20px;
-    font-weight: 600;
-    letter-spacing: 0.2px;
-    color: var(--ui-ink);
-    cursor: pointer;
-  }
-
-  .header :global(.timer) {
-    margin-left: auto;
-  }
-
-  .seg {
-    display: flex;
-    background: var(--neutral);
-    border-radius: 10px;
-    padding: 3px;
-    margin-left: auto;
-  }
-  .header.playing {
-    gap: 8px;
-  }
-  .header.playing .seg {
-    margin-left: 6px;
-  }
-  .seg button {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--ink2);
-    padding: 6px 14px;
-    border-radius: 8px;
-    display: flex;
-    gap: 7px;
-    align-items: center;
-    font-family: var(--ui-font);
-    background: none;
-    border: 0;
-    cursor: pointer;
-  }
-  .seg button[aria-current] {
-    background: var(--card);
-    color: var(--ink);
-    box-shadow: 0 1px 2px rgb(28 26 22 / 0.12);
-  }
-  .seg button:active:not([aria-current]) {
-    color: var(--ink);
-  }
-  .seg button:focus {
-    outline: none;
-  }
-  .seg button:focus-visible {
-    outline: 2px solid var(--focus);
-    outline-offset: 1px;
-  }
-
-  .btn-icon {
-    width: 16px;
-    height: 16px;
-    flex: none;
-    stroke: currentColor;
-    fill: none;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-
-  .hd {
-    display: none;
   }
 
   .board-wrap {
@@ -1092,11 +829,6 @@
         max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
     }
 
-    .header {
-      margin-bottom: 16px;
-      padding: 4px 0 12px;
-    }
-
     .board-wrap {
       max-width: 100%;
       margin-bottom: 24px;
@@ -1183,275 +915,6 @@
       visibility: hidden;
     }
 
-    .header {
-      display: none;
-    }
-
-    /* H2 header — exact rules from h2-play.html / h2-journal.html */
-    .hd,
-    .hd * {
-      box-sizing: border-box;
-    }
-    .hd {
-      --hd-ink: #1c1a16;
-      --hd-soft: #5d584f;
-      --hd-neutral: #e5e4e0;
-      --hd-line: rgb(0 0 0 / 0.08);
-      --hd-face: rgb(255 255 255 / 0.7);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      height: 44px;
-      padding: 0 16px;
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
-      color: var(--hd-ink);
-    }
-    .hd-brand {
-      font-size: 22px;
-      font-weight: 700;
-      letter-spacing: -0.01em;
-      line-height: 1;
-      margin: 0;
-    }
-    .hd-r {
-      display: flex;
-      align-items: center;
-    }
-    .hd .ic {
-      width: 16px;
-      height: 16px;
-      flex: none;
-      stroke-width: 2;
-    }
-    .hbtn {
-      width: 44px;
-      height: 44px;
-      display: grid;
-      place-items: center;
-      padding: 0;
-      border: 0;
-      background: none;
-      color: inherit;
-      cursor: pointer;
-      font: inherit;
-    }
-    .hbtn .face {
-      width: 30px;
-      height: 30px;
-      display: grid;
-      place-items: center;
-      border: 1px solid var(--hd-line, rgb(0 0 0 / 0.08));
-      border-radius: 8px;
-      background: var(--hd-face, rgb(255 255 255 / 0.7));
-    }
-    .pz rect {
-      fill: currentColor;
-      stroke: none;
-    }
-    .play-ic {
-      display: none;
-    }
-    .play-ic path {
-      fill: currentColor;
-      stroke: none;
-    }
-    #pause[aria-pressed="true"] .ic-pause {
-      display: none;
-    }
-    #pause[aria-pressed="true"] .ic-play {
-      display: block;
-      width: 15px;
-      height: 15px;
-    }
-    #pause[aria-pressed="true"] .face {
-      background: var(--neutral);
-      border-color: rgb(28 26 22 / 0.18);
-    }
-    .hbtn:focus {
-      outline: none;
-    }
-    .hbtn:focus-visible {
-      outline: none;
-    }
-    .hbtn:focus-visible .face,
-    .hbtn:global(.modality-focus-ring):focus .face {
-      outline: 2px solid var(--focus);
-      outline-offset: 1px;
-    }
-    :global(:root[data-modality="pointer"]) .hbtn:focus-visible .face {
-      outline: none;
-    }
-    .hbtn:active .face {
-      background: var(--key-pressed);
-    }
-    /* Compact text-only seg. Track ends on the header's 16px padding (x 374). */
-    .mseg {
-      display: flex;
-      align-items: center;
-      flex: none;
-      background: var(--neutral);
-      border-radius: 9px;
-      padding: 3px;
-      gap: 0;
-      position: relative;
-      margin-left: 4px;
-    }
-    .mseg button {
-      font: inherit;
-      height: 26px;
-      padding: 0 11px;
-      border-radius: 7px;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--ink2);
-      position: relative;
-      white-space: nowrap;
-      background: none;
-      border: 0;
-      margin: 0;
-      cursor: pointer;
-      -webkit-tap-highlight-color: transparent;
-    }
-    /* 44px hit: 9px above and below the 26px face, no gap between segments. */
-    .mseg button::after {
-      content: "";
-      position: absolute;
-      left: 0;
-      right: 0;
-      top: -9px;
-      bottom: -9px;
-    }
-    .mseg button[aria-current] {
-      background: var(--card);
-      color: var(--ink);
-      box-shadow: 0 1px 2px rgb(28 26 22 / 0.12);
-    }
-    .mseg button:focus {
-      outline: none;
-    }
-    .mseg button:focus-visible {
-      outline: 2px solid var(--focus);
-      outline-offset: 1px;
-    }
-    .mseg button:active:not([aria-current]) {
-      color: var(--ink);
-    }
-    /* Icons stay out of the text segments until the container step below. */
-    .mseg-ic {
-      display: none;
-      width: 16px;
-      height: 16px;
-      flex: none;
-      stroke: currentColor;
-      fill: none;
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-    main > .hd {
-      margin: -3px -8px -7px;
-    }
-
-    /* Widths under 390. Padding and the segment inset shrink with the viewport,
-       floored at 8px and 10px. The icon and brand classes come from a measure
-       of the rendered labels plus the reserved 999:59 slot (see header-fit.js),
-       on resize and on document.fonts, never from the live clock. */
-    .hd-probe {
-      position: absolute;
-      left: 0;
-      top: 0;
-      visibility: hidden;
-      pointer-events: none;
-      margin: 0;
-      padding: 0;
-      border: 0;
-    }
-    .hd-probe-brand,
-    .hd-probe-journal,
-    .hd-probe-play,
-    .hd-probe-time {
-      display: block;
-      width: max-content;
-      line-height: 1;
-      white-space: nowrap;
-    }
-    .hd-probe-brand {
-      font-size: 22px;
-      font-weight: 700;
-      letter-spacing: -0.01em;
-    }
-    .hd-probe-journal,
-    .hd-probe-play {
-      font-size: 13px;
-      font-weight: 600;
-    }
-    .hd-probe-time {
-      font-size: 14.4px;
-      font-weight: 600;
-      font-variant-numeric: tabular-nums;
-    }
-    .hd-probe-pad {
-      display: block;
-      box-sizing: content-box;
-      width: var(--icon-face, 44px);
-      height: 0;
-      padding: 0 0 0 var(--seg-pad, 10px);
-    }
-    @media (max-width: 389px) {
-      .hd {
-        --seg-pad: clamp(10px, calc(10px + (100vw - 320px) / 69), 11px);
-        --track-pad: 3px;
-        --icon-track-pad: 2px;
-        --track-gap: 4px;
-        --icon-face: 44px;
-        --pause-hit: 44px;
-        --fit-gap: 8px;
-        position: relative;
-        font-size: 13px;
-        font-weight: 600;
-        padding-inline: clamp(8px, calc(8px + (100vw - 320px) * 8 / 69), 16px);
-      }
-      .hd-r {
-        margin-left: auto;
-      }
-      .mseg button {
-        padding-inline: var(--seg-pad);
-      }
-      .hd.brand-clip .hd-brand {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        padding: 0;
-        margin: -1px;
-        overflow: hidden;
-        clip: rect(0, 0, 0, 0);
-        clip-path: inset(50%);
-        white-space: nowrap;
-        border: 0;
-      }
-      /* 92×32 track: padding is 3px vertical / 2px horizontal. Uniform
-         3px would make it 94px wide and leave only 7px before the timer at
-         260px in DejaVu Sans (8px required). Faces are 44×26; hits 44×44,
-         with no seam overlap. Pause has a 6px gap to the first hit.
-         The growth from the approved 78px track needs designer approval. */
-      .hd.icon-step .mseg {
-        padding-inline: var(--icon-track-pad);
-        border-radius: 8px;
-      }
-      .hd.icon-step .mseg-ic {
-        display: block;
-      }
-      .hd.icon-step .mseg-label {
-        display: none;
-      }
-      .hd.icon-step .mseg button {
-        display: grid;
-        place-items: center;
-        width: var(--icon-face);
-        padding-inline: 0;
-      }
-    }
-
     main.on-journal {
       gap: 18px;
       /* The list scrolls to the screen edge. The safe area is padding inside .mobile. */
@@ -1489,101 +952,49 @@
   }
 
   @media (min-width: 600px) {
-    .dhbtn {
-      width: 30px;
-      height: 30px;
-      display: grid;
-      place-items: center;
-      padding: 0;
-      border: 1px solid var(--timer-line);
-      border-radius: 8px;
-      background: var(--timer-bg);
-      color: var(--timer-ink);
-      cursor: pointer;
-      font: inherit;
-    }
-    .dhbtn .ic {
-      width: 16px;
-      height: 16px;
-      flex: none;
-    }
-    .dhbtn .pz rect {
-      fill: currentColor;
-      stroke: none;
-    }
-    .dhbtn .ic-play {
-      display: none;
-    }
-    .dhbtn .play-ic path {
-      fill: currentColor;
-      stroke: none;
-    }
-    .dhbtn[aria-pressed="true"] .ic-pause {
-      display: none;
-    }
-    .dhbtn[aria-pressed="true"] .ic-play {
-      display: block;
-      width: 15px;
-      height: 15px;
-    }
-    .dhbtn[aria-pressed="true"] {
-      background: var(--neutral);
-      border-color: rgb(28 26 22 / 0.18);
-    }
-    .dhbtn:focus {
-      outline: none;
-    }
-    .dhbtn:focus-visible,
-    .dhbtn:global(.modality-focus-ring):focus {
-      outline: 2px solid var(--focus);
-      outline-offset: 2px;
-    }
-    :global(:root[data-modality="pointer"]) .dhbtn:focus-visible {
-      outline: none;
-    }
-    .dhbtn:disabled {
-      opacity: 1;
-      color: var(--timer-ink);
-      background: var(--timer-bg);
-      border-color: var(--timer-line);
-      cursor: default;
-    }
-    .dhbtn .ic {
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-    .dhbtn .pz {
-      fill: none;
-      stroke: none;
-    }
-
-    /* Journal's 64px bar in both views, so the seg stays at the same box.
-       Play's old 16px page inset moves onto .play; the bar keeps a 24px gap under it. */
     main {
       padding: 0;
     }
     main:not(.on-journal) > .play {
       padding: 0 16px 16px;
     }
-    main .header {
-      height: 64px;
-      margin: 0 0 24px;
-      max-width: none;
-      padding: 0 32px;
-      border-bottom: 1px solid var(--hair);
-      box-sizing: border-box;
-      gap: 8px;
+  }
+  .journal-view {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .enter-journal {
+    animation: enter-journal 260ms var(--ease-out) both;
+  }
+  .enter-play {
+    animation: enter-play 260ms var(--ease-out) both;
+  }
+  @keyframes enter-journal {
+    from {
+      opacity: 0;
+      transform: translateX(-24px);
     }
-    main.on-journal .header {
-      margin-bottom: 0;
+    to {
+      opacity: 1;
+      transform: none;
     }
-    main .header h1 {
-      font-size: 24px;
-      font-weight: 700;
-      letter-spacing: -0.01em;
+  }
+  @keyframes enter-play {
+    from {
+      opacity: 0;
+      transform: translateX(24px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .enter-journal,
+    .enter-play {
+      animation: none;
     }
   }
 
@@ -1640,16 +1051,6 @@
     .play.revealing .chrome-dim {
       animation: none;
       transition: none;
-    }
-  }
-
-  @media (min-width: 600px) and (hover: hover) {
-    .dhbtn:hover:not(:disabled) {
-      background: #ffffff;
-      border-color: rgb(28 26 22 / 0.22);
-    }
-    .dhbtn[aria-pressed="true"]:hover {
-      background: #dcdad4;
     }
   }
 </style>

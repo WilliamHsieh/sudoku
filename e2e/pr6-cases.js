@@ -28,6 +28,9 @@ async function openPlay(page) {
     await page.getByRole("button", { name: "Play", exact: true }).click();
   }
   await expect(page.locator(".board > .cell")).toHaveCount(81);
+  await page
+    .locator(".play")
+    .evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
 }
 
 /** @param {import('@playwright/test').Page} page */
@@ -60,7 +63,7 @@ async function cueIds(page) {
 
 /** @param {import('@playwright/test').Page} page */
 async function pauseRingOn(page) {
-  return page.locator("#pause").evaluate((btn) => {
+  return page.locator("#time-control").evaluate((btn) => {
     const nodes = [btn, ...btn.querySelectorAll(".face")];
     return nodes.some((el) => {
       const style = getComputedStyle(el);
@@ -119,12 +122,12 @@ export function registerPr6Tests(opts = {}) {
     await openPlay(page);
   });
 
-  test("the desktop timer chip is 30px tall", async ({ page }) => {
+  test("the desktop time pill face is 36px tall", async ({ page }) => {
     test.skip(mobile, "desktop header");
-    const timer = page.locator(".timer");
-    await expect(timer).toHaveCSS("padding-top", "6px");
-    await expect(timer).toHaveCSS("padding-right", "10px");
-    expect((await timer.boundingBox()).height).toBe(30);
+    const timer = page.locator(".tp .face");
+    await expect(timer).toHaveCSS("padding-top", "0px");
+    await expect(timer).toHaveCSS("padding-right", "3px");
+    expect((await timer.boundingBox()).height).toBe(36);
   });
 
   test("the cue pulses every lone candidate together; selection and hover do not delay it", async ({
@@ -221,7 +224,7 @@ export function registerPr6Tests(opts = {}) {
 
   test("the cue stays off while paused or a dialog is open, then starts over", async ({ page }) => {
     await page.clock.runFor(10_000);
-    await page.locator("#pause").click();
+    await page.locator("#time-control").click();
     await page.clock.runFor(40_000);
     await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "idle");
     await expect(page.locator(".pencil-box.cue")).toHaveCount(0);
@@ -388,16 +391,16 @@ export function registerPr6Tests(opts = {}) {
 
   test("pause stops the clock and hides the board; resume continues", async ({ page }) => {
     await page.clock.runFor(3_000);
-    await expect(page.locator(".timer .time")).toHaveText("0:03");
-    await page.locator("#pause").click();
+    await expect(page.locator("#header-time .time")).toHaveText("0:03");
+    await page.locator("#time-control").click();
     await expect(page.locator(".paused-cover")).toBeVisible();
     await expect(page.locator(".paused-kicker")).toHaveText("Paused");
     await expect(page.locator(".paused-line")).toHaveText(
       "The board is hidden and the clock is stopped."
     );
     await expect(page.locator("#resume")).toBeFocused();
-    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "true");
-    await expect(page.locator("#pause")).toHaveAttribute("aria-label", "Resume");
+    await expect(page.locator("#time-control")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#time-control")).toHaveAttribute("aria-label", "Resume");
     await expect(page.locator(".board")).toHaveAttribute("aria-hidden", "true");
     await expect(page.locator(".board")).toHaveAttribute("inert", "");
     await expect(page.locator(".chrome-dim")).toHaveAttribute("inert", "");
@@ -405,15 +408,15 @@ export function registerPr6Tests(opts = {}) {
       await expect(page.locator(".chrome-dim")).toHaveCSS("opacity", "0.4");
     }
     await page.clock.runFor(5_000);
-    await expect(page.locator(".timer .time")).toHaveText("0:03");
+    await expect(page.locator("#header-time .time")).toHaveText("0:03");
     await expect(page.locator(".paused-time")).toHaveText("0:03");
 
     await page.locator("#resume").click();
     await expect(page.locator(".paused-cover")).toHaveCount(0);
-    await expect(page.locator("#pause")).toBeFocused();
-    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "false");
+    await expect(page.locator("#time-control")).toBeFocused();
+    await expect(page.locator("#time-control")).toHaveAttribute("aria-pressed", "false");
     await page.clock.runFor(2_000);
-    await expect(page.locator(".timer .time")).toHaveText("0:05");
+    await expect(page.locator("#header-time .time")).toHaveText("0:05");
   });
 
   test("P toggles pause and ignores modifiers and open dialogs", async ({ page }) => {
@@ -427,7 +430,7 @@ export function registerPr6Tests(opts = {}) {
     await expect(page.locator("#resume")).toBeFocused();
     await page.keyboard.press("p");
     await expect(page.locator(".paused-cover")).toHaveCount(0);
-    await expect(page.locator("#pause")).toBeFocused();
+    await expect(page.locator("#time-control")).toBeFocused();
 
     await moreButton(page).click();
     await expect(page.locator("dialog.opts")).toBeVisible();
@@ -438,21 +441,21 @@ export function registerPr6Tests(opts = {}) {
 
   test("hiding the tab pauses and showing it auto-resumes after the reveal", async ({ page }) => {
     await page.clock.runFor(2_000);
-    await expect(page.locator(".timer .time")).toHaveText("0:02");
+    await expect(page.locator("#header-time .time")).toHaveText("0:02");
     await setTabHidden(page, true);
     await expect(page.locator(".paused-cover")).toBeVisible();
     await expect(page.locator(".paused-line")).toHaveText(
       "Paused while you were away. It picks up when you come back."
     );
     await expect(page.locator("#resume")).toBeFocused();
-    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#time-control")).toHaveAttribute("aria-pressed", "true");
     // Away long enough that the return is a reveal, not an instant resume.
     await page.clock.runFor(1_500);
     await setTabHidden(page, false);
     await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "hold");
     await expect(page.locator(".play")).toHaveAttribute("data-pause-reason", "auto");
     await expect(page.locator(".paused-cover")).toBeVisible();
-    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#time-control")).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator(".board")).toHaveAttribute("aria-hidden", "true");
     await expect(page.locator(".board")).toHaveAttribute("inert", "");
     if (mobile) await expect(page.locator(".chrome-dim")).toHaveAttribute("inert", "");
@@ -460,20 +463,20 @@ export function registerPr6Tests(opts = {}) {
     await page.clock.runFor(150);
     await expect(page.locator(".play")).toHaveClass(/revealing/);
     await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "reveal");
-    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#time-control")).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator(".board")).toHaveAttribute("inert", "");
-    await expect(page.locator(".timer .time")).toHaveText("0:02");
+    await expect(page.locator("#header-time .time")).toHaveText("0:02");
     if (mobile) await expect(page.locator(".chrome-dim")).toHaveAttribute("inert", "");
 
     await page.clock.runFor(320);
     await expect(page.locator(".paused-cover, .paused-leave")).toHaveCount(0);
-    await expect(page.locator("#pause")).toBeFocused();
-    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "false");
+    await expect(page.locator("#time-control")).toBeFocused();
+    await expect(page.locator("#time-control")).toHaveAttribute("aria-pressed", "false");
     await expect(page.locator("#resume-status")).toHaveText("Resumed");
     await expect(page.locator(".board")).not.toHaveAttribute("inert", "");
-    await expect(page.locator(".timer .time")).toHaveText("0:02");
+    await expect(page.locator("#header-time .time")).toHaveText("0:02");
     await page.clock.runFor(1_000);
-    await expect(page.locator(".timer .time")).toHaveText("0:03");
+    await expect(page.locator("#header-time .time")).toHaveText("0:03");
   });
 
   test("Escape as soon as Restart is clicked returns to the sheet", async ({ page }) => {
@@ -498,7 +501,7 @@ export function registerPr6Tests(opts = {}) {
     await page.keyboard.press("4");
     await expectValue(page, 0, 4);
     await page.clock.runFor(4_000);
-    await expect(page.locator(".timer .time")).toHaveText("0:04");
+    await expect(page.locator("#header-time .time")).toHaveText("0:04");
 
     await moreButton(page).click();
     await expect(page.locator("#opt-cue")).toBeFocused();
@@ -527,7 +530,7 @@ export function registerPr6Tests(opts = {}) {
     await expect(page.locator("dialog.confirm")).toBeHidden();
     await expect(page.locator("dialog.opts")).toBeHidden();
     await expectValue(page, 0, 0);
-    await expect(page.locator(".timer .time")).toHaveText("0:00");
+    await expect(page.locator("#header-time .time")).toHaveText("0:00");
     await expect(page.locator(".cell.selected")).toHaveCount(0);
     await expect(page.locator("#undo")).toBeDisabled();
     await expect(moreButton(page)).toBeFocused();
@@ -535,7 +538,7 @@ export function registerPr6Tests(opts = {}) {
 
   test("a manual pause stays paused when the tab comes back", async ({ page }) => {
     await page.clock.runFor(2_000);
-    await page.locator("#pause").click();
+    await page.locator("#time-control").click();
     await expect(page.locator(".paused-line")).toHaveText(
       "The board is hidden and the clock is stopped."
     );
@@ -549,19 +552,19 @@ export function registerPr6Tests(opts = {}) {
     );
     await expect(page.locator(".play")).toHaveAttribute("data-pause-reason", "manual");
     await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "idle");
-    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "true");
-    await expect(page.locator(".timer .time")).toHaveText("0:02");
+    await expect(page.locator("#time-control")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#header-time .time")).toHaveText("0:02");
     await page.locator("#resume").click();
     await expect(page.locator(".paused-cover")).toHaveCount(0);
-    await expect(page.locator("#pause")).toBeFocused();
+    await expect(page.locator("#time-control")).toBeFocused();
     await expect(page.locator("#resume-status")).toHaveText("");
     await page.clock.runFor(1_000);
-    await expect(page.locator(".timer .time")).toHaveText("0:03");
+    await expect(page.locator("#header-time .time")).toHaveText("0:03");
   });
 
   test("an absence under 1s resumes instantly with nothing announced", async ({ page }) => {
     await page.clock.runFor(2_000);
-    await expect(page.locator(".timer .time")).toHaveText("0:02");
+    await expect(page.locator("#header-time .time")).toHaveText("0:02");
     await setTabHidden(page, true);
     await page.clock.runFor(500);
     await setTabHidden(page, false);
@@ -570,26 +573,26 @@ export function registerPr6Tests(opts = {}) {
     await expect(page.locator(".play")).not.toHaveClass(/revealing/);
     await expect(page.locator("#resume-status")).toHaveText("");
     await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe("pause");
-    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "false");
-    await expect(page.locator(".timer .time")).toHaveText("0:02");
+    await expect(page.locator("#time-control")).toHaveAttribute("aria-pressed", "false");
+    await expect(page.locator("#header-time .time")).toHaveText("0:02");
     await page.clock.runFor(1_000);
-    await expect(page.locator(".timer .time")).toHaveText("0:03");
+    await expect(page.locator("#header-time .time")).toHaveText("0:03");
   });
 
   test("Resume and P do nothing while the tab is hidden", async ({ page }) => {
     await page.clock.runFor(2_000);
-    await expect(page.locator(".timer .time")).toHaveText("0:02");
+    await expect(page.locator("#header-time .time")).toHaveText("0:02");
     await setTabHidden(page, true);
     await expect(page.locator("#resume")).toBeFocused();
     await page.keyboard.press("p");
     await expect(page.locator("#resume")).toBeFocused();
-    await page.locator("#pause").click({ force: true });
+    await page.locator("#time-control").click({ force: true });
     await page.locator("#resume").click({ force: true });
     await page.clock.runFor(3_000);
     await expect(page.locator(".paused-cover")).toBeVisible();
     await expect(page.locator(".play")).toHaveAttribute("data-pause-reason", "auto");
-    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "true");
-    await expect(page.locator(".timer .time")).toHaveText("0:02");
+    await expect(page.locator("#time-control")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#header-time .time")).toHaveText("0:02");
   });
 
   test("a manual pause ignores Resume and P while the tab is hidden", async ({ page }) => {
@@ -597,17 +600,17 @@ export function registerPr6Tests(opts = {}) {
     await page.keyboard.press("p");
     await expect(page.locator(".play")).toHaveAttribute("data-pause-reason", "manual");
     await expect(page.locator("#resume")).toBeFocused();
-    await expect(page.locator(".timer .time")).toHaveText("0:02");
+    await expect(page.locator("#header-time .time")).toHaveText("0:02");
     await setTabHidden(page, true);
     await page.keyboard.press("p");
     await expect(page.locator("#resume")).toBeFocused();
-    await page.locator("#pause").click({ force: true });
+    await page.locator("#time-control").click({ force: true });
     await page.locator("#resume").click({ force: true });
     await page.clock.runFor(3_000);
     await expect(page.locator(".paused-cover")).toBeVisible();
     await expect(page.locator(".play")).toHaveAttribute("data-pause-reason", "manual");
-    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "true");
-    await expect(page.locator(".timer .time")).toHaveText("0:02");
+    await expect(page.locator("#time-control")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#header-time .time")).toHaveText("0:02");
     await setTabHidden(page, false);
     await expect(page.locator(".paused-cover")).toBeVisible();
     await expect(page.locator("#resume-status")).toHaveText("");
@@ -659,7 +662,7 @@ export function registerPr6Tests(opts = {}) {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.reload();
     if ((await page.locator(".board > .cell").count()) === 0) {
-      await page.getByRole("button", { name: /Play|Back to puzzle/ }).click();
+      await page.getByRole("button", { name: /Play|Back to game/ }).click();
     }
     await expect(page.locator(".board > .cell")).toHaveCount(81);
     await page.clock.runFor(2_000);
@@ -668,12 +671,12 @@ export function registerPr6Tests(opts = {}) {
     await setTabHidden(page, false);
     await expect(page.locator(".paused-cover")).toHaveCount(0);
     await expect(page.locator(".play")).not.toHaveClass(/revealing/);
-    await expect(page.locator("#pause")).toBeFocused();
-    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "false");
+    await expect(page.locator("#time-control")).toBeFocused();
+    await expect(page.locator("#time-control")).toHaveAttribute("aria-pressed", "false");
     await expect(page.locator("#resume-status")).toHaveText("Resumed");
-    await expect(page.locator(".timer .time")).toHaveText("0:02");
+    await expect(page.locator("#header-time .time")).toHaveText("0:02");
     await page.clock.runFor(1_000);
-    await expect(page.locator(".timer .time")).toHaveText("0:03");
+    await expect(page.locator("#header-time .time")).toHaveText("0:03");
   });
 
   test("input and the clock stay blocked during the reveal", async ({ page }) => {
@@ -689,10 +692,10 @@ export function registerPr6Tests(opts = {}) {
     if (mobile) await expect(page.locator(".chrome-dim")).toHaveAttribute("inert", "");
     else await expect(moreButton(page)).toBeDisabled();
     await expect(page.locator(".board")).toHaveAttribute("inert", "");
-    await expect(page.locator(".timer .time")).toHaveText("0:02");
+    await expect(page.locator("#header-time .time")).toHaveText("0:02");
     await page.clock.runFor(320);
     await expect(page.locator(".paused-cover")).toHaveCount(0);
-    await expect(page.locator(".timer .time")).toHaveText("0:02");
+    await expect(page.locator("#header-time .time")).toHaveText("0:02");
     await page.keyboard.press("4");
     await expectValue(page, 0, 4);
   });
@@ -713,7 +716,7 @@ export function registerPr6Tests(opts = {}) {
     await expect(page.locator(".paused-line")).toHaveText(
       "Paused while you were away. It picks up when you come back."
     );
-    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#time-control")).toHaveAttribute("aria-pressed", "true");
     await page.clock.runFor(1_500);
     await setTabHidden(page, false);
     await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "hold");
@@ -722,7 +725,7 @@ export function registerPr6Tests(opts = {}) {
     await page.clock.runFor(320);
     await expect(page.locator(".paused-cover")).toHaveCount(0);
     await expect(page.locator("#resume-status")).toHaveText("Resumed");
-    await expect(page.locator(".timer .time")).toHaveText("0:01");
+    await expect(page.locator("#header-time .time")).toHaveText("0:01");
   });
 
   test("Resume or P during the hold resumes at once", async ({ page }) => {
@@ -733,7 +736,7 @@ export function registerPr6Tests(opts = {}) {
     await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "hold");
     await page.locator("#resume").click();
     await expect(page.locator(".paused-cover")).toHaveCount(0);
-    await expect(page.locator("#pause")).toBeFocused();
+    await expect(page.locator("#time-control")).toBeFocused();
     await expect(page.locator("#resume-status")).toHaveText("");
     await page.clock.runFor(500);
     await expect(page.locator(".paused-cover")).toHaveCount(0);
@@ -745,7 +748,7 @@ export function registerPr6Tests(opts = {}) {
     await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "hold");
     await page.keyboard.press("p");
     await expect(page.locator(".paused-cover")).toHaveCount(0);
-    await expect(page.locator("#pause")).toBeFocused();
+    await expect(page.locator("#time-control")).toBeFocused();
     await expect(page.locator("#resume-status")).toHaveText("");
     await page.clock.runFor(500);
     await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "idle");
@@ -759,13 +762,13 @@ export function registerPr6Tests(opts = {}) {
     digits[blank] = "0";
     await page.goto(`./?q=${digits.join("")}`);
     if ((await page.locator(".board > .cell").count()) === 0) {
-      await page.getByRole("button", { name: /Play|Back to puzzle/ }).click();
+      await page.getByRole("button", { name: /Play|Back to game/ }).click();
     }
     await cell(page, blank).click();
     await page.keyboard.press(digit);
     await expect(page.locator(".success-card")).toBeVisible();
     await page.clock.runFor(1_000);
-    const shown = await page.locator(".timer .time").innerText();
+    const shown = await page.locator("#header-time .time").innerText();
     await setTabHidden(page, true);
     await page.clock.runFor(2_000);
     await expect(page.locator(".paused-cover")).toHaveCount(0);
@@ -775,26 +778,26 @@ export function registerPr6Tests(opts = {}) {
     await expect(page.locator(".paused-cover")).toHaveCount(0);
     await expect(page.locator(".success-card")).toBeVisible();
     await expect(page.locator("#resume-status")).toHaveText("");
-    await expect(page.locator(".timer .time")).toHaveText(shown);
+    await expect(page.locator("#header-time .time")).toHaveText(shown);
   });
 
   test("the journal resumes a hidden game silently", async ({ page }) => {
     await page.clock.runFor(2_000);
-    await expect(page.locator(".timer .time")).toHaveText("0:02");
-    await page.getByRole("button", { name: "Journal" }).click();
+    await expect(page.locator("#header-time .time")).toHaveText("0:02");
+    await page.locator(".dbtn").click();
     await setTabHidden(page, true);
     await page.clock.runFor(2_000);
     await setTabHidden(page, false);
     await page.clock.runFor(150 + 320);
     await expect(page.locator(".paused-cover")).toHaveCount(0);
-    await expect(page.locator("#resume-status")).toHaveText("");
-    await page.getByRole("button", { name: /Play|Back to puzzle/ }).click();
+    await expect(page.locator("#resume-status")).toHaveText(/Journal.*Game paused at/);
+    await page.getByRole("button", { name: /Play|Back to game/ }).click();
     await expect(page.locator(".board > .cell")).toHaveCount(81);
     await expect(page.locator(".paused-cover")).toHaveCount(0);
-    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "false");
-    await expect(page.locator(".timer .time")).toHaveText("0:02");
+    await expect(page.locator("#time-control")).toHaveAttribute("aria-pressed", "false");
+    await expect(page.locator("#header-time .time")).toHaveText("0:02");
     await page.clock.runFor(1_000);
-    await expect(page.locator(".timer .time")).toHaveText("0:03");
+    await expect(page.locator("#header-time .time")).toHaveText("0:03");
   });
 
   test("an open Options sheet closes on hide and stays closed when the game resumes", async ({
@@ -837,7 +840,7 @@ export function registerPr6Tests(opts = {}) {
   test("the cue idle restarts when the reveal ends", async ({ page }) => {
     await page.goto("./?q=" + DEMO_PUZZLE + "&cueMs=3000");
     if ((await page.locator(".board > .cell").count()) === 0) {
-      await page.getByRole("button", { name: /Play|Back to puzzle/ }).click();
+      await page.getByRole("button", { name: /Play|Back to game/ }).click();
     }
     await expect(page.locator(".board > .cell")).toHaveCount(81);
     await page.clock.runFor(2_000);
@@ -863,12 +866,12 @@ export function registerPr6Tests(opts = {}) {
     });
     await page.clock.runFor(1_000);
     await expect(page.locator(".paused-cover")).toHaveCount(0);
-    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "false");
-    await expect(page.locator(".timer .time")).toHaveText("0:02");
+    await expect(page.locator("#time-control")).toHaveAttribute("aria-pressed", "false");
+    await expect(page.locator("#header-time .time")).toHaveText("0:02");
   });
 
   test("More is unavailable while paused and Done restores focus", async ({ page }) => {
-    await page.locator("#pause").click();
+    await page.locator("#time-control").click();
     if (mobile) {
       await page.locator(".tools [data-more]").click({ force: true });
     }
@@ -909,7 +912,7 @@ export function registerPr6Tests(opts = {}) {
       await t.doubleTap(key(4));
       await expectValue(page, 0, 0);
       await expect(pad).toHaveAttribute("data-shown", "0");
-      await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "true");
+      await expect(page.locator("#time-control")).toHaveAttribute("aria-pressed", "true");
 
       await beginHold();
       await page.clock.runFor(150);
@@ -926,14 +929,14 @@ export function registerPr6Tests(opts = {}) {
       await expect(cell(page, 0)).toHaveAttribute("data-notes", notes);
       await expect(pad).toHaveAttribute("data-locked", "0");
       await expectValue(page, 0, 0);
-      await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "true");
+      await expect(page.locator("#time-control")).toHaveAttribute("aria-pressed", "true");
 
       await beginHold();
       await t.holdAndTap(key(2), [cell(page, 0)], { holdMs: 280 });
       await expect(cell(page, 0)).toHaveAttribute("data-notes", notes);
       await expectValue(page, 0, 0);
       await expect(key(2)).not.toHaveClass(/holding/);
-      await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "true");
+      await expect(page.locator("#time-control")).toHaveAttribute("aria-pressed", "true");
     });
   }
 }

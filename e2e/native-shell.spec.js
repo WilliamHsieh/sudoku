@@ -64,7 +64,7 @@ test.describe("native shell", () => {
       await expectNoPageOverflow(page);
       await expectInsideViewport(page, ".board");
       if (mobile) {
-        await expectInsideViewport(page, ".hd");
+        await expectInsideViewport(page, ".header");
         await expectInsideViewport(page, ".keypad");
         await expectInsideViewport(page, ".tools");
         await expectInsideViewport(page, ".pad-hint");
@@ -96,7 +96,7 @@ test.describe("native shell", () => {
         expect(board.y).toBeGreaterThanOrEqual(54);
       }
 
-      await page.locator("#pause").click();
+      await page.locator("#time-control").click();
       await expect(page.locator(".paused-cover")).toBeVisible();
       await settleMotion(page, ".paused-cover");
       await expectNoPageOverflow(page);
@@ -119,7 +119,7 @@ test.describe("native shell", () => {
       await expect(page.locator(".journal")).toBeVisible();
       await expectNoPageOverflow(page);
       if (mobile) {
-        await expectInsideViewport(page, ".hd");
+        await expectInsideViewport(page, ".header");
         await expectInsideViewport(page, ".journal");
         await expect(page.locator(".mobile")).toHaveCSS("overscroll-behavior", "contain");
       } else {
@@ -148,7 +148,7 @@ test.describe("native shell", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("./?shot=1&freeze");
-    await page.locator("#pause").click();
+    await page.locator("#time-control").click();
     await expect(page.locator(".paused-cover")).toHaveCSS("animation-name", "none");
     await expect(page.locator(".board")).toHaveCSS("visibility", "hidden");
     await page.locator("#resume").click();
@@ -174,7 +174,7 @@ test.describe("native shell", () => {
   test("overlays ease out in about 260ms when motion is allowed", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("./?shot=1&freeze");
-    await page.locator("#pause").click();
+    await page.locator("#time-control").click();
     const cover = await page.locator(".paused-cover").evaluate((el) => {
       const cs = getComputedStyle(el);
       return { d: cs.animationDuration, e: cs.animationTimingFunction };
@@ -422,7 +422,7 @@ test.describe("native shell", () => {
       };
       tick();
     });
-    await page.locator("#pause").click();
+    await page.locator("#time-control").click();
     await page.waitForTimeout(400);
     await expect(page.locator(".board")).toHaveCSS("visibility", "hidden");
     await page.locator("#resume").click();
@@ -502,7 +502,7 @@ test.describe("native shell", () => {
         await expectScrollableTarget(cell);
       }
       expect(await page.locator("body").evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
-      await page.locator("#pause").click();
+      await page.locator("#time-control").click();
       await settleMotion(page, ".paused-cover");
       await expectScrollableTarget(page.locator("#resume"));
     }
@@ -553,9 +553,9 @@ test("board, tools, and pause Resume fit short wide viewports", async ({ page })
       await expectFullyInView(page, ".tools");
     } else {
       await expectFullyInView(page, ".header");
-      await expectFullyInView(page, "#pause");
+      await expectFullyInView(page, "#time-control");
     }
-    await page.locator("#pause").click();
+    await page.locator("#time-control").click();
     await expect(page.locator("#resume")).toBeVisible();
     await settleMotion(page, ".paused-cover");
     await expectFullyInView(page, "#resume");
@@ -571,7 +571,7 @@ test("pause Resume keeps a 44px target inside short boards", async ({ page }) =>
   ]) {
     await page.setViewportSize(vp);
     await page.goto("./?shot=1&freeze");
-    await page.locator("#pause").click();
+    await page.locator("#time-control").click();
     await settleMotion(page, ".paused-cover");
     const resume = await page.locator("#resume").boundingBox();
     const board = await page.locator(".board").boundingBox();
@@ -584,7 +584,7 @@ test("pause Resume keeps a 44px target inside short boards", async ({ page }) =>
 
   await page.setViewportSize({ width: 800, height: 200 });
   await page.goto("./?shot=1&freeze");
-  await page.locator("#pause").click();
+  await page.locator("#time-control").click();
   await settleMotion(page, ".paused-cover");
   const fit = await page.evaluate(() => {
     const boardEl = document.querySelector(".board");
@@ -707,7 +707,7 @@ async function shellGeometry(page) {
     };
     return {
       board: rect(".board"),
-      title: rect(".hd-brand, .header h1"),
+      title: rect(".dbtn, .header h1"),
       journal: rect(".journal"),
       documentHeight: document.scrollingElement.scrollHeight,
       bodyHeight: document.body.scrollHeight,
