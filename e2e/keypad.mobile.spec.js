@@ -1,3 +1,4 @@
+import { switchNotesMode } from "./helpers.js";
 // Keypad r2 on the iPhone viewport: show, double-tap fill, swipe-down lock,
 // lock-mode taps, two-finger hold, the legacy option, and the cue clock.
 import { test, expect } from "@playwright/test";
@@ -379,7 +380,7 @@ test("revisiting an added candidate within one HOLD stroke keeps the brush and n
   page,
 }) => {
   const t = await touchDriver(page);
-  await t.tap(page.locator("#notes-mode"));
+  await switchNotesMode(page);
   await expect(cell(page, 0)).toHaveAttribute("data-notes", "");
   let sampling;
   await t.holdAndTap(key(page, 4), [cell(page, 0), cell(page, 0)], {
@@ -406,7 +407,7 @@ test("separate lock taps still ghost a removal, even when the puzzle's net chang
   page,
 }) => {
   const t = await touchDriver(page);
-  await t.tap(page.locator("#notes-mode"));
+  await switchNotesMode(page);
   await t.swipeDown(key(page, 4), 40);
   await t.tap(cell(page, 0));
   await expect(cell(page, 0)).toHaveAttribute("data-notes", "4");
@@ -421,7 +422,7 @@ test("separate lock taps still ghost a removal, even when the puzzle's net chang
 
 test("a HOLD removal of a candidate from an earlier stroke still ghosts", async ({ page }) => {
   const t = await touchDriver(page);
-  await t.tap(page.locator("#notes-mode"));
+  await switchNotesMode(page);
   await t.tap(cell(page, 0));
   await t.swipeUp(key(page, 4), 60);
   await expect(cell(page, 0)).toHaveAttribute("data-notes", "4");
@@ -669,8 +670,10 @@ test("Manual: double-tap fills the focused digit without notes and keeps all 4s 
   page,
 }) => {
   const t = await touchDriver(page);
-  await t.tap(page.getByRole("switch", { name: "Auto notes" }));
-  await expect(page.locator("#notes-mode")).toHaveAttribute("aria-checked", "false");
+  await switchNotesMode(page);
+  await expect(
+    page.getByRole("button", { name: "Notes mode: Manual" }).filter({ visible: true })
+  ).toHaveAttribute("aria-expanded", "false");
   await expect(cell(page, 0)).toHaveAttribute("data-notes", "");
   await expectValue(page, 0, 0);
 
@@ -880,7 +883,7 @@ for (const mode of ["auto", "manual"]) {
         { tag: "@keypad-timing" },
         async ({ page }) => {
           const t = await touchDriver(page);
-          if (mode === "manual") await page.locator("#notes-mode").evaluate((el) => el.click());
+          if (mode === "manual") await switchNotesMode(page);
           await clockTap(page, t, cell(page, 42));
           const desired = count === 0 ? "" : count === 1 ? "5" : "57";
           const current = await cell(page, 42).getAttribute("data-notes");
@@ -926,7 +929,7 @@ for (const mode of ["auto", "manual"]) {
     { tag: "@keypad-timing" },
     async ({ page }) => {
       const t = await touchDriver(page);
-      if (mode === "manual") await page.locator("#notes-mode").evaluate((el) => el.click());
+      if (mode === "manual") await switchNotesMode(page);
       await clockTap(page, t, key(page, 3));
       await clockDoubleTap(page, t, cell(page, 1));
       await expectValue(page, 1, 5);
@@ -958,7 +961,7 @@ for (const gap of [299, 301]) {
     { tag: "@keypad-timing" },
     async ({ page }) => {
       const t = await touchDriver(page);
-      await page.locator("#notes-mode").evaluate((el) => el.click());
+      await switchNotesMode(page);
       await clockTap(page, t, key(page, 3));
       await clockDoubleTap(page, t, cell(page, 42), gap);
       await expectValue(page, 42, gap < 300 ? 3 : 0);
@@ -969,7 +972,7 @@ for (const gap of [299, 301]) {
 
 test("Manual: select cell then double-tap keypad overrides its lone note", async ({ page }) => {
   const t = await touchDriver(page);
-  await page.locator("#notes-mode").evaluate((el) => el.click());
+  await switchNotesMode(page);
   await t.tap(cell(page, 42));
   await t.swipeUp(key(page, 5), 60);
   await expect(cell(page, 42)).toHaveAttribute("data-notes", "5");
@@ -986,7 +989,7 @@ test("Manual: select cell then double-tap keypad overrides its lone note", async
 for (const mode of ["auto", "manual"]) {
   test(`${mode}: board double-tap preserves an existing answer`, async ({ page }) => {
     const t = await touchDriver(page);
-    if (mode === "manual") await page.locator("#notes-mode").evaluate((el) => el.click());
+    if (mode === "manual") await switchNotesMode(page);
     await t.tap(cell(page, 42));
     await t.doubleTap(key(page, 5));
     await expectValue(page, 42, 5);

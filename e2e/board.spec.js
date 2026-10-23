@@ -1,3 +1,4 @@
+import { switchNotesMode } from "./helpers.js";
 // Characterization tests: lock the current master behaviour of the board.
 // Demo puzzle row 1 is `0 5 0 9 0 0 0 0 0`; cell 0 is empty with candidates 2 3 4 6 7,
 // cell 1 is a given 5.
@@ -411,14 +412,18 @@ test("Shift-hover re-resolves when the board changes under a still pointer", asy
   await expectShiftAgreement(page, { cell: 0, d: 2 });
 
   // Auto → Manual clears notes; Auto restores them.
-  await tapTool("notes-mode");
-  await expect(page.locator("#notes-mode")).toHaveAttribute("aria-checked", "false");
+  await switchNotesMode(page);
+  await expect(
+    page.getByRole("button", { name: "Notes mode: Manual" }).filter({ visible: true })
+  ).toHaveAttribute("aria-expanded", "false");
   await expect(cell(page, 0)).toHaveAttribute("data-notes", "");
   await expectShiftAgreement(page, null, { overBoard: true });
   await shiftClick();
   await expectValue(page, 0, 0);
-  await tapTool("notes-mode");
-  await expect(page.locator("#notes-mode")).toHaveAttribute("aria-checked", "true");
+  await switchNotesMode(page);
+  await expect(
+    page.getByRole("button", { name: "Notes mode: Auto" }).filter({ visible: true })
+  ).toHaveAttribute("aria-expanded", "false");
   await expect(cell(page, 0)).toHaveAttribute("data-notes", /2/);
   await expectShiftAgreement(page, { cell: 0, d: 2 });
 

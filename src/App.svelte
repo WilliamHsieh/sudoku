@@ -5,6 +5,7 @@
   import Timer from "./Timer.svelte";
   import Journal from "./Journal.svelte";
   import Tools from "./Tools.svelte";
+  import NotesMode from "./NotesMode.svelte";
   import Keypad from "./Keypad.svelte";
   import { get } from "svelte/store";
   import { done, puzzleProgress, solvedPuzzles } from "./store";
@@ -257,11 +258,11 @@
     handleKeydown(e);
   }
 
-  /** Board/keypad pointer input releases the view segment's keyboard focus. */
+  /** Board/keypad pointer input releases navigation and mode-button keyboard focus. */
   function releaseViewFocus(e) {
     if (!(e.target instanceof Element) || !e.target.closest(".board, #keypad")) return;
     const active = document.activeElement;
-    if (active instanceof HTMLElement && active.closest(".seg, .mseg")) active.blur();
+    if (active instanceof HTMLElement && active.closest(".seg, .mseg, .notes-mode")) active.blur();
   }
 
   function removeFocus() {
@@ -536,6 +537,7 @@
             ></path>
           </svg>
         </button>
+        <NotesMode desktop />
         <button
           class="dhbtn"
           type="button"
