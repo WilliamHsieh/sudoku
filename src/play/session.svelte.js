@@ -7,9 +7,11 @@ const CUE_KEY = "sudoku-cue";
 const TAP_FILL_KEY = "sudoku-tap-fill";
 
 /** Cover stays put so the eye can land, then the board eases back in. */
-export const RESUME_HOLD_MS = 150;
-export const RESUME_REVEAL_MS = 320;
-/** Bound the extra wait if a CSS animation is cancelled or never finishes. */
+export const RESUME_HOLD_MS = 250;
+export const RESUME_REVEAL_MS = 600;
+export const RESUME_EASE = "cubic-bezier(.33,1,.68,1)";
+export const RESUME_BLUR_PX = 8;
+/** Extra wait AFTER the full reveal deadline if CSS is cancelled or never finishes. */
 const REVEAL_FALLBACK_MS = 1_000;
 /** Hidden for less than this: resume with no hold, reveal, or announcement. */
 export const RESUME_SHORT_MS = 1000;

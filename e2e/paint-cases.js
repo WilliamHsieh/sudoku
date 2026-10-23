@@ -43,6 +43,17 @@ export async function paintSetup(page, mobile, manual = true) {
   };
 }
 
+/**
+ * Install a paused fake clock so machine load cannot expire short-lived
+ * feedback (the 300ms blocked flash, toasts) between assertions. Pausing a
+ * second ahead of the install time avoids "Cannot fast-forward to the past".
+ */
+async function freezeTimers(page) {
+  const time = Date.now();
+  await page.clock.install({ time });
+  await page.clock.pauseAt(time + 1_000);
+}
+
 export function paintCases(mobile) {
   for (const key of ["Space", "Enter"]) {
     test(`${key} re-announces identical keyboard commits`, async ({ page }) => {
@@ -181,22 +192,125 @@ export function paintCases(mobile) {
     await expect(cell(page, 38)).toHaveAttribute("data-value", "8");
   });
 
-  test("illegal first cell flashes its blocker and rejects the whole stroke", async ({ page }) => {
+  for (const mode of ["LOCK", "HOLD"]) {
+    for (const start of [
+      "given",
+      "filled",
+      "given then blocked",
+      "blocked add",
+      "blocked remove",
+    ]) {
+      test(`${mode} illegal start: ${start} uses the first legal cell`, async ({ page }) => {
+        // The keypad is available below 600px, also in a desktop browser.
+        if (mode === "HOLD" && !mobile) await page.setViewportSize({ width: 590, height: 900 });
+        const t = await paintSetup(page, mobile);
+        await freezeTimers(page);
+        if (start === "filled") {
+          await cell(page, 38).dispatchEvent("pointerdown", {
+            pointerType: "touch",
+            pointerId: 90,
+          });
+          await page.keyboard.press("Digit8");
+        }
+        await t.lock();
+        const remove = start === "blocked remove";
+        if (remove) {
+          await t.down(41);
+          await t.to(42);
+          await t.up();
+        }
+        const holding = mode === "HOLD";
+        let k;
+
+        const contact = async (i) => ({ ...(await t.center(cell(page, i))), id: 2 });
+        if (holding) {
+          // Unlock before holding so HOLD feedback is tested independently.
+          if (mobile) await t.tap(page.locator('.key[data-d="5"]'));
+          else await page.keyboard.press("Escape");
+          k = { ...(await t.center(page.locator('.key[data-d="5"]'))), id: 1 };
+          await t.contacts("touchStart", [k]);
+          await page.clock.runFor(300);
+        }
+        const first =
+          start === "given" || start === "given then blocked" ? 39 : start === "filled" ? 38 : 40;
+        if (holding) await t.contacts("touchStart", [k, await contact(first)]);
+        else await t.down(first);
+        const blocked = start.includes("blocked");
+        if (blocked && first === 40) {
+          await expect(cell(page, 4)).toHaveClass(/blocked/);
+          if (holding) await expect(page.locator(".toast")).toHaveCount(0);
+          else
+            await expect(page.locator(".toast")).toHaveText(
+              "Can't place 5 — already in row, column or box"
+            );
+        }
+        const end = blocked ? 42 : 37;
+        if (holding) await t.contacts("touchMove", [k, await contact(end)]);
+        else await t.to(end);
+        const targets = blocked ? [41, 42] : start === "filled" ? [37] : [37, 38];
+        for (const i of targets) {
+          await expect(cell(page, i)).toHaveAttribute("data-notes", remove ? "" : "5");
+          await expect(pencil(page, i, 5)).toHaveClass(remove ? /ghost/ : /paint-added/);
+        }
+        if (holding) await t.contacts("touchEnd", []);
+        else await t.up();
+        await expect(page.locator(".play .sr-only[aria-live]")).toHaveText(
+          `${remove ? "Removed 5 from" : "Added 5 to"} ${targets.length} ${targets.length === 1 ? "cell" : "cells"}${blocked ? "; 1 cell refused" : ""}`
+        );
+        if (blocked && !holding)
+          await expect(page.locator(".toast")).toHaveText(
+            "Can't place 5 — already in row, column or box"
+          );
+        if (start === "filled") await expect(cell(page, 38)).toHaveAttribute("data-value", "8");
+        await page.locator("#undo").evaluate((el) => el.click());
+        for (const i of targets)
+          await expect(cell(page, i)).toHaveAttribute("data-notes", remove ? "5" : "");
+      });
+    }
+  }
+
+  test("illegal tap preserves feedback without history or announcement", async ({ page }) => {
     const t = await paintSetup(page, mobile);
     await t.lock();
+    await freezeTimers(page);
     await t.down(40);
     await expect(cell(page, 4)).toHaveClass(/blocked/);
-    await expect(page.locator(".toast")).toHaveText(
-      "Can't place 5 — already in row, column or box"
-    );
-    await t.to(42);
-    await expect(page.locator(".paint-added, .paint-add, .paint-remove")).toHaveCount(0);
     await t.up();
     await expect(page.locator(".toast")).toHaveText(
       "Can't place 5 — already in row, column or box"
     );
     await expect(page.locator("#undo")).toBeDisabled();
-    await expect(cell(page, 42)).toHaveAttribute("data-notes", "");
+    await expect(page.locator(".play .sr-only[aria-live]")).toHaveText("");
+    await t.down(39);
+    await t.up();
+    await expect(page.locator(".toast")).toHaveText("5 locked — tap an empty cell");
+    await expect(page.locator("#undo")).toBeDisabled();
+  });
+
+  test("several initial refusals give feedback once and count distinct cells", async ({ page }) => {
+    const t = await paintSetup(page, mobile);
+    await t.lock();
+    await freezeTimers(page);
+    await t.down(12);
+    await expect(cell(page, 4)).toHaveClass(/blocked/);
+    await page.clock.runFor(301);
+    await expect(cell(page, 4)).not.toHaveClass(/blocked/);
+    await t.to(14); // Three blocked cells in the top middle box.
+    await expect(cell(page, 4)).not.toHaveClass(/blocked/);
+    await t.to(12); // Revisits do not inflate the refused count.
+    await t.to(16);
+    for (const i of [15, 16]) await expect(cell(page, i)).toHaveAttribute("data-notes", "5");
+    await t.to(14); // A later refusal is still silent.
+    await expect(cell(page, 4)).not.toHaveClass(/blocked/);
+    await t.up();
+    await expect(page.locator(".play .sr-only[aria-live]")).toHaveText(
+      "Added 5 to 2 cells; 3 cells refused"
+    );
+    await expect(page.locator(".toast")).toHaveText(
+      "Can't place 5 — already in row, column or box"
+    );
+    await page.clock.runFor(3000);
+    await expect(page.locator(".toast")).toHaveCount(0);
   });
 
   test("leaving pauses without bridging the gap; Esc discards before it unlocks", async ({
@@ -266,9 +380,10 @@ export function paintCases(mobile) {
     const t = await paintSetup(page, mobile);
     await t.lock();
     await t.down(39);
-    await t.to(42); // First editable cell is illegal: reject rather than paint beyond it.
+    await t.to(42); // Skip the blocked cell, then start adding at cell 41.
     await t.up();
-    await expect(page.locator("#undo")).toBeDisabled();
+    await expect(cell(page, 42)).toHaveAttribute("data-notes", "5");
+    await page.locator("#undo").evaluate((el) => el.click());
     await t.down(39);
     await t.to(37); // First editable cell is legal: choose add after skipping the given.
     await expect(cell(page, 38)).toHaveAttribute("data-notes", "5");

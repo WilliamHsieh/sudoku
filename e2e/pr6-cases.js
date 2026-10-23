@@ -97,7 +97,7 @@ async function setTabHidden(page, hidden) {
 
 /**
  * Playwright's clock keeps following real time after `runFor`. A swipe's
- * waits outlast the 470ms resume, so pause the in-page clock at the current
+ * waits outlast the 850ms resume, so pause the in-page clock at the current
  * instant. Later `runFor` calls stay paused and only move the time we ask for.
  * @param {import('@playwright/test').Page} page
  */
@@ -449,6 +449,7 @@ export function registerPr6Tests(opts = {}) {
     await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "true");
     // Away long enough that the return is a reveal, not an instant resume.
     await page.clock.runFor(1_500);
+    await freezeClock(page);
     await setTabHidden(page, false);
     await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "hold");
     await expect(page.locator(".play")).toHaveAttribute("data-pause-reason", "auto");
@@ -458,7 +459,11 @@ export function registerPr6Tests(opts = {}) {
     await expect(page.locator(".board")).toHaveAttribute("inert", "");
     if (mobile) await expect(page.locator(".chrome-dim")).toHaveAttribute("inert", "");
 
-    await page.clock.runFor(150);
+    await page.clock.runFor(249);
+    await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "hold");
+    await expect(page.locator(".paused-cover")).toHaveCSS("opacity", "1");
+    await expect(page.locator(".timer .time")).toHaveText("0:02");
+    await page.clock.runFor(1);
     await expect(page.locator(".play")).toHaveClass(/revealing/);
     await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "reveal");
     await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "true");
@@ -466,7 +471,22 @@ export function registerPr6Tests(opts = {}) {
     await expect(page.locator(".timer .time")).toHaveText("0:02");
     if (mobile) await expect(page.locator(".chrome-dim")).toHaveAttribute("inert", "");
 
-    await page.clock.runFor(320);
+    await page.clock.runFor(599);
+    // At 849ms input and the clock are still blocked, even if CSS has finished.
+    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator(".board")).toHaveAttribute("inert", "");
+    await expect(page.locator("#resume-status")).toHaveText("");
+    // CSS uses the real document timeline. Finish it explicitly so this check
+    // isolates the exact 850ms session deadline from browser frame scheduling.
+    await page.evaluate(() => {
+      for (const selector of [".board", ".paused-cover", ".chrome-dim"]) {
+        document
+          .querySelector(selector)
+          ?.getAnimations()
+          .forEach((animation) => animation.finish());
+      }
+    });
+    await page.clock.runFor(1);
     await expect(page.locator(".paused-cover, .paused-leave")).toHaveCount(0);
     await expect(page.locator("#pause")).toBeFocused();
     await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "false");
@@ -543,7 +563,7 @@ export function registerPr6Tests(opts = {}) {
     await setTabHidden(page, true);
     await page.clock.runFor(3_000);
     await setTabHidden(page, false);
-    await page.clock.runFor(150 + 320);
+    await page.clock.runFor(250 + 600);
     await expect(page.locator(".paused-cover")).toBeVisible();
     await expect(page.locator(".paused-line")).toHaveText(
       "The board is hidden and the clock is stopped."
@@ -564,7 +584,7 @@ export function registerPr6Tests(opts = {}) {
     await page.clock.runFor(2_000);
     await expect(page.locator(".timer .time")).toHaveText("0:02");
     await setTabHidden(page, true);
-    await page.clock.runFor(500);
+    await page.clock.runFor(999);
     await setTabHidden(page, false);
     await expect(page.locator(".paused-cover")).toHaveCount(0);
     await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "idle");
@@ -575,6 +595,15 @@ export function registerPr6Tests(opts = {}) {
     await expect(page.locator(".timer .time")).toHaveText("0:02");
     await page.clock.runFor(1_000);
     await expect(page.locator(".timer .time")).toHaveText("0:03");
+  });
+
+  test("an absence of exactly 1000ms starts the hold", async ({ page }) => {
+    await setTabHidden(page, true);
+    await page.clock.runFor(1000);
+    await setTabHidden(page, false);
+    await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "hold");
+    await expect(page.locator(".board")).toHaveAttribute("inert", "");
+    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "true");
   });
 
   test("Resume and P do nothing while the tab is hidden", async ({ page }) => {
@@ -619,7 +648,7 @@ export function registerPr6Tests(opts = {}) {
     await setTabHidden(page, true);
     await page.clock.runFor(1_500);
     await setTabHidden(page, false);
-    await page.clock.runFor(150 + 320);
+    await page.clock.runFor(250 + 600);
     await expect(page.locator("#resume-status")).toHaveText("Resumed");
     await setTabHidden(page, true);
     await expect(page.locator("#resume-status")).toHaveText("");
@@ -636,7 +665,7 @@ export function registerPr6Tests(opts = {}) {
     await setTabHidden(page, true);
     await page.clock.runFor(1_500);
     await setTabHidden(page, false);
-    await page.clock.runFor(150 + 320);
+    await page.clock.runFor(250 + 600);
     await expect(page.locator(".paused-cover")).toHaveCount(0);
     await expect(page.locator("#resume-status")).toHaveText("Resumed");
     await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe("pause");
@@ -649,7 +678,7 @@ export function registerPr6Tests(opts = {}) {
     await setTabHidden(page, true);
     await page.clock.runFor(1_500);
     await setTabHidden(page, false);
-    await page.clock.runFor(150 + 320);
+    await page.clock.runFor(250 + 600);
     await expect(page.locator(".paused-cover")).toHaveCount(0);
     await expect(page.locator("#resume-status")).toHaveText("Resumed");
     await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe("pause");
@@ -683,7 +712,7 @@ export function registerPr6Tests(opts = {}) {
     await setTabHidden(page, true);
     await page.clock.runFor(1_500);
     await setTabHidden(page, false);
-    await page.clock.runFor(150);
+    await page.clock.runFor(250);
     await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "reveal");
     await page.keyboard.press("4");
     await expectValue(page, 0, 0);
@@ -691,40 +720,42 @@ export function registerPr6Tests(opts = {}) {
     else await expect(moreButton(page)).toBeDisabled();
     await expect(page.locator(".board")).toHaveAttribute("inert", "");
     await expect(page.locator(".timer .time")).toHaveText("0:02");
-    await page.clock.runFor(320);
+    await page.clock.runFor(600);
     await expect(page.locator(".paused-cover")).toHaveCount(0);
     await expect(page.locator(".timer .time")).toHaveText("0:02");
     await page.keyboard.press("4");
     await expectValue(page, 0, 4);
   });
 
-  test("hiding again during the reveal covers the board and the next return reveals", async ({
-    page,
-  }) => {
-    await page.clock.runFor(1_000);
-    await setTabHidden(page, true);
-    await page.clock.runFor(1_500);
-    await setTabHidden(page, false);
-    await page.clock.runFor(150);
-    await expect(page.locator(".play")).toHaveClass(/revealing/);
-    await setTabHidden(page, true);
-    await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "idle");
-    await expect(page.locator(".play")).not.toHaveClass(/revealing/);
-    await expect(page.locator(".paused-cover")).toBeVisible();
-    await expect(page.locator(".paused-line")).toHaveText(
-      "Paused while you were away. It picks up when you come back."
-    );
-    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "true");
-    await page.clock.runFor(1_500);
-    await setTabHidden(page, false);
-    await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "hold");
-    await page.clock.runFor(150);
-    await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "reveal");
-    await page.clock.runFor(320);
-    await expect(page.locator(".paused-cover")).toHaveCount(0);
-    await expect(page.locator("#resume-status")).toHaveText("Resumed");
-    await expect(page.locator(".timer .time")).toHaveText("0:01");
-  });
+  for (const phase of ["hold", "reveal"]) {
+    test(`hiding again during the ${phase} covers the board and the next return reveals`, async ({
+      page,
+    }) => {
+      await page.clock.runFor(1_000);
+      await setTabHidden(page, true);
+      await page.clock.runFor(1_500);
+      await setTabHidden(page, false);
+      if (phase === "reveal") await page.clock.runFor(250);
+      await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", phase);
+      await setTabHidden(page, true);
+      await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "idle");
+      await expect(page.locator(".play")).not.toHaveClass(/revealing/);
+      await expect(page.locator(".paused-cover")).toBeVisible();
+      await expect(page.locator(".paused-line")).toHaveText(
+        "Paused while you were away. It picks up when you come back."
+      );
+      await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "true");
+      await page.clock.runFor(1_500);
+      await setTabHidden(page, false);
+      await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "hold");
+      await page.clock.runFor(250);
+      await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "reveal");
+      await page.clock.runFor(600);
+      await expect(page.locator(".paused-cover")).toHaveCount(0);
+      await expect(page.locator("#resume-status")).toHaveText("Resumed");
+      await expect(page.locator(".timer .time")).toHaveText("0:01");
+    });
+  }
 
   test("Resume or P during the hold resumes at once", async ({ page }) => {
     await page.clock.runFor(1_000);
@@ -772,7 +803,7 @@ export function registerPr6Tests(opts = {}) {
     await expect(page.locator(".paused-cover")).toHaveCount(0);
     await expect(page.locator(".success-card")).toBeVisible();
     await setTabHidden(page, false);
-    await page.clock.runFor(150 + 320);
+    await page.clock.runFor(250 + 600);
     await expect(page.locator(".paused-cover")).toHaveCount(0);
     await expect(page.locator(".success-card")).toBeVisible();
     await expect(page.locator("#resume-status")).toHaveText("");
@@ -786,7 +817,7 @@ export function registerPr6Tests(opts = {}) {
     await setTabHidden(page, true);
     await page.clock.runFor(2_000);
     await setTabHidden(page, false);
-    await page.clock.runFor(150 + 320);
+    await page.clock.runFor(250 + 600);
     await expect(page.locator(".paused-cover")).toHaveCount(0);
     await expect(page.locator("#resume-status")).toHaveText("");
     await page.getByRole("button", { name: /Play|Back to puzzle/ }).click();
@@ -809,7 +840,7 @@ export function registerPr6Tests(opts = {}) {
     await expect(page.locator(".paused-cover")).toBeVisible();
     await page.clock.runFor(1_500);
     await setTabHidden(page, false);
-    await page.clock.runFor(150 + 320);
+    await page.clock.runFor(250 + 600);
     await expect(page.locator(".paused-cover")).toHaveCount(0);
     await expect(page.locator("dialog.opts")).toBeHidden();
     await expect(page.locator("dialog.confirm")).toBeHidden();
@@ -828,7 +859,7 @@ export function registerPr6Tests(opts = {}) {
     await expect(page.locator(".paused-cover")).toBeVisible();
     await page.clock.runFor(1_500);
     await setTabHidden(page, false);
-    await page.clock.runFor(150 + 320);
+    await page.clock.runFor(250 + 600);
     await expect(page.locator(".paused-cover")).toHaveCount(0);
     await expect(page.locator("dialog.confirm")).toBeHidden();
     await expect(page.locator("dialog.opts")).toBeHidden();
@@ -847,7 +878,7 @@ export function registerPr6Tests(opts = {}) {
     await page.clock.runFor(5_000);
     await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "idle");
     await setTabHidden(page, false);
-    await page.clock.runFor(150 + 320);
+    await page.clock.runFor(250 + 600);
     await expect(page.locator(".paused-cover")).toHaveCount(0);
     await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "idle");
     await page.clock.runFor(2_999);
@@ -913,7 +944,7 @@ export function registerPr6Tests(opts = {}) {
       await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "true");
 
       await beginHold();
-      await page.clock.runFor(150);
+      await page.clock.runFor(250);
       await freezeClock(page);
       await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "reveal");
       await t.tap(key(4));

@@ -42,22 +42,57 @@ describe.each(/** @type {import("./game.js").NotesMode[]} */ (["manual", "auto"]
       paintCell(s, 0);
       paintCell(s, 1);
       expect(s.brush).toBeNull();
+      expect(strokeResult(s)).toBe(before);
+      expect(strokeAnnouncement(s)).toBe("");
       paintCell(s, 2);
       expect(s.touched).toEqual(new Set([2]));
       expect(s.state.givens).toBe(before.givens);
       expect(s.state.answers).toBe(before.answers);
     });
 
-    it("refuses an illegal first add and ignores the rest of the stroke", () => {
+    it("starts adding at the first legal cell after blocked cells", () => {
+      let before = newGame("5" + "0".repeat(79) + "5", { notesMode: mode });
+      if (mode === "auto") {
+        for (const i of [40, 41]) before = toggleCandidate(before, i, 5).state;
+      }
+      const s = createStroke(before, 5);
+      for (const i of [1, 79, 1]) paintCell(s, i);
+      expect(s.brush).toBeNull();
+      expect(s.blockers).toEqual([0]);
+      for (const i of [40, 41]) paintCell(s, i);
+      expect(s.brush).toBe("add");
+      expect(s.blockers).toEqual([0]); // Later refusals keep the first feedback.
+      expect(s.refused).toEqual(new Set([1, 79]));
+      expect(s.touched).toEqual(new Set([40, 41]));
+      for (const i of [40, 41]) expect(hasCandidate(s.state, i, 5)).toBe(true);
+      expect(strokeAnnouncement(s)).toBe("Added 5 to 2 cells; 2 cells refused");
+    });
+
+    it("starts removing when the first legal cell after a refusal has the candidate", () => {
+      let before = newGame("5" + "0".repeat(80), { notesMode: mode });
+      if (mode === "manual") {
+        for (const i of [40, 41]) before = toggleCandidate(before, i, 5).state;
+      }
+      const s = createStroke(before, 5);
+      for (const i of [1, 40, 41, 42, 40]) paintCell(s, i);
+      expect(s.brush).toBe("remove");
+      expect(s.refused).toEqual(new Set([1]));
+      for (const i of [40, 41, 42]) expect(hasCandidate(s.state, i, 5)).toBe(false);
+      expect(strokeMarks(s).rem).toEqual(new Set(mode === "auto" ? [40, 41, 42] : [40, 41]));
+    });
+
+    it("keeps an illegal tap unchanged with refusal feedback and no history", () => {
       const before = newGame("5" + "0".repeat(80), { notesMode: mode });
       const s = createStroke(before, 5);
       paintCell(s, 1);
-      paintCell(s, 40);
-      expect(s.rejected).toBe(true);
+      expect(s.brush).toBeNull();
       expect(s.blockers).toEqual([0]);
+      expect(s.refused).toEqual(new Set([1]));
       expect(s.touched.size).toBe(0);
       expect(strokeResult(s)).toBe(before);
       expect(strokeAnnouncement(s)).toBe("");
+      const h = createHistory(before);
+      expect(commit(h, strokeResult(s))).toBe(h);
     });
 
     it("refuses later illegal adds without tinting or marking them", () => {
