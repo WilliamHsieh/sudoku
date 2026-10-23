@@ -306,11 +306,14 @@
     sheet = null;
     if (isMobile()) sel = null;
     if (pendingPlay) {
+      // Flush sheet/scrim removal and the body lock before counting paints.
       tick().then(() => {
         if (!alive || !pendingPlay) return;
         let paints = 2;
         function afterPaint() {
           if (!alive || !pendingPlay) return;
+          // rAF runs before paint. The third callback allows two complete
+          // frames with Journal visible and no sheet, scrim or body lock.
           if (paints-- > 0) {
             playFrame = requestAnimationFrame(afterPaint);
             return;
@@ -344,6 +347,7 @@
   /**
    * @param {string} date
    * @param {(typeof DIFFS)[number]} diff
+   * @param {boolean} [fromSheet]
    */
   function playPuzzle(date, diff, fromSheet = false) {
     if (fromSheet && (pendingPlay || !sheet || sheetClosing)) return;
@@ -459,6 +463,8 @@
     hasCardState = true;
     if (untrack(() => returning)) return;
     tick().then(() => {
+      // Sheet Start/Resume closes the sheet before Play; stay silent like an
+      // immediate switch to Play would.
       if (!alive || returning || pendingPlay) return;
       const text = contextCard?.textContent?.trim() ?? "";
       if (text === lastAnnounced) return;
