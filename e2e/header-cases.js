@@ -17,13 +17,14 @@ const box = (loc) =>
 /** Capture Play as it mounts, before its entrance can finish in wall time. */
 async function watchSheetArrival(page) {
   await page.evaluate(() => {
-    const log = { cleanFrames: 0, arrival: null };
+    const log = { cleanFrames: 0, closingBeforePlay: false, arrival: null };
     window.__sheetArrival = log;
     const clean = () =>
       !document.querySelector(".sheet, .scrim.on") &&
       !document.body.classList.contains("journal-sheet");
     const observer = new MutationObserver(() => {
       const play = document.querySelector(".play");
+      if (document.querySelector(".sheet.closing") && !play) log.closingBeforePlay = true;
       if (!play) return;
       log.arrival = {
         clean: clean(),
@@ -41,7 +42,12 @@ async function watchSheetArrival(page) {
       };
       observer.disconnect();
     });
-    observer.observe(document.body, { subtree: true, childList: true });
+    observer.observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["class"],
+    });
     const frame = () => {
       if (log.arrival) return;
       if (clean()) log.cleanFrames++;
@@ -51,12 +57,13 @@ async function watchSheetArrival(page) {
   });
 }
 
-async function expectSheetArrival(page, testInfo, slide) {
+async function expectSheetArrival(page, testInfo, slide, reducedMotion) {
   await page.clock.runFor(500);
   await expect(page.locator(".sheet, .scrim.on")).toHaveCount(0);
   await expect(page.locator(".board")).toBeVisible();
   const log = await page.evaluate(() => window.__sheetArrival);
   expect(log.cleanFrames).toBeGreaterThanOrEqual(2);
+  expect(log.closingBeforePlay).toBe(reducedMotion === "no-preference");
   expect(log.arrival.clean).toBe(true);
   expect(log.arrival.journal).toBe(false);
   if (slide) {
@@ -296,9 +303,7 @@ export function headerCases(mobile) {
           .getByRole("button", { name: "Start" })
           .click();
         await expect(page.locator(".board")).toHaveCount(0);
-        if (reducedMotion === "no-preference")
-          await expect(page.locator(".sheet")).toHaveClass(/closing/);
-        await expectSheetArrival(page, testInfo, reducedMotion === "no-preference");
+        await expectSheetArrival(page, testInfo, reducedMotion === "no-preference", reducedMotion);
         await expect(page.locator(".dbtn")).toHaveAccessibleName(/Medium/);
       });
 
@@ -322,9 +327,7 @@ export function headerCases(mobile) {
           .getByRole("button", { name: "Resume" })
           .click();
         await expect(page.locator(".board")).toHaveCount(0);
-        if (reducedMotion === "no-preference")
-          await expect(page.locator(".sheet")).toHaveClass(/closing/);
-        await expectSheetArrival(page, testInfo, false);
+        await expectSheetArrival(page, testInfo, false, reducedMotion);
         await page.keyboard.press("Control+z");
         await page.clock.runFor(1000);
         await expectValue(page, i, 0);
