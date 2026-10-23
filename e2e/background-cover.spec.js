@@ -10,6 +10,14 @@ for (const signal of ["visibilitychange", "blur", "pagehide", "freeze"]) {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await openBoard(page);
+    // Keep Undo, Redo and Erase available before departure, so pause must disable them.
+    await cell(page, 0).click();
+    await page.keyboard.press("1");
+    await cell(page, 2).click();
+    await page.keyboard.press("3");
+    await page.keyboard.press("ControlOrMeta+z");
+    await cell(page, 0).click();
+    for (const id of ["undo", "redo", "erase"]) await expect(page.locator(`#${id}`)).toBeEnabled();
     const frames = await page.evaluate(async (signal) => {
       if (signal === "visibilitychange") {
         Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
@@ -26,6 +34,23 @@ for (const signal of ["visibilitychange", "blur", "pagehide", "freeze"]) {
           transform: css?.transform,
           boardVisibility: getComputedStyle(board).visibility,
           inert: board.inert,
+          chromeOpacity: getComputedStyle(document.querySelector(".chrome-dim")).opacity,
+          chromeTransition: getComputedStyle(document.querySelector(".chrome-dim"))
+            .transitionDuration,
+          // Opacity is composited through ancestors; it is not inherited by the child.
+          controls: [".tools", "#keypad"].map((selector) => {
+            const element = document.querySelector(selector);
+            let opacity = 1;
+            for (let node = element; node; node = node.parentElement) {
+              opacity *= Number(getComputedStyle(node).opacity);
+            }
+            return { opacity, inert: element.closest(".chrome-dim").inert };
+          }),
+          tools: ["undo", "redo", "erase"].map((id) => {
+            const button = document.getElementById(id);
+            const style = getComputedStyle(button);
+            return { disabled: button.disabled, opacity: style.opacity, cursor: style.cursor };
+          }),
         };
       };
       target.dispatchEvent(new Event(signal));
@@ -41,6 +66,13 @@ for (const signal of ["visibilitychange", "blur", "pagehide", "freeze"]) {
         transform: "none",
         boardVisibility: "hidden",
         inert: true,
+        chromeOpacity: "0.4",
+        chromeTransition: "0s",
+        controls: [
+          { opacity: 0.4, inert: true },
+          { opacity: 0.4, inert: true },
+        ],
+        tools: Array(3).fill({ disabled: true, opacity: "1", cursor: "default" }),
       });
     }
   });
@@ -185,9 +217,16 @@ for (const width of [390, 1280]) {
         opacity: getComputedStyle(document.querySelector(".paused-cover")).opacity,
         animation: getComputedStyle(document.querySelector(".paused-cover")).animationName,
         paused: document.querySelector("#pause").getAttribute("aria-pressed"),
+        chromeOpacity: getComputedStyle(document.querySelector(".chrome-dim")).opacity,
       };
     });
-    expect(sync).toEqual({ visible: "visible", opacity: "1", animation: "none", paused: "true" });
+    expect(sync).toEqual({
+      visible: "visible",
+      opacity: "1",
+      animation: "none",
+      paused: "true",
+      chromeOpacity: "0.4",
+    });
     await page.clock.runFor(2_000);
     await expect(page.locator(".timer .time")).toHaveText("0:01");
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
@@ -219,6 +258,44 @@ for (const width of [390, 1280]) {
     await expect(page.locator("#resume-status")).toHaveText("Resumed");
     await page.clock.runFor(1_000);
     await expect(page.locator(".timer .time")).toHaveText("0:02");
+  });
+}
+
+for (const awayMs of [500, 999]) {
+  test(`blur -> focus after ${awayMs}ms restores instantly and quietly`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await stopClock(page);
+    await openBoard(page);
+    await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+    await page.clock.runFor(awayMs);
+    const sync = await page.evaluate(() => {
+      window.dispatchEvent(new Event("focus"));
+      const chrome = document.querySelector(".chrome-dim");
+      const board = document.querySelector(".board");
+      return {
+        phase: document.querySelector(".play").dataset.resumePhase,
+        coverCount: document.querySelectorAll(".paused-cover").length,
+        opacity: getComputedStyle(chrome).opacity,
+        transition: getComputedStyle(chrome).transitionDuration,
+        inert: chrome.inert || board.inert,
+        announcement: document.querySelector("#resume-status").textContent,
+        animations: chrome.getAnimations().length + board.getAnimations().length,
+      };
+    });
+    expect(sync).toEqual({
+      phase: "idle",
+      coverCount: 0,
+      opacity: "1",
+      transition: "0s",
+      inert: false,
+      announcement: "",
+      animations: 0,
+    });
+    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "false");
+    await page.clock.runFor(1_000);
+    await expect(page.locator(".timer .time")).toHaveText("0:01");
+    await expect(page.locator("#resume-status")).toHaveText("");
   });
 }
 

@@ -723,6 +723,7 @@
       class:revealing={playUi.resumePhase === "reveal"}
       class:reveal-mid={revealMid}
       class:short-return={shortReturn}
+      class:background-dim={backgroundCover && playUi.paused && playUi.resumePhase !== "reveal"}
       data-pause-reason={playUi.reason ?? "none"}
       data-resume-phase={playUi.resumePhase}
     >
@@ -1642,6 +1643,13 @@
   .play.revealing .chrome-dim {
     opacity: 1 !important;
     transition: opacity var(--resume-ms) var(--resume-ease);
+  }
+
+  /* Background controls must reach the paused look in the cover's hide frame.
+     Limit this to departure/hold so manual exits and automatic reveals keep their motion. */
+  .play.background-dim .chrome-dim {
+    opacity: 0.4;
+    transition: none;
   }
 
   /* Short absences restore interactive chrome without a trailing fade. */
