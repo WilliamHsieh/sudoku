@@ -32,7 +32,7 @@ import {
   changedCells,
 } from "./history.js";
 import { popcount } from "./board.js";
-import { fromSnapshot } from "./snapshot.js";
+import { fromSnapshot, toSnapshot } from "./snapshot.js";
 import { done, timer, timerRunning, resetTimer, solvedPuzzles } from "../store.js";
 import { puzzleProgress, progressPayload } from "../journal/progress.js";
 
@@ -380,6 +380,56 @@ export function createGame() {
       } else {
         resetTimer();
       }
+      onLoad();
+    },
+
+    get hasDraft() {
+      return draft !== null;
+    },
+
+    /** Save undo/redo as well as the visible board before an automatic update. */
+    checkpoint() {
+      if (draft) throw new Error("Active stroke");
+      return {
+        version: 1,
+        past: history.past.map(toSnapshot),
+        present: toSnapshot(history.present),
+        future: history.future.map(toSnapshot),
+        selected,
+        meta: { ...meta },
+        marked,
+        elapsed: get(timer),
+      };
+    },
+
+    /** @param {ReturnType<ReturnType<typeof createGame>["checkpoint"]>} saved */
+    restoreCheckpoint(saved) {
+      if (
+        saved.version !== 1 ||
+        !Number.isFinite(saved.elapsed) ||
+        saved.elapsed < 0 ||
+        !Number.isInteger(saved.selected) ||
+        saved.selected < -1 ||
+        saved.selected > 80 ||
+        (saved.meta.dateStr !== null && typeof saved.meta.dateStr !== "string") ||
+        (saved.meta.difficulty !== null && typeof saved.meta.difficulty !== "string")
+      ) {
+        throw new Error("Invalid update checkpoint");
+      }
+      const restored = {
+        limit: history.limit,
+        past: saved.past.map(fromSnapshot),
+        present: fromSnapshot(saved.present),
+        future: saved.future.map(fromSnapshot),
+      };
+      history = restored;
+      draft = null;
+      selected = saved.selected;
+      meta = saved.meta;
+      marked = saved.marked;
+      timer.set(saved.elapsed);
+      done.set(isSolved(history.present));
+      timerRunning.set(!isSolved(history.present));
       onLoad();
     },
 

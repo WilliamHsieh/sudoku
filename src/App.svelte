@@ -1,4 +1,12 @@
 <script>
+  /* global __SUDOKU_BUILD__ */
+  import {
+    installAutoUpdate,
+    restoreUpdateCheckpoint,
+    saveUpdateCheckpoint,
+  } from "./auto-update-browser.js";
+  import { saveLocal, flushLocal } from "./persistence.js";
+  import { journalPersisted } from "./journal/progress.js";
   import { paintBoard, discardPaint } from "./paint-actions.js";
   import Api from "./Api.svelte";
   import Cell from "./Cell.svelte";
@@ -336,7 +344,42 @@
       hasPlayed = true;
       showCalendar = false;
     }
+    restoreUpdateCheckpoint((saved) => {
+      game.restoreCheckpoint(saved.game);
+      hasPlayed = saved.hasPlayed;
+      showCalendar = saved.showCalendar;
+      if (saved.paused) playUi.pause();
+    });
+    const stopUpdates =
+      typeof __SUDOKU_BUILD__ === "undefined"
+        ? () => {}
+        : installAutoUpdate({
+            current: __SUDOKU_BUILD__,
+            base: import.meta.env.BASE_URL,
+            busy: () =>
+              game.hasDraft ||
+              padUi.pending !== null ||
+              padUi.gesture !== null ||
+              playUi.modal !== null,
+            persist: (target) => {
+              ring.flush();
+              game.flushProgress();
+              const cueSaved = saveLocal("sudoku-cue", playUi.cuePref ? "1" : "0");
+              const tapSaved = saveLocal("sudoku-tap-fill", playUi.tapFill ? "1" : "0");
+              if (!cueSaved || !tapSaved || !flushLocal() || !journalPersisted()) return false;
+              return saveUpdateCheckpoint(
+                {
+                  game: game.checkpoint(),
+                  hasPlayed,
+                  showCalendar,
+                  paused: playUi.paused,
+                },
+                target
+              );
+            },
+          });
     return () => {
+      stopUpdates();
       window.removeEventListener("pointerdown", releaseViewFocus, true);
       mq.removeEventListener("change", onNarrow);
       reduceMq.removeEventListener("change", onReduce);

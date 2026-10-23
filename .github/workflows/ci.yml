@@ -60,9 +60,11 @@ jobs:
       - name: Unit tests
         run: npm run test:unit
       - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium webkit
       - name: E2E tests
         run: npm run test:e2e
+      - name: Two-build upgrade tests (Chromium, mobile, WebKit)
+        run: npm run test:upgrade
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@v4

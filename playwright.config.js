@@ -15,7 +15,7 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      testIgnore: /mobile\.spec\.js/,
+      testIgnore: /mobile\.spec\.js|upgrade\.spec\.js/,
       use: { ...devices["Desktop Chrome"] },
     },
     {

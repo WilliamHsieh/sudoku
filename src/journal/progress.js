@@ -1,4 +1,5 @@
-import { writable } from "svelte/store";
+import { saveLocal } from "../persistence.js";
+import { writable, get } from "svelte/store";
 import { toSnapshot } from "../game/snapshot.js";
 
 /**
@@ -26,7 +27,7 @@ function readJson(key, fallback) {
 
 function writeJson(key, value) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(key, JSON.stringify(value));
+  saveLocal(key, JSON.stringify(value));
 }
 
 function createSolvedPuzzles() {
@@ -96,6 +97,21 @@ function createPuzzleProgress() {
 
 export const solvedPuzzles = createSolvedPuzzles();
 export const puzzleProgress = createPuzzleProgress();
+
+/** Confirm Journal history is recoverable before replacing the document. */
+export function journalPersisted() {
+  try {
+    return [
+      [SOLVED_KEY, get(solvedPuzzles)],
+      [PROGRESS_KEY, get(puzzleProgress)],
+    ].every(
+      ([key, value]) =>
+        JSON.stringify(JSON.parse(localStorage.getItem(key) ?? "{}")) === JSON.stringify(value)
+    );
+  } catch {
+    return false;
+  }
+}
 
 /**
  * How many of the empty cells have answers.

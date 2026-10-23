@@ -253,10 +253,11 @@ test.describe("H2 header", () => {
     await expect(page.locator(".journal")).toBeVisible();
     await page.getByRole("button", { name: "Play", exact: true }).click();
     await expect(page.locator(".board > .cell")).toHaveCount(81);
-    // Not the in-memory demo (cell 1 = 5). Same pick the app uses for today.
-    await expectValue(page, 1, Number(pick.puzzle[1]));
-    await expectValue(page, 0, Number(pick.puzzle[0]));
-    await expect(page.locator(".board > .cell").nth(1)).not.toHaveAttribute("data-value", "5");
+    // Daily puzzles can share individual givens with the demo. Check the full board.
+    const values = await page
+      .locator(".board > .cell")
+      .evaluateAll((cells) => cells.map((node) => node.getAttribute("data-value")).join(""));
+    expect(values).toBe(pick.puzzle);
   });
 
   test("tapping a journal day opens that day's sheet, not the board", async ({ page }) => {
