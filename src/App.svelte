@@ -779,9 +779,12 @@
   {/if}
 </main>
 
-{#if updateNotice}
-  <p class="toast update-notice" role="status" aria-live="polite">{updateNotice}</p>
-{/if}
+<!-- The polite live region stays mounted so screen readers announce the inserted notice. -->
+<div class="update-live" aria-live="polite">
+  {#if updateNotice}
+    <p class="toast update-notice" role="status">{updateNotice}</p>
+  {/if}
+</div>
 
 <style>
   .sr-only {

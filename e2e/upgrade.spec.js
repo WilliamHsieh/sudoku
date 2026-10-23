@@ -11,7 +11,8 @@ const test = base.extend({
   },
 });
 const build = (page) => page.locator('meta[name="sudoku-build"]');
-const notice = (page) => page.getByRole("status").filter({ hasText: "Update ready" });
+const live = (page) => page.locator(".update-live");
+const notice = (page) => live(page).getByRole("status").filter({ hasText: "Update ready" });
 const attempts = (deployment) => deployment.requests.filter((r) => r.includes("_sudoku_update="));
 
 async function open(page, deployment) {
@@ -110,13 +111,16 @@ test("foreground shows a quiet notice without reloading; #43 resumes and input w
   deployment,
 }) => {
   await open(page, deployment);
+  // The live region is mounted before the notice so the insertion is announced.
+  await expect(live(page)).toBeEmpty();
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await hide(page);
   await expect(page.locator(".play")).toHaveAttribute("data-pause-reason", "auto");
   deployment.publish();
   await foreground(page);
   await expect(notice(page)).toBeVisible();
-  await expect(notice(page)).toHaveAttribute("aria-live", "polite");
+  await expect(live(page)).toHaveAttribute("aria-live", "polite");
+  await expect(live(page)).toHaveText("Update ready — applies next launch");
   await expectSameDocument(page);
   await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "idle");
   await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
