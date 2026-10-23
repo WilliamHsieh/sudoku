@@ -14,7 +14,25 @@
   let open = $state(false);
   let button = $state(/** @type {HTMLButtonElement | undefined} */ (undefined));
   let panel = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
+  let valueText = $state(/** @type {HTMLSpanElement | undefined} */ (undefined));
   let down = false;
+
+  // Keep the full label within its slot when a platform's fallback font is wider.
+  function fitLabel() {
+    if (!valueText?.clientWidth) return;
+    valueText.style.transform = "none";
+    const range = document.createRange();
+    range.selectNodeContents(valueText);
+    const natural = range.getBoundingClientRect().width;
+    const available = valueText.getBoundingClientRect().width;
+    const scale = natural ? Math.min(1, available / natural) : 1;
+    valueText.style.transform = scale < 1 ? `scaleX(${scale})` : "none";
+  }
+
+  $effect(() => {
+    label;
+    tick().then(fitLabel);
+  });
   /** @type {Animation | undefined} */
   let animation;
   /** @type {ReturnType<typeof setTimeout> | undefined} */
@@ -148,11 +166,18 @@
             button?.focus({ preventScroll: true });
         }, 0);
     };
+    const observer = new ResizeObserver(fitLabel);
+    if (button) observer.observe(button);
+    if (valueText) observer.observe(valueText);
+    document.fonts.addEventListener("loadingdone", fitLabel);
+    document.fonts.ready.then(fitLabel);
     window.addEventListener("pointerdown", outside, true);
     window.addEventListener("resize", position);
     window.addEventListener("scroll", position, true);
     return () => {
       clearTimeout(hold);
+      observer.disconnect();
+      document.fonts.removeEventListener("loadingdone", fitLabel);
       animation?.cancel();
       window.removeEventListener("pointerdown", outside, true);
       window.removeEventListener("resize", position);
@@ -170,6 +195,7 @@
   id={desktop ? "notes-mode-desktop" : "notes-mode"}
   class:dhbtn={desktop}
   class:tool={!desktop}
+  class:manual={game.notesMode === "manual"}
   class="notes-mode"
   type="button"
   aria-label={`Notes mode: ${label}`}
@@ -187,8 +213,10 @@
     ></path>
   </svg>
   <span class="mode-label"
-    >{label}<svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"
-      ><path d="m6 9 6 6 6-6"></path></svg
+    ><span class="value" bind:this={valueText}>{label}</span><svg
+      class="chevron"
+      viewBox="0 0 24 24"
+      aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg
     ></span
   >
 </button>
@@ -238,6 +266,7 @@
     touch-action: manipulation;
   }
   .tool {
+    min-width: 0;
     border: none;
     background: transparent;
     color: var(--ui-ink);
@@ -268,11 +297,18 @@
     stroke-width: 1.8;
   }
   .mode-label {
+    min-width: 0;
+    max-width: 100%;
     display: inline-flex;
     align-items: center;
     gap: 1px;
     white-space: nowrap;
     line-height: 14px;
+  }
+  .value {
+    display: block;
+    min-width: 0;
+    transform-origin: left center;
   }
   .chevron {
     width: 11px;
@@ -282,7 +318,7 @@
   .dhbtn {
     box-sizing: border-box;
     min-width: 86px;
-    width: max-content;
+    width: 86px;
     height: 30px;
     display: flex;
     align-items: center;
@@ -293,6 +329,9 @@
     background: var(--timer-bg);
     color: var(--timer-ink);
     font-size: 14px;
+  }
+  .dhbtn.manual {
+    width: max-content;
   }
   .dhbtn .pencil {
     width: 16px;

@@ -100,6 +100,23 @@ for (const [width, height] of [
         await expect(page.locator(".notes-menu:popover-open")).toHaveCount(0);
       }
       if (width < 600) expect(rects).toEqual([rects[0], rects[0], rects[0]]);
+
+      // Wider platform fallback metrics must not resize the toolbar or clip a label.
+      await page.addStyleTag({ content: ".notes-mode { font-family: monospace !important; }" });
+      for (const mode of ["Auto", "Tidy", "Manual"]) {
+        await choose(page, mode);
+        if (width < 600) {
+          const cells = await page
+            .locator(".tools > button")
+            .evaluateAll((els) => els.map((el) => el.getBoundingClientRect().width));
+          expect(cells).toEqual(Array(5).fill(width === 390 ? 70 : 56));
+          expect(
+            await trigger(page)
+              .locator(".mode-label")
+              .evaluate((el) => el.scrollWidth)
+          ).toBeLessThanOrEqual(width === 390 ? 66 : 52);
+        } else if (mode !== "Manual") expect((await trigger(page).boundingBox()).width).toBe(86);
+      }
     });
 
     test("keyboard, outside taps, focus, and pause", async ({ page }) => {
