@@ -86,9 +86,9 @@ test("HOLD cancellation restores its draft and an illegal first cell flashes wit
   await expect(cell(page, 4)).toHaveClass(/blocked/);
   await expect(page.locator(".toast")).toHaveCount(0);
   await t.contacts("touchMove", [k, b]);
-  await expect(cell(page, 42)).toHaveAttribute("data-notes", "");
+  await expect(cell(page, 42)).toHaveAttribute("data-notes", "5");
   await t.contacts("touchEnd", []);
-  await expect(page.locator("#undo")).toBeDisabled();
+  await expect(page.locator("#undo")).toBeEnabled();
 });
 
 test("HOLD blue chip shows even when another digit remains locked", async ({ page }) => {

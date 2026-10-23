@@ -41,12 +41,12 @@ export function beginPaint(d, kind) {
 
 /** @param {number} i */
 export function enterPaint(i) {
-  if (!stroke || stroke.rejected || stroke.visited.has(i)) return;
-  const rejected = stroke.rejected;
+  if (!stroke || stroke.visited.has(i)) return;
+  const blocked = stroke.blockers.length > 0;
   paintCell(stroke, i);
   game.previewStroke(stroke.state);
   padUi.marks = strokeMarks(stroke);
-  if (!rejected && stroke.rejected) {
+  if (!blocked && stroke.blockers.length) {
     flashBlocked(stroke.blockers);
     if (mode === "lock") showToast(toastBlocked(stroke.d));
   }
@@ -59,7 +59,7 @@ export function finishPaint() {
   releaseContact?.();
   padUi.finger = -1;
   game.commitStroke(strokeResult(s));
-  if (mode === "lock" && !s.rejected && !s.brush && s.visited.size === 1)
+  if (mode === "lock" && !s.blockers.length && !s.brush && s.visited.size === 1)
     showToast(toastLockedCell(s.d));
   padUi.announcement = strokeAnnouncement(s);
   // Replace the live region's message child even when Svelte batches an
