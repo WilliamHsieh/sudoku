@@ -348,6 +348,16 @@
     playUi.onAutoResume((info) => {
       if (info.announce) void announceResumed();
     });
+    playUi.bindRevealCompletion(() =>
+      Promise.all(
+        (document.querySelector(".board")?.getAnimations() ?? [])
+          .filter(
+            (animation) =>
+              animation instanceof CSSAnimation && animation.animationName.includes("rv-board")
+          )
+          .map((animation) => animation.finished)
+      )
+    );
     /** @param {KeyboardEvent} event */
     const noteKey = (event) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
@@ -398,6 +408,7 @@
       window.removeEventListener("keydown", noteKey, true);
       window.removeEventListener("pointerdown", notePointer, true);
       playUi.onAutoResume(null);
+      playUi.bindRevealCompletion(null);
       game.setBeforeMutate(() => {});
       game.setOnActivity(() => {});
       game.setOnLoad(() => {});

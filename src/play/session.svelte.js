@@ -9,6 +9,8 @@ const TAP_FILL_KEY = "sudoku-tap-fill";
 /** Cover stays put so the eye can land, then the board eases back in. */
 export const RESUME_HOLD_MS = 150;
 export const RESUME_REVEAL_MS = 320;
+/** Bound the extra wait if a CSS animation is cancelled or never finishes. */
+const REVEAL_FALLBACK_MS = 1_000;
 /** Hidden for less than this: resume with no hold, reveal, or announcement. */
 export const RESUME_SHORT_MS = 1000;
 
@@ -48,7 +50,7 @@ function idleFrom(search) {
  */
 export function createPlay(opts = {}) {
   const live = opts.live !== false;
-  const now = opts.now ?? (() => Date.now());
+  const now = opts.now ?? (() => performance.now());
   const idleMs =
     opts.idleMs ?? (typeof location === "undefined" ? 30_000 : idleFrom(location.search));
   const clock = createCueClock({ idleMs });
@@ -90,6 +92,10 @@ export function createPlay(opts = {}) {
   let resumeTimer = 0;
   /** @type {((info: { announce: boolean }) => void) | null} */
   let onAutoResumed = null;
+  /** @type {(() => Promise<unknown>) | null} */
+  let revealCompletion = null;
+  let waitingForAnimation = false;
+  let resumeGeneration = 0;
 
   clock.setEnabled(initialCue);
 
@@ -144,26 +150,44 @@ export function createPlay(opts = {}) {
     );
   }
 
-  /**
-   * Hold finished or reveal finished. A single step may cross both
-   * when the test clock jumps.
-   */
+  /** Each visual phase starts when its callback actually runs. */
   function advanceResume() {
+    if (resumePhase === "idle") return;
     const t = now();
-    if (resumePhase === "hold" && t >= phaseEnds) {
-      resumePhase = "reveal";
-      phaseEnds += RESUME_REVEAL_MS;
-      if (t < phaseEnds) {
-        armResume(phaseEnds - t);
-        return;
-      }
+    if (t < phaseEnds) {
+      // Timers can fire early; injected clocks can also move backward.
+      armResume(phaseEnds - t);
+      return;
     }
-    if (resumePhase === "reveal" && t >= phaseEnds) finishAutoResume();
+    if (resumePhase === "hold") {
+      resumePhase = "reveal";
+      phaseEnds = t + RESUME_REVEAL_MS;
+      armResume(RESUME_REVEAL_MS);
+      return;
+    }
+    if (revealCompletion && !waitingForAnimation) {
+      // Rendering can start after the state transition. Keep input blocked
+      // until the board's actual animation finishes, with a bounded fallback.
+      waitingForAnimation = true;
+      phaseEnds = t + REVEAL_FALLBACK_MS;
+      armResume(REVEAL_FALLBACK_MS);
+      const generation = resumeGeneration;
+      revealCompletion().then(
+        () => {
+          if (generation === resumeGeneration && resumePhase === "reveal") finishAutoResume();
+        },
+        () => {} // A cancelled animation uses the fallback.
+      );
+      return;
+    }
+    finishAutoResume();
   }
 
   /** Drop a hold or reveal without resuming. The pause reason stays. */
   function cancelReveal() {
     clearResumeTimer();
+    resumeGeneration += 1;
+    waitingForAnimation = false;
     resumePhase = "idle";
     phaseEnds = 0;
   }
@@ -353,6 +377,11 @@ export function createPlay(opts = {}) {
      */
     onAutoResume(fn) {
       onAutoResumed = fn;
+    },
+
+    /** @param {(() => Promise<unknown>) | null} fn wait for the rendered reveal */
+    bindRevealCompletion(fn) {
+      revealCompletion = fn;
     },
 
     /**

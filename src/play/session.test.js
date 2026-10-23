@@ -201,6 +201,141 @@ describe("play session", () => {
     expect(get(timerRunning)).toBe(true);
   });
 
+  it.each([200, 1_000])("gives a late hold callback a full reveal (%i ms late)", (late) => {
+    play.noteHidden();
+    time = 5_000;
+    play.noteVisible(5_000);
+    time += RESUME_HOLD_MS + late;
+    play.step();
+    expect(play.resumePhase).toBe("reveal");
+    expect(play.paused).toBe(true);
+    expect(get(timerRunning)).toBe(false);
+    time += RESUME_REVEAL_MS - 1;
+    play.step();
+    expect(play.paused).toBe(true);
+    time += 1;
+    play.step();
+    expect(play.paused).toBe(false);
+  });
+
+  it.each(["hold", "reveal"])("rearms an early live callback during %s", (phase) => {
+    vi.useFakeTimers();
+    try {
+      time = 10_000;
+      const live = createPlay({ now: () => time });
+      const resumed = vi.fn();
+      live.onAutoResume(resumed);
+      live.noteHidden();
+      live.noteVisible(2_000);
+      if (phase === "reveal") {
+        time += RESUME_HOLD_MS;
+        vi.advanceTimersByTime(RESUME_HOLD_MS);
+      }
+      time -= 100;
+      vi.advanceTimersByTime(phase === "hold" ? RESUME_HOLD_MS : RESUME_REVEAL_MS);
+      expect(live.resumePhase).toBe(phase);
+      expect(get(timerRunning)).toBe(false);
+      time = 20_000;
+      vi.advanceTimersByTime(RESUME_REVEAL_MS + 100);
+      if (phase === "hold") {
+        expect(live.resumePhase).toBe("reveal");
+        time += RESUME_REVEAL_MS;
+        vi.advanceTimersByTime(RESUME_REVEAL_MS);
+      }
+      expect(live.paused).toBe(false);
+      expect(resumed).toHaveBeenCalledExactlyOnceWith({ announce: true });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("uses monotonic time for live resume when wall time moves backward", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(10_000);
+      const live = createPlay();
+      live.noteHidden();
+      live.noteVisible(2_000);
+      vi.setSystemTime(9_900);
+      vi.advanceTimersByTime(RESUME_HOLD_MS);
+      expect(live.resumePhase).toBe("reveal");
+      vi.setSystemTime(0);
+      vi.advanceTimersByTime(RESUME_REVEAL_MS);
+      expect(live.paused).toBe(false);
+      expect(get(timerRunning)).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("waits for the actual animation after the reveal deadline", async () => {
+    let complete = () => {};
+    const animation = new Promise((resolve) => {
+      complete = () => resolve(undefined);
+    });
+    play.bindRevealCompletion(() => animation);
+    const resumed = vi.fn();
+    play.onAutoResume(resumed);
+    play.noteHidden();
+    play.noteVisible(2_000);
+    time += RESUME_HOLD_MS;
+    play.step();
+    time += RESUME_REVEAL_MS;
+    play.step();
+    expect(play.resumePhase).toBe("reveal");
+    expect(get(timerRunning)).toBe(false);
+    complete();
+    await animation;
+    expect(play.paused).toBe(false);
+    expect(resumed).toHaveBeenCalledExactlyOnceWith({ announce: true });
+  });
+
+  it.each([false, true])(
+    "bounds the wait for an unfinished animation (rejected: %s)",
+    async (reject) => {
+      vi.useFakeTimers();
+      try {
+        const live = createPlay();
+        live.bindRevealCompletion(() =>
+          reject ? Promise.reject(new Error("cancelled")) : new Promise(() => {})
+        );
+        live.noteHidden();
+        live.noteVisible(2_000);
+        await vi.advanceTimersByTimeAsync(RESUME_HOLD_MS + RESUME_REVEAL_MS);
+        expect(live.paused).toBe(true);
+        await vi.advanceTimersByTimeAsync(999);
+        expect(live.paused).toBe(true);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(live.paused).toBe(false);
+      } finally {
+        vi.useRealTimers();
+      }
+    }
+  );
+
+  it("ignores completion from a reveal cancelled by another hide", async () => {
+    let complete = () => {};
+    const animation = new Promise((resolve) => {
+      complete = () => resolve(undefined);
+    });
+    play.bindRevealCompletion(() => animation);
+    play.noteHidden();
+    play.noteVisible(2_000);
+    time += RESUME_HOLD_MS;
+    play.step();
+    time += RESUME_REVEAL_MS;
+    play.step();
+    play.noteHidden();
+    play.noteVisible(2_000);
+    time += RESUME_HOLD_MS;
+    play.step();
+    complete();
+    await animation;
+    expect(play.resumePhase).toBe("reveal");
+    expect(play.paused).toBe(true);
+    expect(get(timerRunning)).toBe(false);
+  });
+
   it("keeps a manual pause paused when the page returns", () => {
     expect(play.pause()).toBe(true);
     expect(play.reason).toBe("manual");
@@ -291,6 +426,8 @@ describe("play session", () => {
     time = 9_000;
     expect(play.noteVisible(4_000)).toBe("hold");
     expect(play.resumePhase).toBe("hold");
+    time = 9_000 + RESUME_HOLD_MS;
+    play.step();
     time = 9_000 + RESUME_HOLD_MS + RESUME_REVEAL_MS;
     play.step();
     expect(play.paused).toBe(false);
@@ -364,6 +501,8 @@ describe("play session", () => {
     expect(play.reason).toBe("auto");
     time = 3_000;
     play.noteVisible(3_000);
+    time = 3_000 + RESUME_HOLD_MS;
+    play.step();
     time = 3_000 + RESUME_HOLD_MS + RESUME_REVEAL_MS;
     play.step();
     expect(play.paused).toBe(false);
@@ -377,6 +516,8 @@ describe("play session", () => {
     expect(play.reason).toBe("auto");
     time = 8_000;
     expect(play.noteVisible(4_000, { silent: false })).toBe("hold");
+    time = 8_000 + RESUME_HOLD_MS;
+    play.step();
     time = 8_000 + RESUME_HOLD_MS + RESUME_REVEAL_MS;
     play.step();
     expect(play.modal).toBe(null);
@@ -398,6 +539,8 @@ describe("play session", () => {
     const away = 3 * 24 * 60 * 60 * 1000;
     time = away;
     expect(play.noteVisible(away)).toBe("hold");
+    time = away + RESUME_HOLD_MS;
+    play.step();
     time = away + RESUME_HOLD_MS + RESUME_REVEAL_MS;
     play.step();
     expect(play.paused).toBe(false);
