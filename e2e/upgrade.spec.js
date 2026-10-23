@@ -292,3 +292,39 @@ test("hidden pages defer checks and visible return preserves the paused puzzle",
   await page.locator("#resume").click();
   await expectValue(page, 0, 4);
 });
+
+test("a touch contact still blocks updates after the browser cancels its pointer", async ({
+  page,
+  deployment,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "upgrade-mobile", "Requires Chromium CDP touch contacts");
+  await open(page, deployment);
+  await page.evaluate(() =>
+    window.addEventListener(
+      "pointerdown",
+      (event) => {
+        window.touchPointer = event.pointerId;
+      },
+      { once: true }
+    )
+  );
+  const cdp = await page.context().newCDPSession(page);
+  const title = await page.locator(".hd-brand").boundingBox();
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [{ x: title.x + 20, y: title.y + 10, id: 1 }],
+  });
+  // Native scrolling can cancel Pointer Events while the finger remains down.
+  await page.evaluate(() =>
+    window.dispatchEvent(
+      new PointerEvent("pointercancel", { pointerId: window.touchPointer, pointerType: "touch" })
+    )
+  );
+  deployment.publish();
+  await foreground(page);
+  await page.waitForTimeout(1500);
+  await expect(build(page)).toHaveAttribute("content", "old");
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await expect(build(page)).toHaveAttribute("content", "new");
+  await expectValue(page, 0, 4);
+});

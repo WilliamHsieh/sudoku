@@ -43,11 +43,17 @@ export function installAutoUpdate(options) {
   const contacts = new Set();
   const keys = new Set();
   let composing = false;
+  let touches = 0;
   let quietUntil = Date.now() + 800;
   let timer;
   const visible = () => document.visibilityState === "visible";
   const busy = () =>
-    contacts.size > 0 || keys.size > 0 || composing || Date.now() < quietUntil || options.busy();
+    contacts.size > 0 ||
+    touches > 0 ||
+    keys.size > 0 ||
+    composing ||
+    Date.now() < quietUntil ||
+    options.busy();
   const updater = createUpdater({
     current: options.current,
     probe: () => probeDeployment(options.base, options.current),
@@ -101,6 +107,11 @@ export function installAutoUpdate(options) {
     keys.delete(event.code);
     activity();
   }
+  /** Pointer cancellation can hand a still-active touch to native scrolling. @param {TouchEvent} event */
+  function touch(event) {
+    touches = event.touches.length;
+    activity();
+  }
   function startComposition() {
     composing = true;
     activity();
@@ -111,6 +122,7 @@ export function installAutoUpdate(options) {
   }
   function resetInput() {
     contacts.clear();
+    touches = 0;
     keys.clear();
     composing = false;
     activity();
@@ -128,6 +140,9 @@ export function installAutoUpdate(options) {
     [window, "pointerdown", down],
     [window, "pointerup", up],
     [window, "pointercancel", up],
+    [window, "touchstart", touch],
+    [window, "touchend", touch],
+    [window, "touchcancel", touch],
     [window, "keydown", keydown],
     [window, "keyup", keyup],
     [window, "compositionstart", startComposition],
