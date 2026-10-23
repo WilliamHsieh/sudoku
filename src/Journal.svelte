@@ -48,6 +48,9 @@
   /** Stays up through the close animation, then unmounts. */
   let sheetClosing = $state(false);
   let sheetCloseTimer = 0;
+  /** @type {(() => void) | null} */
+  let pendingPlay = null;
+  let playFrame = 0;
   let swipeX = $state(0);
   let swiping = $state(false);
   let touchX = 0;
@@ -219,6 +222,7 @@
 
   /** @param {boolean} [openSheetAfter] */
   function goLatest(openSheetAfter = false) {
+    if (pendingPlay) return;
     if (animating || swiping || !isAway(view, sel, latest, isMobile())) return;
     const selection = sel;
     sel = null;
@@ -261,7 +265,7 @@
 
   /** @param {string} date */
   function openDay(date) {
-    if (animating) return;
+    if (animating || pendingPlay) return;
     if (!puzzleData[date]) return;
     if (isMobile()) {
       sel = date;
@@ -276,7 +280,7 @@
   }
 
   function openUnfinished() {
-    if (animating) return;
+    if (animating || pendingPlay) return;
     sel = null;
     window.clearTimeout(sheetCloseTimer);
     sheetClosing = false;
@@ -284,10 +288,31 @@
   }
 
   function finishCloseSheet() {
+    if (!sheet) return;
     window.clearTimeout(sheetCloseTimer);
     sheetClosing = false;
     sheet = null;
     if (isMobile()) sel = null;
+    if (pendingPlay) {
+      // Flush sheet/scrim removal and the body lock before counting paints.
+      tick().then(() => {
+        if (!alive || !pendingPlay) return;
+        let paints = 2;
+        function afterPaint() {
+          if (!alive || !pendingPlay) return;
+          // rAF runs before paint. The third callback allows two complete
+          // frames with Journal visible and no sheet, scrim or body lock.
+          if (paints-- > 0) {
+            playFrame = requestAnimationFrame(afterPaint);
+            return;
+          }
+          const play = pendingPlay;
+          pendingPlay = null;
+          play();
+        }
+        playFrame = requestAnimationFrame(afterPaint);
+      });
+    }
   }
 
   function closeSheet() {
@@ -310,31 +335,41 @@
   /**
    * @param {string} date
    * @param {(typeof DIFFS)[number]} diff
+   * @param {boolean} [fromSheet]
    */
-  function playPuzzle(date, diff) {
+  function playPuzzle(date, diff, fromSheet = false) {
+    if (fromSheet && (pendingPlay || !sheet || sheetClosing)) return;
     const puzzle = puzzleData[date]?.[diff];
     if (!puzzle) return;
     const st = puzzleState(get(solvedPuzzles), get(puzzleProgress), date, diff);
-    if (st.kind === "progress") {
-      game.load(puzzle, {
-        dateStr: date,
-        difficulty: diff,
-        snapshot: st.snapshot,
-        elapsed: st.elapsed,
-      });
+    const play = () => {
+      if (st.kind === "progress") {
+        game.load(puzzle, {
+          dateStr: date,
+          difficulty: diff,
+          snapshot: st.snapshot,
+          elapsed: st.elapsed,
+        });
+      } else {
+        game.load(puzzle, { dateStr: date, difficulty: diff });
+      }
+      window.dispatchEvent(
+        new CustomEvent("loadPuzzle", {
+          detail: { dateStr: date, difficulty: diff, puzzleString: puzzle },
+        })
+      );
+    };
+    if (fromSheet) {
+      pendingPlay = play;
+      closeSheet();
     } else {
-      game.load(puzzle, { dateStr: date, difficulty: diff });
+      play();
     }
-    window.dispatchEvent(
-      new CustomEvent("loadPuzzle", {
-        detail: { dateStr: date, difficulty: diff, puzzleString: puzzle },
-      })
-    );
   }
 
   /** @param {string} date */
   function pickDayFromUnfinished(date) {
-    if (animating) return;
+    if (animating || pendingPlay) return;
     if (isMobile()) {
       sel = date;
       sheet = "day";
@@ -414,7 +449,9 @@
     hasCardState = true;
     if (untrack(() => returning)) return;
     tick().then(() => {
-      if (!alive || returning) return;
+      // Sheet Start/Resume closes the sheet before Play; stay silent like an
+      // immediate switch to Play would.
+      if (!alive || returning || pendingPlay) return;
       const text = contextCard?.textContent?.trim() ?? "";
       if (text === lastAnnounced) return;
       // Seed the comparison silently on mount and after explicit returns.
@@ -436,6 +473,8 @@
       alive = false;
       window.clearTimeout(slideTimer);
       window.clearTimeout(sheetCloseTimer);
+      window.cancelAnimationFrame(playFrame);
+      pendingPlay = null;
       if (mobVp) mobVp.style.height = "";
       if (deskVp) deskVp.style.height = "";
     };
@@ -987,7 +1026,7 @@
               <button
                 class="btn btn-primary"
                 type="button"
-                onclick={() => playPuzzle(x.date, x.diff)}
+                onclick={() => playPuzzle(x.date, x.diff, true)}
               >
                 <Icon name="play" />Resume
               </button>
@@ -1024,7 +1063,7 @@
             st={puzzleState(solved, progress, sheetDay, d)}
             avg={avgs[d]}
             isPb={bests[d]?.date === sheetDay}
-            onplay={() => playPuzzle(sheetDay, d)}
+            onplay={() => playPuzzle(sheetDay, d, true)}
           />
         {/each}
       </div>
