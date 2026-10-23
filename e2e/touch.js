@@ -23,12 +23,18 @@ export async function touchDriver(page) {
     },
 
     /**
-     * Two presses inside the 300ms double-tap window (measured press to press).
+     * Generate both native presses in Chromium. Separate protocol round trips
+     * can exceed the 300ms press-to-press window on a loaded test machine.
      */
     async doubleTap(locator) {
-      await this.tap(locator, { holdMs: 30 });
-      await page.waitForTimeout(40);
-      await this.tap(locator, { holdMs: 30 });
+      const p = await center(locator);
+      await cdp.send("Input.synthesizeTapGesture", {
+        x: p.x,
+        y: p.y,
+        duration: 30,
+        tapCount: 2,
+        gestureSourceType: "touch",
+      });
     },
 
     /** Drag upward by `dy` px in `steps`, optionally pausing before release. */
