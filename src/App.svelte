@@ -319,10 +319,10 @@
     void announceResumed();
   }
 
-  function handleLoadPuzzle(event) {
+  function handleLoadPuzzle() {
     playUi.start();
     hasPlayed = true;
-    viewMotion = !event.detail?.fromSheet;
+    viewMotion = true;
     showCalendar = false;
   }
 

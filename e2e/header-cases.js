@@ -14,6 +14,73 @@ const box = (loc) =>
     return { x: r.x, y: r.y, w: r.width, h: r.height };
   });
 
+/** Capture Play as it mounts, before its entrance can finish in wall time. */
+async function watchSheetArrival(page) {
+  await page.evaluate(() => {
+    const log = { cleanFrames: 0, arrival: null };
+    window.__sheetArrival = log;
+    const clean = () =>
+      !document.querySelector(".sheet, .scrim.on") &&
+      !document.body.classList.contains("journal-sheet");
+    const observer = new MutationObserver(() => {
+      const play = document.querySelector(".play");
+      if (!play) return;
+      log.arrival = {
+        clean: clean(),
+        journal: !!document.querySelector(".journal-view"),
+        animations: play.getAnimations().map((animation) => ({
+          duration: animation.effect.getTiming().duration,
+          easing: getComputedStyle(play).animationTimingFunction,
+          frames: animation.effect.getKeyframes().map(({ opacity, transform }) => ({
+            opacity,
+            x: new DOMMatrix(transform).m41,
+          })),
+        })),
+        transform: getComputedStyle(play).transform,
+        opacity: getComputedStyle(play).opacity,
+      };
+      observer.disconnect();
+    });
+    observer.observe(document.body, { subtree: true, childList: true });
+    const frame = () => {
+      if (log.arrival) return;
+      if (clean()) log.cleanFrames++;
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  });
+}
+
+async function expectSheetArrival(page, testInfo, slide) {
+  await page.clock.runFor(500);
+  await expect(page.locator(".sheet, .scrim.on")).toHaveCount(0);
+  await expect(page.locator(".board")).toBeVisible();
+  const log = await page.evaluate(() => window.__sheetArrival);
+  expect(log.cleanFrames).toBeGreaterThanOrEqual(2);
+  expect(log.arrival.clean).toBe(true);
+  expect(log.arrival.journal).toBe(false);
+  if (slide) {
+    expect(log.arrival.animations).toEqual([
+      {
+        duration: 260,
+        easing: "cubic-bezier(0.22, 0.8, 0.24, 1)",
+        frames: [
+          { opacity: "0", x: 24 },
+          { opacity: "1", x: 0 },
+        ],
+      },
+    ]);
+  } else {
+    expect(log.arrival.animations).toEqual([]);
+    expect(log.arrival.transform).toBe("none");
+    expect(log.arrival.opacity).toBe("1");
+  }
+  await testInfo.attach("sheet-arrival", {
+    body: JSON.stringify(log, null, 2),
+    contentType: "application/json",
+  });
+}
+
 export function headerCases(mobile) {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: mobile ? 390 : 1280, height: mobile ? 844 : 900 });
@@ -193,31 +260,53 @@ export function headerCases(mobile) {
   });
 
   if (mobile)
-    test("current-game sheet Resume closes first, cuts to Play and keeps undo", async ({
-      page,
-    }) => {
-      await page.goto("./");
-      await pill(page).click();
-      const i = Number(await page.locator(".cell:not(.given)").first().getAttribute("data-i"));
-      await cell(page, i).click();
-      await page.keyboard.press("1");
-      await page.locator(".dbtn").click();
-      await page.clock.runFor(260);
-      await page.locator(".mgrid .day.sel").click();
-      await page.clock.runFor(400);
-      await page
-        .locator(".sheet .prow")
-        .filter({ hasText: "Easy" })
-        .getByRole("button", { name: "Resume" })
-        .click();
-      await expect(page.locator(".sheet")).toHaveClass(/closing/);
-      await expect(page.locator(".board")).toHaveCount(0);
-      await page.clock.runFor(500);
-      await expect(page.locator(".sheet")).toHaveCount(0);
-      await expect(page.locator(".board")).toBeVisible();
-      await expect(page.locator(".play")).not.toHaveClass(/enter-play/);
-      await page.keyboard.press("Control+z");
-      await page.clock.runFor(1000);
-      await expectValue(page, i, 0);
-    });
+    for (const reducedMotion of ["no-preference", "reduce"]) {
+      test(`sheet Start closes first, then enters Play (${reducedMotion})`, async ({
+        page,
+      }, testInfo) => {
+        await page.emulateMedia({ reducedMotion });
+        await page.goto("./");
+        await page.locator(".latest").click();
+        await page.clock.runFor(400);
+        await watchSheetArrival(page);
+        await page
+          .locator(".sheet .prow")
+          .filter({ hasText: "Medium" })
+          .getByRole("button", { name: "Start" })
+          .click();
+        await expect(page.locator(".board")).toHaveCount(0);
+        if (reducedMotion === "no-preference")
+          await expect(page.locator(".sheet")).toHaveClass(/closing/);
+        await expectSheetArrival(page, testInfo, reducedMotion === "no-preference");
+        await expect(page.locator(".dbtn")).toHaveAccessibleName(/Medium/);
+      });
+
+      test(`current-game sheet Resume closes first, cuts to Play and keeps undo (${reducedMotion})`, async ({
+        page,
+      }, testInfo) => {
+        await page.emulateMedia({ reducedMotion });
+        await page.goto("./");
+        await pill(page).click();
+        const i = Number(await page.locator(".cell:not(.given)").first().getAttribute("data-i"));
+        await cell(page, i).click();
+        await page.keyboard.press("1");
+        await page.locator(".dbtn").click();
+        await page.clock.runFor(260);
+        await page.locator(".mgrid .day.sel").click();
+        await page.clock.runFor(400);
+        await watchSheetArrival(page);
+        await page
+          .locator(".sheet .prow")
+          .filter({ hasText: "Easy" })
+          .getByRole("button", { name: "Resume" })
+          .click();
+        await expect(page.locator(".board")).toHaveCount(0);
+        if (reducedMotion === "no-preference")
+          await expect(page.locator(".sheet")).toHaveClass(/closing/);
+        await expectSheetArrival(page, testInfo, false);
+        await page.keyboard.press("Control+z");
+        await page.clock.runFor(1000);
+        await expectValue(page, i, 0);
+      });
+    }
 }
