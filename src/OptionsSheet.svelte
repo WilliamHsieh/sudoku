@@ -11,6 +11,9 @@
   let cueRow = $state(/** @type {HTMLButtonElement | undefined} */ (undefined));
   let restartRow = $state(/** @type {HTMLButtonElement | undefined} */ (undefined));
   let cancelBtn = $state(/** @type {HTMLButtonElement | undefined} */ (undefined));
+  // WebKit can match :focus-visible after showModal() even on a touch open.
+  // Keep native dialog focus; only hide the sheet's rings until keyboard input.
+  let pointerInput = $state(false);
   let syncing = false;
   /**
    * `dialog.close()` reports `close` on a later task. Esc can restore the
@@ -334,10 +337,16 @@
   const scrimOn = $derived(playUi.modal === "options" || playUi.modal === "confirm");
 </script>
 
+<svelte:window
+  onpointerdown={() => (pointerInput = true)}
+  onkeydown={() => (pointerInput = false)}
+/>
+
 <div class="modal-scrim" class:on={scrimOn} class:out={optsClosing} aria-hidden="true"></div>
 
 <dialog
   class="opts"
+  class:pointer-input={pointerInput}
   class:closing={optsClosing}
   class:parked={sheetParked}
   bind:this={optsEl}
@@ -621,6 +630,11 @@
   .btn:focus-visible {
     outline: 2px solid var(--focus);
     outline-offset: 2px;
+  }
+
+  .opts.pointer-input .row:focus-visible,
+  .opts.pointer-input .btn:focus-visible {
+    outline: none;
   }
 
   .btn-primary {
