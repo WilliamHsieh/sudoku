@@ -4,8 +4,9 @@ name: CI
 
 on:
   pull_request:
-    # merge/** covers PRs stacked on another merge/ branch
-    branches: ["master", "merge/**"]
+    # Include the ci-shard base for this stacked CI follow-up.
+    # merge/** covers PRs stacked on another merge/ branch.
+    branches: ["master", "merge/**", "ci-shard"]
 
 # Read-only; a build needs nothing more (also what Dependabot PRs get by default)
 permissions:
@@ -70,6 +71,16 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    container:
+      # Must match package-lock.json's exact @playwright/test version.
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      options: --init --ipc=host
+      volumes:
+        # Mobile font tests need DejaVu Sans, present on the runner but not the image.
+        - /usr/share/fonts/truetype/dejavu:/usr/share/fonts/truetype/dejavu:ro
+    env:
+      # WebKit needs a writable home when the container runs as root.
+      HOME: /root
     strategy:
       fail-fast: false
       matrix:
@@ -83,25 +94,29 @@ jobs:
         with:
           node-version: 22
           cache: "npm"
+      - name: Verify Playwright container version
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+          const version = lock.packages['node_modules/@playwright/test'].version;
+          const image = JSON.parse(fs.readFileSync('/ms-playwright/.docker-info', 'utf8'));
+          const expected = `mcr.microsoft.com/playwright:v${version}-noble`;
+          if (image.dockerImageName !== expected) {
+            console.error(`::error::Playwright image ${image.dockerImageName} does not match @playwright/test ${version}. Update jobs.e2e.container.image to ${expected}.`);
+            process.exit(1);
+          }
+          console.log(`Playwright container matches @playwright/test ${version}`);
+          NODE
+      - name: Verify DejaVu Sans test font
+        run: |
+          fc-cache -f /usr/share/fonts/truetype/dejavu
+          if [ -z "$(fc-list 'DejaVu Sans' file)" ]; then
+            echo "::error::Mobile tests require DejaVu Sans from the runner's font mount."
+            exit 1
+          fi
       - name: Install dependencies
         run: npm ci
-      - name: Install Playwright browsers
-        id: browser-install
-        timeout-minutes: 5
-        continue-on-error: true
-        # The timeout needs root privileges to stop apt and release its locks.
-        run: |
-          sudo timeout --kill-after=10s 240s env "PATH=$PATH" \
-            "PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/ms-playwright" \
-            npx playwright install --with-deps chromium webkit
-      - name: Retry Playwright browser installation
-        if: steps.browser-install.outcome == 'failure'
-        timeout-minutes: 5
-        # The timeout needs root privileges to stop apt and release its locks.
-        run: |
-          sudo timeout --kill-after=10s 240s env "PATH=$PATH" \
-            "PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/ms-playwright" \
-            npx playwright install --with-deps chromium webkit
       - name: E2E tests
         run: npm run test:e2e -- --shard=${{ matrix.shard }}/4
       - name: Upload Playwright report
