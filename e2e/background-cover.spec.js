@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openBoard } from "./helpers.js";
+import { cell, openBoard, solve, DEMO_PUZZLE } from "./helpers.js";
 
 // Deliberately read in the dispatching task: waiting for a locator or a timeout
 // could hide the transparent first frame that a task-switcher capture can see.
@@ -160,3 +160,142 @@ test("dialog focus blur stays open, but hidden covers it synchronously", async (
   expect(opacity).toBe("1");
   await expect(page.getByRole("dialog", { name: "Options", exact: true })).toBeHidden();
 });
+
+const CLOCK_START = new Date("2026-10-24T12:00:00Z");
+
+async function stopClock(page) {
+  await page.clock.install({ time: CLOCK_START });
+  await page.clock.pauseAt(CLOCK_START);
+}
+
+for (const width of [390, 1280]) {
+  test(`blur stops the clock synchronously and focus uses the #53 reveal at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await stopClock(page);
+    await openBoard(page);
+    await page.clock.runFor(1_000);
+    const sync = await page.evaluate(() => {
+      window.dispatchEvent(new Event("blur"));
+      return {
+        visible: document.visibilityState,
+        opacity: getComputedStyle(document.querySelector(".paused-cover")).opacity,
+        animation: getComputedStyle(document.querySelector(".paused-cover")).animationName,
+        paused: document.querySelector("#pause").getAttribute("aria-pressed"),
+      };
+    });
+    expect(sync).toEqual({ visible: "visible", opacity: "1", animation: "none", paused: "true" });
+    await page.clock.runFor(2_000);
+    await expect(page.locator(".timer .time")).toHaveText("0:01");
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "hold");
+    await expect(page.locator(".paused-cover")).toHaveCSS("opacity", "1");
+    await page.clock.runFor(249);
+    await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "hold");
+    await expect(page.locator(".timer .time")).toHaveText("0:01");
+    await page.clock.runFor(1);
+    await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "reveal");
+    const reveal = await page.evaluate(() => {
+      const board = document.querySelector(".board");
+      const animation = board.getAnimations()[0];
+      return {
+        duration: animation.effect.getTiming().duration,
+        from: animation.effect.getKeyframes()[0].filter,
+        inert: board.inert,
+      };
+    });
+    expect(reveal).toEqual({ duration: 600, from: "blur(8px)", inert: true });
+    await page.clock.runFor(599);
+    await expect(page.locator(".timer .time")).toHaveText("0:01");
+    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "true");
+    // The virtual timer and CSS have separate clocks. Finish CSS at its end,
+    // then cross the real session's virtual 600ms deadline.
+    await page.evaluate(() => document.getAnimations().forEach((animation) => animation.finish()));
+    await page.clock.runFor(1);
+    await expect(page.locator(".paused-cover")).toHaveCount(0);
+    await expect(page.locator("#resume-status")).toHaveText("Resumed");
+    await page.clock.runFor(1_000);
+    await expect(page.locator(".timer .time")).toHaveText("0:02");
+  });
+}
+
+for (const awayMs of [999, 1_000, 1_100]) {
+  test(`blur then hidden uses the first departure for a ${awayMs}ms absence`, async ({ page }) => {
+    await stopClock(page);
+    await openBoard(page);
+    await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+    await page.clock.setFixedTime(new Date(CLOCK_START.getTime() + 900));
+    await page.evaluate(() => {
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await page.clock.setFixedTime(new Date(CLOCK_START.getTime() + awayMs));
+    const sync = await page.evaluate(() => {
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+      document.dispatchEvent(new Event("visibilitychange"));
+      window.dispatchEvent(new Event("focus"));
+      const cover = document.querySelector(".paused-cover");
+      return {
+        phase: document.querySelector(".play").dataset.resumePhase,
+        cover: cover && getComputedStyle(cover).opacity,
+        paused: document.querySelector("#pause").getAttribute("aria-pressed"),
+        announcement: document.querySelector("#resume-status").textContent,
+      };
+    });
+    expect(sync).toEqual({
+      phase: awayMs < 1_000 ? "idle" : "hold",
+      cover: awayMs < 1_000 ? null : "1",
+      paused: awayMs < 1_000 ? "false" : "true",
+      announcement: "",
+    });
+  });
+}
+
+for (const signal of ["blur", "visibilitychange", "pagehide", "freeze"]) {
+  for (const view of ["fresh calendar", "loaded calendar", "finished puzzle"]) {
+    test(`${signal} does not pause a ${view}`, async ({ page }) => {
+      await stopClock(page);
+      if (view === "fresh calendar") await page.goto("./");
+      else if (view === "loaded calendar") {
+        await openBoard(page);
+        await page.getByRole("button", { name: "Journal", exact: true }).click();
+      } else {
+        const solution = solve(DEMO_PUZZLE);
+        await openBoard(page, `./?q=0${solution.slice(1)}`);
+        await cell(page, 0).click();
+        await page.keyboard.press(solution[0]);
+        await expect(page.locator(".success-card")).toBeVisible();
+      }
+      await page.evaluate((signal) => {
+        if (signal === "visibilitychange") {
+          Object.defineProperty(document, "visibilityState", {
+            configurable: true,
+            value: "hidden",
+          });
+        }
+        const target = ["visibilitychange", "freeze"].includes(signal) ? document : window;
+        target.dispatchEvent(new Event(signal));
+      }, signal);
+      await page.clock.runFor(2_000);
+      if (view !== "finished puzzle") {
+        // Enter Play before the return signal to expose a latent pause created
+        // in the calendar even though no cover could mount there.
+        await page.getByRole("button", { name: "Play", exact: true }).click();
+      } else await expect(page.locator(".success-card")).toBeVisible();
+      await expect(page.locator(".paused-cover")).toHaveCount(0);
+      await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "false");
+      await page.evaluate(() => {
+        Object.defineProperty(document, "visibilityState", {
+          configurable: true,
+          value: "visible",
+        });
+        document.dispatchEvent(new Event("visibilitychange"));
+        window.dispatchEvent(new Event("focus"));
+      });
+      await expect(page.locator(".paused-cover")).toHaveCount(0);
+      await expect(page.locator("#resume-status")).toHaveText("");
+    });
+  }
+}

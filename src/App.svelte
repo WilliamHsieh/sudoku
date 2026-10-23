@@ -32,6 +32,7 @@
   import { applyShot } from "./play/shot.js";
   import { applyKeypadShot } from "./play/keypad-shot.js";
   import { headerStep, readHeaderFit } from "./header-fit.js";
+  import { PAUSE_ON_WINDOW_BLUR } from "./play/background-policy.js";
   import PausedCover from "./PausedCover.svelte";
   import OptionsSheet from "./OptionsSheet.svelte";
   import { flushSync, onMount, tick, untrack } from "svelte";
@@ -378,6 +379,7 @@
     let hiddenAt = /** @type {number | null} */ (null);
     const isHidden = () => document.hidden || document.visibilityState === "hidden";
     const onAway = () => {
+      if (showCalendar || game.solved) return;
       hiddenAt ??= Date.now();
       let newlyPaused = false;
       flushSync(() => {
@@ -409,7 +411,8 @@
     const onWindowBlur = (event) => {
       // Native dialog Tab wrapping can briefly focus browser chrome. While a
       // dialog is open, use the explicit lifecycle signals for backgrounding.
-      if (event.target === window && (!playUi.modal || isHidden())) onAway();
+      if (PAUSE_ON_WINDOW_BLUR && event.target === window && (!playUi.modal || isHidden()))
+        onAway();
     };
     window.addEventListener("blur", onWindowBlur);
     window.addEventListener("focus", onReturn);
