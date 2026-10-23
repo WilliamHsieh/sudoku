@@ -12,32 +12,28 @@ export function createStroke(before, d) {
     touched: new Set(),
     refused: new Set(),
     visited: new Set(),
-    rejected: false,
     blockers: /** @type {number[]} */ ([]),
   };
 }
 
 /** Set a crossed cell to the fixed brush state. @param {ReturnType<typeof createStroke>} s @param {number} i */
 export function paintCell(s, i) {
-  if (s.rejected || s.visited.has(i)) return;
+  if (s.visited.has(i)) return;
   s.visited.add(i);
   if (!isEditable(s.state, i) || valueAt(s.state, i)) return;
   const present = hasCandidate(s.state, i, s.d);
-  const first = s.brush === null;
-  s.brush ??= present ? "remove" : "add";
-  if (present !== (s.brush === "add")) {
+  const brush = s.brush ?? (present ? "remove" : "add");
+  if (present !== (brush === "add")) {
     const result = toggleCandidate(s.state, i, s.d);
     if (result.blockers.length) {
       s.refused.add(i);
-      if (first) {
-        s.brush = null;
-        s.rejected = true;
-        s.blockers = result.blockers;
-      }
+      // Remember initial refusal feedback once, without fixing the brush.
+      if (s.brush === null && !s.blockers.length) s.blockers = result.blockers;
       return;
     }
     s.state = result.state;
   }
+  s.brush = brush;
   s.touched.add(i);
 }
 

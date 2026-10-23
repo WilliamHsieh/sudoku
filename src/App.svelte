@@ -8,6 +8,7 @@
   import Timer from "./Timer.svelte";
   import Journal from "./Journal.svelte";
   import Tools from "./Tools.svelte";
+  import NotesMode from "./NotesMode.svelte";
   import Keypad from "./Keypad.svelte";
   import { get } from "svelte/store";
   import { done, puzzleProgress, solvedPuzzles } from "./store";
@@ -31,7 +32,7 @@
     unlockKeepShown,
   } from "./keypad-actions.js";
   import { hintModel } from "./keypad-copy.js";
-  import { playUi } from "./play/session.svelte.js";
+  import { playUi, RESUME_REVEAL_MS, RESUME_EASE, RESUME_BLUR_PX } from "./play/session.svelte.js";
   import { applyShot } from "./play/shot.js";
   import { applyKeypadShot } from "./play/keypad-shot.js";
   import { headerStep, readHeaderFit } from "./header-fit.js";
@@ -114,6 +115,8 @@
   /** Phone board stays painted until the cover is opaque, then hides. */
   let concealBoard = $state(false);
   let automaticCover = $state(false);
+  /** Snap chrome on a short return; the next pause restores normal motion. */
+  let shortReturn = $state(false);
 
   function reduceMotion() {
     return (
@@ -123,6 +126,7 @@
 
   $effect(() => {
     if (playUi.paused) {
+      shortReturn = false;
       coverLeaving = false;
       showCover = true;
       automaticCover = playUi.reason === "auto";
@@ -140,7 +144,7 @@
   });
   /** Polite "Resumed". Stays empty for a short-absence instant resume. */
   let resumeStatus = $state("");
-  /** `?reveal=mid` freezes the reveal at 32ms, about 40% visible under the ease. */
+  /** `?reveal=mid` freezes the reveal at 120ms, about 49% visible under the ease. */
   let revealMid = $state(false);
   let wrapEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   let ringEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
@@ -260,11 +264,11 @@
     handleKeydown(e);
   }
 
-  /** Board/keypad pointer input releases the view segment's keyboard focus. */
+  /** Board/keypad pointer input releases navigation and mode-button keyboard focus. */
   function releaseViewFocus(e) {
     if (!(e.target instanceof Element) || !e.target.closest(".board, #keypad")) return;
     const active = document.activeElement;
-    if (active instanceof HTMLElement && active.closest(".seg, .mseg")) active.blur();
+    if (active instanceof HTMLElement && active.closest(".seg, .mseg, .notes-mode")) active.blur();
   }
 
   function removeFocus() {
@@ -394,6 +398,7 @@
       hiddenAt = 0;
       const silent = showCalendar;
       const result = playUi.noteVisible(away, { silent });
+      shortReturn = result === "quiet" && !silent;
       if (result === "announced") void announceResumed();
       else if (result === "quiet" && !silent) void focusAfterPause(false);
     };
@@ -562,6 +567,7 @@
             ></path>
           </svg>
         </button>
+        <NotesMode desktop />
         <button
           class="dhbtn"
           type="button"
@@ -700,10 +706,14 @@
   {:else}
     <div
       class="play"
+      style:--resume-ms={`${RESUME_REVEAL_MS}ms`}
+      style:--resume-ease={RESUME_EASE}
+      style:--resume-blur={`${RESUME_BLUR_PX}px`}
       class:board-concealed={concealBoard}
       class:is-paused={playUi.paused}
       class:revealing={playUi.resumePhase === "reveal"}
       class:reveal-mid={revealMid}
+      class:short-return={shortReturn}
       data-pause-reason={playUi.reason ?? "none"}
       data-resume-phase={playUi.resumePhase}
     >
@@ -1044,12 +1054,12 @@
   .normal-hint {
     grid-area: 1 / 1;
     opacity: 1;
-    transition: opacity 180ms var(--ease-out);
+    transition: opacity 260ms var(--ease-out) 180ms;
   }
   .notice-active .normal-hint {
     opacity: 0;
     pointer-events: none;
-    transition-duration: 260ms;
+    transition: opacity 180ms var(--ease-out);
   }
   .reduced .normal-hint {
     transition: none;
@@ -1667,12 +1677,7 @@
     }
   }
 
-  .play {
-    --resume-ms: 320ms;
-    --resume-ease: cubic-bezier(0.22, 1, 0.36, 1);
-  }
-
-  /* Reveal after an automatic pause. Opacity and a 6px blur only. */
+  /* Reveal after an automatic pause. Opacity and an 8px blur only. */
   .play.revealing .board {
     visibility: visible !important;
     animation: rv-board var(--resume-ms) var(--resume-ease) both;
@@ -1683,22 +1688,27 @@
     transition: opacity var(--resume-ms) var(--resume-ease);
   }
 
-  /* 32ms is a tenth of the 320ms ease-out, which is about 40% visible. */
+  /* Short absences restore interactive chrome without a trailing fade. */
+  .play.short-return .chrome-dim {
+    transition: none;
+  }
+
+  /* 120ms is a fifth of the 600ms ease-out, which is about 49% visible. */
   .play.revealing.reveal-mid .board,
   .play.revealing.reveal-mid :global(.paused-cover) {
     animation-play-state: paused;
-    animation-delay: calc(var(--resume-ms) * -0.1);
+    animation-delay: calc(var(--resume-ms) * -0.2);
   }
 
   .play.revealing.reveal-mid .chrome-dim {
-    opacity: 0.7 !important;
+    opacity: 0.693 !important;
     transition: none;
   }
 
   @keyframes rv-board {
     from {
       opacity: 0;
-      filter: blur(6px);
+      filter: blur(var(--resume-blur));
     }
     to {
       opacity: 1;

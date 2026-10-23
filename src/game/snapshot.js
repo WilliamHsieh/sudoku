@@ -43,8 +43,8 @@ export function toSnapshot(state) {
 }
 
 /**
- * Restores a snapshot, validating its board and notes. Unknown notes modes use
- * auto. Throws on malformed data, including an answer on a given cell.
+ * Restores a snapshot, validating it. Throws on anything malformed, including
+ * an answer on a given cell.
  * @param {unknown} snapshot
  * @returns {import('./game.js').GameState}
  */
@@ -55,12 +55,18 @@ export function fromSnapshot(snapshot) {
   const answers = parsePuzzle(/** @type {string} */ (s.answers));
   if (answers.some((v, i) => v && givens[i]))
     throw new Error("snapshot has an answer on a given cell");
+  // Version 1 saves used strings. Accept legacy boolean modes as well;
+  // absent or unknown values use the app's new-puzzle default, Auto.
+  const legacy = /** @type {{ auto?: unknown, notesMode?: unknown }} */ (s);
+  const mode = legacy.notesMode ?? legacy.auto;
+  const notesMode =
+    mode === "tidy" ? "tidy" : mode === "manual" || mode === false ? "manual" : "auto";
   const o = s.autoOverrides;
   if (!o || typeof o !== "object") throw new Error("snapshot autoOverrides missing");
   return {
     givens,
     answers,
-    notesMode: s.notesMode === "manual" ? "manual" : "auto",
+    notesMode,
     manualNotes: fromDigitStrings(s.manualNotes, "manualNotes"),
     autoAdded: fromDigitStrings(o.added, "autoOverrides.added"),
     autoRemoved: fromDigitStrings(o.removed, "autoOverrides.removed"),

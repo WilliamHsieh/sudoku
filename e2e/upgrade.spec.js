@@ -280,6 +280,51 @@ test("persisted pageshow checks once, ordinary pageshow does not check", async (
   await expectSameDocument(page);
 });
 
+test.describe("sequential phone hint swap", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test("each outgoing line disappears before the incoming line fades in", async ({
+    page,
+    deployment,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await open(page, deployment);
+    // Sample rendered frames with real animation time, in both directions.
+    const sampleSwap = () =>
+      page.evaluate(
+        () =>
+          new Promise((resolve) => {
+            const samples = [];
+            const start = performance.now();
+            function sample() {
+              samples.push({
+                hint: Number(getComputedStyle(document.querySelector(".normal-hint")).opacity),
+                notice: Number(getComputedStyle(document.querySelector(".update-notice")).opacity),
+              });
+              if (performance.now() - start < 550) requestAnimationFrame(sample);
+              else resolve(samples);
+            }
+            requestAnimationFrame(sample);
+          })
+      );
+    await hide(page, 100);
+    deployment.publish();
+    await foreground(page);
+    await expect(notice(page)).toHaveCount(1);
+    const appearing = await sampleSwap();
+    await notice(page).click();
+    const leaving = await sampleSwap();
+    for (const samples of [appearing, leaving]) {
+      expect(samples.length).toBeGreaterThan(5);
+      expect(samples.every(({ hint, notice }) => hint === 0 || notice === 0)).toBe(true);
+      expect(samples.some(({ hint }) => hint > 0 && hint < 1)).toBe(true);
+      expect(samples.some(({ notice }) => notice > 0 && notice < 1)).toBe(true);
+    }
+    expect(appearing.at(-1)).toEqual({ hint: 0, notice: 1 });
+    expect(leaving.at(-1)).toEqual({ hint: 1, notice: 0 });
+  });
+});
+
 for (const width of [390, 1280]) {
   for (const view of ["Play", "Journal"]) {
     test.describe(`notice ${view} at ${width}`, () => {
@@ -358,7 +403,7 @@ for (const width of [390, 1280]) {
           await expect(notice(page)).toHaveCount(1);
           await page.clock.runFor(201);
           await expect(notice(page)).toHaveCount(0);
-          await page.clock.runFor(180);
+          await page.clock.runFor(440);
           await expect(page.locator(".update-notice")).toBeHidden();
           expect(await region.evaluate((el) => el === document.querySelector(".update-live"))).toBe(
             true

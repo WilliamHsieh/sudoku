@@ -382,15 +382,9 @@ test.describe("native shell", () => {
     }
   });
 
-  test("option switches and the notes switch move in 160ms", async ({ page }) => {
+  test("option switches move in 160ms", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("./?shot=1&freeze");
-    const notes = await page.locator("#notes-mode .knob").evaluate((el) => {
-      const cs = getComputedStyle(el);
-      return { d: cs.transitionDuration, e: cs.transitionTimingFunction };
-    });
-    expect(notes.d).toBe("0.16s");
-    expect(notes.e).toBe(EASE);
     await page.locator("[data-more]").filter({ visible: true }).first().click();
     const opt = await page
       .locator("dialog.opts .knob")

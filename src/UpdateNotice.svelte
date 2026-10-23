@@ -59,9 +59,11 @@
   .active {
     opacity: 1;
     visibility: visible;
-    transition: opacity 260ms var(--ease-out);
+    transition: opacity 260ms var(--ease-out) var(--notice-in-delay, 0ms);
   }
   .inline {
+    /* Let the hint finish its 180ms fade before showing the notice. */
+    --notice-in-delay: 180ms;
     position: static;
     translate: none;
     grid-area: 1 / 1;

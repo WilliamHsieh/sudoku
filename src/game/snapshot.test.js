@@ -48,8 +48,15 @@ describe("snapshot", () => {
 
   it("uses auto notes for unknown saved modes", () => {
     const good = toSnapshot(progressed());
-    const restored = fromSnapshot({ ...good, notesMode: "tidy" });
+    const restored = fromSnapshot({ ...good, notesMode: "unknown" });
     expect(restored).toEqual({ ...progressed(), notesMode: "auto" });
+  });
+
+  it("preserves all three saved notes modes", () => {
+    for (const mode of ["auto", "tidy", "manual"]) {
+      const state = setNotesMode(progressed(), mode);
+      expect(fromSnapshot(JSON.parse(JSON.stringify(toSnapshot(state))))).toEqual(state);
+    }
   });
 
   it("rejects malformed snapshots", () => {
