@@ -143,3 +143,20 @@ test("moving focus between page controls does not pause", async ({ page }) => {
   await expect(page.locator(".paused-cover")).toHaveCount(0);
   await expect(page.locator(".play")).toHaveAttribute("data-pause-reason", "none");
 });
+
+test("dialog focus blur stays open, but hidden covers it synchronously", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openBoard(page);
+  await page.locator("[data-more]").filter({ visible: true }).click();
+  await expect(page.getByRole("dialog", { name: "Options", exact: true })).toBeVisible();
+  await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+  await expect(page.getByRole("dialog", { name: "Options", exact: true })).toBeVisible();
+  await expect(page.locator(".paused-cover")).toHaveCount(0);
+  const opacity = await page.evaluate(() => {
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+    document.dispatchEvent(new Event("visibilitychange"));
+    return getComputedStyle(document.querySelector(".paused-cover")).opacity;
+  });
+  expect(opacity).toBe("1");
+  await expect(page.getByRole("dialog", { name: "Options", exact: true })).toBeHidden();
+});

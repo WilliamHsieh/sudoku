@@ -407,7 +407,9 @@
     const onVis = () => (isHidden() ? onAway() : onReturn());
     /** @param {FocusEvent} event */
     const onWindowBlur = (event) => {
-      if (event.target === window) onAway();
+      // Native dialog Tab wrapping can briefly focus browser chrome. While a
+      // dialog is open, use the explicit lifecycle signals for backgrounding.
+      if (event.target === window && (!playUi.modal || isHidden())) onAway();
     };
     window.addEventListener("blur", onWindowBlur);
     window.addEventListener("focus", onReturn);
