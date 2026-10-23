@@ -108,6 +108,31 @@ test("cold launch reloads exactly once, preserves URL and saved daily board/time
   expect(attempts(deployment)).toHaveLength(1);
 });
 
+test("cold launch keeps the newer shell when the server offers an older deployment", async ({
+  page,
+  deployment,
+}) => {
+  await page.addInitScript(() => localStorage.setItem("sudoku-keypad-coach", "1"));
+  const navigations = [];
+  page.on("framenavigated", (frame) => {
+    if (frame === page.mainFrame()) navigations.push(frame.url());
+  });
+  // The shell is new/2000; version.json, HTML and assets form a coherent old/1000 deployment.
+  deployment.launchNew();
+  const url = `${deployment.url}?q=${DEMO_PUZZLE}&keep=yes#board`;
+  await page.goto(url);
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(build(page)).toHaveAttribute("content", "new");
+  await expect(page.locator(".board > .cell")).toHaveCount(81);
+  expect(navigations).toEqual([url]);
+  expect(attempts(deployment)).toHaveLength(0);
+  expect(page.url()).toBe(url);
+  expect(await page.evaluate(() => sessionStorage.getItem("sudoku-update-attempts"))).toBeNull();
+  await cell(page, 0).click();
+  await page.keyboard.press("4");
+  await expectValue(page, 0, 4);
+});
+
 test("foreground shows a quiet notice without reloading; #43 resumes and input works", async ({
   page,
   deployment,

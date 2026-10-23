@@ -8,6 +8,7 @@ export async function upgradeServer() {
   let version = "old";
   let fault = "";
   let oldLaunches = 0;
+  let newLaunches = 0;
   let brokenNavigation = false;
   const requests = [];
   const abortedChecks = [];
@@ -44,18 +45,20 @@ export async function upgradeServer() {
       return;
     }
     const selected =
-      (fault === "old-html" && relative === "index.html") ||
-      (navigation && (fault === "stale-navigation" || oldLaunches-- > 0))
-        ? "old"
-        : version;
+      navigation && newLaunches-- > 0
+        ? "new"
+        : (fault === "old-html" && relative === "index.html") ||
+            (navigation && (fault === "stale-navigation" || oldLaunches-- > 0))
+          ? "old"
+          : version;
     try {
       let body;
       try {
         body = await readFile(join(buildRoot, selected, relative));
       } catch (error) {
-        // Published servers retain old hashed assets for already-open documents.
+        // Retain both builds' hashed assets for already-open or cached shells.
         if (!relative.startsWith("assets/")) throw error;
-        body = await readFile(join(buildRoot, "old", relative));
+        body = await readFile(join(buildRoot, selected === "old" ? "new" : "old", relative));
       }
       const types = {
         ".html": "text/html",
@@ -86,6 +89,9 @@ export async function upgradeServer() {
     },
     launchOld: () => {
       oldLaunches = 1;
+    },
+    launchNew: () => {
+      newLaunches = 1;
     },
     fault: (value) => {
       fault = value;

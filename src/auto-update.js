@@ -86,6 +86,7 @@ export async function probeDeployment(base, current, { verify = false, budgetMs 
       !/^[a-zA-Z0-9._-]{1,100}$/.test(manifest.version) ||
       !Number.isSafeInteger(manifest.builtAt) ||
       manifest.builtAt < 0 ||
+      manifest.builtAt <= current.builtAt ||
       manifest.version === current.version ||
       !Array.isArray(manifest.assets) ||
       !manifest.assets.length ||
