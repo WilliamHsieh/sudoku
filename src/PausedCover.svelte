@@ -2,10 +2,11 @@
   import { onMount } from "svelte";
   import { timer } from "./store.js";
 
-  /** @type {{ showKey?: boolean, away?: boolean, revealing?: boolean, leaving?: boolean, onresume: () => void, onleft?: () => void, onopaque?: () => void }} */
+  /** @type {{ showKey?: boolean, away?: boolean, immediate?: boolean, revealing?: boolean, leaving?: boolean, onresume: () => void, onleft?: () => void, onopaque?: () => void }} */
   let {
     showKey = false,
     away = false,
+    immediate = false,
     revealing = false,
     leaving = false,
     onresume,
@@ -35,7 +36,12 @@
   });
 </script>
 
-<div class={leaving ? "paused-leave" : "paused-cover"} class:revealing onanimationend={onAnimEnd}>
+<div
+  class={leaving ? "paused-leave" : "paused-cover"}
+  class:revealing
+  class:immediate
+  onanimationend={onAnimEnd}
+>
   <p class="paused-kicker">Paused</p>
   <p class="paused-time" data-time>{label}</p>
   <p class="paused-line">
@@ -90,6 +96,12 @@
 
   .paused-cover {
     animation: cover-in var(--motion) var(--ease-out);
+  }
+
+  .paused-cover.immediate:not(.revealing) {
+    animation: none;
+    opacity: 1;
+    transform: none;
   }
 
   @keyframes cover-in {
