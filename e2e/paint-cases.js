@@ -42,6 +42,17 @@ export async function paintSetup(page, mobile, manual = true) {
   };
 }
 
+/**
+ * Install a paused fake clock so machine load cannot expire short-lived
+ * feedback (the 300ms blocked flash, toasts) between assertions. Pausing a
+ * second ahead of the install time avoids "Cannot fast-forward to the past".
+ */
+async function freezeTimers(page) {
+  const time = Date.now();
+  await page.clock.install({ time });
+  await page.clock.pauseAt(time + 1_000);
+}
+
 export function paintCases(mobile) {
   for (const key of ["Space", "Enter"]) {
     test(`${key} re-announces identical keyboard commits`, async ({ page }) => {
@@ -192,6 +203,7 @@ export function paintCases(mobile) {
         // The keypad is available below 600px, also in a desktop browser.
         if (mode === "HOLD" && !mobile) await page.setViewportSize({ width: 590, height: 900 });
         const t = await paintSetup(page, mobile);
+        await freezeTimers(page);
         if (start === "filled") {
           await cell(page, 38).dispatchEvent("pointerdown", {
             pointerType: "touch",
@@ -216,7 +228,7 @@ export function paintCases(mobile) {
           else await page.keyboard.press("Escape");
           k = { ...(await t.center(page.locator('.key[data-d="5"]'))), id: 1 };
           await t.contacts("touchStart", [k]);
-          await page.waitForTimeout(300);
+          await page.clock.runFor(300);
         }
         const first =
           start === "given" || start === "given then blocked" ? 39 : start === "filled" ? 38 : 40;
@@ -259,6 +271,7 @@ export function paintCases(mobile) {
   test("illegal tap preserves feedback without history or announcement", async ({ page }) => {
     const t = await paintSetup(page, mobile);
     await t.lock();
+    await freezeTimers(page);
     await t.down(40);
     await expect(cell(page, 4)).toHaveClass(/blocked/);
     await t.up();
@@ -276,8 +289,7 @@ export function paintCases(mobile) {
   test("several initial refusals give feedback once and count distinct cells", async ({ page }) => {
     const t = await paintSetup(page, mobile);
     await t.lock();
-    await page.clock.install();
-    await page.clock.pauseAt(new Date());
+    await freezeTimers(page);
     await t.down(12);
     await expect(cell(page, 4)).toHaveClass(/blocked/);
     await page.clock.runFor(301);
