@@ -58,6 +58,29 @@ export function headerCases(mobile) {
     await expect(page.locator("nav.seg, nav.mseg, .timer2, #pause")).toHaveCount(0);
   });
 
+  test("the current game is identified before its first saved second", async ({ page }) => {
+    await page.goto("./");
+    await pill(page).click();
+    await page.locator(".dbtn").click();
+    await page.clock.runFor(260);
+    await expect(time(page)).toHaveText("0:00");
+    if (mobile) {
+      await page.locator(".mgrid .day.sel").click();
+      await page.clock.runFor(400);
+      await expect(
+        page
+          .locator(".sheet .prow")
+          .filter({ hasText: "Easy" })
+          .getByRole("button", { name: "Resume" })
+      ).toBeVisible();
+    } else {
+      await expect(page.locator(".cur-tag")).toHaveText("In play · 0:00");
+      await expect(
+        page.locator(".ctx .prow").filter({ hasText: "Easy" }).getByRole("button")
+      ).toHaveCount(0);
+    }
+  });
+
   test("P in Journal returns and resumes a manual pause without cover reveal", async ({ page }) => {
     await openBoard(page);
     await pill(page).click();

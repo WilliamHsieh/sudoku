@@ -121,6 +121,26 @@
     slide ? monthCells(puzzleData, latest, today, slide.destination) : cells
   );
 
+  /**
+   * A just-opened game has no saved progress until its first second or edit.
+   * Keep its current-game row distinct without writing an unfinished entry.
+   * @param {string} date
+   * @param {string} diff
+   * @returns {import('./journal/stats.js').PuzzleState}
+   */
+  function rowState(date, diff) {
+    const st = puzzleState(solved, progress, date, diff);
+    if (st.kind !== "none" || current?.date !== date || current.diff !== diff) return st;
+    return {
+      kind: "progress",
+      elapsed: current.elapsed,
+      filled: 0,
+      empty: [...(puzzleData[date]?.[diff] ?? "")].filter((d) => d === "0").length,
+      updatedAt: 0,
+      pct: 0,
+    };
+  }
+
   /** @param {string} date */
   function kinds(date) {
     return DIFFS.map((d) => puzzleState(solved, progress, date, d).kind);
@@ -903,7 +923,7 @@
             {#each DIFFS as d (d)}
               <PuzzleRow
                 diff={d}
-                st={puzzleState(solved, progress, latest, d)}
+                st={rowState(latest, d)}
                 avg={avgs[d]}
                 isPb={bests[d]?.date === latest}
                 inPlay={current?.date === latest && current?.diff === d ? current.elapsed : null}
@@ -938,7 +958,7 @@
             {#each DIFFS as d (d)}
               <PuzzleRow
                 diff={d}
-                st={puzzleState(solved, progress, sel, d)}
+                st={rowState(sel, d)}
                 avg={avgs[d]}
                 isPb={bests[d]?.date === sel}
                 inPlay={current?.date === sel && current?.diff === d ? current.elapsed : null}
@@ -1076,7 +1096,7 @@
         {#each DIFFS as d (d)}
           <PuzzleRow
             diff={d}
-            st={puzzleState(solved, progress, sheetDay, d)}
+            st={rowState(sheetDay, d)}
             avg={avgs[d]}
             isPb={bests[d]?.date === sheetDay}
             onplay={() => playPuzzle(sheetDay, d, true)}
