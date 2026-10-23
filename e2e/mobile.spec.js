@@ -31,6 +31,13 @@ function near(a, b, label) {
   expect(Math.abs(a - b), `${label}: ${a} ≉ ${b}`).toBeLessThanOrEqual(EPS);
 }
 
+async function clockTouch(page) {
+  const time = Date.now();
+  await page.clock.install({ time });
+  await page.clock.pauseAt(time + 1_000);
+  return touchDriver(page, { clock: true });
+}
+
 test.describe("Left + C phone header", () => headerCases(true));
 
 test.describe("pad", () => {
@@ -214,15 +221,15 @@ test.describe("pad", () => {
   });
 
   test("swipe up past the arm threshold toggles a candidate", async ({ page }) => {
-    const t = await touchDriver(page);
+    const t = await clockTouch(page);
     await t.tap(cell(page, 0));
     await t.swipeUp(key(page, 2), 60);
     await expect(cell(page, 0)).toHaveAttribute("data-notes", "3467");
     await expectValue(page, 0, 0);
-    await page.waitForTimeout(400);
+    await page.clock.runFor(400);
     await t.swipeUp(key(page, 2), 60);
     await expect(cell(page, 0)).toHaveAttribute("data-notes", "23467");
-    await page.waitForTimeout(400);
+    await page.clock.runFor(400);
     await expect(page.locator(".lift")).toHaveCount(0);
   });
 
@@ -310,18 +317,18 @@ test.describe("pad", () => {
   test("double-tap fills a single-candidate cell in Auto; a multi-candidate cell only selects", async ({
     page,
   }) => {
-    const t = await touchDriver(page);
+    const t = await clockTouch(page);
     await t.tap(cell(page, 0));
     for (const d of [3, 4, 6, 7]) {
       await t.swipeUp(key(page, d), 60);
-      await page.waitForTimeout(80);
+      await page.clock.runFor(80);
     }
     await expect(cell(page, 0)).toHaveAttribute("data-notes", "2");
     // The last swipe left 7 focused. The lone candidate still fills, and the
     // highlight follows the 2 that landed.
 
     await t.tap(cell(page, 0), { holdMs: 40 });
-    await page.waitForTimeout(120);
+    await page.clock.runFor(120);
     await t.tap(cell(page, 0), { holdMs: 40 });
     await expectValue(page, 0, 2);
     await expect(cell(page, 0)).toHaveClass(/selected/);
@@ -331,12 +338,13 @@ test.describe("pad", () => {
 
     await t.tap(page.locator("#undo"));
     await expectValue(page, 0, 0);
-    // The fill left 2 highlighted. Clear it so the next double-tap only selects.
+    // The fill left 2 highlighted. Let the 300ms hide window finish.
     await t.tap(key(page, 2));
+    await page.clock.runFor(301);
     await expect(page.locator("#keypad")).toHaveAttribute("data-shown", "0");
 
     await t.tap(cell(page, 2), { holdMs: 40 });
-    await page.waitForTimeout(120);
+    await page.clock.runFor(120);
     await t.tap(cell(page, 2), { holdMs: 40 });
     await expectValue(page, 2, 0);
     await expect(cell(page, 2)).toHaveClass(/selected/);
