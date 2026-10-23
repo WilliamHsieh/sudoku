@@ -81,6 +81,8 @@ jobs:
     env:
       # WebKit needs a writable home when the container runs as root.
       HOME: /root
+      # The version plugin cannot read Git's checkout trust config after HOME changes.
+      SUDOKU_BUILD_VERSION: ${{ github.sha }}
     strategy:
       fail-fast: false
       matrix:

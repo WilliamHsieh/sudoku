@@ -53,7 +53,9 @@ describe("snapshot", () => {
   });
 
   it("preserves all three saved notes modes", () => {
-    for (const mode of ["auto", "tidy", "manual"]) {
+    /** @type {import('./game.js').NotesMode[]} */
+    const modes = ["auto", "tidy", "manual"];
+    for (const mode of modes) {
       const state = setNotesMode(progressed(), mode);
       expect(fromSnapshot(JSON.parse(JSON.stringify(toSnapshot(state))))).toEqual(state);
     }
