@@ -1,3 +1,4 @@
+import { switchNotesMode } from "./helpers.js";
 import { test, expect } from "@playwright/test";
 import { cell, pencil, openBoard } from "./helpers.js";
 import { touchDriver } from "./touch.js";
@@ -8,7 +9,7 @@ export const PAINT_PUZZLE = Array.from({ length: 81 }, (_, i) =>
 
 export async function paintSetup(page, mobile, manual = true) {
   await openBoard(page, `./?q=${PAINT_PUZZLE}`);
-  if (manual) await page.locator("#notes-mode").evaluate((el) => el.click());
+  if (manual) await switchNotesMode(page);
   const t = await touchDriver(page);
   const center = t.center;
   return {

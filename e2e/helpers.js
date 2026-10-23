@@ -608,3 +608,30 @@ export function solve(q) {
   if (!go()) throw new Error("unsolvable puzzle");
   return g.join("");
 }
+
+/** Change mode through the menu; finish its hold with Escape for clock-driven tests. */
+export async function switchNotesMode(page, mode) {
+  const trigger = page.getByRole("button", { name: /^Notes mode:/ }).filter({ visible: true });
+  const current = await trigger.getAttribute("aria-label");
+  const next = mode ?? (current.endsWith("Auto") ? "Manual" : "Auto");
+  await trigger.evaluate((el) => el.click());
+  const menu = page.getByRole("menu", { name: "Notes", exact: true });
+  await menu
+    .getByRole("menuitemradio", { name: new RegExp(`^${next} `) })
+    .evaluate((el) => el.click());
+  await page
+    .locator(".notes-menu")
+    .filter({ has: page.locator(`[aria-checked="true"]`) })
+    .evaluateAll((els) =>
+      els.forEach((el) =>
+        el.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
+      )
+    );
+  await page
+    .locator(".notes-menu")
+    .evaluateAll((els) =>
+      Promise.allSettled(
+        els.flatMap((el) => el.getAnimations().map((animation) => animation.finished))
+      )
+    );
+}

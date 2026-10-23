@@ -203,6 +203,27 @@ export function headerCases(mobile) {
   });
 
   if (!mobile)
+    test("desktop Notes, More and C keep their order and pause state", async ({ page }) => {
+      await openBoard(page);
+      const notes = page.locator("#notes-mode-desktop");
+      const more = page.locator(".header .more");
+      const n = await box(notes);
+      const m = await box(more);
+      const c = await box(pill(page));
+      expect(m.x - n.x - n.w).toBe(2);
+      expect(c.x - m.x - m.w).toBe(10);
+      await pill(page).click();
+      await expect(notes).toBeDisabled();
+      await expect(more).toBeDisabled();
+      await page.locator(".dbtn").click();
+      await page.clock.runFor(260);
+      await expect(notes).toHaveCount(0);
+      await pill(page).click();
+      await expect(notes).toBeEnabled();
+      await expect(more).toBeEnabled();
+    });
+
+  if (!mobile)
     test("only the current progress row has In play, in both context cards", async ({ page }) => {
       await page.addInitScript(() =>
         localStorage.setItem(

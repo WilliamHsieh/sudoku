@@ -1,3 +1,4 @@
+import { switchNotesMode } from "./helpers.js";
 import { test, expect } from "@playwright/test";
 import { openBoard } from "./helpers.js";
 
@@ -51,7 +52,7 @@ for (const width of [390, 1280]) {
           // Change notes through the real mobile control, also for desktop cases.
           await page.setViewportSize({ width: 390, height: 844 });
           await openBoard(page, "./?shot=1&freeze");
-          if (manual) await page.locator("#notes-mode").tap();
+          if (manual) await switchNotesMode(page);
           await page.setViewportSize({ width, height: 844 });
         });
 

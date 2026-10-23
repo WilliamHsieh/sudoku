@@ -1,3 +1,4 @@
+import { switchNotesMode } from "./helpers.js";
 // Pause, More/Options, Restart, and the single-candidate cue.
 import { test, expect } from "@playwright/test";
 import {
@@ -204,14 +205,17 @@ export function registerPr6Tests(opts = {}) {
   });
 
   test("switching Notes mode restarts the cue idle clock", async ({ page }) => {
-    const toggle = () =>
-      page.locator("#notes-mode").evaluate((el) => /** @type {HTMLButtonElement} */ (el).click());
+    const toggle = () => switchNotesMode(page);
 
     await page.clock.runFor(25_000);
     await toggle();
-    await expect(page.locator("#notes-mode")).toHaveAttribute("aria-checked", "false");
+    await expect(
+      page.getByRole("button", { name: "Notes mode: Manual" }).filter({ visible: true })
+    ).toHaveAttribute("aria-expanded", "false");
     await toggle();
-    await expect(page.locator("#notes-mode")).toHaveAttribute("aria-checked", "true");
+    await expect(
+      page.getByRole("button", { name: "Notes mode: Auto" }).filter({ visible: true })
+    ).toHaveAttribute("aria-expanded", "false");
 
     await page.clock.runFor(5_000);
     await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "idle");
@@ -249,12 +253,11 @@ export function registerPr6Tests(opts = {}) {
   });
 
   test("Manual notes disable the cue and keep the saved choice", async ({ page }) => {
-    // Desktop has no notes control in the header. The mobile switch is in the DOM
-    // either way; a script click toggles it when the row is not on screen.
-    await page
-      .locator("#notes-mode")
-      .evaluate((el) => /** @type {HTMLButtonElement} */ (el).click());
-    await expect(page.locator("#notes-mode")).toHaveAttribute("aria-checked", "false");
+    // Use the visible toolbar or header mode menu.
+    await switchNotesMode(page);
+    await expect(
+      page.getByRole("button", { name: "Notes mode: Manual" }).filter({ visible: true })
+    ).toHaveAttribute("aria-expanded", "false");
     await moreButton(page).click();
     const cue = page.locator("#opt-cue");
     await expect(cue).toBeDisabled();
@@ -267,9 +270,7 @@ export function registerPr6Tests(opts = {}) {
     await expect(page.locator(".pencil-box.cue")).toHaveCount(0);
     await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "idle");
 
-    await page
-      .locator("#notes-mode")
-      .evaluate((el) => /** @type {HTMLButtonElement} */ (el).click());
+    await switchNotesMode(page);
     await moreButton(page).click();
     await expect(page.locator("#opt-cue")).toBeEnabled();
     await expect(page.locator("#opt-cue")).toHaveAttribute("aria-checked", "true");

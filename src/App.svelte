@@ -480,6 +480,7 @@
   <Api />
   <PlayHeader
     journal={showCalendar}
+    narrow={isNarrow}
     {hasPlayed}
     {frozenElapsed}
     {freshTarget}

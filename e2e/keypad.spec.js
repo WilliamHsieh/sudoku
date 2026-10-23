@@ -1,3 +1,4 @@
+import { switchNotesMode } from "./helpers.js";
 // Desktop keyboard side of keypad r2. The pad itself is off-screen; Shift+digit,
 // Space and Escape still drive the lock.
 import { test, expect } from "@playwright/test";
@@ -300,7 +301,7 @@ test.describe("Manual board double-tap on a wide touch board", () => {
         await page.clock.install({ time: new Date("2026-10-23T12:00:00Z") });
         await page.clock.pauseAt(new Date("2026-10-23T12:00:01Z"));
         await openBoard(page);
-        await page.locator("#notes-mode").evaluate((el) => el.click());
+        await switchNotesMode(page);
         await cell(page, 42).click();
         for (const d of notes) {
           await page.keyboard.press(`Shift+Digit${d}`);

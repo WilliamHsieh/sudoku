@@ -1,4 +1,5 @@
 import { headerCases } from "./header-cases.js";
+import { switchNotesMode } from "./helpers.js";
 // Mobile input: iPhone viewport + real CDP touch. Demo puzzle cell 0 is empty
 // with Auto candidates 2 3 4 6 7; cell 1 is a given 5.
 import { test, expect } from "@playwright/test";
@@ -206,17 +207,20 @@ test.describe("pad", () => {
     await expect(page.locator(".toast")).toHaveText("Given digits can't change");
   });
 
-  test("Notes switch Auto/Manual; Manual starts empty and Auto restores computed notes", async ({
+  test("Notes menu Auto/Manual; Manual starts empty and Auto restores computed notes", async ({
     page,
   }) => {
-    const t = await touchDriver(page);
-    await expect(page.locator("#notes-mode")).toHaveAttribute("aria-checked", "true");
+    await expect(
+      page.getByRole("button", { name: "Notes mode: Auto" }).filter({ visible: true })
+    ).toHaveAttribute("aria-expanded", "false");
     await expect(cell(page, 0)).toHaveAttribute("data-notes", "23467");
-    await t.tap(page.locator("#notes-mode"));
-    await expect(page.locator("#notes-mode")).toHaveAttribute("aria-checked", "false");
+    await switchNotesMode(page);
+    await expect(
+      page.getByRole("button", { name: "Notes mode: Manual" }).filter({ visible: true })
+    ).toHaveAttribute("aria-expanded", "false");
     await expect(page.locator("#notes-mode")).toContainText("Manual");
     await expect(cell(page, 0)).toHaveAttribute("data-notes", "");
-    await t.tap(page.locator("#notes-mode"));
+    await switchNotesMode(page);
     await expect(cell(page, 0)).toHaveAttribute("data-notes", "23467");
   });
 
@@ -235,7 +239,7 @@ test.describe("pad", () => {
 
   test("drag shows the label, preview and arms at ~28px with hysteresis", async ({ page }) => {
     const t = await touchDriver(page);
-    await t.tap(page.locator("#notes-mode")); // Manual: cell 0 has no notes, so 3 is an add
+    await switchNotesMode(page); // Manual: cell 0 has no notes, so 3 is an add
     await t.tap(cell(page, 0));
     const k = key(page, 3);
     const p = await t.center(k);

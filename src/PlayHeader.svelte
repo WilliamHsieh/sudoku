@@ -7,11 +7,13 @@
   import DiffLabel from "./journal/DiffLabel.svelte";
   import Icon from "./journal/Icon.svelte";
   import Timer from "./Timer.svelte";
+  import NotesMode from "./NotesMode.svelte";
 
-  /** @type {{journal: boolean, hasPlayed: boolean, frozenElapsed: number,
+  /** @type {{journal: boolean, narrow: boolean, hasPlayed: boolean, frozenElapsed: number,
    * freshTarget: {date: string, diff: string, elapsed: number} | null,
    * ondate: () => void, ontime: () => void, onbrand: () => void}} */
-  let { journal, hasPlayed, frozenElapsed, freshTarget, ondate, ontime, onbrand } = $props();
+  let { journal, narrow, hasPlayed, frozenElapsed, freshTarget, ondate, ontime, onbrand } =
+    $props();
   const fresh = $derived(journal && !hasPlayed);
   const name = $derived(
     journal ? (fresh ? "Play" : "Back to game") : playUi.paused ? "Resume" : "Pause"
@@ -62,7 +64,11 @@
   </div>
   <div class="right">
     {#if !journal}
-      <div class="auto-slot"></div>
+      {#if !narrow}
+        <div class="auto-slot" transition:fade={{ duration: playUi.reduced ? 0 : 160 }}>
+          <NotesMode desktop />
+        </div>
+      {/if}
       <button
         transition:fade={{ duration: playUi.reduced ? 0 : 160 }}
         class="more"
@@ -249,6 +255,12 @@
     outline: 2px solid var(--focus);
     outline-offset: -4px;
     border-radius: 10px;
+  }
+  .auto-slot {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    margin: 0 2px;
   }
   .more {
     width: 44px;
