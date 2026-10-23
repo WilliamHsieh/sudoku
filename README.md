@@ -4,15 +4,15 @@ A daily Sudoku where pencil marks get as much care as answers. New Easy, Medium 
 
 **[Play it →](https://williamhsieh.github.io/sudoku/)**
 
-![Solving a few moves of today's puzzle on desktop, including one stroke that paints a candidate across a row](docs/images/hero.gif)
+![Solving a few moves of today's puzzle on desktop, including one stroke that paints a candidate across a row](https://github.com/user-attachments/assets/73cf9b56-8b59-46de-b596-73bd55a873bc)
 
 ## Features
 
 <table>
 <tr>
 <td width="380" valign="top">
-<img src="docs/images/paint-desktop.gif" width="360" alt="Desktop: Shift+4 locks the digit, one drag adds 4 across a row, a second drag removes it"><br>
-<img src="docs/images/paint-phone.gif" width="360" alt="Phone: holding the 4 key while a second finger paints 4 into several cells">
+<img src="https://github.com/user-attachments/assets/bdfc251e-4f6c-4b41-bc63-f2be790bdac4" width="360" alt="Desktop: Shift+4 locks the digit, one drag adds 4 across a row, a second drag removes it"><br>
+<img src="https://github.com/user-attachments/assets/21739b21-713f-4cf3-b514-0f78cf648efb" width="360" alt="Phone: holding the 4 key while a second finger paints 4 into several cells">
 </td>
 <td valign="top">
 <h3>Paint your candidates</h3>
@@ -22,7 +22,7 @@ A daily Sudoku where pencil marks get as much care as answers. New Easy, Medium 
 </tr>
 <tr>
 <td width="380" valign="top">
-<img src="docs/images/notes-modes.png" width="360" alt="The same board in Auto, Tidy and Manual, side by side">
+<img src="https://github.com/user-attachments/assets/8c37d56b-e58c-482d-b516-4ca21ee19a5d" width="360" alt="The same board in Auto, Tidy and Manual, side by side">
 </td>
 <td valign="top">
 <h3>Notes, three ways</h3>
@@ -37,7 +37,7 @@ A daily Sudoku where pencil marks get as much care as answers. New Easy, Medium 
 </tr>
 <tr>
 <td width="380" valign="top">
-<img src="docs/images/keypad-gestures.gif" width="360" alt="Phone keypad: swiping up on 4 adds a candidate, then swiping down locks it">
+<img src="https://github.com/user-attachments/assets/f131bb61-717b-4129-8e4e-051d8d0e6efd" width="360" alt="Phone keypad: swiping up on 4 adds a candidate, then swiping down locks it">
 </td>
 <td valign="top">
 <h3>A keypad you can gesture on</h3>
@@ -46,7 +46,7 @@ A daily Sudoku where pencil marks get as much care as answers. New Easy, Medium 
 </tr>
 <tr>
 <td width="380" valign="top">
-<img src="docs/images/header.png" width="360" alt="The header on desktop and phone: date and difficulty on the left, the timer and pause control on the right">
+<img src="https://github.com/user-attachments/assets/a1f6ecc5-213c-44ac-bcb9-1e895d55785a" width="360" alt="The header on desktop and phone: date and difficulty on the left, the timer and pause control on the right">
 </td>
 <td valign="top">
 <h3>The date takes you out, the timer brings you back</h3>
@@ -55,8 +55,8 @@ A daily Sudoku where pencil marks get as much care as answers. New Easy, Medium 
 </tr>
 <tr>
 <td width="380" valign="top">
-<img src="docs/images/journal-desktop.png" width="360" alt="Journal on desktop: calendar with solved, in-progress and unsolved marks, with stats and a streak"><br>
-<img src="docs/images/journal-phone.png" width="360" alt="Journal on phone: the Latest puzzles card with an Unfinished link">
+<img src="https://github.com/user-attachments/assets/2499f8b5-420f-4ee9-883f-fb7a466dadeb" width="360" alt="Journal on desktop: calendar with solved, in-progress and unsolved marks, with stats and a streak"><br>
+<img src="https://github.com/user-attachments/assets/ad902e40-2376-4783-9906-3dfbe29598ba" width="360" alt="Journal on phone: the Latest puzzles card with an Unfinished link">
 </td>
 <td valign="top">
 <h3>The Journal</h3>
@@ -65,7 +65,7 @@ A daily Sudoku where pencil marks get as much care as answers. New Easy, Medium 
 </tr>
 <tr>
 <td width="380" valign="top">
-<img src="docs/images/resume-reveal.gif" width="360" alt="Returning to a paused puzzle: the cover holds, then the board fades in">
+<img src="https://github.com/user-attachments/assets/e39852f1-be47-4a0c-a4c0-431c569424c3" width="360" alt="Returning to a paused puzzle: the cover holds, then the board fades in">
 </td>
 <td valign="top">
 <h3>Small things</h3>
