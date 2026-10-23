@@ -164,7 +164,8 @@ test("dialog focus blur stays open, but hidden covers it synchronously", async (
 const CLOCK_START = new Date("2026-10-24T12:00:00Z");
 
 async function stopClock(page) {
-  await page.clock.install({ time: CLOCK_START });
+  // Leave headroom for the protocol round trip while the installed clock runs.
+  await page.clock.install({ time: new Date(CLOCK_START.getTime() - 60_000) });
   await page.clock.pauseAt(CLOCK_START);
 }
 

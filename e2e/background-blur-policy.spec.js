@@ -34,7 +34,8 @@ test("disabling PAUSE_ON_WINDOW_BLUR leaves blur-only absences running; explicit
     });
   });
   const start = new Date("2026-10-24T12:00:00Z");
-  await page.clock.install({ time: start });
+  // Leave headroom for the protocol round trip while the installed clock runs.
+  await page.clock.install({ time: new Date(start.getTime() - 60_000) });
   await page.clock.pauseAt(start);
   await openBoard(page, url);
   expect(flagOverridden).toBe(true);
