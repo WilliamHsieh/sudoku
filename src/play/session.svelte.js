@@ -7,6 +7,14 @@ import { createCueClock, idleMsFromSearch } from "./cue-clock.js";
 const CUE_KEY = "sudoku-cue";
 const TAP_FILL_KEY = "sudoku-tap-fill";
 
+/** Cover stays put so the eye can land, then the board eases back in. */
+export const RESUME_HOLD_MS = 150;
+export const RESUME_REVEAL_MS = 320;
+/** Bound the extra wait if a CSS animation is cancelled or never finishes. */
+const REVEAL_FALLBACK_MS = 1_000;
+/** Hidden for less than this: resume with no hold, reveal, or announcement. */
+export const RESUME_SHORT_MS = 1000;
+
 /** @returns {boolean} */
 function readCuePref() {
   try {
@@ -49,12 +57,24 @@ function idleFrom(search) {
  */
 export function createPlay(opts = {}) {
   const live = opts.live !== false;
-  const now = opts.now ?? (() => Date.now());
+  const now = opts.now ?? (() => performance.now());
   const idleMs =
     opts.idleMs ?? (typeof location === "undefined" ? 30_000 : idleFrom(location.search));
   const clock = createCueClock({ idleMs });
 
   let paused = $state(false);
+  /** True from hide until the page is visible again. Resume is refused. */
+  let pageHidden = false;
+  /**
+   * Why the game is paused. Manual wins: hiding the page does not
+   * turn a chosen pause into an automatic one. Cleared on any resume.
+   * @type {null | 'manual' | 'auto'}
+   */
+  let reason = $state(null);
+  /** @type {'idle' | 'hold' | 'reveal'} */
+  let resumePhase = $state("idle");
+  /** When the current hold or reveal is due, on `now()`. */
+  let phaseEnds = 0;
   /** @type {null | 'options' | 'confirm'} */
   let modal = $state(null);
   /** Where focus goes when the options sheet opens. */
@@ -75,6 +95,14 @@ export function createPlay(opts = {}) {
   let loneCells = () => [];
   /** @type {ReturnType<typeof setTimeout> | 0} */
   let timer = 0;
+  /** @type {ReturnType<typeof setTimeout> | 0} */
+  let resumeTimer = 0;
+  /** @type {((info: { announce: boolean }) => void) | null} */
+  let onAutoResumed = null;
+  /** @type {(() => Promise<unknown>) | null} */
+  let revealCompletion = null;
+  let waitingForAnimation = false;
+  let resumeGeneration = 0;
 
   clock.setEnabled(initialCue);
 
@@ -111,9 +139,101 @@ export function createPlay(opts = {}) {
     schedule(t);
   }
 
+  function clearResumeTimer() {
+    if (resumeTimer) clearTimeout(resumeTimer);
+    resumeTimer = 0;
+  }
+
+  /** @param {number} ms */
+  function armResume(ms) {
+    if (!live) return;
+    clearResumeTimer();
+    resumeTimer = setTimeout(
+      () => {
+        resumeTimer = 0;
+        advanceResume();
+      },
+      Math.max(0, ms)
+    );
+  }
+
+  /** Each visual phase starts when its callback actually runs. */
+  function advanceResume() {
+    if (resumePhase === "idle") return;
+    const t = now();
+    if (t < phaseEnds) {
+      // Timers can fire early; injected clocks can also move backward.
+      armResume(phaseEnds - t);
+      return;
+    }
+    if (resumePhase === "hold") {
+      resumePhase = "reveal";
+      phaseEnds = t + RESUME_REVEAL_MS;
+      armResume(RESUME_REVEAL_MS);
+      return;
+    }
+    if (revealCompletion && !waitingForAnimation) {
+      // Rendering can start after the state transition. Keep input blocked
+      // until the board's actual animation finishes, with a bounded fallback.
+      waitingForAnimation = true;
+      phaseEnds = t + REVEAL_FALLBACK_MS;
+      armResume(REVEAL_FALLBACK_MS);
+      const generation = resumeGeneration;
+      revealCompletion().then(
+        () => {
+          if (generation === resumeGeneration && resumePhase === "reveal") finishAutoResume();
+        },
+        () => {} // A cancelled animation uses the fallback.
+      );
+      return;
+    }
+    finishAutoResume();
+  }
+
+  /** Drop a hold or reveal without resuming. The pause reason stays. */
+  function cancelReveal() {
+    clearResumeTimer();
+    resumeGeneration += 1;
+    waitingForAnimation = false;
+    resumePhase = "idle";
+    phaseEnds = 0;
+  }
+
+  function unpause() {
+    cancelReveal();
+    paused = false;
+    reason = null;
+    timerRunning.set(true);
+    applyBlock();
+    bump(now());
+  }
+
+  function finishAutoResume() {
+    if (!paused) {
+      cancelReveal();
+      return;
+    }
+    unpause();
+    onAutoResumed?.({ announce: true });
+  }
+
+  /** Stop the clock, close a dialog, and block the cue. `paused` is already set. */
+  function engagePause() {
+    timerRunning.set(false);
+    if (modal) modal = null;
+    applyBlock();
+    bump(now());
+  }
+
   return {
     get paused() {
       return paused;
+    },
+    get reason() {
+      return reason;
+    },
+    get resumePhase() {
+      return resumePhase;
     },
     get modal() {
       return modal;
@@ -175,6 +295,7 @@ export function createPlay(opts = {}) {
      * from `setTimeout`; tests call this after moving their clock.
      */
     step() {
+      advanceResume();
       const t = now();
       clock.tick(t);
       syncFromClock();
@@ -226,39 +347,89 @@ export function createPlay(opts = {}) {
     },
 
     /**
+     * The player paused (Pause button or P). A pause already in progress,
+     * including an automatic one, is left as it is.
      * @returns {boolean} whether the game was not already paused
      */
     pause() {
       if (paused) return false;
+      cancelReveal();
       paused = true;
-      timerRunning.set(false);
-      if (modal) modal = null;
-      applyBlock();
-      bump(now());
+      reason = "manual";
+      engagePause();
       return true;
     },
 
     /**
+     * Refused while the page is hidden, so the clock cannot run off screen.
+     * The cover, the reason, and focus stay as they are.
      * @returns {boolean} whether the game was paused
      */
     resume() {
-      if (!paused) return false;
-      paused = false;
-      timerRunning.set(true);
-      applyBlock();
-      bump(now());
+      if (!paused || pageHidden) return false;
+      unpause();
       return true;
     },
 
     /** @returns {'paused' | 'resumed' | 'ignored'} */
     toggle() {
-      if (modal) return "ignored";
+      if (modal || (paused && pageHidden)) return "ignored";
       return this.pause() ? "paused" : this.resume() ? "resumed" : "ignored";
     },
 
-    /** Tab hidden: pause, and never auto-resume. */
+    /**
+     * Fired when an automatic pause finishes its reveal on the live timer.
+     * Instant resumes report through {@link noteVisible} instead.
+     * @param {((info: { announce: boolean }) => void) | null} fn
+     */
+    onAutoResume(fn) {
+      onAutoResumed = fn;
+    },
+
+    /** @param {(() => Promise<unknown>) | null} fn wait for the rendered reveal */
+    bindRevealCompletion(fn) {
+      revealCompletion = fn;
+    },
+
+    /**
+     * The page was hidden. Pause unless the board is solved or the player
+     * already paused. A manual pause stays manual. Hiding again during the
+     * hold or reveal cancels it and returns to a fully covered auto pause.
+     * @returns {boolean} whether this call paused the game
+     */
     noteHidden() {
-      this.pause();
+      cancelReveal();
+      pageHidden = true;
+      if (solved || paused) return false;
+      paused = true;
+      reason = "auto";
+      engagePause();
+      return true;
+    },
+
+    /**
+     * The page is visible again.
+     * Manual pauses stay paused. An auto pause holds, then reveals, then
+     * resumes — except a short absence, reduced motion, or `silent`
+     * (the board is not on screen), which resume immediately.
+     * Only a short absence, and a silent return, skip the announcement.
+     * @param {number} awayMs
+     * @param {{ silent?: boolean }} [opts]
+     * @returns {'stayed' | 'quiet' | 'announced' | 'hold'}
+     */
+    noteVisible(awayMs, opts = {}) {
+      pageHidden = false;
+      if (!paused || reason !== "auto") return "stayed";
+      const silent = !!opts.silent;
+      const short = awayMs < RESUME_SHORT_MS;
+      if (silent || short || reduced) {
+        unpause();
+        return !silent && !short ? "announced" : "quiet";
+      }
+      resumePhase = "hold";
+      phaseEnds = now() + RESUME_HOLD_MS;
+      armResume(RESUME_HOLD_MS);
+      return "hold";
     },
 
     openOptions() {
@@ -307,8 +478,10 @@ export function createPlay(opts = {}) {
 
     /** A new puzzle replaces the paused cover and any open dialog. */
     resetForLoad() {
-      const was = paused || modal != null || solved;
+      const was = paused || modal != null || solved || resumePhase !== "idle";
+      cancelReveal();
       paused = false;
+      reason = null;
       modal = null;
       solved = false;
       clock.setBlocked(false);

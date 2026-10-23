@@ -247,17 +247,25 @@ test.describe("H2 header", () => {
   }
 
   test("Play with no history opens the first unsolved of the latest day", async ({ page }) => {
-    const pick = firstUnsolvedLatest(puzzleData, {});
+    await page.clock.setFixedTime(new Date());
+    const today = await page.evaluate(() => {
+      const now = new Date();
+      return [now.getFullYear(), now.getMonth(), now.getDate()];
+    });
+    const pick = firstUnsolvedLatest(puzzleData, {}, new Date(...today));
     expect(pick, "a latest unsolved puzzle exists").toBeTruthy();
     await page.goto("./");
     await expect(page.locator(".journal")).toBeVisible();
     await page.getByRole("button", { name: "Play", exact: true }).click();
     await expect(page.locator(".board > .cell")).toHaveCount(81);
-    // Daily puzzles can share individual givens with the demo. Check the full board.
-    const values = await page
-      .locator(".board > .cell")
-      .evaluateAll((cells) => cells.map((node) => node.getAttribute("data-value") || "0").join(""));
-    expect(values).toBe(pick.puzzle);
+    // Check the whole daily puzzle; individual digits can match the demo.
+    await expect
+      .poll(() =>
+        page
+          .locator(".board > .cell")
+          .evaluateAll((cells) => cells.map((el) => el.getAttribute("data-value") || "0").join(""))
+      )
+      .toBe(pick.puzzle);
   });
 
   test("tapping a journal day opens that day's sheet, not the board", async ({ page }) => {

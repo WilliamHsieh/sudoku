@@ -142,7 +142,7 @@ export function paintCases(mobile) {
     await expect(page.locator("#undo")).toBeDisabled(); // Still a draft.
     await t.to(37); // Revisiting does not reverse the brush.
     await t.up();
-    await expect(page.locator(".sr-only[aria-live]")).toHaveText(
+    await expect(page.locator(".play .sr-only[aria-live]")).toHaveText(
       "Added 5 to 4 cells; 1 cell refused"
     );
     await page.locator("#undo").evaluate((el) => el.click());
@@ -170,7 +170,7 @@ export function paintCases(mobile) {
     await expect(cell(page, 38)).toHaveAttribute("data-value", "8");
     await expect(cell(page, 39)).toHaveAttribute("data-value", "7");
     await t.up();
-    await expect(page.locator(".sr-only[aria-live]")).toHaveText("Removed 5 from 3 cells");
+    await expect(page.locator(".play .sr-only[aria-live]")).toHaveText("Removed 5 from 3 cells");
     await page.locator("#undo").evaluate((el) => el.click());
     await expect
       .poll(() =>
@@ -214,7 +214,7 @@ export function paintCases(mobile) {
     for (const i of [37, 73]) await expect(cell(page, i)).toHaveAttribute("data-notes", "");
     await expect(page.locator("#keypad")).toHaveAttribute("data-locked", "5");
     await expect(page.locator(".paint-added, .ghost, .paint-add")).toHaveCount(0);
-    await expect(page.locator(".sr-only[aria-live]")).toHaveText("");
+    await expect(page.locator(".play .sr-only[aria-live]")).toHaveText("");
     await t.up();
     await page.keyboard.press("Escape");
     await expect(page.locator("#keypad")).toHaveAttribute("data-locked", "0");
@@ -253,7 +253,7 @@ export function paintCases(mobile) {
       for (const i of [37, 38]) await expect(cell(page, i)).toHaveAttribute("data-notes", "");
       await expect(page.locator("#undo")).toBeDisabled();
       await expect(page.locator(".paint-added, .ghost, .paint-add")).toHaveCount(0);
-      await expect(page.locator(".sr-only[aria-live]")).toHaveText("");
+      await expect(page.locator(".play .sr-only[aria-live]")).toHaveText("");
       if (!(mobile && interruption === "pointercancel")) await t.up();
     });
   }
@@ -350,7 +350,7 @@ export function paintCases(mobile) {
 }
 
 async function observeAnnouncements(page) {
-  return page.locator(".sr-only[aria-live]").evaluateHandle((region) => {
+  return page.locator(".play .sr-only[aria-live]").evaluateHandle((region) => {
     const changes = [];
     new MutationObserver(() => changes.push(region.textContent.trim())).observe(region, {
       subtree: true,

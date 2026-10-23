@@ -39,7 +39,7 @@ for (const keyFirst of [true, false]) {
       await t.contacts("touchEnd", []);
     }
     await expect(page.locator("#keypad")).toHaveAttribute("data-locked", "0");
-    await expect(page.locator(".sr-only[aria-live]")).toHaveText(
+    await expect(page.locator(".play .sr-only[aria-live]")).toHaveText(
       "Added 5 to 4 cells; 1 cell refused"
     );
     await page.locator("#undo").click();
@@ -78,7 +78,7 @@ test("HOLD cancellation restores its draft and an illegal first cell flashes wit
   await t.cancel();
   for (const i of [37, 38, 41, 42]) await expect(cell(page, i)).toHaveAttribute("data-notes", "");
   await expect(page.locator("#undo")).toBeDisabled();
-  await expect(page.locator(".sr-only[aria-live]")).toHaveText("");
+  await expect(page.locator(".play .sr-only[aria-live]")).toHaveText("");
   await t.contacts("touchStart", [k]);
   await page.waitForTimeout(300);
   const refused = { ...(await t.center(cell(page, 40))), id: 2 };

@@ -1,40 +1,14 @@
 <script>
   import { onMount } from "svelte";
-  import { get } from "svelte/store";
-  import { done, timer, timerRunning } from "./store";
+  import { timer, attachElapsedTimer } from "./store";
 
   onMount(() => {
     const params = new URLSearchParams(window.location.search);
     const elapsed = params.get("elapsed");
     if (elapsed && /^\d+$/.test(elapsed)) timer.set(Number(elapsed));
-    const frozen = params.has("freeze");
-    /** @type {ReturnType<typeof setInterval> | 0} */
-    let interval = 0;
-
-    const tick = () => {
-      if (frozen || !$timerRunning || $done) return;
-      timer.update((t) => t + 1);
-    };
-
-    // Restart clears the displayed time without replacing this interval, so a
-    // tick that was already due would show 0:01 in the same moment. Arm again
-    // so the next second starts when the time is set back to zero.
-    const arm = () => {
-      clearInterval(interval);
-      interval = setInterval(tick, 1000);
-    };
-
-    arm();
-    let previous = get(timer);
-    const unsubscribe = timer.subscribe((value) => {
-      if (value === 0 && previous !== 0) arm();
-      previous = value;
-    });
-
-    return () => {
-      clearInterval(interval);
-      unsubscribe();
-    };
+    // Stills pin the clock. A frozen board must not start a running segment.
+    if (params.has("freeze")) return;
+    return attachElapsedTimer();
   });
 
   const minutes = $derived(Math.floor($timer / 60));
