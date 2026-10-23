@@ -753,15 +753,15 @@
           <Tools />
           <Keypad />
         </div>
-        <div class="pad-hint" class:notice-active={updateNotice} class:reduced={playUi.reduced}>
-          <span class="normal-hint" aria-live="polite" aria-hidden={updateNotice}>
+        <div class="hint-line" class:notice-active={updateNotice} class:reduced={playUi.reduced}>
+          <p class="pad-hint normal-hint" aria-live="polite" aria-hidden={updateNotice}>
             {#if hint.kind === "plain"}
               {hint.text}
             {:else}
               <b>{hint.lead}</b>
               {hint.rest}
             {/if}
-          </span>
+          </p>
           {#if isNarrow}
             <UpdateNotice
               active={updateNotice}
@@ -1035,9 +1035,11 @@
     text-overflow: ellipsis;
   }
 
-  .pad-hint {
+  .hint-line {
     display: grid;
     align-items: center;
+    font-size: 12px;
+    line-height: normal;
   }
   .normal-hint {
     grid-area: 1 / 1;

@@ -275,6 +275,8 @@ for (const width of [390, 1280]) {
             await page.getByRole("button", { name: "Journal", exact: true }).tap();
           const region = await live(page).elementHandle();
           await expect(live(page)).toBeEmpty();
+          if (view === "Play")
+            await expect(page.locator(".pad-hint")).not.toContainText("Update ready");
           expect(
             await page.evaluate(() => document.scrollingElement.scrollHeight)
           ).toBeLessThanOrEqual(844);
