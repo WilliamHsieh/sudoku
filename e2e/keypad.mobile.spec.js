@@ -457,30 +457,36 @@ test("two-finger hold toggles candidates as one undo step", async ({ page }) => 
   await expect(page.locator("#undo")).toBeDisabled();
 });
 
-test("legacy mode flashes blockers on release, including a tap that enters", async ({ page }) => {
-  const t = await touchDriver(page);
-  await t.tap(cell(page, 0));
-  await t.tap(key(page, 5));
-  await expect(cell(page, 1)).not.toHaveClass(/blocked/);
-  await expectValue(page, 0, 0);
+test(
+  "legacy mode flashes blockers on release, including a tap that enters",
+  { tag: "@keypad-timing" },
+  async ({ page }) => {
+    const t = await touchDriver(page);
+    await t.tap(cell(page, 0));
+    await t.tap(key(page, 5));
+    await expect(cell(page, 1)).not.toHaveClass(/blocked/);
+    await expectValue(page, 0, 0);
 
-  await t.tap(page.locator(".tools [data-more]"));
-  await page.locator("#opt-tap-fill").click();
-  await closeOptions(page);
+    await t.tap(page.locator(".tools [data-more]"));
+    await page.locator("#opt-tap-fill").click();
+    await page.locator("#opts-done").click();
+    await page.clock.runFor(400);
+    await expect(page.locator("dialog.opts")).toBeHidden();
 
-  const k = key(page, 5);
-  const p = await t.center(k);
-  await t.start(p.x, p.y);
-  await t.move(p.x, p.y - 16);
-  await t.end(p.x, p.y - 16);
-  await expect(cell(page, 1)).toHaveClass(/blocked/);
-  await expectValue(page, 0, 0);
-  await expect(cell(page, 0)).toHaveAttribute("data-notes", "23467");
+    const k = key(page, 5);
+    const p = await t.center(k);
+    await t.start(p.x, p.y);
+    await t.move(p.x, p.y - 16);
+    await t.end(p.x, p.y - 16);
+    await expect(cell(page, 1)).toHaveClass(/blocked/);
+    await expectValue(page, 0, 0);
+    await expect(cell(page, 0)).toHaveAttribute("data-notes", "23467");
 
-  await t.tap(key(page, 5));
-  await expect(cell(page, 1)).toHaveClass(/blocked/);
-  await expectValue(page, 0, 5);
-});
+    await t.tap(key(page, 5));
+    await expect(cell(page, 1)).toHaveClass(/blocked/);
+    await expectValue(page, 0, 5);
+  }
+);
 
 test("legacy tap-to-fill is off by default, then a tap fills and a second tap clears", async ({
   page,

@@ -141,6 +141,9 @@ test("arrows and digit keys keep the keypad and the board on the same digit", as
 });
 
 test("a click on a pencil while locked toggles only the locked digit", async ({ page }) => {
+  const time = Date.now();
+  await page.clock.install({ time });
+  await page.clock.pauseAt(time + 1_000);
   await openBoard(page);
   await cell(page, 0).click();
   await page.keyboard.press("Shift+Digit5");
