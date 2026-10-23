@@ -288,3 +288,46 @@ test.describe("touch double-tap on a wide board", () => {
     });
   }
 });
+
+test.describe("Manual board double-tap on a wide touch board", () => {
+  test.use({ viewport: { width: 1280, height: 800 }, hasTouch: true });
+  for (const notes of ["", "5", "57"]) {
+    for (const focused of [0, 3, 5]) {
+      test(`notes ${notes || "none"}, focus ${focused}`, async ({ page }) => {
+        await page.clock.install({ time: new Date("2026-10-23T12:00:00Z") });
+        await page.clock.pauseAt(new Date("2026-10-23T12:00:01Z"));
+        await openBoard(page);
+        await page.locator("#notes-mode").evaluate((el) => el.click());
+        await cell(page, 42).click();
+        for (const d of notes) {
+          await page.keyboard.press(`Shift+Digit${d}`);
+          await page.keyboard.press("Space");
+          await page.keyboard.press("Escape");
+        }
+        // Set keypad focus in the compact layout, then keep it on resize.
+        const t = await touchDriver(page);
+        await page.setViewportSize({ width: 390, height: 844 });
+        const pad = page.locator("#keypad");
+        const shown = Number(await pad.getAttribute("data-shown"));
+        if (focused !== shown) {
+          await t.tap(page.locator(`.key[data-d="${focused || shown}"]`));
+          await page.clock.runFor(301);
+        }
+        await page.setViewportSize({ width: 1280, height: 800 });
+        await expect(pad).toHaveAttribute("data-shown", String(focused));
+        await expect(cell(page, 42)).toHaveAttribute("data-notes", notes);
+        await t.doubleTap(cell(page, 42));
+        await expectValue(page, 42, focused);
+        await expect(cell(page, 42)).toHaveClass(/selected/);
+        await expect(page.locator("#keypad")).toHaveAttribute("data-shown", String(focused));
+        if (focused) {
+          await expect(cell(page, 42)).toHaveClass(/same/);
+          await expect(page.locator(`.cell.same:not([data-value="${focused}"])`)).toHaveCount(0);
+          await page.keyboard.press("Control+z");
+          await expectValue(page, 42, 0);
+        }
+        await expect(cell(page, 42)).toHaveAttribute("data-notes", notes);
+      });
+    }
+  }
+});

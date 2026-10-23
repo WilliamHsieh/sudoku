@@ -453,10 +453,11 @@ describe("fill rule (lone candidate or highlighted digit)", () => {
   it.each([
     { shown: [], focused: 4, expected: 4 },
     { shown: [5, 7], focused: 4, expected: 4 },
-    { shown: [5], focused: 4, expected: 5 },
+    { shown: [5], focused: 4, expected: 4 },
+    { shown: [5], focused: 5, expected: 5 },
     { shown: [], focused: 0, expected: 0 },
     { shown: [5, 7], focused: 0, expected: 0 },
-    { shown: [5], focused: 0, expected: 5 },
+    { shown: [5], focused: 0, expected: 0 },
   ])("Manual: notes $shown, focus $focused -> $expected", ({ shown, focused, expected }) => {
     let s = newGame(DEMO);
     for (const d of shown) s = toggleCandidate(s, 42, d).state;
