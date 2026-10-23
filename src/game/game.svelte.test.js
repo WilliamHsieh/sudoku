@@ -151,6 +151,32 @@ describe("createGame", () => {
     expect(g.hasNote(0, 2)).toBe(true);
   });
 
+  it("Manual: a focused digit overrides a lone note as one undo step", () => {
+    g.setNotesMode("manual");
+    g.toggleNote(42, 5);
+    g.select(42);
+    g.fillLone(42, 3);
+    expect(g.value(42)).toBe(3);
+    expect(g.selected).toBe(42);
+    g.undo();
+    expect(g.value(42)).toBe(0);
+    expect(maskDigits(g.notes(42))).toEqual([5]);
+    g.redo();
+    expect(g.value(42)).toBe(3);
+  });
+
+  it("Manual: no focused digit preserves a lone note and adds no undo step", () => {
+    g.setNotesMode("manual");
+    g.toggleNote(42, 5);
+    g.select(42);
+    expect(g.fillLone(42).changed).toBe(false);
+    expect(g.value(42)).toBe(0);
+    expect(g.selected).toBe(42);
+    g.undo();
+    expect(maskDigits(g.notes(42))).toEqual([]);
+    expect(g.canUndo).toBe(false);
+  });
+
   it("Erase is two-step in Auto: answer, then overrides", () => {
     g.toggleNote(0, 2);
     g.enter(0, 4);

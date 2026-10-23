@@ -874,7 +874,7 @@ test(
 
 for (const mode of ["auto", "manual"]) {
   for (const count of [0, 1, 2]) {
-    for (const focused of [0, 3]) {
+    for (const focused of [0, 3, 5]) {
       test(
         `${mode}: ${count} candidates and focus ${focused} obey board double-tap priority`,
         { tag: "@keypad-timing" },
@@ -892,9 +892,10 @@ for (const mode of ["auto", "manual"]) {
           }
           await expect(cell(page, 42)).toHaveAttribute("data-notes", desired);
           await page.clock.runFor(701);
-          if (focused) await clockTap(page, t, key(page, focused));
-          else {
-            const shown = Number(await pad(page).getAttribute("data-shown"));
+          const shown = Number(await pad(page).getAttribute("data-shown"));
+          if (focused) {
+            if (shown !== focused) await clockTap(page, t, key(page, focused));
+          } else {
             if (shown) {
               await clockTap(page, t, key(page, shown));
               await page.clock.runFor(301);
@@ -902,13 +903,20 @@ for (const mode of ["auto", "manual"]) {
           }
           await expect(pad(page)).toHaveAttribute("data-shown", String(focused));
           await clockDoubleTap(page, t, cell(page, 42));
-          const expected = count === 1 ? 5 : focused;
+          const expected = mode === "auto" && count === 1 ? 5 : focused;
           await expectValue(page, 42, expected);
           await expect(pad(page)).toHaveAttribute("data-shown", String(expected || focused));
           if (expected) {
             await expect(key(page, expected)).toHaveClass(/shown/);
             await expect(cell(page, 42)).toHaveClass(/same/);
-          } else await expect(cell(page, 42)).toHaveAttribute("data-notes", desired);
+            await clockTap(page, t, page.locator("#undo"));
+            await page.clock.runFor(701);
+            await expectValue(page, 42, 0);
+            await expect(cell(page, 42)).toHaveAttribute("data-notes", desired);
+          } else {
+            await expect(cell(page, 42)).toHaveAttribute("data-notes", desired);
+            await expect(cell(page, 42)).toHaveClass(/selected/);
+          }
         }
       );
     }
@@ -943,3 +951,50 @@ test("switching away from a keyboard lock clears its retained cell and old highl
   await expect(page.locator('.cell.same:not([data-value="4"])')).toHaveCount(0);
   await expect(page.locator('.pencil-box.matching-number:not([data-d="4"])')).toHaveCount(0);
 });
+
+for (const gap of [299, 301]) {
+  test(
+    `Manual: selected digit board double-tap at ${gap} ms`,
+    { tag: "@keypad-timing" },
+    async ({ page }) => {
+      const t = await touchDriver(page);
+      await page.locator("#notes-mode").evaluate((el) => el.click());
+      await clockTap(page, t, key(page, 3));
+      await clockDoubleTap(page, t, cell(page, 42), gap);
+      await expectValue(page, 42, gap < 300 ? 3 : 0);
+      await expect(cell(page, 42)).toHaveClass(/selected/);
+    }
+  );
+}
+
+test("Manual: select cell then double-tap keypad overrides its lone note", async ({ page }) => {
+  const t = await touchDriver(page);
+  await page.locator("#notes-mode").evaluate((el) => el.click());
+  await t.tap(cell(page, 42));
+  await t.swipeUp(key(page, 5), 60);
+  await expect(cell(page, 42)).toHaveAttribute("data-notes", "5");
+  await t.tap(cell(page, 42));
+  await t.doubleTap(key(page, 3));
+  await expectValue(page, 42, 3);
+  await expect(pad(page)).toHaveAttribute("data-shown", "3");
+  await expect(cell(page, 42)).toHaveClass(/same/);
+  await t.tap(page.locator("#undo"));
+  await expectValue(page, 42, 0);
+  await expect(cell(page, 42)).toHaveAttribute("data-notes", "5");
+});
+
+for (const mode of ["auto", "manual"]) {
+  test(`${mode}: board double-tap preserves an existing answer`, async ({ page }) => {
+    const t = await touchDriver(page);
+    if (mode === "manual") await page.locator("#notes-mode").evaluate((el) => el.click());
+    await t.tap(cell(page, 42));
+    await t.doubleTap(key(page, 5));
+    await expectValue(page, 42, 5);
+    await t.tap(key(page, 3));
+    await t.doubleTap(cell(page, 42));
+    await expectValue(page, 42, 5);
+    await t.tap(page.locator("#undo"));
+    await expectValue(page, 42, 0);
+    await expect(page.locator("#undo")).toBeDisabled();
+  });
+}
