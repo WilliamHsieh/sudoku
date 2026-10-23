@@ -1,16 +1,101 @@
 # Sudoku
-A mouse-centric Sudoku front-end UI developed with [`Svelte.js`](https://github.com/sveltejs/svelte).
-- https://williamhsieh.github.io/sudoku/
 
-## Usage
-To use the Sudoku application, follow these steps:
+A daily Sudoku where pencil marks get as much care as answers. New Easy, Medium and Hard puzzles every day from The New York Times, played with a mouse, a keyboard or your phone.
 
-1. Click on any box within the grid to highlight the relevant information.
-2. Once a box is highlighted, you can perform the following actions:
-    - To remove a pencil mark, simply **left-click** on it.
-    - To input the answer, either use the number pad or perform a **shift-left click** on the candidate pencil mark.
-    - If you need to delete a filled box, type in 0 or **right-click** with cursor.
-    - To clear the highlight, click on the title "Sudoku".
-3. Additionally, you can set up a new Sudoku grid by utilizing a query string. For example:
-    - Visit the following URL: https://williamhsieh.github.io/sudoku/?q=947053100350004097000007350095020071170095003000080005000500700031600402729100030
-    - Please note that the provided URL demonstrates how to create a new Sudoku grid using a query string.
+**[Play it →](https://williamhsieh.github.io/sudoku/)**
+
+![Solving a few moves of today's puzzle on desktop, including one stroke that paints a candidate across a row](docs/images/hero.gif)
+
+## Features
+
+<table>
+<tr>
+<td width="380" valign="top">
+<img src="docs/images/paint-desktop.gif" width="360" alt="Desktop: Shift+4 locks the digit, one drag adds 4 across a row, a second drag removes it"><br>
+<img src="docs/images/paint-phone.gif" width="360" alt="Phone: holding the 4 key while a second finger paints 4 into several cells">
+</td>
+<td valign="top">
+<h3>Paint your candidates</h3>
+<p>Lock a digit with <code>Shift</code> + the digit, then drag across the board. The first cell you touch decides whether the stroke adds that candidate or removes it, and every cell you cross does the same. One Undo takes back the whole stroke. Painting only changes pencil marks. It never enters an answer, and it skips givens and filled cells.</p>
+<p>On a phone, hold a keypad digit and paint with a second finger. Candidates about to be added show in blue and ones about to be removed show as a red ghost. Cells that can't take the digit stay unmarked.</p>
+</td>
+</tr>
+<tr>
+<td width="380" valign="top">
+<img src="docs/images/notes-modes.png" width="360" alt="The same board in Auto, Tidy and Manual, side by side">
+</td>
+<td valign="top">
+<h3>Notes, three ways</h3>
+<p>A small pencil button switches between three modes:</p>
+<ul>
+<li><b>Auto</b> fills in candidates and keeps them up to date as you place answers. A candidate you remove stays removed. Candidates are worked out from what you've entered, mistakes included, so the board never hints at where you went wrong.</li>
+<li><b>Tidy</b> starts blank and the notes are yours. When you place an answer, that digit is cleared from your notes in its row, column and box.</li>
+<li><b>Manual</b> leaves everything to you.</li>
+</ul>
+<p>New puzzles start in Auto.</p>
+</td>
+</tr>
+<tr>
+<td width="380" valign="top">
+<img src="docs/images/keypad-gestures.gif" width="360" alt="Phone keypad: swiping up on 4 adds a candidate, then swiping down locks it">
+</td>
+<td valign="top">
+<h3>A keypad you can gesture on</h3>
+<p>On a phone, every keypad digit does four things. Tap it to highlight that digit and its candidates, or double-tap it to fill the selected cell. Swipe up to toggle the candidate, or swipe down to lock the digit for painting.</p>
+</td>
+</tr>
+<tr>
+<td width="380" valign="top">
+<img src="docs/images/header.png" width="360" alt="The header on desktop and phone: date and difficulty on the left, the timer and pause control on the right">
+</td>
+<td valign="top">
+<h3>The date takes you out, the timer brings you back</h3>
+<p>The header is built around two controls. Tap the puzzle's date and difficulty to open the Journal on that day. The timer doubles as the pause button. From the Journal, it takes you back to your game just as you left it, with the clock and undo history intact.</p>
+</td>
+</tr>
+<tr>
+<td width="380" valign="top">
+<img src="docs/images/journal-desktop.png" width="360" alt="Journal on desktop: calendar with solved, in-progress and unsolved marks, with stats and a streak"><br>
+<img src="docs/images/journal-phone.png" width="360" alt="Journal on phone: the Latest puzzles card with an Unfinished link">
+</td>
+<td valign="top">
+<h3>The Journal</h3>
+<p>Every day is on a calendar, with one mark each for Easy, Medium and Hard. <b>Latest puzzles</b> opens the most recent day that has puzzles, and unfinished games get their own list. You also get a streak, monthly counts, and best and average times for each difficulty. A streak counts the puzzle days where you solved at least one puzzle. Days that have no puzzles don't break it.</p>
+</td>
+</tr>
+<tr>
+<td width="380" valign="top">
+<img src="docs/images/resume-reveal.gif" width="360" alt="Returning to a paused puzzle: the cover holds, then the board fades in">
+</td>
+<td valign="top">
+<h3>Small things</h3>
+<ul>
+<li>When you come back to a paused puzzle, the board waits a moment, then fades in as the blur clears. With reduced motion turned on, it comes back instantly.</li>
+<li>Updates apply when you open the app, before you start playing, and never in the middle of a game. If a new version arrives while you're playing, a short notice says it will apply next time.</li>
+</ul>
+</td>
+</tr>
+</table>
+
+## The basics
+
+- **Mouse:** click a candidate to toggle it, shift-click it to enter it as the answer, and right-click to clear a cell.
+- **Keyboard:** press `1`–`9` to enter an answer and `0` to clear it. Arrows move the selection, `Ctrl/Cmd + Z` undoes, and `P` pauses.
+- **Your own puzzle:** add `?q=` and 81 digits (row by row, `0` for blank) to the URL, like [this one](https://williamhsieh.github.io/sudoku/?q=947053100350004097000007350095020071170095003000080005000500700031600402729100030).
+- **Progress** is saved in your browser on this device. There are no accounts.
+
+## Development
+
+```sh
+npm install
+npm run dev     # http://localhost:8000/sudoku/
+npm test        # Vitest, then Playwright
+```
+
+You'll need Node 22. Run `npx playwright install --with-deps chromium webkit` once for the end-to-end tests. `npm run check`, `npm run lint` and `npm run format` cover the rest.
+
+Puzzles come from `scraper.py`, which a GitHub Action runs daily at 04:00 UTC (`uv run python scraper.py` to run it yourself). Every push to `master` deploys to GitHub Pages.
+
+## License
+
+[MIT](LICENSE). Puzzles come from The New York Times Sudoku page. This project isn't affiliated with The New York Times.
