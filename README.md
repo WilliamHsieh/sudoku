@@ -25,8 +25,9 @@ and verifies its HTML and assets within a 1.5-second budget. It reloads at most
 once per build per tab. Failed checks, timeouts and offline launches open the
 current build normally. Saved Journal progress stays in localStorage.
 
-While the app is open, returning to the foreground can show “Update ready —
-applies next launch”. This quiet notice appears over Play and Journal. It does
+While the app is open, returning to the foreground can show “Update ready ·
+applies next launch”. The notice replaces the phone Play hint for six seconds.
+In Journal and desktop Play, it appears at the bottom. Tap it to dismiss. It does
 not reload the page or interrupt play. Foreground checks are throttled to 30 seconds.
 If an update page cannot load its app, a small “Reload Sudoku” link appears after
 six seconds. No update flags are stored in localStorage.

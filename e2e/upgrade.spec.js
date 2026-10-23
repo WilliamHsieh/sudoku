@@ -12,7 +12,7 @@ const test = base.extend({
 });
 const build = (page) => page.locator('meta[name="sudoku-build"]');
 const live = (page) => page.locator(".update-live");
-const notice = (page) => live(page).getByRole("status").filter({ hasText: "Update ready" });
+const notice = (page) => page.locator(".update-notice.active");
 const attempts = (deployment) => deployment.requests.filter((r) => r.includes("_sudoku_update="));
 
 async function open(page, deployment) {
@@ -111,6 +111,9 @@ test("foreground shows a quiet notice without reloading; #43 resumes and input w
   deployment,
 }) => {
   await open(page, deployment);
+  const now = await page.evaluate(() => Date.now());
+  await page.clock.install({ time: new Date(now) });
+  await page.clock.pauseAt(new Date(now + 1000));
   // The live region is mounted before the notice so the insertion is announced.
   await expect(live(page)).toBeEmpty();
   await page.emulateMedia({ reducedMotion: "no-preference" });
@@ -120,8 +123,9 @@ test("foreground shows a quiet notice without reloading; #43 resumes and input w
   await foreground(page);
   await expect(notice(page)).toBeVisible();
   await expect(live(page)).toHaveAttribute("aria-live", "polite");
-  await expect(live(page)).toHaveText("Update ready — applies next launch");
+  await expect(live(page)).toHaveText("Update ready · applies next launch");
   await expectSameDocument(page);
+  await page.clock.runFor(1500);
   await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "idle");
   await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
   await expectValue(page, 0, 4);
@@ -129,7 +133,7 @@ test("foreground shows a quiet notice without reloading; #43 resumes and input w
   await page.keyboard.press("1");
   await expectValue(page, 2, 1);
   expect(attempts(deployment)).toHaveLength(0);
-  await page.waitForTimeout(6100);
+  await page.clock.runFor(4700);
   await hide(page, 60_000);
   await foreground(page);
   await expect(notice(page)).toHaveCount(0);
@@ -153,7 +157,7 @@ test("notice also covers Journal, wraps within the viewport, and does not move f
   const box = await notice(page).boundingBox();
   expect(box.x).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize().width);
-  expect(await notice(page).evaluate((el) => getComputedStyle(el).pointerEvents)).toBe("none");
+  expect(await notice(page).evaluate((el) => getComputedStyle(el).pointerEvents)).toBe("auto");
   expect(await notice(page).evaluate((el) => el.getAnimations().length)).toBe(0);
   await expectSameDocument(page);
 });
@@ -248,3 +252,115 @@ test("persisted pageshow checks once, ordinary pageshow does not check", async (
   expect(deployment.requests.filter((r) => r.includes("version.json"))).toHaveLength(before + 1);
   await expectSameDocument(page);
 });
+
+for (const width of [390, 1280]) {
+  for (const view of ["Play", "Journal"]) {
+    test.describe(`notice ${view} at ${width}`, () => {
+      test.use({ viewport: { width, height: 844 }, hasTouch: true });
+
+      for (const motion of ["normal", "media", "query"]) {
+        test(`placement, lifecycle and touch focus (${motion})`, async ({ page, deployment }) => {
+          await page.emulateMedia({
+            reducedMotion: motion === "media" ? "reduce" : "no-preference",
+          });
+          await page.addInitScript(() => localStorage.setItem("sudoku-keypad-coach", "1"));
+          // Pause a second after installation. No wall-clock sleeps drive the notice.
+          const start = new Date("2026-10-23T12:00:00Z");
+          await page.clock.install({ time: start });
+          await page.clock.pauseAt(new Date(start.getTime() + 1000));
+          await page.goto(`${deployment.url}?q=${DEMO_PUZZLE}${motion === "query" ? "&rm=1" : ""}`);
+          await page.getByRole("button", { name: "Play", exact: true }).tap();
+          const board = await page.locator(".board").boundingBox();
+          if (view === "Journal")
+            await page.getByRole("button", { name: "Journal", exact: true }).tap();
+          const region = await live(page).elementHandle();
+          await expect(live(page)).toBeEmpty();
+          await hide(page);
+          await page.clock.runFor(2000);
+          deployment.publish();
+          await foreground(page);
+          await expect(notice(page)).toHaveCount(1);
+          await expect(live(page)).toHaveText("Update ready · applies next launch");
+          await page.clock.runFor(1200);
+          await expect(notice(page)).toBeVisible();
+          const box = await notice(page).boundingBox();
+          expect(box.x).toBeGreaterThanOrEqual(0);
+          expect(box.x + box.width).toBeLessThanOrEqual(width);
+          expect(box.y).toBeGreaterThanOrEqual(board.y + board.height);
+          const inline = width === 390 && view === "Play";
+          await expect(notice(page)).toHaveClass(inline ? /inline/ : /update-notice/);
+          if (inline) {
+            const hintBox = await page.locator(".pad-hint").boundingBox();
+            expect(box.y).toBeGreaterThanOrEqual(hintBox.y);
+            expect(box.y + box.height).toBeLessThanOrEqual(hintBox.y + hintBox.height + 1);
+            await expect(page.locator(".normal-hint")).toHaveCSS("opacity", "0");
+          } else {
+            expect(844 - box.y - box.height).toBeCloseTo(16, 0);
+            await expect(notice(page)).toHaveCSS("background-color", "rgb(245, 244, 240)");
+            await expect(notice(page)).toHaveCSS("font-size", "13px");
+            await expect(notice(page)).toHaveCSS("font-weight", "500");
+            await expect(notice(page)).toHaveCSS("border-radius", "10px");
+          }
+          await expect(notice(page)).toHaveCSS("color", "rgb(28, 26, 22)");
+          await expect(notice(page).locator("svg")).toHaveCSS("stroke-width", "1.8px");
+          const transition = await notice(page).evaluate(
+            (el) => getComputedStyle(el).transitionDuration
+          );
+          expect(transition).toBe(motion === "normal" ? "0.26s" : "0s");
+          if (view === "Play") {
+            const ring = await page.locator("#pause").evaluate((el) => {
+              const face = el.querySelector(".face") || el;
+              return {
+                outline: getComputedStyle(face).outlineStyle,
+                modality: document.documentElement.dataset.modality,
+              };
+            });
+            expect(ring).toEqual({ outline: "none", modality: "pointer" });
+          }
+          // A second return during the display cannot add a copy or extend its timer.
+          await hide(page, 100);
+          await page.clock.runFor(100);
+          await foreground(page);
+          await expect(notice(page)).toHaveCount(1);
+          await page.clock.runFor(4500);
+          await expect(notice(page)).toHaveCount(1);
+          await page.clock.runFor(201);
+          await expect(notice(page)).toHaveCount(0);
+          await page.clock.runFor(180);
+          await expect(page.locator(".update-notice")).toBeHidden();
+          expect(await region.evaluate((el) => el === document.querySelector(".update-live"))).toBe(
+            true
+          );
+          await expect(live(page)).toBeEmpty();
+          if (inline) await expect(page.locator(".normal-hint")).toHaveCSS("opacity", "1");
+        });
+      }
+
+      test("tap dismisses without moving focus; live region survives view changes", async ({
+        page,
+        deployment,
+      }) => {
+        await page.emulateMedia({ reducedMotion: "reduce" });
+        await open(page, deployment);
+        if (view === "Journal")
+          await page.getByRole("button", { name: "Journal", exact: true }).tap();
+        await hide(page);
+        deployment.publish();
+        await foreground(page);
+        await expect(notice(page)).toBeVisible();
+        const region = await live(page).elementHandle();
+        const focus = await page.evaluateHandle(() => document.activeElement);
+        await notice(page).tap();
+        await expect(notice(page)).toHaveCount(0);
+        expect(await focus.evaluate((el) => el === document.activeElement)).toBe(true);
+        await expect(live(page)).toBeEmpty();
+        await page
+          .getByRole("button", { name: view === "Play" ? "Journal" : "Play", exact: true })
+          .tap();
+        expect(await region.evaluate((el) => el === document.querySelector(".update-live"))).toBe(
+          true
+        );
+      });
+    });
+  }
+}
