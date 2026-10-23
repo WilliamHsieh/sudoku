@@ -59,7 +59,13 @@ for (const [width, height] of [
         } else {
           const geometry = await trigger(page).boundingBox();
           expect(geometry.height).toBe(30);
-          if (mode === "Auto") expect(geometry.width).toBe(86);
+          rects.push({
+            width: geometry.width,
+            timer: (await page.locator(".header .timer").boundingBox()).x,
+            pause: (await page.locator(".header #pause").boundingBox()).x,
+            icon: (await trigger(page).locator(".pencil").boundingBox()).x,
+            label: (await trigger(page).locator(".value").boundingBox()).x,
+          });
           const order = await page
             .locator(".header")
             .evaluate((el) =>
@@ -99,12 +105,29 @@ for (const [width, height] of [
         await expect(trigger(page)).toBeFocused();
         await expect(page.locator(".notes-menu:popover-open")).toHaveCount(0);
       }
-      if (width < 600) expect(rects).toEqual([rects[0], rects[0], rects[0]]);
+      // Desktop timer, pause, pencil and label stay at exactly the same x in all modes.
+      expect(rects).toEqual([rects[0], rects[0], rects[0]]);
 
       // Wider platform fallback metrics must not resize the toolbar or clip a label.
+      await page.route(/\.(woff2?|ttf)(\?.*)?$/, (route) => route.abort());
       await page.addStyleTag({ content: ".notes-mode { font-family: monospace !important; }" });
+      const fallbackWidths = [];
       for (const mode of ["Auto", "Tidy", "Manual"]) {
         await choose(page, mode);
+        const value = trigger(page).locator(".value");
+        await expect(value).toHaveCSS("transform", "none");
+        await expect(value).toHaveCSS("font-weight", "400");
+        expect(
+          await value.evaluate((el) => {
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            return range.getBoundingClientRect().width <= el.getBoundingClientRect().width;
+          })
+        ).toBe(true);
+        if (width === 320 && mode === "Manual") {
+          await expect(value).toHaveCSS("letter-spacing", "-0.2px");
+          await expect(value).toHaveCSS("font-size", "11px");
+        }
         if (width < 600) {
           const cells = await page
             .locator(".tools > button")
@@ -115,7 +138,14 @@ for (const [width, height] of [
               .locator(".mode-label")
               .evaluate((el) => el.scrollWidth)
           ).toBeLessThanOrEqual(width === 390 ? 66 : 52);
-        } else if (mode !== "Manual") expect((await trigger(page).boundingBox()).width).toBe(86);
+        } else fallbackWidths.push((await trigger(page).boundingBox()).width);
+      }
+      if (width >= 600) expect(fallbackWidths).toEqual(Array(3).fill(fallbackWidths[0]));
+      if (width === 320) {
+        // A wider slot must restore the normal size and tracking, without a mode change.
+        await page.setViewportSize({ width: 390, height });
+        await expect(trigger(page).locator(".value")).toHaveCSS("font-size", "12px");
+        await expect(trigger(page).locator(".value")).toHaveCSS("letter-spacing", "normal");
       }
     });
 
@@ -224,6 +254,20 @@ for (const [width, height] of [
     }
   });
 }
+
+test("a slightly wider fallback fits with tighter tracking at the normal size", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 335, height: 568 });
+  await page.route(/\.(woff2?|ttf)(\?.*)?$/, (route) => route.abort());
+  await openBoard(page);
+  await page.addStyleTag({ content: ".notes-mode { font-family: monospace !important; }" });
+  await choose(page, "Manual");
+  const value = trigger(page).locator(".value");
+  await expect(value).toHaveCSS("letter-spacing", "-0.2px");
+  await expect(value).toHaveCSS("font-size", "12px");
+  await expect(value).toHaveCSS("transform", "none");
+});
 
 test("Tidy cleanup, undo rings, reload, Journal return, restart, and new puzzle default", async ({
   page,

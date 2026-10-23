@@ -20,13 +20,15 @@
   // Keep the full label within its slot when a platform's fallback font is wider.
   function fitLabel() {
     if (!valueText?.clientWidth) return;
-    valueText.style.transform = "none";
+    valueText.style.letterSpacing = "";
+    valueText.style.fontSize = "";
     const range = document.createRange();
     range.selectNodeContents(valueText);
-    const natural = range.getBoundingClientRect().width;
-    const available = valueText.getBoundingClientRect().width;
-    const scale = natural ? Math.min(1, available / natural) : 1;
-    valueText.style.transform = scale < 1 ? `scaleX(${scale})` : "none";
+    const overflows = () =>
+      range.getBoundingClientRect().width > valueText.getBoundingClientRect().width;
+    if (!overflows()) return;
+    valueText.style.letterSpacing = "-0.2px";
+    if (overflows()) valueText.style.fontSize = "11px";
   }
 
   $effect(() => {
@@ -195,7 +197,6 @@
   id={desktop ? "notes-mode-desktop" : "notes-mode"}
   class:dhbtn={desktop}
   class:tool={!desktop}
-  class:manual={game.notesMode === "manual"}
   class="notes-mode"
   type="button"
   aria-label={`Notes mode: ${label}`}
@@ -213,7 +214,11 @@
     ></path>
   </svg>
   <span class="mode-label"
-    ><span class="value" bind:this={valueText}>{label}</span><svg
+    >{#if desktop}
+      {#each modes as mode (mode.id)}
+        <span class="label-size" aria-hidden="true">{mode.name}</span>
+      {/each}
+    {/if}<span class="value" bind:this={valueText}>{label}</span><svg
       class="chevron"
       viewBox="0 0 24 24"
       aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg
@@ -308,7 +313,6 @@
   .value {
     display: block;
     min-width: 0;
-    transform-origin: left center;
   }
   .chevron {
     width: 11px;
@@ -318,7 +322,7 @@
   .dhbtn {
     box-sizing: border-box;
     min-width: 86px;
-    width: 86px;
+    width: max-content;
     height: 30px;
     display: flex;
     align-items: center;
@@ -330,9 +334,6 @@
     color: var(--timer-ink);
     font-size: 14px;
   }
-  .dhbtn.manual {
-    width: max-content;
-  }
   .dhbtn .pencil {
     width: 16px;
     height: 16px;
@@ -340,8 +341,18 @@
   }
   .dhbtn .mode-label {
     flex: 1;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 12px;
     gap: 3px;
+  }
+  /* All labels share one cell, so the widest mode sizes every desktop trigger. */
+  .dhbtn .value,
+  .label-size {
+    grid-area: 1 / 1;
+    text-align: left;
+  }
+  .label-size {
+    visibility: hidden;
   }
   .dhbtn .chevron {
     width: 12px;
