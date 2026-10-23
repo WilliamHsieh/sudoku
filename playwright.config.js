@@ -15,17 +15,20 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      testIgnore: /mobile\.spec\.js/,
+      testIgnore: [/mobile\.spec\.js/, /options-exit\.spec\.js/],
+      teardown: "paint-timing",
       use: { ...devices["Desktop Chrome"] },
     },
     {
       name: "webkit",
       testMatch: /options-(input-)?focus\.spec\.js/,
+      teardown: "paint-timing",
       use: { browserName: "webkit" },
     },
     {
       name: "mobile",
       testMatch: /mobile\.spec\.js/,
+      teardown: "paint-timing",
       use: {
         browserName: "chromium",
         viewport: { width: 390, height: 844 },
@@ -34,6 +37,16 @@ export default defineConfig({
         deviceScaleFactor: 3,
         userAgent: devices["iPhone 13"].userAgent,
       },
+    },
+    {
+      // A shared teardown project runs after all three projects have stopped,
+      // even if a test failed. These compositor checks need real paint frames
+      // without competing test workers; serial mode alone cannot ensure that.
+      // Playwright runs all four cases once per shard, outside shard filtering.
+      name: "paint-timing",
+      testMatch: /options-exit\.spec\.js/,
+      workers: 1,
+      use: { ...devices["Desktop Chrome"] },
     },
   ],
   webServer: {

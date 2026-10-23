@@ -96,12 +96,21 @@ export function paintCases(mobile) {
             const observer = new MutationObserver(() => {
               if (!el.classList.contains("paint-committed")) return;
               observer.disconnect();
-              const start = performance.now();
               const opacity = () => Number(getComputedStyle(el, "::after").opacity);
               const initial = opacity();
-              setTimeout(() => {
-                resolve({ initial, final: opacity(), elapsed: performance.now() - start });
-              }, 250);
+              const animations = el
+                .getAnimations({ subtree: true })
+                .filter((animation) => animation.animationName?.includes("paint-tint"));
+              // A timer can fire before the compositor advances the animation.
+              // Observe its completion in the page, including the ::after tint.
+              resolve(
+                Promise.all(animations.map((animation) => animation.finished)).then(() => ({
+                  initial,
+                  final: opacity(),
+                  durations: animations.map((animation) => animation.effect.getTiming().duration),
+                  states: animations.map((animation) => animation.playState),
+                }))
+              );
             });
             observer.observe(el, { attributes: true, attributeFilter: ["class"] });
           });
@@ -110,7 +119,8 @@ export function paintCases(mobile) {
         await page.keyboard.press(key);
         const result = await samples.evaluate((samples) => samples.done);
         expect(result.initial).toBeGreaterThan(0.99);
-        expect(result.elapsed).toBeGreaterThanOrEqual(250);
+        expect(result.durations).toEqual([200]);
+        expect(result.states).toEqual(["finished"]);
         expect(result.final).toBeLessThanOrEqual(0.01);
         await expect(cell(page, 37)).toHaveAttribute("data-notes", notes);
       }
