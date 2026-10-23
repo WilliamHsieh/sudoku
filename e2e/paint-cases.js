@@ -90,6 +90,8 @@ export function paintCases(mobile) {
       await page.keyboard.press("ArrowRight");
       // Sample in the page as soon as the commit renders. Protocol round trips
       // must not consume the short animation window on a loaded test machine.
+      // Hold the app's 700ms marker cleanup while CSS uses its real timeline.
+      await freezeTimers(page);
       for (const notes of ["5", ""]) {
         const samples = await cell(page, 37).evaluateHandle((el) => {
           const done = new Promise((resolve) => {
@@ -400,9 +402,7 @@ export function paintCases(mobile) {
     await expect(cell(page, 37)).toHaveAttribute("data-notes", "5");
     // Freeze timers before commit so machine load cannot spend the 700ms
     // marker lifetime between assertions. CSS transitions are disabled by RM.
-    const now = new Date();
-    await page.clock.install({ time: now });
-    await page.clock.pauseAt(now);
+    await freezeTimers(page);
     await t.up();
     await expect(pencil(page, 37, 5)).toHaveCSS("background-color", "rgb(223, 232, 250)");
     await page.clock.runFor(400);
