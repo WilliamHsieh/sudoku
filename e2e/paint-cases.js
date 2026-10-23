@@ -48,7 +48,7 @@ export async function paintSetup(page, mobile, manual = true) {
  * feedback (the 300ms blocked flash, toasts) between assertions. Pausing a
  * second ahead of the install time avoids "Cannot fast-forward to the past".
  */
-async function freezeTimers(page) {
+export async function freezeTimers(page) {
   const time = Date.now();
   await page.clock.install({ time });
   await page.clock.pauseAt(time + 1_000);
