@@ -1,3 +1,4 @@
+// CI probe: app source changes must run the full suite.
 /** Difficulty order for “first unsolved of the day”. */
 export const DIFFICULTIES = ["easy", "medium", "hard"];
 
