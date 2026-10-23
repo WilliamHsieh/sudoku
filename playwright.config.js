@@ -19,6 +19,11 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
     {
+      name: "webkit",
+      testMatch: /options-(input-)?focus\.spec\.js/,
+      use: { browserName: "webkit" },
+    },
+    {
       name: "mobile",
       testMatch: /mobile\.spec\.js/,
       use: {
