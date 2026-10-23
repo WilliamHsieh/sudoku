@@ -466,11 +466,18 @@ export function paintCases(mobile) {
     expect(blue.background).toBe("rgb(223, 232, 250)");
     expect(blue.color).toBe("rgb(34, 73, 173)");
     expect(blue.shadow).toBe("rgb(143, 168, 224) 0px 0px 0px 0.5px");
+    // Keep the 385ms blue hold phase from expiring between protocol reads.
+    // CSS animations still use real time; resume app timers to start the fade.
+    await freezeTimers(page);
     await t.up();
     await expect(pencil(page, 37, 5)).toHaveClass(/paint-added/);
     await expect(pencil(page, 37, 5)).toHaveCSS("background-color", "rgb(223, 232, 250)");
     if (!mobile) await page.mouse.move(0, 0);
+    await page.clock.resume();
     await expect(pencil(page, 37, 5)).not.toHaveClass(/paint-added/);
+    await pencil(page, 37, 5).evaluate((el) =>
+      Promise.all(el.getAnimations({ subtree: true }).map((animation) => animation.finished))
+    );
     expect(await pencil(page, 37, 5).evaluate(measure)).toEqual(yellow);
   });
 }
