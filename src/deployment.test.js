@@ -19,8 +19,10 @@ function deployment() {
     ["/sudoku/assets/new.js", js],
   ]);
   const fetcher = vi.fn(async (url, init) => {
-    expect(init.cache).toBe("no-store");
-    expect(url.searchParams.has("_sudoku_check")).toBe(true);
+    const asset = url.pathname.includes("/assets/");
+    expect(init.cache).toBe(asset ? "reload" : "no-store");
+    expect(init.redirect).toBe("error");
+    expect(url.searchParams.has("_sudoku_check")).toBe(!asset);
     const body = url.pathname.endsWith("version.json")
       ? JSON.stringify(manifest)
       : bodies.get(url.pathname);
@@ -30,53 +32,87 @@ function deployment() {
   vi.stubGlobal("fetch", fetcher);
   return { manifest, bodies, fetcher };
 }
-afterEach(() => vi.unstubAllGlobals());
-it("verifies HTML and asset bytes under the Pages base path and rereads the manifest", async () => {
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
+it("verifies HTML, warms exact asset URLs and rereads the manifest within one budget", async () => {
   const { fetcher } = deployment();
-  expect(await probeDeployment("/sudoku/", current)).toMatchObject({ version: "new" });
+  expect(await probeDeployment("/sudoku/", current, { verify: true })).toMatchObject({
+    version: "new",
+  });
   expect(fetcher).toHaveBeenCalledTimes(4);
 });
+it("foreground checks read only version.json", async () => {
+  const { fetcher } = deployment();
+  expect(await probeDeployment("/sudoku/", current)).toMatchObject({ version: "new" });
+  expect(fetcher).toHaveBeenCalledOnce();
+});
 it.each(["/sudoku/index.html", "/sudoku/assets/new.js"])(
-  "rejects stale or rewritten content: %s",
+  "rejects mixed deployment bytes: %s",
   async (path) => {
     const { bodies } = deployment();
     bodies.set(path, "old or error HTML");
-    expect(await probeDeployment("/sudoku/", current)).toBeNull();
+    expect(await probeDeployment("/sudoku/", current, { verify: true })).toBeNull();
   }
 );
-it("rejects a manifest that changes during validation", async () => {
-  const { fetcher } = deployment();
-  fetcher.mockResolvedValueOnce(
-    new Response(
-      JSON.stringify({
-        schema: 1,
-        version: "other",
-        builtAt: 3,
-        html: hash('<script src="/sudoku/assets/new.js"></script>'),
-        assets: [{ path: "assets/new.js", hash: hash('console.log("new build")') }],
-      })
-    )
-  );
-  expect(await probeDeployment("/sudoku/", current)).toBeNull();
-});
-it.each(["../outside.js", "https://other.test/evil.js", "assets/new.js?extra=1"])(
-  "rejects unsafe asset paths: %s",
-  async (path) => {
-    const { manifest } = deployment();
-    manifest.assets[0].path = path;
-    expect(await probeDeployment("/sudoku/", current)).toBeNull();
-  }
-);
-it("does not fetch the app again for the current version", async () => {
+it("rejects a manifest changed during verification", async () => {
   const { manifest, fetcher } = deployment();
-  manifest.version = "old";
-  expect(await probeDeployment("/sudoku/", current)).toBeNull();
+  fetcher.mockResolvedValueOnce(new Response(JSON.stringify({ ...manifest, version: "other" })));
+  expect(await probeDeployment("/sudoku/", current, { verify: true })).toBeNull();
+});
+it.each([
+  { schema: 2 },
+  { version: 12 },
+  { version: "bad/version" },
+  { builtAt: 1.5 },
+  { html: "invalid" },
+  { assets: [] },
+  { assets: [null] },
+  ...["../outside.js", "https://other.test/evil.js", "assets/new.js?extra=1"].map((path) => ({
+    assets: [{ path, hash: "a".repeat(64) }],
+  })),
+])("rejects invalid manifest fields: %j", async (fields) => {
+  const { manifest, fetcher } = deployment();
+  Object.assign(manifest, fields);
+  expect(await probeDeployment("/sudoku/", current, { verify: true })).toBeNull();
   expect(fetcher).toHaveBeenCalledOnce();
 });
-it("rejects missing assets and malformed JSON without recommending navigation", async () => {
+it("cold launch accepts a different valid build even with an earlier build time", async () => {
+  const { manifest } = deployment();
+  manifest.builtAt = 0;
+  expect(await probeDeployment("/sudoku/", current, { verify: true })).toMatchObject({
+    version: "new",
+  });
+});
+it("does not fetch HTML for the current version", async () => {
+  const { manifest, fetcher } = deployment();
+  manifest.version = "old";
+  expect(await probeDeployment("/sudoku/", current, { verify: true })).toBeNull();
+  expect(fetcher).toHaveBeenCalledOnce();
+});
+it("falls through on missing assets, malformed JSON, redirects or offline errors", async () => {
   const { bodies, fetcher } = deployment();
   bodies.delete("/sudoku/assets/new.js");
-  await expect(probeDeployment("/sudoku/", current)).rejects.toThrow();
+  expect(await probeDeployment("/sudoku/", current, { verify: true })).toBeNull();
   fetcher.mockResolvedValueOnce(new Response("not json"));
-  await expect(probeDeployment("/sudoku/", current)).rejects.toThrow();
+  expect(await probeDeployment("/sudoku/", current)).toBeNull();
+  fetcher.mockRejectedValueOnce(Error("redirect/offline"));
+  expect(await probeDeployment("/sudoku/", current)).toBeNull();
 });
+it.each(["fetch", "body", "hash"])(
+  "enforces the total budget even on a stalled %s",
+  async (stage) => {
+    vi.useFakeTimers();
+    const { fetcher } = deployment();
+    const stalled = new Promise(() => {});
+    if (stage === "fetch") fetcher.mockReturnValueOnce(stalled);
+    if (stage === "body")
+      fetcher.mockResolvedValueOnce(Object.assign(new Response(), { json: () => stalled }));
+    if (stage === "hash") vi.stubGlobal("crypto", { subtle: { digest: () => stalled } });
+    const result = probeDeployment("/sudoku/", current, { verify: true });
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(await result).toBeNull();
+    expect(fetcher.mock.calls[0][1].signal.aborted).toBe(true);
+  }
+);

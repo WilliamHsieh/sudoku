@@ -466,32 +466,3 @@ it("persists progress once per stroke and never saves a draft or discard", async
   expect(save).toHaveBeenCalledTimes(1);
   save.mockRestore();
 });
-
-describe("automatic update checkpoint", () => {
-  it("restores the current puzzle, selection, notes, timer and undo/redo", () => {
-    g.load(DEMO_PUZZLE, { dateStr: "2026-10-22", difficulty: "hard" });
-    g.setNotesMode("manual");
-    g.enter(0, 4);
-    g.enter(2, 1);
-    g.undo();
-    g.select(2);
-    timer.set(123);
-    const saved = JSON.parse(JSON.stringify(g.checkpoint()));
-    const restored = createGame();
-    restored.restoreCheckpoint(saved);
-    expect(restored.value(0)).toBe(4);
-    expect(restored.value(2)).toBe(0);
-    expect(restored.selected).toBe(2);
-    expect(restored.notesMode).toBe("manual");
-    expect(restored.dateStr).toBe("2026-10-22");
-    expect(get(timer)).toBe(123);
-    expect(restored.canUndo).toBe(true);
-    expect(restored.canRedo).toBe(true);
-    restored.redo();
-    expect(restored.value(2)).toBe(1);
-  });
-  it("refuses a checkpoint while a stroke draft is active", () => {
-    g.previewStroke(g.state);
-    expect(() => g.checkpoint()).toThrow();
-  });
-});

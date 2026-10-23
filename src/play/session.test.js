@@ -604,23 +604,3 @@ describe("play session", () => {
     expect(play.focus).toBe("restart");
   });
 });
-
-it("keeps preferences usable when the localStorage getter throws", () => {
-  const previous = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
-  Object.defineProperty(globalThis, "localStorage", {
-    configurable: true,
-    get() {
-      throw new Error("Storage blocked");
-    },
-  });
-  try {
-    expect(() => {
-      const play = createPlay({ live: false });
-      play.toggleCue();
-      play.toggleTapFill();
-    }).not.toThrow();
-  } finally {
-    if (previous) Object.defineProperty(globalThis, "localStorage", previous);
-    else delete globalThis.localStorage;
-  }
-});

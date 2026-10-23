@@ -1,12 +1,6 @@
 <script>
   /* global __SUDOKU_BUILD__ */
-  import {
-    installAutoUpdate,
-    restoreUpdateCheckpoint,
-    saveUpdateCheckpoint,
-  } from "./auto-update-browser.js";
-  import { localUnchanged, flushLocal } from "./persistence.js";
-  import { journalPersisted } from "./journal/progress.js";
+  import { installAutoUpdate } from "./auto-update-browser.js";
   import { paintBoard, discardPaint } from "./paint-actions.js";
   import Api from "./Api.svelte";
   import Cell from "./Cell.svelte";
@@ -333,6 +327,8 @@
     showCalendar = false;
   }
 
+  let updateNotice = $state("");
+
   onMount(() => {
     window.addEventListener("pointerdown", releaseViewFocus, true);
     const mq = window.matchMedia(NARROW_MQ);
@@ -408,42 +404,22 @@
       hasPlayed = true;
       showCalendar = false;
     }
-    restoreUpdateCheckpoint((saved) => {
-      game.restoreCheckpoint(saved.game);
-      hasPlayed = saved.hasPlayed;
-      showCalendar = saved.showCalendar;
-      if (saved.paused) playUi.pause();
-    });
+    let noticeTimer;
     const stopUpdates =
       typeof __SUDOKU_BUILD__ === "undefined"
         ? () => {}
         : installAutoUpdate({
             current: __SUDOKU_BUILD__,
             base: import.meta.env.BASE_URL,
-            busy: () =>
-              game.hasDraft ||
-              padUi.pending !== null ||
-              padUi.gesture !== null ||
-              playUi.modal !== null,
-            persist: (target) => {
-              // Check before ring.flush(), which can itself save progress/completion.
-              if (!localUnchanged()) return false;
-              ring.flush();
-              game.flushProgress();
-              if (!flushLocal() || !journalPersisted()) return false;
-              return saveUpdateCheckpoint(
-                {
-                  game: game.checkpoint(),
-                  hasPlayed,
-                  showCalendar,
-                  paused: playUi.paused,
-                },
-                target
-              );
+            notify: () => {
+              updateNotice = "Update ready — applies next launch";
+              clearTimeout(noticeTimer);
+              noticeTimer = setTimeout(() => (updateNotice = ""), 6000);
             },
           });
     return () => {
       stopUpdates();
+      clearTimeout(noticeTimer);
       window.removeEventListener("pointerdown", releaseViewFocus, true);
       mq.removeEventListener("change", onNarrow);
       reduceMq.removeEventListener("change", onReduce);
@@ -803,6 +779,10 @@
   {/if}
 </main>
 
+{#if updateNotice}
+  <p class="toast update-notice" role="status" aria-live="polite">{updateNotice}</p>
+{/if}
+
 <style>
   .sr-only {
     position: absolute;
@@ -1046,6 +1026,20 @@
     z-index: 30;
     pointer-events: none;
     margin: 0;
+  }
+
+  .update-notice {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 64px);
+    bottom: auto;
+    width: max-content;
+    max-width: calc(
+      100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 32px
+    );
+    box-sizing: border-box;
+    white-space: normal;
+    text-align: center;
+    z-index: 1100;
   }
 
   .success-message {

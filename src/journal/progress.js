@@ -1,5 +1,4 @@
-import { readLocal, saveLocal } from "../persistence.js";
-import { writable, get } from "svelte/store";
+import { writable } from "svelte/store";
 import { toSnapshot } from "../game/snapshot.js";
 
 /**
@@ -18,7 +17,7 @@ const PROGRESS_KEY = "sudoku-progress";
 function readJson(key, fallback) {
   if (typeof window === "undefined") return fallback;
   try {
-    const raw = readLocal(key);
+    const raw = localStorage.getItem(key);
     return raw ? JSON.parse(raw) : fallback;
   } catch {
     return fallback;
@@ -27,7 +26,7 @@ function readJson(key, fallback) {
 
 function writeJson(key, value) {
   if (typeof window === "undefined") return;
-  saveLocal(key, JSON.stringify(value));
+  localStorage.setItem(key, JSON.stringify(value));
 }
 
 function createSolvedPuzzles() {
@@ -97,21 +96,6 @@ function createPuzzleProgress() {
 
 export const solvedPuzzles = createSolvedPuzzles();
 export const puzzleProgress = createPuzzleProgress();
-
-/** Confirm Journal history is recoverable before replacing the document. */
-export function journalPersisted() {
-  try {
-    return [
-      [SOLVED_KEY, get(solvedPuzzles)],
-      [PROGRESS_KEY, get(puzzleProgress)],
-    ].every(
-      ([key, value]) =>
-        JSON.stringify(JSON.parse(localStorage.getItem(key) ?? "{}")) === JSON.stringify(value)
-    );
-  } catch {
-    return false;
-  }
-}
 
 /**
  * How many of the empty cells have answers.

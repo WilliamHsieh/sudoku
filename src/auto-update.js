@@ -1,65 +1,40 @@
 /** @typedef {{ version: string, builtAt: number }} Build */
 
 /**
- * A check never navigates on failure. A deferred update is probed again because
- * a deployment can change while a finger is down or the page is hidden.
+ * Foreground checks only notify. They cannot navigate or change game state.
  * @param {{ current: Build, probe: () => Promise<Build | null>,
- * persist: (version: string) => boolean, navigate: (version: string) => void,
- * visible: () => boolean, busy: () => boolean,
- * wasAttempted: (version: string) => boolean,
- * markAttempted: (version: string) => boolean }} options
+ * visible: () => boolean, notify: (version: string) => void }} options
  */
 export function createUpdater(options) {
   let stopped = false;
   let inFlight = false;
-  let queued = false;
-  let pending = false;
   let lastCheck = -Infinity;
-  let navigated = false;
-
-  async function run(force = false) {
-    if (stopped || navigated || !options.visible()) return;
-    if (!force && Date.now() - lastCheck < 30_000) return;
-    if (inFlight) {
-      queued = true;
-      return;
-    }
-    lastCheck = Date.now();
-    inFlight = true;
-    pending = false;
-    try {
-      const next = await options.probe();
-      if (
-        stopped ||
-        !next ||
-        next.version === options.current.version ||
-        next.builtAt <= options.current.builtAt ||
-        options.wasAttempted(next.version)
-      )
-        return;
-      if (!options.visible() || options.busy()) {
-        pending = true;
-        return;
-      }
-      // All remaining work is synchronous: input cannot interleave with the save.
-      if (!options.persist(next.version) || !options.markAttempted(next.version)) return;
-      navigated = true;
-      options.navigate(next.version);
-    } catch {
-      // Offline, aborted, invalid deployment, or storage unavailable: keep playing.
-    } finally {
-      inFlight = false;
-      if (queued) {
-        queued = false;
-        void run();
-      }
-    }
-  }
-
+  const shown = new Set();
   return {
-    check: () => run(),
-    settle: () => (pending && !options.busy() ? run(true) : Promise.resolve()),
-    stop: () => {
+    async check() {
+      if (stopped || inFlight || !options.visible() || Date.now() - lastCheck < 30_000) return;
+      lastCheck = Date.now();
+      inFlight = true;
+      try {
+        const next = await options.probe();
+        if (
+          stopped ||
+          !options.visible() ||
+          !next ||
+          next.version === options.current.version ||
+          next.builtAt <= options.current.builtAt ||
+          shown.has(next.version)
+        )
+          return;
+        shown.add(next.version);
+        options.notify(next.version);
+      } catch {
+        // An unavailable deployment leaves the current app usable.
+      } finally {
+        inFlight = false;
+      }
+    },
+    stop() {
       stopped = true;
     },
   };
@@ -72,58 +47,81 @@ async function digest(bytes) {
 }
 
 /**
- * Validate the actual document and every executable/style asset, not just a
- * version string. A 404 rewritten to HTML or a mixed Pages deployment is unsafe.
+ * A single deadline covers fetches, response bodies and hashes. Verification is
+ * for cold launch only; foreground checks need only the validated manifest.
  * @param {string} base
  * @param {Build} current
+ * @param {{ verify?: boolean, budgetMs?: number }} [options]
  * @returns {Promise<Build | null>}
  */
-export async function probeDeployment(base, current) {
+export async function probeDeployment(base, current, { verify = false, budgetMs = 1500 } = {}) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10_000);
+  let timeout;
+  const deadline = new Promise((resolve) => {
+    timeout = setTimeout(() => {
+      controller.abort();
+      resolve(null);
+    }, budgetMs);
+  });
   const root = new URL(base, location.href);
   const nonce = `${Date.now()}-${Math.random()}`;
-  /** @param {string} path */
-  async function read(path) {
+  /** @param {string} path @param {boolean} [asset] */
+  async function read(path, asset = false) {
     const url = new URL(path, root);
-    url.searchParams.set("_sudoku_check", nonce);
+    if (!asset) url.searchParams.set("_sudoku_check", nonce);
     const response = await fetch(url, {
-      cache: "no-store",
+      cache: asset ? "reload" : "no-store",
       signal: controller.signal,
       redirect: "error",
     });
     if (!response.ok) throw new Error("Deployment unavailable");
     return response;
   }
-  try {
+  async function probe() {
     const manifest = await (await read("version.json")).json();
     if (
+      !manifest ||
       manifest.schema !== 1 ||
+      typeof manifest.version !== "string" ||
       !/^[a-zA-Z0-9._-]{1,100}$/.test(manifest.version) ||
       !Number.isSafeInteger(manifest.builtAt) ||
-      manifest.builtAt <= current.builtAt ||
+      manifest.builtAt < 0 ||
       manifest.version === current.version ||
       !Array.isArray(manifest.assets) ||
       !manifest.assets.length ||
       manifest.assets.length > 100 ||
-      !/^[a-f0-9]{64}$/.test(manifest.html)
+      typeof manifest.html !== "string" ||
+      !/^[a-f0-9]{64}$/.test(manifest.html) ||
+      !manifest.assets.every(
+        (asset) =>
+          asset &&
+          typeof asset.path === "string" &&
+          /^assets\/[a-zA-Z0-9_.-]+\.(js|css)$/.test(asset.path) &&
+          typeof asset.hash === "string" &&
+          /^[a-f0-9]{64}$/.test(asset.hash)
+      )
     )
       return null;
+    if (!verify) return manifest;
     const html = await read("index.html");
     if ((await digest(await html.arrayBuffer())) !== manifest.html) return null;
-    for (const asset of manifest.assets) {
-      if (
-        !/^assets\/[a-zA-Z0-9_.-]+\.(js|css)$/.test(asset.path) ||
-        !/^[a-f0-9]{64}$/.test(asset.hash)
-      )
-        return null;
-      const response = await read(asset.path);
-      if ((await digest(await response.arrayBuffer())) !== asset.hash) return null;
-    }
+    // Warm the exact URLs requested by the new HTML, in parallel within budget.
+    const assets = await Promise.all(
+      manifest.assets.map(async (asset) => {
+        const response = await read(asset.path, true);
+        return (await digest(await response.arrayBuffer())) === asset.hash;
+      })
+    );
+    if (!assets.every(Boolean)) return null;
     const latest = await (await read("version.json")).json();
-    if (JSON.stringify(latest) !== JSON.stringify(manifest)) return null;
-    return manifest;
+    return JSON.stringify(latest) === JSON.stringify(manifest) ? manifest : null;
+  }
+  try {
+    return await Promise.race([probe(), deadline]);
+  } catch {
+    return null;
   } finally {
     clearTimeout(timeout);
+    controller.abort();
   }
 }

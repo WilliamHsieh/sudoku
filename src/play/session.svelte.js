@@ -1,6 +1,5 @@
 // Pause, the options/confirm modals, and the single-candidate cue.
 // The cue clock is pure (see cue-clock.js); this module is the reactive view of it.
-import { readLocal, saveLocal } from "../persistence.js";
 import { timerRunning } from "../store.js";
 import { createCueClock, idleMsFromSearch } from "./cue-clock.js";
 
@@ -17,32 +16,26 @@ export const RESUME_SHORT_MS = 1000;
 
 /** @returns {boolean} */
 function readCuePref() {
-  try {
-    return readLocal(CUE_KEY) !== "0";
-  } catch {
-    return true;
-  }
+  if (typeof localStorage === "undefined") return true;
+  return localStorage.getItem(CUE_KEY) !== "0";
 }
 
 /** @param {boolean} on */
 function writeCuePref(on) {
-  if (typeof window === "undefined") return;
-  saveLocal(CUE_KEY, on ? "1" : "0");
+  if (typeof localStorage === "undefined") return;
+  localStorage.setItem(CUE_KEY, on ? "1" : "0");
 }
 
 /** Off unless the player turned legacy tap-to-fill on. @returns {boolean} */
 function readTapFill() {
-  try {
-    return readLocal(TAP_FILL_KEY) === "1";
-  } catch {
-    return false;
-  }
+  if (typeof localStorage === "undefined") return false;
+  return localStorage.getItem(TAP_FILL_KEY) === "1";
 }
 
 /** @param {boolean} on */
 function writeTapFill(on) {
-  if (typeof window === "undefined") return;
-  saveLocal(TAP_FILL_KEY, on ? "1" : "0");
+  if (typeof localStorage === "undefined") return;
+  localStorage.setItem(TAP_FILL_KEY, on ? "1" : "0");
 }
 
 /**
