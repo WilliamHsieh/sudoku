@@ -1,6 +1,6 @@
 // Pause, the options/confirm modals, and the single-candidate cue.
 // The cue clock is pure (see cue-clock.js); this module is the reactive view of it.
-import { saveLocal } from "../persistence.js";
+import { readLocal, saveLocal } from "../persistence.js";
 import { timerRunning } from "../store.js";
 import { createCueClock, idleMsFromSearch } from "./cue-clock.js";
 
@@ -10,8 +10,7 @@ const TAP_FILL_KEY = "sudoku-tap-fill";
 /** @returns {boolean} */
 function readCuePref() {
   try {
-    if (typeof localStorage === "undefined") return true;
-    return localStorage.getItem(CUE_KEY) !== "0";
+    return readLocal(CUE_KEY) !== "0";
   } catch {
     return true;
   }
@@ -26,8 +25,7 @@ function writeCuePref(on) {
 /** Off unless the player turned legacy tap-to-fill on. @returns {boolean} */
 function readTapFill() {
   try {
-    if (typeof localStorage === "undefined") return false;
-    return localStorage.getItem(TAP_FILL_KEY) === "1";
+    return readLocal(TAP_FILL_KEY) === "1";
   } catch {
     return false;
   }

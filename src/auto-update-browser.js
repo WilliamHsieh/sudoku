@@ -1,5 +1,5 @@
 import { createUpdater, probeDeployment } from "./auto-update.js";
-import { flushLocal, writeVerified } from "./persistence.js";
+import { flushLocal, localBaseline, restoreLocalBaseline, writeVerified } from "./persistence.js";
 
 const CHECKPOINT = "sudoku-update-checkpoint";
 const ATTEMPTS = "sudoku-update-attempts";
@@ -9,7 +9,12 @@ export const UPDATE_PARAM = "_sudoku_update";
 export function saveUpdateCheckpoint(value, target) {
   try {
     return (
-      flushLocal() && writeVerified(sessionStorage, CHECKPOINT, JSON.stringify({ target, value }))
+      flushLocal() &&
+      writeVerified(
+        sessionStorage,
+        CHECKPOINT,
+        JSON.stringify({ target, value, local: localBaseline() })
+      )
     );
   } catch {
     return false;
@@ -24,6 +29,7 @@ export function restoreUpdateCheckpoint(restore) {
   try {
     const saved = JSON.parse(sessionStorage.getItem(CHECKPOINT) ?? "null");
     if (saved?.target !== target) return;
+    if (!restoreLocalBaseline(saved.local)) return;
     restore(saved.value);
     sessionStorage.removeItem(CHECKPOINT);
     url.searchParams.delete(UPDATE_PARAM);
@@ -46,7 +52,8 @@ export function installAutoUpdate(options) {
   let touches = 0;
   let quietUntil = Date.now() + 800;
   let timer;
-  const visible = () => document.visibilityState === "visible";
+  // A visible window can still have focus in browser chrome or another app.
+  const visible = () => document.visibilityState === "visible" && document.hasFocus();
   const busy = () =>
     contacts.size > 0 ||
     touches > 0 ||
@@ -127,6 +134,10 @@ export function installAutoUpdate(options) {
     composing = false;
     activity();
   }
+  /** Descendant blur is a focus move, not the end of held input. @param {Event} event */
+  function windowBlur(event) {
+    if (event.target === window) resetInput();
+  }
   function foreground() {
     if (!visible()) {
       resetInput();
@@ -149,7 +160,8 @@ export function installAutoUpdate(options) {
     [window, "compositionend", endComposition],
     [window, "input", activity],
     [window, "click", activity],
-    [window, "blur", resetInput],
+    [window, "blur", windowBlur],
+    [window, "focus", foreground],
     [window, "pageshow", foreground],
     [document, "visibilitychange", foreground],
   ];

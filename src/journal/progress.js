@@ -1,4 +1,4 @@
-import { saveLocal } from "../persistence.js";
+import { readLocal, saveLocal } from "../persistence.js";
 import { writable, get } from "svelte/store";
 import { toSnapshot } from "../game/snapshot.js";
 
@@ -18,7 +18,7 @@ const PROGRESS_KEY = "sudoku-progress";
 function readJson(key, fallback) {
   if (typeof window === "undefined") return fallback;
   try {
-    const raw = localStorage.getItem(key);
+    const raw = readLocal(key);
     return raw ? JSON.parse(raw) : fallback;
   } catch {
     return fallback;

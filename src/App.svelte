@@ -5,7 +5,7 @@
     restoreUpdateCheckpoint,
     saveUpdateCheckpoint,
   } from "./auto-update-browser.js";
-  import { saveLocal, flushLocal } from "./persistence.js";
+  import { localUnchanged, flushLocal } from "./persistence.js";
   import { journalPersisted } from "./journal/progress.js";
   import { paintBoard, discardPaint } from "./paint-actions.js";
   import Api from "./Api.svelte";
@@ -362,11 +362,11 @@
               padUi.gesture !== null ||
               playUi.modal !== null,
             persist: (target) => {
+              // Check before ring.flush(), which can itself save progress/completion.
+              if (!localUnchanged()) return false;
               ring.flush();
               game.flushProgress();
-              const cueSaved = saveLocal("sudoku-cue", playUi.cuePref ? "1" : "0");
-              const tapSaved = saveLocal("sudoku-tap-fill", playUi.tapFill ? "1" : "0");
-              if (!cueSaved || !tapSaved || !flushLocal() || !journalPersisted()) return false;
+              if (!flushLocal() || !journalPersisted()) return false;
               return saveUpdateCheckpoint(
                 {
                   game: game.checkpoint(),
