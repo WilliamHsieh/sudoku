@@ -256,7 +256,7 @@ test.describe("H2 header", () => {
     // Daily puzzles can share individual givens with the demo. Check the full board.
     const values = await page
       .locator(".board > .cell")
-      .evaluateAll((cells) => cells.map((node) => node.getAttribute("data-value")).join(""));
+      .evaluateAll((cells) => cells.map((node) => node.getAttribute("data-value") || "0").join(""));
     expect(values).toBe(pick.puzzle);
   });
 
