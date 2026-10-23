@@ -707,7 +707,7 @@ async function shellGeometry(page) {
     };
     return {
       board: rect(".board"),
-      title: rect(".dbtn, .header h1"),
+      title: rect(document.querySelector("main.on-journal") ? ".header h1" : ".dbtn"),
       journal: rect(".journal"),
       documentHeight: document.scrollingElement.scrollHeight,
       bodyHeight: document.body.scrollHeight,
