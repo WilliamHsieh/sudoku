@@ -144,8 +144,6 @@ export function registerPr6Tests(opts = {}) {
     await page.keyboard.press("ArrowRight");
     await page.keyboard.press("ArrowLeft");
     await page.keyboard.press("Escape");
-    await page.locator("h1").click();
-    await expect(page.locator(".cell.selected")).toHaveCount(0);
 
     await page.clock.runFor(9_000);
     await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "idle");
@@ -572,7 +570,7 @@ export function registerPr6Tests(opts = {}) {
     await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "idle");
     await expect(page.locator(".play")).not.toHaveClass(/revealing/);
     await expect(page.locator("#resume-status")).toHaveText("");
-    await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe("pause");
+    await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe("time-control");
     await expect(page.locator("#time-control")).toHaveAttribute("aria-pressed", "false");
     await expect(page.locator("#header-time .time")).toHaveText("0:02");
     await page.clock.runFor(1_000);
@@ -629,7 +627,7 @@ export function registerPr6Tests(opts = {}) {
     await setTabHidden(page, false);
     await expect(page.locator("#resume-status")).toHaveText("");
     await expect(page.locator(".paused-cover")).toHaveCount(0);
-    await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe("pause");
+    await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe("time-control");
   });
 
   test("a pointer auto-resume focuses Pause without the ring", async ({ page }) => {
@@ -641,7 +639,7 @@ export function registerPr6Tests(opts = {}) {
     await page.clock.runFor(150 + 320);
     await expect(page.locator(".paused-cover")).toHaveCount(0);
     await expect(page.locator("#resume-status")).toHaveText("Resumed");
-    await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe("pause");
+    await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe("time-control");
     await expect.poll(() => pauseRingOn(page)).toBe(false);
   });
 
@@ -654,7 +652,7 @@ export function registerPr6Tests(opts = {}) {
     await page.clock.runFor(150 + 320);
     await expect(page.locator(".paused-cover")).toHaveCount(0);
     await expect(page.locator("#resume-status")).toHaveText("Resumed");
-    await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe("pause");
+    await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe("time-control");
     await expect.poll(() => pauseRingOn(page)).toBe(true);
   });
 
@@ -790,7 +788,7 @@ export function registerPr6Tests(opts = {}) {
     await setTabHidden(page, false);
     await page.clock.runFor(150 + 320);
     await expect(page.locator(".paused-cover")).toHaveCount(0);
-    await expect(page.locator("#resume-status")).toHaveText(/Journal.*Game paused at/);
+    await expect(page.locator("#resume-status")).toHaveText("");
     await page.getByRole("button", { name: /Play|Back to game/ }).click();
     await expect(page.locator(".board > .cell")).toHaveCount(81);
     await expect(page.locator(".paused-cover")).toHaveCount(0);

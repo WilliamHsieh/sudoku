@@ -231,6 +231,9 @@ test("a locked digit toggles empty cells, and given or filled cells only toast",
   await t.swipeDown(key(page, 5), 40);
   const notes = await cell(page, 0).getAttribute("data-notes");
   const first = await t.center(cell(page, 0));
+  const time = Date.now();
+  await page.clock.install({ time });
+  await page.clock.pauseAt(time + 1_000);
   await t.start(first.x, first.y);
   await expect(cell(page, 1)).toHaveClass(/blocked/);
   await expect(page.locator(".toast")).toHaveText("Can't place 5 — already in row, column or box");

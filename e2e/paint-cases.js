@@ -87,20 +87,32 @@ export function paintCases(mobile) {
       await page.keyboard.press("Shift+Digit5");
       await page.keyboard.press("ArrowLeft");
       await page.keyboard.press("ArrowRight");
-      // Sample in the page as soon as the commit renders. Protocol round trips
-      // must not consume the short animation window on a loaded test machine.
+      // Control the CSS timeline so compositor frame scheduling cannot leave
+      // the final sample a frame behind the JavaScript clock on a busy machine.
+      await freezeTimers(page);
       for (const notes of ["5", ""]) {
         const samples = await cell(page, 37).evaluateHandle((el) => {
           const done = new Promise((resolve) => {
             const observer = new MutationObserver(() => {
               if (!el.classList.contains("paint-committed")) return;
               observer.disconnect();
-              const start = performance.now();
               const opacity = () => Number(getComputedStyle(el, "::after").opacity);
+              opacity(); // Resolve styles before reading the pseudo-element animation.
+              const animation = el
+                .getAnimations({ subtree: true })
+                .find((a) => a instanceof CSSAnimation && a.animationName.includes("paint-tint"));
+              if (!animation) {
+                resolve(null);
+                return;
+              }
+              const duration = animation.effect.getTiming().duration;
+              animation.pause();
+              animation.currentTime = 0;
               const initial = opacity();
-              setTimeout(() => {
-                resolve({ initial, final: opacity(), elapsed: performance.now() - start });
-              }, 250);
+              animation.currentTime = 100;
+              const middle = opacity();
+              animation.currentTime = 200;
+              resolve({ duration, initial, middle, final: opacity() });
             });
             observer.observe(el, { attributes: true, attributeFilter: ["class"] });
           });
@@ -108,8 +120,11 @@ export function paintCases(mobile) {
         });
         await page.keyboard.press(key);
         const result = await samples.evaluate((samples) => samples.done);
+        expect(result).not.toBeNull();
+        expect(result.duration).toBe(200);
         expect(result.initial).toBeGreaterThan(0.99);
-        expect(result.elapsed).toBeGreaterThanOrEqual(250);
+        expect(result.middle).toBeGreaterThan(0);
+        expect(result.middle).toBeLessThan(result.initial);
         expect(result.final).toBeLessThanOrEqual(0.01);
         await expect(cell(page, 37)).toHaveAttribute("data-notes", notes);
       }
