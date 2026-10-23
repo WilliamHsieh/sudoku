@@ -75,6 +75,9 @@ jobs:
       # Must match package-lock.json's exact @playwright/test version.
       image: mcr.microsoft.com/playwright:v1.64.1-noble
       options: --init --ipc=host
+      volumes:
+        # Mobile font tests need DejaVu Sans, present on the runner but not the image.
+        - /usr/share/fonts/truetype/dejavu:/usr/share/fonts/truetype/dejavu:ro
     env:
       # WebKit needs a writable home when the container runs as root.
       HOME: /root
@@ -105,6 +108,13 @@ jobs:
           }
           console.log(`Playwright container matches @playwright/test ${version}`);
           NODE
+      - name: Verify DejaVu Sans test font
+        run: |
+          fc-cache -f /usr/share/fonts/truetype/dejavu
+          if [ -z "$(fc-list 'DejaVu Sans' file)" ]; then
+            echo "::error::Mobile tests require DejaVu Sans from the runner's font mount."
+            exit 1
+          fi
       - name: Install dependencies
         run: npm ci
       - name: E2E tests
