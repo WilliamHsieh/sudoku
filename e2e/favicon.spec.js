@@ -1,7 +1,10 @@
 import { expect, test } from "@playwright/test";
 
-test("static icons are digit 7 under /sudoku/ before the weekday swap", async ({ page }) => {
-  const origin = "http://localhost:4173";
+test("static icons are digit 7 under /sudoku/ before the weekday swap", async ({
+  page,
+  baseURL,
+}) => {
+  const origin = new URL(baseURL).origin;
   const html = await (await page.request.get(`${origin}/sudoku/`)).text();
   expect(html).toContain('rel="icon"');
   expect(html).toContain('sizes="any"');
