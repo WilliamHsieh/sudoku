@@ -52,6 +52,8 @@ export function paintCases(mobile) {
       });
       await page.evaluate(() => document.activeElement?.blur());
       await page.keyboard.press("Shift+Digit5");
+      await page.keyboard.press("ArrowLeft");
+      await page.keyboard.press("ArrowRight");
       const changes = await observeAnnouncements(page);
       for (const i of [37, 38]) {
         if (i === 38) await page.keyboard.press("ArrowRight");
@@ -72,6 +74,8 @@ export function paintCases(mobile) {
       });
       await page.evaluate(() => document.activeElement?.blur());
       await page.keyboard.press("Shift+Digit5");
+      await page.keyboard.press("ArrowLeft");
+      await page.keyboard.press("ArrowRight");
       // Sample in the page as soon as the commit renders. Protocol round trips
       // must not consume the short animation window on a loaded test machine.
       for (const notes of ["5", ""]) {
@@ -134,6 +138,7 @@ export function paintCases(mobile) {
       await expect(cell(page, i).locator(".paint-added, .ghost")).toHaveCount(0);
     }
     await expect(cell(page, 42)).toHaveClass(/finger-add/);
+    await expect(cell(page, 42)).toHaveCSS("box-shadow", "rgb(42, 86, 198) 0px 0px 0px 3px inset");
     await expect(page.locator("#undo")).toBeDisabled(); // Still a draft.
     await t.to(37); // Revisiting does not reverse the brush.
     await t.up();

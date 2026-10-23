@@ -45,7 +45,7 @@ export const padUi = $state({
   /** @type {number[]} */
   undoTargets: [],
   quiet: false,
-  /** Digit highlighted from the keypad or a filled cell. 0 = none. */
+  /** Digit highlighted on the keypad and the board. 0 = none. Selection does not add its own. */
   shown: 0,
   /** Locked digit. 0 = none. Never persisted. */
   locked: 0,

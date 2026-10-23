@@ -24,6 +24,7 @@ import {
 import { maskDigits } from "./board.js";
 import { PUZZLE, EMPTY, notes, play, solve } from "./test-fixtures.js";
 
+const DEMO = "050900000800040307000280190538607940020301000109804623907400000045000209000030070";
 const manual = () => newGame(PUZZLE);
 const auto = () => newGame(PUZZLE, { notesMode: "auto" });
 
@@ -413,21 +414,70 @@ describe("fill rule (lone candidate or highlighted digit)", () => {
     expect(valueAt(fill(s, 36, 8).state, 36)).toBe(8);
   });
 
-  it("Auto: a highlighted digit that is not a candidate falls back to the lone candidate", () => {
+  it("Auto: a lone candidate fills even when a different digit is focused", () => {
+    const demo = newGame(DEMO, { notesMode: "auto" });
+    expect(notes(demo, 49)).toBe("5");
+    expect(fillDigit(demo, 49, 3)).toBe(5);
+    expect(valueAt(fill(demo, 49, 3).state, 49)).toBe(5);
     expect(fillDigit(auto(), 55, 8)).toBe(9);
-    expect(fillDigit(auto(), EMPTY, 4)).toBe(0);
   });
 
-  it("Manual: never fills, even a single note or the highlighted digit", () => {
-    const s = play(
-      manual(),
-      [toggleCandidate, EMPTY, 3],
-      [toggleCandidate, 36, 1],
-      [toggleCandidate, 36, 8]
-    );
-    expect(fillDigit(s, EMPTY)).toBe(0);
-    expect(fillDigit(s, 36, 8)).toBe(0);
-    expect(fill(s, EMPTY).state).toBe(s);
+  it("Auto: a focused digit fills a cell that does not have exactly one candidate", () => {
+    let demo = newGame(DEMO, { notesMode: "auto" });
+    expect(notes(demo, 42)).toBe("578");
+    demo = toggleCandidate(demo, 42, 8).state;
+    expect(notes(demo, 42)).toBe("57");
+    expect(fillDigit(demo, 42, 3)).toBe(3);
+    expect(valueAt(fill(demo, 42, 3).state, 42)).toBe(3);
+    expect(fillDigit(demo, 42)).toBe(0);
+    expect(fill(demo, 42).state).toBe(demo);
+    const bare = toggleCandidate(newGame(DEMO, { notesMode: "auto" }), 49, 5).state;
+    expect(notes(bare, 49)).toBe("");
+    expect(fillDigit(bare, 49, 3)).toBe(3);
+    expect(fillDigit(auto(), EMPTY, 4)).toBe(4);
+    expect(valueAt(fill(auto(), EMPTY, 4).state, EMPTY)).toBe(4);
+  });
+
+  it("a focused digit does not change a given or an answered cell", () => {
+    const demo = newGame(DEMO, { notesMode: "auto" });
+    expect(isGiven(demo, 1)).toBe(true);
+    expect(fillDigit(demo, 1, 3)).toBe(0);
+    expect(fill(demo, 1, 3).state).toBe(demo);
+    expect(valueAt(demo, 1)).toBe(5);
+    const answered = setAnswer(demo, 49, 5).state;
+    expect(fillDigit(answered, 49, 3)).toBe(0);
+    expect(fill(answered, 49, 3).state).toBe(answered);
+    expect(valueAt(answered, 49)).toBe(5);
+  });
+
+  it.each([
+    { shown: [], focused: 4, expected: 4 },
+    { shown: [5, 7], focused: 4, expected: 4 },
+    { shown: [5], focused: 4, expected: 5 },
+    { shown: [], focused: 0, expected: 0 },
+    { shown: [5, 7], focused: 0, expected: 0 },
+    { shown: [5], focused: 0, expected: 5 },
+  ])("Manual: notes $shown, focus $focused -> $expected", ({ shown, focused, expected }) => {
+    let s = newGame(DEMO);
+    for (const d of shown) s = toggleCandidate(s, 42, d).state;
+    expect(notes(s, 42)).toBe(shown.join(""));
+    expect(fillDigit(s, 42, focused)).toBe(expected);
+    const result = fill(s, 42, focused);
+    expect(result.changed).toBe(expected !== 0);
+    expect(valueAt(result.state, 42)).toBe(expected);
+    if (!expected) expect(result.state).toBe(s);
+  });
+
+  it("Manual: a focused digit does not change a given or an answered cell", () => {
+    const s = newGame(DEMO);
+    expect(isGiven(s, 1)).toBe(true);
+    expect(fillDigit(s, 1, 4)).toBe(0);
+    expect(fill(s, 1, 4).state).toBe(s);
+    expect(valueAt(s, 1)).toBe(5);
+    const answered = setAnswer(s, 42, 5).state;
+    expect(fillDigit(answered, 42, 4)).toBe(0);
+    expect(fill(answered, 42, 4).state).toBe(answered);
+    expect(valueAt(answered, 42)).toBe(5);
   });
 
   it("never on a given or an answered cell", () => {

@@ -7,6 +7,7 @@ import { RING, ringTiming } from "./game/pad.js";
 const MOTION_EASE = "cubic-bezier(0.22, 0.8, 0.24, 1)";
 import { game } from "./game/game.svelte.js";
 import { padUi } from "./pad-ui.svelte.js";
+import { revealCellDigit } from "./keypad-actions.js";
 
 const HL_IN_MS = 150;
 
@@ -169,7 +170,10 @@ export function createRingController() {
     const apply = () => {
       if (dir === "undo") game.undo();
       else game.redo();
-      if (first >= 0) game.select(first);
+      if (first >= 0) {
+        game.select(first);
+        revealCellDigit(first);
+      }
       padUi.undoTargets = peek.cells.filter((i) => i !== first);
       later(() => {
         padUi.undoTargets = [];

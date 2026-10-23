@@ -1200,6 +1200,9 @@ test.describe("pad", () => {
     await expect(cell(page, 0)).toHaveAttribute("data-notes", "3467");
     await t.doubleTap(key(page, 4));
     await expectValue(page, 0, 4);
+    // The swipe left 2 highlighted, so this double-tap switches to 4 and drops
+    // the selection. The 4 is in the cell. Erase still needs it selected.
+    await t.tap(cell(page, 0));
     await t.tap(page.locator("#erase"));
     await expectValue(page, 0, 0);
     await expect(cell(page, 0)).toHaveAttribute("data-notes", "3467");
@@ -1228,14 +1231,23 @@ test.describe("pad", () => {
       await page.waitForTimeout(80);
     }
     await expect(cell(page, 0)).toHaveAttribute("data-notes", "2");
+    // The last swipe left 7 focused. The lone candidate still fills, and the
+    // highlight follows the 2 that landed.
 
     await t.tap(cell(page, 0), { holdMs: 40 });
     await page.waitForTimeout(120);
     await t.tap(cell(page, 0), { holdMs: 40 });
     await expectValue(page, 0, 2);
+    await expect(cell(page, 0)).toHaveClass(/selected/);
+    await expect(page.locator("#keypad")).toHaveAttribute("data-shown", "2");
+    await expect(page.locator('.key[data-d="2"]')).toHaveClass(/shown/);
+    await expect(cell(page, 21)).toHaveClass(/same/);
 
     await t.tap(page.locator("#undo"));
     await expectValue(page, 0, 0);
+    // The fill left 2 highlighted. Clear it so the next double-tap only selects.
+    await t.tap(key(page, 2));
+    await expect(page.locator("#keypad")).toHaveAttribute("data-shown", "0");
 
     await t.tap(cell(page, 2), { holdMs: 40 });
     await page.waitForTimeout(120);

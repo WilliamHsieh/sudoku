@@ -9,12 +9,16 @@
   import {
     activateKey,
     clearHideTimer,
+    clearKeypadSelection,
     fillFocused,
+    finishDigitTap,
     flashBlocked,
+    focusedDigit,
     lastKeyPress,
     lockDigit,
-    scheduleHide,
     setLastKeyPress,
+    showDigit,
+    syncHighlightAfterEdit,
     unlockKeepShown,
   } from "./keypad-actions.js";
   import {
@@ -56,6 +60,7 @@
    * @property {boolean} wasShown
    * @property {number} wasLocked
    * @property {boolean} legacy
+   * @property {boolean} switched
    * @property {ReturnType<typeof setTimeout> | 0} holdTimer
    */
 
@@ -66,6 +71,7 @@
   /** How many in-flight hides are covering each digit. */
   let concealed = $state(/** @type {Record<number, number>} */ ({}));
   let pointerGuard = 0;
+  const highlight = $derived(focusedDigit());
 
   const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -178,6 +184,7 @@
     const d = Number(key.dataset.d);
     const now = performance.now();
     const i = game.selected;
+    const previous = padUi.shown;
     const canNote = game.editable(i) && !game.value(i);
     const mode = canNote ? (game.hasNote(i, d) ? "remove" : "add") : null;
     const blockers = mode === "add" && game.wouldAddNote(i, d) ? game.noteBlockers(i, d) : [];
@@ -218,19 +225,25 @@
       wasShown: padUi.shown === d && !press.dbl,
       wasLocked: padUi.locked,
       legacy: playUi.tapFill,
+      switched: previous !== 0 && previous !== d && padUi.locked === 0,
       holdTimer: 0,
     };
     clearHideTimer();
     if (press.fill) {
+      // A switch on the first tap already cleared the selection. Fill the
+      // cell captured then, and do not select it again.
+      const target = game.selected >= 0 ? game.selected : last.cell;
       setLastKeyPress({ d: 0, t: -Infinity });
-      fillFocused(d);
+      fillFocused(d, target);
     } else if (press.show) {
-      padUi.shown = d;
+      showDigit(d);
     }
     padUi.hold = { d, pid: e.pointerId, travel: 0, toggled: 0, painting: false };
     g.holdTimer = setTimeout(() => {
       if (gesture !== g || g.maxTravel >= 8) return;
       g.holding = true;
+      // Legacy presses use this same timer, so they drop the selection too.
+      clearKeypadSelection();
       syncGesture(g);
     }, HOLD_MS);
     syncGesture(g);
@@ -434,6 +447,7 @@
     if (kind === "lock" || kind === "switch-lock") {
       dropLift(g);
       lockDigit(g.d);
+      clearKeypadSelection();
     } else if (kind === "unlock-swipe" || kind === "unlock-tap") {
       dropLift(g);
       unlockKeepShown();
@@ -451,15 +465,26 @@
       dropLift(g);
       unlockKeepShown();
       padUi.shown = g.d;
-      setLastKeyPress({ d: g.d, t: g.t0 });
+      finishDigitTap({ d: g.d, t: g.t0, cell: g.cell, switched: true, hide: false });
     } else if (kind === "legacy") {
       dropLift(g);
-      if (game.selected >= 0) game.enter(game.selected, g.d);
-      padUi.shown = 0;
+      const i = game.selected;
+      if (i >= 0) {
+        const before = game.value(i);
+        game.enter(i, g.d);
+        syncHighlightAfterEdit(i, before);
+      } else if (!padUi.locked) {
+        padUi.shown = 0;
+      }
     } else if (kind === "show" || kind === "hide-later") {
       dropLift(g);
-      setLastKeyPress({ d: g.d, t: g.t0 });
-      if (kind === "hide-later") scheduleHide(g.d);
+      finishDigitTap({
+        d: g.d,
+        t: g.t0,
+        cell: g.cell,
+        switched: g.switched,
+        hide: kind === "hide-later",
+      });
     } else if (g.lift) {
       flyHome(g);
     } else {
@@ -597,7 +622,7 @@
     class="keypad"
     id="keypad"
     aria-label="Number keypad"
-    data-shown={padUi.locked || padUi.shown || 0}
+    data-shown={highlight}
     data-locked={padUi.locked || 0}
     oncontextmenu={(e) => e.preventDefault()}
   >
@@ -607,7 +632,7 @@
         class="key"
         class:pressed={padUi.gesture?.d === d}
         class:shown={padUi.locked !== d &&
-          (padUi.locked || padUi.shown) === d &&
+          highlight === d &&
           !(padUi.gesture?.d === d && padUi.gesture.holding)}
         class:holding={padUi.gesture?.d === d && padUi.gesture.holding && padUi.locked !== d}
         class:armed={padUi.gesture?.d === d && padUi.gesture.armed}

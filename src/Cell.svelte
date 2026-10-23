@@ -6,7 +6,7 @@
   import { nextDoubleTap } from "./game/pad.js";
   import { maskDigits } from "./game/board.js";
   import { getShiftHover } from "./shift-hover.svelte.js";
-  import { lockTap } from "./keypad-actions.js";
+  import { focusedDigit, lockTap, revealCellDigit } from "./keypad-actions.js";
 
   /** Touch pointerdowns also synthesize a click; ignore that click.
    * -Infinity so a mouse click in the first 700ms of the page is not swallowed. */
@@ -21,9 +21,7 @@
   const value = $derived(game.value(cell_id));
   const given = $derived(game.given(cell_id));
   const selected = $derived(game.selected === cell_id);
-  const highlight = $derived(
-    padUi.locked || padUi.shown || (game.selected >= 0 ? game.value(game.selected) : 0)
-  );
+  const highlight = $derived(focusedDigit());
   const same = $derived(value !== 0 && highlight === value);
   const tint = $derived(padUi.marks?.tint.has(cell_id));
   const brush = $derived(padUi.marks?.brush);
@@ -40,10 +38,9 @@
     }
   }
 
-  function revealFilled() {
-    if (padUi.locked) return;
-    const v = game.value(cell_id);
-    if (v) padUi.shown = v;
+  /** Suppress touch-generated clicks before they can edit a pencil slot. */
+  function handleClickCapture(e) {
+    if (performance.now() - touchAt < 700) e.stopPropagation();
   }
 
   function handleClick(e) {
@@ -57,7 +54,7 @@
       game.enter(cell_id, target.d);
     }
     game.select(cell_id);
-    revealFilled();
+    revealCellDigit(cell_id);
   }
 
   /** Touch: select on pointerdown (no 300ms delay) and detect double-tap fill. */
@@ -65,12 +62,12 @@
     if (e.pointerType === "mouse" || (e.button !== undefined && e.button > 0)) return;
     touchAt = performance.now();
     e.preventDefault();
-    const highlighted = padUi.shown || (game.selected >= 0 ? game.value(game.selected) : 0);
+    const highlighted = focusedDigit();
     const step = nextDoubleTap(padUi.lastTap, cell_id, performance.now(), highlighted);
     padUi.lastTap = step.next;
     game.select(cell_id);
-    revealFilled();
     if (step.isDouble) game.fillLone(cell_id, step.highlighted);
+    revealCellDigit(cell_id);
   }
 </script>
 
@@ -97,6 +94,7 @@
   data-value={value || ""}
   data-notes={notes}
   onpointerdown={handlePointerDown}
+  onclickcapture={handleClickCapture}
   onclick={handleClick}
   oncontextmenu={(e) => {
     e.preventDefault();
@@ -236,7 +234,6 @@
   .candidate {
     z-index: 1;
   }
-
   .cell.undo-target {
     z-index: 3;
   }
@@ -315,8 +312,6 @@
 
   :global(html.kp-freeze) .cell.blocked {
     animation: none;
-  }
-  :global(html.kp-freeze) .cell.blocked {
     background-color: color-mix(in srgb, var(--undo-ring) 24%, var(--board-bg));
     box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--undo-ring) 70%, transparent);
   }

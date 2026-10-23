@@ -238,8 +238,9 @@ export function createGame() {
     },
 
     /**
-     * Double-tap fill: the highlighted digit if it is a shown candidate, else
-     * the cell's lone candidate. Auto mode only.
+     * Double-tap fill. A lone shown candidate wins, even when a different
+     * digit is focused. Otherwise a focused digit is entered. Uses shown
+     * Manual notes or Auto candidates, including overrides.
      * @param {number} i @param {number} [highlighted]
      */
     fillLone(i, highlighted = 0) {

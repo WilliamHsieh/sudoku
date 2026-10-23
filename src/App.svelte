@@ -23,6 +23,8 @@
     lockTap,
     placedCount,
     resetKeypad,
+    revealCellDigit,
+    syncHighlightAfterEdit,
     unlockKeepShown,
   } from "./keypad-actions.js";
   import { hintModel } from "./keypad-copy.js";
@@ -130,13 +132,6 @@
     if (brandClip !== step.brandHidden) brandClip = step.brandHidden;
   }
 
-  /** A filled cell shows its digit. An empty cell leaves a keypad highlight up. */
-  function revealSelection(i) {
-    if (padUi.locked) return;
-    const v = game.value(i);
-    if (v) padUi.shown = v;
-  }
-
   function handleKeydown(e) {
     const cmd = e.ctrlKey || e.metaKey;
     // Only these chords are undo/redo. Ctrl/Alt/Meta+digit follows master and
@@ -162,21 +157,22 @@
 
     if (e.key >= "0" && e.key <= "9" && game.editable(id)) {
       const d = parseInt(e.key, 10);
+      const before = game.value(id);
       if (d === 0) game.clearAnswer(id);
       else game.fill(id, d);
-      revealSelection(id);
+      syncHighlightAfterEdit(id, before);
     } else if (e.key == "ArrowLeft" && id % 9) {
       game.select(id - 1);
-      revealSelection(id - 1);
+      revealCellDigit(id - 1);
     } else if (e.key == "ArrowRight" && (id + 1) % 9) {
       game.select(id + 1);
-      revealSelection(id + 1);
+      revealCellDigit(id + 1);
     } else if (e.key == "ArrowUp" && id >= 9) {
       game.select(id - 9);
-      revealSelection(id - 9);
+      revealCellDigit(id - 9);
     } else if (e.key == "ArrowDown" && id + 9 < 81) {
       game.select(id + 9);
-      revealSelection(id + 9);
+      revealCellDigit(id + 9);
     } else {
       return;
     }
@@ -232,6 +228,13 @@
     }
     if (tryShiftLock(e) || tryLockedSpace(e)) return;
     handleKeydown(e);
+  }
+
+  /** Board/keypad pointer input releases the view segment's keyboard focus. */
+  function releaseViewFocus(e) {
+    if (!(e.target instanceof Element) || !e.target.closest(".board, #keypad")) return;
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active.closest(".seg, .mseg")) active.blur();
   }
 
   function removeFocus() {
@@ -296,6 +299,7 @@
   }
 
   onMount(() => {
+    window.addEventListener("pointerdown", releaseViewFocus, true);
     const mq = window.matchMedia(NARROW_MQ);
     isNarrow = mq.matches;
     const onNarrow = () => {
@@ -333,6 +337,7 @@
       showCalendar = false;
     }
     return () => {
+      window.removeEventListener("pointerdown", releaseViewFocus, true);
       mq.removeEventListener("change", onNarrow);
       reduceMq.removeEventListener("change", onReduce);
       document.removeEventListener("visibilitychange", onVis);
