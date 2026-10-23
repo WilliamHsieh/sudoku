@@ -275,6 +275,9 @@ for (const width of [390, 1280]) {
             await page.getByRole("button", { name: "Journal", exact: true }).tap();
           const region = await live(page).elementHandle();
           await expect(live(page)).toBeEmpty();
+          expect(
+            await page.evaluate(() => document.scrollingElement.scrollHeight)
+          ).toBeLessThanOrEqual(844);
           await hide(page);
           await page.clock.runFor(2000);
           deployment.publish();

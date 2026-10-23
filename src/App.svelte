@@ -819,6 +819,11 @@
     clip-path: inset(50%);
     white-space: nowrap;
   }
+  .update-live {
+    position: fixed;
+    top: 0;
+    left: 0;
+  }
   .top-strip {
     position: fixed;
     top: 0;
