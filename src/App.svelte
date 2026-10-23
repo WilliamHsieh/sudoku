@@ -111,6 +111,8 @@
   /** Phone board stays painted until the cover is opaque, then hides. */
   let concealBoard = $state(false);
   let automaticCover = $state(false);
+  /** Snap chrome on a short return; the next pause restores normal motion. */
+  let shortReturn = $state(false);
 
   function reduceMotion() {
     return (
@@ -120,6 +122,7 @@
 
   $effect(() => {
     if (playUi.paused) {
+      shortReturn = false;
       coverLeaving = false;
       showCover = true;
       automaticCover = playUi.reason === "auto";
@@ -382,6 +385,7 @@
       hiddenAt = 0;
       const silent = showCalendar;
       const result = playUi.noteVisible(away, { silent });
+      shortReturn = result === "quiet" && !silent;
       if (result === "announced") void announceResumed();
       else if (result === "quiet" && !silent) void focusAfterPause(false);
     };
@@ -681,6 +685,7 @@
       class:is-paused={playUi.paused}
       class:revealing={playUi.resumePhase === "reveal"}
       class:reveal-mid={revealMid}
+      class:short-return={shortReturn}
       data-pause-reason={playUi.reason ?? "none"}
       data-resume-phase={playUi.resumePhase}
     >
@@ -1599,6 +1604,11 @@
   .play.revealing .chrome-dim {
     opacity: 1 !important;
     transition: opacity var(--resume-ms) var(--resume-ease);
+  }
+
+  /* Short absences restore interactive chrome without a trailing fade. */
+  .play.short-return .chrome-dim {
+    transition: none;
   }
 
   /* 120ms is a fifth of the 600ms ease-out, which is about 49% visible. */

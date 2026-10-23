@@ -161,3 +161,83 @@ for (const phase of ["hold", "reveal"]) {
     });
   }
 }
+
+for (const awayMs of [500, 999]) {
+  test(`a ${awayMs}ms absence restores chrome without motion on the first return frame`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.addInitScript(() => localStorage.setItem("sudoku-keypad-coach", "1"));
+    const hiddenAt = new Date("2026-10-23T12:00:00Z");
+    // Fix only Date, leaving rAF, timers and CSS on the real browser timeline.
+    // This pins the 999ms boundary even when the test runner is busy.
+    await page.clock.setFixedTime(hiddenAt);
+    await page.goto(`./?q=${DEMO_PUZZLE}`);
+    await page.getByRole("button", { name: "Play", exact: true }).click();
+    await visibility(page, true);
+    await page.waitForTimeout(awayMs);
+    await page.clock.setFixedTime(new Date(hiddenAt.getTime() + awayMs));
+    const firstFrame = await page.evaluate(async () => {
+      Object.defineProperty(document, "hidden", { configurable: true, value: false });
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+      document.dispatchEvent(new Event("visibilitychange"));
+      await new Promise(requestAnimationFrame);
+      const board = document.querySelector(".board");
+      const chrome = document.querySelector(".chrome-dim");
+      const boardStyle = getComputedStyle(board);
+      const chromeStyle = getComputedStyle(chrome);
+      return {
+        phase: document.querySelector(".play").dataset.resumePhase,
+        boardOpacity: boardStyle.opacity,
+        boardFilter: boardStyle.filter,
+        boardVisibility: boardStyle.visibility,
+        chromeOpacity: chromeStyle.opacity,
+        boardInert: board.inert,
+        chromeInert: chrome.inert,
+        coverCount: document.querySelectorAll(".paused-cover, .paused-leave").length,
+        motion: [...document.querySelectorAll(".board, .paused-cover, .paused-leave, .chrome-dim")]
+          .flatMap((element) => element.getAnimations())
+          .filter((animation) => !["finished", "idle"].includes(animation.playState))
+          .map((animation) => ({
+            target: animation.effect.target.className,
+            duration: animation.effect.getTiming().duration,
+            state: animation.playState,
+          })),
+      };
+    });
+    await testInfo.attach("first-return-frame", {
+      body: JSON.stringify(firstFrame, null, 2),
+      contentType: "application/json",
+    });
+    expect(firstFrame.chromeOpacity).toBe("1");
+    expect(firstFrame).toMatchObject({
+      phase: "idle",
+      boardOpacity: "1",
+      boardVisibility: "visible",
+      boardInert: false,
+      chromeInert: false,
+      coverCount: 0,
+      motion: [],
+    });
+    expect(["none", "blur(0px)"]).toContain(firstFrame.boardFilter);
+    await expect(page.locator("#pause")).toBeFocused();
+    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "false");
+    await expect(page.locator("#resume-status")).toHaveText("");
+
+    // An instant return must not suppress the next manual Resume transition.
+    await page.locator("#pause").click();
+    await page.waitForTimeout(400);
+    const manualMotion = await page.evaluate(async () => {
+      document.querySelector("#resume").click();
+      await new Promise(requestAnimationFrame);
+      const chrome = document.querySelector(".chrome-dim");
+      return {
+        opacity: Number(getComputedStyle(chrome).opacity),
+        durations: chrome.getAnimations().map((animation) => animation.effect.getTiming().duration),
+      };
+    });
+    expect(manualMotion.opacity).toBeLessThan(1);
+    expect(manualMotion.durations).toEqual([260]);
+  });
+}
