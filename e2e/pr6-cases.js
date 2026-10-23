@@ -466,7 +466,7 @@ export function registerPr6Tests(opts = {}) {
     if (mobile) await expect(page.locator(".chrome-dim")).toHaveAttribute("inert", "");
 
     await page.clock.runFor(320);
-    await expect(page.locator(".paused-cover")).toHaveCount(0);
+    await expect(page.locator(".paused-cover, .paused-leave")).toHaveCount(0);
     await expect(page.locator("#pause")).toBeFocused();
     await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "false");
     await expect(page.locator("#resume-status")).toHaveText("Resumed");
