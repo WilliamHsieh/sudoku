@@ -43,8 +43,20 @@ async function openLatest(page) {
 
 async function watchOrder(page) {
   await page.evaluate(() => {
-    const log = { tapAt: null, removedAt: null, playAt: null, cleanFrames: [], loads: [] };
+    const log = {
+      tapAt: null,
+      removedAt: null,
+      playAt: null,
+      cleanFrames: [],
+      loads: [],
+      announced: [],
+    };
     window.__sheetPlay = log;
+    const status = document.querySelector('.journal [role="status"]');
+    new MutationObserver(() => {
+      const text = status.textContent.trim();
+      if (text) log.announced.push(text);
+    }).observe(status, { subtree: true, childList: true, characterData: true });
     document.addEventListener(
       "click",
       (event) => {
@@ -98,6 +110,8 @@ async function expectResumed(page, testInfo, label) {
   expect(log.loads).toEqual([
     { clean: true, detail: { dateStr: latest, difficulty: "hard", puzzleString: puzzle } },
   ]);
+  // Like an immediate switch to Play, closing the sheet first stays silent.
+  expect(log.announced).toEqual([]);
   const delayMs = log.playAt - log.tapAt;
   console.log(`Latest Resume Hard (${label}): tap -> Play ${delayMs.toFixed(1)}ms`);
   await testInfo.attach(`sheet-close-${label}`, {
@@ -165,12 +179,30 @@ for (const phase of ["closing", "paint-wait"]) {
   });
 }
 
+for (const reducedMotion of ["no-preference", "reduce"]) {
+  test(`a plain Close still announces the latest card (${reducedMotion})`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion });
+    await openLatest(page);
+    await watchOrder(page);
+    await page.locator(".sheet").getByRole("button", { name: "Close" }).tap();
+    await expect(page.locator(".sheet, .scrim.on")).toHaveCount(0);
+    const card = (
+      await page.locator('.journal section.ctx[aria-label="Latest puzzles"]').textContent()
+    ).trim();
+    expect(card).toMatch(/^Latest puzzles/);
+    await expect(page.locator('.journal [role="status"]')).toHaveText(card);
+    expect(await page.evaluate(() => window.__sheetPlay.announced)).toEqual([card]);
+  });
+}
+
 test("Start and the unfinished-sheet Resume also close before loading", async ({ page }) => {
   await openLatest(page);
+  await watchOrder(page);
   await page.locator(".sheet .prow").first().getByRole("button", { name: "Start" }).tap();
   await expect(page.locator(".play")).toBeVisible();
   await expect(page.locator(".sheet, .scrim.on")).toHaveCount(0);
   await expect(page.locator(".timer .time")).toHaveText(/^0:0[0-2]$/);
+  expect(await page.evaluate(() => window.__sheetPlay.announced)).toEqual([]);
   await page.getByRole("button", { name: "Journal", exact: true }).tap();
   await page.getByRole("button", { name: /Unfinished/ }).tap();
   await watchOrder(page);
@@ -183,4 +215,5 @@ test("Start and the unfinished-sheet Resume also close before loading", async ({
   expect(await page.evaluate(() => window.__sheetPlay.loads)).toEqual([
     { clean: true, detail: { dateStr: latest, difficulty: "hard", puzzleString: puzzle } },
   ]);
+  expect(await page.evaluate(() => window.__sheetPlay.announced)).toEqual([]);
 });

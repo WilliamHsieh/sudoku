@@ -449,7 +449,9 @@
     hasCardState = true;
     if (untrack(() => returning)) return;
     tick().then(() => {
-      if (!alive || returning) return;
+      // Sheet Start/Resume closes the sheet before Play; stay silent like an
+      // immediate switch to Play would.
+      if (!alive || returning || pendingPlay) return;
       const text = contextCard?.textContent?.trim() ?? "";
       if (text === lastAnnounced) return;
       // Seed the comparison silently on mount and after explicit returns.
