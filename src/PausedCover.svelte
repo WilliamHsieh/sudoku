@@ -59,9 +59,7 @@
 
 <style>
   .paused-cover.revealing {
-    pointer-events: none;
-    animation: rv-cover var(--resume-ms, 320ms) var(--resume-ease, cubic-bezier(0.22, 1, 0.36, 1))
-      both;
+    animation: rv-cover var(--resume-ms) var(--resume-ease) both;
   }
 
   @keyframes rv-cover {
