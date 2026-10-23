@@ -69,9 +69,11 @@ test("cold launch reloads exactly once, preserves URL and saved daily board/time
     .filter({ hasText: "Easy" })
     .getByRole("button", { name: "Start", exact: true })
     .click();
+  await expect(page.locator(".board > .cell")).toHaveCount(81);
   const index = await page
     .locator(".board > .cell")
     .evaluateAll((cells) => cells.findIndex((c) => !c.querySelector(".pen-box")));
+  expect(index).toBeGreaterThanOrEqual(0);
   await expect(page.getByRole("timer")).not.toHaveText(/0:00$/);
   await cell(page, index).click();
   await page.keyboard.press("1");
