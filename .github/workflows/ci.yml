@@ -89,11 +89,19 @@ jobs:
         id: browser-install
         timeout-minutes: 5
         continue-on-error: true
-        run: timeout --kill-after=10s 240s npx playwright install --with-deps chromium webkit
+        # The timeout needs root privileges to stop apt and release its locks.
+        run: |
+          sudo timeout --kill-after=10s 240s env "PATH=$PATH" \
+            "PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/ms-playwright" \
+            npx playwright install --with-deps chromium webkit
       - name: Retry Playwright browser installation
         if: steps.browser-install.outcome == 'failure'
         timeout-minutes: 5
-        run: timeout --kill-after=10s 240s npx playwright install --with-deps chromium webkit
+        # The timeout needs root privileges to stop apt and release its locks.
+        run: |
+          sudo timeout --kill-after=10s 240s env "PATH=$PATH" \
+            "PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/ms-playwright" \
+            npx playwright install --with-deps chromium webkit
       - name: E2E tests
         run: npm run test:e2e -- --shard=${{ matrix.shard }}/4
       - name: Upload Playwright report
