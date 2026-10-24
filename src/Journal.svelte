@@ -1719,6 +1719,15 @@
   .sheet :global(.prow .diff) {
     font-size: 17px;
   }
+  .sheet :global(.prow),
+  .ctx :global(.prow) {
+    grid-template-columns: minmax(min-content, 1fr) minmax(0, auto);
+  }
+  .sheet :global(.prow .num),
+  .ctx :global(.prow .num) {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
   .plist.scroll {
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -2200,13 +2209,6 @@
     }
     .ctx :global(.prow .diff) {
       font-size: 16px;
-    }
-    .ctx :global(.prow) {
-      grid-template-columns: minmax(min-content, 1fr) minmax(0, auto);
-    }
-    .ctx :global(.prow .num) {
-      min-width: 0;
-      overflow-wrap: anywhere;
     }
     .back {
       display: flex;

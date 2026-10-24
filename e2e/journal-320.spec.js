@@ -56,13 +56,17 @@ async function layoutIssues(page, calendar) {
       issues.push("horizontal page overflow");
     // These cards use flex/grid rows rather than the statistics column markup.
     // Check painted text too: an element's box can fit while its digits escape.
-    for (const card of root.querySelectorAll(".alltime, .ctx")) {
+    for (const card of document.querySelectorAll(".alltime, .ctx, .sheet")) {
       if (!card.getClientRects().length) continue;
       const box = card.getBoundingClientRect();
       for (const element of card.querySelectorAll("*")) {
+        const row = element.closest(".prow");
+        const rowBox = row?.getBoundingClientRect();
         for (const rect of element.getClientRects()) {
           if (outside(rect, box) || rect.left < 0 || rect.right > innerWidth)
             issues.push(`element outside card or viewport: ${element.className}`);
+          if (rowBox && outside(rect, rowBox))
+            issues.push(`element outside puzzle row: ${element.className}`);
         }
         for (const node of element.childNodes) {
           if (node.nodeType !== Node.TEXT_NODE || !node.textContent.trim()) continue;
@@ -71,6 +75,8 @@ async function layoutIssues(page, calendar) {
           for (const rect of range.getClientRects()) {
             if (outside(rect, box) || rect.left < 0 || rect.right > innerWidth)
               issues.push(`text outside card or viewport: ${node.textContent.trim()}`);
+            if (rowBox && outside(rect, rowBox))
+              issues.push(`text outside puzzle row: ${node.textContent.trim()}`);
           }
         }
       }
@@ -153,7 +159,7 @@ for (const browserName of ["chromium", "webkit"]) {
     });
 
     for (const hardTime of [7.123456789012345e103, Number.MAX_VALUE]) {
-      test(`statistics and cards contain hour-long and extreme times (${hardTime})`, async ({
+      test(`statistics, cards and sheet contain hour-long and extreme times (${hardTime})`, async ({
         page,
       }) => {
         expect(page.context().browser().browserType().name()).toBe(browserName);
@@ -190,6 +196,17 @@ for (const browserName of ["chromium", "webkit"]) {
             await expect(page.getByRole("region", { name: "Latest puzzles" })).toBeVisible();
           }
           expect(await layoutIssues(page, false), `${browserName}, ${width}px`).toEqual([]);
+        }
+        await page.setViewportSize({ width: 320, height: 800 });
+        await page.locator(".latest").click();
+        const sheet = page.getByRole("dialog");
+        await expect(sheet).toBeVisible();
+        await expect(sheet.locator(".prow")).toHaveCount(3);
+        await expect(sheet).toContainText(/e\+(100|304):/);
+        await page.clock.runFor(300);
+        for (const width of widths.filter((width) => width < 600)) {
+          await page.setViewportSize({ width, height: 800 });
+          expect(await layoutIssues(page, false), `${browserName} sheet, ${width}px`).toEqual([]);
         }
       });
     }
