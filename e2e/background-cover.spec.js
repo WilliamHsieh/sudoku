@@ -228,13 +228,13 @@ for (const width of [390, 1280]) {
       chromeOpacity: "0.4",
     });
     await page.clock.runFor(2_000);
-    await expect(page.locator("[data-time]")).toHaveText("0:01");
+    await expect(page.locator("#header-time [data-time]")).toHaveText("0:01");
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
     await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "hold");
     await expect(page.locator(".paused-cover")).toHaveCSS("opacity", "1");
     await page.clock.runFor(249);
     await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "hold");
-    await expect(page.locator("[data-time]")).toHaveText("0:01");
+    await expect(page.locator("#header-time [data-time]")).toHaveText("0:01");
     await page.clock.runFor(1);
     await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "reveal");
     const reveal = await page.evaluate(() => {
@@ -248,7 +248,7 @@ for (const width of [390, 1280]) {
     });
     expect(reveal).toEqual({ duration: 600, from: "blur(8px)", inert: true });
     await page.clock.runFor(599);
-    await expect(page.locator("[data-time]")).toHaveText("0:01");
+    await expect(page.locator("#header-time [data-time]")).toHaveText("0:01");
     await expect(page.locator("#time-control")).toHaveAttribute("aria-pressed", "true");
     // The virtual timer and CSS have separate clocks. Finish CSS at its end,
     // then cross the real session's virtual 600ms deadline.
@@ -257,7 +257,7 @@ for (const width of [390, 1280]) {
     await expect(page.locator(".paused-cover")).toHaveCount(0);
     await expect(page.locator("#resume-status")).toHaveText("Resumed");
     await page.clock.runFor(1_000);
-    await expect(page.locator("[data-time]")).toHaveText("0:02");
+    await expect(page.locator("#header-time [data-time]")).toHaveText("0:02");
   });
 }
 
@@ -294,7 +294,7 @@ for (const awayMs of [500, 999]) {
     });
     await expect(page.locator("#time-control")).toHaveAttribute("aria-pressed", "false");
     await page.clock.runFor(1_000);
-    await expect(page.locator("[data-time]")).toHaveText("0:01");
+    await expect(page.locator("#header-time [data-time]")).toHaveText("0:01");
     await expect(page.locator("#resume-status")).toHaveText("");
   });
 }
@@ -338,7 +338,7 @@ for (const signal of ["blur", "visibilitychange", "pagehide", "freeze"]) {
       if (view === "fresh calendar") await page.goto("./");
       else if (view === "loaded calendar") {
         await openBoard(page);
-        await page.getByRole("button", { name: "Journal", exact: true }).click();
+        await page.locator(".dbtn").click();
       } else {
         const solution = solve(DEMO_PUZZLE);
         await openBoard(page, `./?q=0${solution.slice(1)}`);
@@ -360,10 +360,12 @@ for (const signal of ["blur", "visibilitychange", "pagehide", "freeze"]) {
       if (view !== "finished puzzle") {
         // Enter Play before the return signal to expose a latent pause created
         // in the calendar even though no cover could mount there.
-        await page.getByRole("button", { name: "Play", exact: true }).click();
+        await page.locator("#time-control").click();
       } else await expect(page.locator(".success-card")).toBeVisible();
       await expect(page.locator(".paused-cover")).toHaveCount(0);
       await expect(page.locator("#time-control")).toHaveAttribute("aria-pressed", "false");
+      // #58 announces entry to Play. Return signals must preserve that status.
+      const status = await page.locator("#resume-status").textContent();
       await page.evaluate(() => {
         Object.defineProperty(document, "visibilityState", {
           configurable: true,
@@ -373,7 +375,7 @@ for (const signal of ["blur", "visibilitychange", "pagehide", "freeze"]) {
         window.dispatchEvent(new Event("focus"));
       });
       await expect(page.locator(".paused-cover")).toHaveCount(0);
-      await expect(page.locator("#resume-status")).toHaveText("");
+      await expect(page.locator("#resume-status")).toHaveText(status);
     });
   }
 }
