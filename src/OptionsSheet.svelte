@@ -4,9 +4,10 @@
   import { playUi } from "./play/session.svelte.js";
   import { OPT_TAP_SUB, OPT_TAP_TITLE } from "./keypad-copy.js";
 
-  /** @type {{ onclosed?: () => void, onrestart: () => void }} */
-  let { onclosed, onrestart } = $props();
+  /** @type {{ onclosed?: () => void, onrestart: () => void, viewport?: HTMLElement }} */
+  let { onclosed, onrestart, viewport } = $props();
 
+  let scrimEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   let optsEl = $state(/** @type {HTMLDialogElement | undefined} */ (undefined));
   let confirmEl = $state(/** @type {HTMLDialogElement | undefined} */ (undefined));
   let cueRow = $state(/** @type {HTMLButtonElement | undefined} */ (undefined));
@@ -58,6 +59,8 @@
     }
     optsExit.start({
       dialog: optsEl,
+      viewport,
+      scrim: scrimEl,
       closeDialog: closeOpts,
       centered: window.matchMedia("(min-width: 600px)").matches,
     });
@@ -328,112 +331,114 @@
   onkeydown={() => (pointerInput = false)}
 />
 
-<div style={optsExit.pageSurfaceStyle}>
-  <div class="modal-scrim" class:on={scrimOn} style={optsExit.scrimStyle} aria-hidden="true"></div>
+<div
+  bind:this={scrimEl}
+  class="modal-scrim"
+  class:on={scrimOn}
+  style={optsExit.scrimStyle}
+  aria-hidden="true"
+></div>
 
-  <dialog
-    class="opts"
-    class:pointer-input={pointerInput}
-    class:closing={optsExit.closing}
-    style={optsExit.sheetStyle}
-    class:parked={sheetParked}
-    bind:this={optsEl}
-    aria-labelledby="opts-title"
-    onclose={onOptsClose}
-    oncancel={onOptsCancel}
-    onclick={onOptsClick}
-    onanimationend={optsExit.onanimationend}
-  >
-    <div class="opts-in">
-      <span class="grabber" aria-hidden="true"></span>
-      <div class="opts-h"><h2 id="opts-title">Options</h2></div>
-      <div class="list">
-        <button
-          type="button"
-          class="row"
-          id="opt-cue"
-          role="switch"
-          aria-checked={playUi.switchChecked}
-          aria-describedby={descId}
-          disabled={playUi.switchDisabled}
-          bind:this={cueRow}
-          onclick={() => playUi.toggleCue()}
-        >
-          <span class="tx">
-            <b>Single-candidate cue</b>
-            <small id="cue-desc" hidden={playUi.cueReason}
-              >Flash lone candidates after 30 s without input</small
-            >
-            <small id="cue-why" hidden={!playUi.cueReason}
-              >Needs Auto notes. Your choice is kept.</small
-            >
-          </span>
-          <span class="switch" aria-hidden="true"><span class="knob"></span></span>
-        </button>
-        <button
-          type="button"
-          class="row"
-          id="opt-tap-fill"
-          role="switch"
-          aria-checked={playUi.tapFill}
-          aria-describedby="tap-fill-desc"
-          onclick={() => playUi.toggleTapFill()}
-        >
-          <span class="tx">
-            <b>{OPT_TAP_TITLE}</b>
-            <small id="tap-fill-desc">{OPT_TAP_SUB}</small>
-          </span>
-          <span class="switch" aria-hidden="true"><span class="knob"></span></span>
-        </button>
-        <button
-          type="button"
-          class="row row-danger"
-          id="opt-restart"
-          aria-haspopup="dialog"
-          bind:this={restartRow}
-          onclick={() => playUi.openConfirm()}
-        >
-          <svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
-            <path d="M3 3v5h5"></path>
-          </svg>
-          <span class="tx"><b>Restart puzzle</b></span>
-        </button>
-      </div>
-      <button type="button" class="btn btn-primary btn-done" id="opts-done" onclick={onDone}
-        >Done</button
-      >
-    </div>
-  </dialog>
-
-  <dialog
-    class="confirm"
-    class:closing={confirmClosing}
-    bind:this={confirmEl}
-    role="alertdialog"
-    aria-labelledby="confirm-title"
-    aria-describedby="confirm-body"
-    oncancel={onConfirmCancel}
-    onclick={onConfirmClick}
-  >
-    <h2 id="confirm-title">Restart this puzzle?</h2>
-    <p id="confirm-body">
-      This clears your answers, notes and the time. Undo can’t bring them back.
-    </p>
-    <div class="acts">
+<dialog
+  class="opts"
+  class:pointer-input={pointerInput}
+  class:closing={optsExit.closing}
+  style={optsExit.sheetStyle}
+  class:parked={sheetParked}
+  bind:this={optsEl}
+  aria-labelledby="opts-title"
+  onclose={onOptsClose}
+  oncancel={onOptsCancel}
+  onclick={onOptsClick}
+  onanimationend={optsExit.onanimationend}
+>
+  <div class="opts-in">
+    <span class="grabber" aria-hidden="true"></span>
+    <div class="opts-h"><h2 id="opts-title">Options</h2></div>
+    <div class="list">
       <button
         type="button"
-        class="btn btn-secondary"
-        id="confirm-cancel"
-        bind:this={cancelBtn}
-        onclick={() => beginConfirmExit("cancel")}>Cancel</button
+        class="row"
+        id="opt-cue"
+        role="switch"
+        aria-checked={playUi.switchChecked}
+        aria-describedby={descId}
+        disabled={playUi.switchDisabled}
+        bind:this={cueRow}
+        onclick={() => playUi.toggleCue()}
       >
-      <button type="button" class="btn btn-danger" id="confirm-ok" onclick={onRestarted}
-        >Restart</button
+        <span class="tx">
+          <b>Single-candidate cue</b>
+          <small id="cue-desc" hidden={playUi.cueReason}
+            >Flash lone candidates after 30 s without input</small
+          >
+          <small id="cue-why" hidden={!playUi.cueReason}
+            >Needs Auto notes. Your choice is kept.</small
+          >
+        </span>
+        <span class="switch" aria-hidden="true"><span class="knob"></span></span>
+      </button>
+      <button
+        type="button"
+        class="row"
+        id="opt-tap-fill"
+        role="switch"
+        aria-checked={playUi.tapFill}
+        aria-describedby="tap-fill-desc"
+        onclick={() => playUi.toggleTapFill()}
       >
+        <span class="tx">
+          <b>{OPT_TAP_TITLE}</b>
+          <small id="tap-fill-desc">{OPT_TAP_SUB}</small>
+        </span>
+        <span class="switch" aria-hidden="true"><span class="knob"></span></span>
+      </button>
+      <button
+        type="button"
+        class="row row-danger"
+        id="opt-restart"
+        aria-haspopup="dialog"
+        bind:this={restartRow}
+        onclick={() => playUi.openConfirm()}
+      >
+        <svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+          <path d="M3 3v5h5"></path>
+        </svg>
+        <span class="tx"><b>Restart puzzle</b></span>
+      </button>
     </div>
-  </dialog>
-</div>
+    <button type="button" class="btn btn-primary btn-done" id="opts-done" onclick={onDone}
+      >Done</button
+    >
+  </div>
+</dialog>
+
+<dialog
+  class="confirm"
+  class:closing={confirmClosing}
+  bind:this={confirmEl}
+  role="alertdialog"
+  aria-labelledby="confirm-title"
+  aria-describedby="confirm-body"
+  oncancel={onConfirmCancel}
+  onclick={onConfirmClick}
+>
+  <h2 id="confirm-title">Restart this puzzle?</h2>
+  <p id="confirm-body">This clears your answers, notes and the time. Undo can’t bring them back.</p>
+  <div class="acts">
+    <button
+      type="button"
+      class="btn btn-secondary"
+      id="confirm-cancel"
+      bind:this={cancelBtn}
+      onclick={() => beginConfirmExit("cancel")}>Cancel</button
+    >
+    <button type="button" class="btn btn-danger" id="confirm-ok" onclick={onRestarted}
+      >Restart</button
+    >
+  </div>
+</dialog>
 
 <style>
   dialog {

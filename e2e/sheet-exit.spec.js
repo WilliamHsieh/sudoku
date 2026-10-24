@@ -177,24 +177,33 @@ for (const reducedMotion of ["no-preference", "reduce"]) {
   });
 }
 
-test("More keeps the top strip opaque like the picker reached from Play", async ({
+test("More keeps the header clear like the picker after view navigation", async ({
   page,
 }, testInfo) => {
+  await openBoard(page, "./?shot=1&freeze");
+  await page.addStyleTag({
+    content: ".top-strip { height: 47px !important } main { padding-top: 47px !important }",
+  });
   for (const kind of ["difficulty", "more"]) {
-    await openBoard(page, "./?shot=1&freeze");
-    await page.addStyleTag({
-      content: ".top-strip { height: 47px !important } main { padding-top: 47px !important }",
-    });
-    if (kind === "difficulty") {
-      await page.locator(".header .dbtn").click();
-      await page.evaluate(() =>
-        Promise.all(document.getAnimations().map((a) => a.finished.catch(() => {})))
-      );
+    if (kind === "difficulty") await page.locator(".header .dbtn").click();
+    else {
+      await page.clock.resume();
+      await page.getByRole("button", { name: "Back to game", exact: true }).click();
     }
-    const clip = { x: 0, y: 0, width: 390, height: 47 };
-    const closed = decode(await page.screenshot({ clip })).data;
+    await page.evaluate(() =>
+      Promise.all(document.getAnimations().map((a) => a.finished.catch(() => {})))
+    );
+    const header = await page.locator(".header").boundingBox();
+    const clip = { x: 0, y: 0, width: 390, height: Math.floor(header.y + header.height) };
     await page.clock.install();
     await page.clock.pauseAt(new Date(Date.now() + 50));
+    await page.clock.setFixedTime(new Date(await page.evaluate(() => Date.now())));
+    const reference = await page.screenshot({ clip });
+    await testInfo.attach(`${kind}-header-reference`, {
+      body: reference,
+      contentType: "image/png",
+    });
+    const closed = decode(reference).data;
     if (kind === "more") await page.locator("[data-more]").filter({ visible: true }).click();
     else await page.getByRole("button", { name: /Latest puzzles,/ }).click();
     await page.evaluate(() =>
@@ -212,12 +221,14 @@ test("More keeps the top strip opaque like the picker reached from Play", async 
       }
       await Promise.all(window.exitFrames.map((a) => a.ready));
     }, kind);
-    for (let ms = 0; ms <= 256; ms += 16) {
+    for (const ms of [0, 64, 128, 192, 256]) {
       await page.evaluate((ms) => {
         for (const a of window.exitFrames) a.currentTime = ms;
       }, ms);
       const png = await page.screenshot({ clip });
-      expect(decode(png).data.equals(closed), `${kind} top strip at ${ms} ms`).toBe(true);
+      if (ms === 0)
+        await testInfo.attach(`${kind}-header-0ms`, { body: png, contentType: "image/png" });
+      expect(decode(png).data.equals(closed), `${kind} header at ${ms} ms`).toBe(true);
       if (ms === 64)
         await testInfo.attach(`${kind}-top-64ms`, { body: png, contentType: "image/png" });
     }

@@ -5,13 +5,13 @@ import "./sheet-exit.css";
 export function createSheetExit(remove) {
   let closing = $state(false);
   let centered = $state(false);
-  let exitingModal = $state(false);
+  let scrimClip = $state("");
   let timer = 0;
 
   function reset() {
     window.clearTimeout(timer);
     closing = false;
-    exitingModal = false;
+    scrimClip = "";
   }
 
   function finish() {
@@ -34,25 +34,39 @@ export function createSheetExit(remove) {
         ? `animation: ${centered ? "pop-out" : "sheet-down"} var(--motion) var(--ease-out) forwards`
         : undefined;
     },
-    get pageSurfaceStyle() {
-      // Journal's view transform already keeps its scrim below .top-strip.
-      return closing && exitingModal ? "isolation: isolate" : "display: contents";
-    },
     get scrimStyle() {
       return closing
-        ? "pointer-events: auto; transition: none; animation: sheet-exit-fade var(--motion) var(--ease-out) forwards"
+        ? `pointer-events: auto; transition: none; animation: sheet-exit-fade var(--motion) var(--ease-out) forwards; ${scrimClip}`
         : undefined;
     },
-    /** @param {{ centered?: boolean, dialog?: HTMLDialogElement, closeDialog?: () => void }} [options] */
+    /** @param {{ centered?: boolean, dialog?: HTMLDialogElement, closeDialog?: () => void, viewport?: HTMLElement, scrim?: HTMLElement }} [options] */
     start(options = {}) {
       if (closing) return;
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
         flushSync(remove);
         return;
       }
-      const { dialog, closeDialog } = options;
+      const { dialog, closeDialog, viewport, scrim } = options;
+      if (
+        !options.centered &&
+        viewport &&
+        scrim &&
+        getComputedStyle(viewport).transform !== "none"
+      ) {
+        const view = viewport.getBoundingClientRect();
+        const overlay = scrim.getBoundingClientRect();
+        const insets = [
+          view.top - overlay.top,
+          overlay.right - view.right,
+          overlay.bottom - view.bottom,
+          view.left - overlay.left,
+        ].map((n) => Math.max(0, n));
+        // Journal's transformed view contains its fixed scrim; match that coverage
+        // when a native dialog's full-viewport scrim exits onto the page.
+        if (insets.some((n) => n > 0))
+          scrimClip = `clip-path: inset(${insets.map((n) => `${n}px`).join(" ")})`;
+      }
       if (dialog?.matches(":modal")) {
-        exitingModal = true;
         if (closeDialog) closeDialog();
         else dialog.close();
         // Keep only an exit surface; show() would run dialog focus steps again.

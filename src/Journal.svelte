@@ -38,8 +38,8 @@
   import { SLIDE_EASE, SLIDE_MS, slideOffsets } from "./journal/slide.js";
   import { isAway, isTodayShortcut, latestAnnouncement, monthsToLatest } from "./journal/home.js";
 
-  /** @type {{openOn?: {date: string} | null, current?: {date: string | null, diff: string | null, elapsed: number} | null, onback?: (fromSheet?: boolean) => void}} */
-  let { openOn = null, current = null, onback } = $props();
+  /** @type {{openOn?: {date: string} | null, current?: {date: string | null, diff: string | null, elapsed: number} | null, onback?: (fromSheet?: boolean) => void, viewport?: HTMLElement}} */
+  let { openOn = null, current = null, onback, viewport } = $props();
   // Entry is consumed once. Browsing must not track later prop changes.
   const entry = untrack(() => openOn);
   onMount(() => {
@@ -56,6 +56,7 @@
   let sel = $state(/** @type {string | null} */ (entry?.date ?? null));
   /** Mobile sheet: a day, unfinished, or closed. */
   let sheet = $state(/** @type {null | "day" | "unfinished"} */ (null));
+  let sheetScrim = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   const sheetExit = createSheetExit(finishCloseSheet);
   /** @type {(() => void) | null} */
   let pendingPlay = null;
@@ -344,7 +345,7 @@
 
   function closeSheet() {
     if (!sheet) return;
-    sheetExit.start();
+    sheetExit.start({ viewport, scrim: sheetScrim });
   }
 
   /**
@@ -1000,7 +1001,12 @@
 
 {#if sheet}
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="scrim on" style={sheetExit.scrimStyle} onclick={closeSheet}></div>
+  <div
+    bind:this={sheetScrim}
+    class="scrim on"
+    style={sheetExit.scrimStyle}
+    onclick={closeSheet}
+  ></div>
   <div
     class="sheet on"
     class:closing={sheetExit.closing}
