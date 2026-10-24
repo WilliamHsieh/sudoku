@@ -542,7 +542,10 @@
 <!-- Cover the PWA top blur without changing the safe-area padding. -->
 <div class="top-strip" aria-hidden="true"></div>
 
-<main class:on-journal={showCalendar}>
+<main
+  class:on-journal={showCalendar}
+  class:background-hiding={backgroundCover && playUi.paused && playUi.resumePhase !== "reveal"}
+>
   <p id="resume-status" class="sr-only" aria-live="polite">{resumeStatus}</p>
   <Api />
   <PlayHeader
@@ -578,7 +581,6 @@
       class:revealing={playUi.resumePhase === "reveal"}
       class:reveal-mid={revealMid}
       class:short-return={shortReturn}
-      class:background-dim={backgroundCover && playUi.paused && playUi.resumePhase !== "reveal"}
       data-pause-reason={playUi.reason ?? "none"}
       data-resume-phase={playUi.resumePhase}
     >
@@ -1143,7 +1145,7 @@
 
   /* Background controls must reach the paused look in the cover's hide frame.
      Limit this to departure/hold so manual exits and automatic reveals keep their motion. */
-  .play.background-dim .chrome-dim {
+  main.background-hiding .chrome-dim {
     opacity: 0.4;
     transition: none;
   }

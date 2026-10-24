@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { cell, openBoard, solve, DEMO_PUZZLE } from "./helpers.js";
+import { cell, openBoard, solve, DEMO_PUZZLE, SELECTED_BG } from "./helpers.js";
 
 // Deliberately read in the dispatching task: waiting for a locator or a timeout
 // could hide the transparent first frame that a task-switcher capture can see.
@@ -37,6 +37,20 @@ for (const signal of ["visibilitychange", "blur", "pagehide", "freeze"]) {
           chromeOpacity: getComputedStyle(document.querySelector(".chrome-dim")).opacity,
           chromeTransition: getComputedStyle(document.querySelector(".chrome-dim"))
             .transitionDuration,
+          pill: {
+            paused: document.querySelector("#time-control").getAttribute("aria-pressed"),
+            well: getComputedStyle(document.querySelector("#time-control .well")).backgroundColor,
+            playTransform: getComputedStyle(document.querySelector("#time-control .gy")).transform,
+            parts: [".well", ".gp", ".gy"].map((selector) => {
+              const element = document.querySelector(`#time-control ${selector}`);
+              const style = getComputedStyle(element);
+              return {
+                opacity: style.opacity,
+                transition: style.transitionDuration,
+                animations: element.getAnimations().length,
+              };
+            }),
+          },
           // Opacity is composited through ancestors; it is not inherited by the child.
           controls: [".tools", "#keypad"].map((selector) => {
             const element = document.querySelector(selector);
@@ -68,6 +82,20 @@ for (const signal of ["visibilitychange", "blur", "pagehide", "freeze"]) {
         inert: true,
         chromeOpacity: "0.4",
         chromeTransition: "0s",
+        pill: {
+          paused: "true",
+          well: SELECTED_BG,
+          playTransform: "none",
+          parts: [
+            { opacity: "1", transition: "0s", animations: 0 },
+            {
+              opacity: "0",
+              transition: "0s",
+              animations: 0,
+            },
+            { opacity: "1", transition: "0s", animations: 0 },
+          ],
+        },
         controls: [
           { opacity: 0.4, inert: true },
           { opacity: 0.4, inert: true },
