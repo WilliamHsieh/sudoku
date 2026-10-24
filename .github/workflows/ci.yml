@@ -219,6 +219,7 @@ jobs:
         if: needs.changes.outputs.e2e != 'false'
         run: npm run test:e2e -- --shard=${{ matrix.shard }}/4
       - name: Two-build upgrade tests (Chromium, mobile, WebKit)
+        if: needs.changes.outputs.e2e != 'false'
         run: npm run test:upgrade -- --shard=${{ matrix.shard }}/4
       - name: Upload Playwright report
         if: ${{ !cancelled() && needs.changes.outputs.e2e != 'false' }}
