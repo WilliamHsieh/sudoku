@@ -20,7 +20,7 @@ export default defineConfig({
     },
     {
       name: "webkit",
-      testMatch: /options-(input-)?focus\.spec\.js/,
+      testMatch: /(options-(input-)?focus|sheet-exit)\.spec\.js/,
       use: { browserName: "webkit" },
     },
     {

@@ -1,0 +1,128 @@
+import { test, expect } from "@playwright/test";
+import { openBoard } from "./helpers.js";
+
+const viewport = { width: 390, height: 844 };
+test.use({ viewport });
+
+async function openSheet(page, kind) {
+  if (kind === "more") {
+    await openBoard(page, "./?shot=1&freeze");
+    await page.locator("[data-more]").filter({ visible: true }).click();
+  } else {
+    await page.goto("./");
+    await page.getByRole("button", { name: /Latest puzzles,/ }).click();
+  }
+  await page.evaluate(() =>
+    Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => {})))
+  );
+}
+
+test("both sheets share the slide and scrim timeline at every 16 ms", async ({
+  page,
+}, testInfo) => {
+  const timelines = [];
+  for (const kind of ["difficulty", "more"]) {
+    await openSheet(page, kind);
+    const result = await page.evaluate(async (kind) => {
+      const sheet = document.querySelector(kind === "more" ? "dialog.opts" : ".sheet");
+      const scrim = document.querySelector(kind === "more" ? ".modal-scrim" : ".scrim");
+      sheet.querySelector(kind === "more" ? "#opts-done" : "[aria-label=Close]").click();
+      await Promise.resolve();
+      const slide = sheet.getAnimations()[0];
+      const fade = scrim.getAnimations()[0];
+      const timing = (animation) => {
+        const { duration, easing, fill } = animation.effect.getTiming();
+        return { duration, easing, fill };
+      };
+      slide.pause();
+      fade.pause();
+      const frames = [];
+      for (let ms = 0; ms <= 256; ms += 16) {
+        slide.currentTime = fade.currentTime = ms;
+        const transform = getComputedStyle(sheet).transform;
+        const y = transform === "none" ? 0 : new DOMMatrixReadOnly(transform).m42;
+        frames.push({
+          ms,
+          fraction: y / sheet.getBoundingClientRect().height,
+          scrim: Number(getComputedStyle(scrim).opacity),
+          modal: sheet.matches(":modal"),
+        });
+      }
+      const result = { slide: timing(slide), fade: timing(fade), frames };
+      slide.finish();
+      fade.finish();
+      return result;
+    }, kind);
+    expect(result.slide).toEqual(result.fade);
+    expect(result.slide.duration).toBe(260);
+    expect(result.slide.fill).toBe("forwards");
+    for (const frame of result.frames) {
+      expect(frame.modal).toBe(false);
+      expect(frame.fraction + frame.scrim).toBeCloseTo(1, 4);
+    }
+    timelines.push(result);
+  }
+  for (let i = 0; i < timelines[0].frames.length; i++) {
+    expect(timelines[0].frames[i].fraction).toBeCloseTo(timelines[1].frames[i].fraction, 4);
+    expect(timelines[0].frames[i].scrim).toBeCloseTo(timelines[1].frames[i].scrim, 4);
+  }
+  await testInfo.attach("16ms-exit-timelines", {
+    body: JSON.stringify(timelines),
+    contentType: "application/json",
+  });
+});
+
+for (const reducedMotion of ["no-preference", "reduce"]) {
+  test.describe(`sheet cleanup, ${reducedMotion}`, () => {
+    test.use({ reducedMotion });
+    test("no frame keeps an overlay or modal backdrop after the sheet leaves", async ({
+      page,
+    }, testInfo) => {
+      for (const kind of ["difficulty", "more"]) {
+        await openSheet(page, kind);
+        const frames = await page.evaluate(async (kind) => {
+          const sheet = document.querySelector(kind === "more" ? "dialog.opts" : ".sheet");
+          const scrim = document.querySelector(kind === "more" ? ".modal-scrim" : ".scrim");
+          const start = performance.now();
+          const frames = [];
+          const sample = () => {
+            const gone = !sheet.isConnected || getComputedStyle(sheet).display === "none";
+            frames.push({
+              ms: performance.now() - start,
+              gone,
+              modal: sheet.matches(":modal"),
+              scrim: scrim.isConnected ? Number(getComputedStyle(scrim).opacity) : 0,
+              locked: document.body.classList.contains("journal-sheet"),
+            });
+          };
+          sheet.querySelector(kind === "more" ? "#opts-done" : "[aria-label=Close]").click();
+          await Promise.resolve();
+          sample();
+          await new Promise((resolve) => {
+            function frame() {
+              sample();
+              if (performance.now() - start < 450) requestAnimationFrame(frame);
+              else resolve();
+            }
+            requestAnimationFrame(frame);
+          });
+          return frames;
+        }, kind);
+        expect(frames.at(-1).gone).toBe(true);
+        if (reducedMotion === "reduce") expect(frames[0].gone).toBe(true);
+        else expect(frames.some((frame) => !frame.gone && frame.scrim > 0)).toBe(true);
+        for (const frame of frames) {
+          expect(frame.modal).toBe(false);
+          if (frame.gone) {
+            expect(frame.scrim).toBe(0);
+            expect(frame.locked).toBe(false);
+          }
+        }
+        await testInfo.attach(`${kind}-cleanup`, {
+          body: JSON.stringify(frames),
+          contentType: "application/json",
+        });
+      }
+    });
+  });
+}
