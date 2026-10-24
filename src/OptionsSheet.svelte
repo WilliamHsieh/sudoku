@@ -333,6 +333,7 @@
 <dialog
   class="opts"
   class:pointer-input={pointerInput}
+  class:closing={optsExit.closing}
   style={optsExit.sheetStyle}
   class:parked={sheetParked}
   bind:this={optsEl}

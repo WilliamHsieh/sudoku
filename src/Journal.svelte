@@ -1003,6 +1003,7 @@
   <div class="scrim on" style={sheetExit.scrimStyle} onclick={closeSheet}></div>
   <div
     class="sheet on"
+    class:closing={sheetExit.closing}
     style={sheetExit.sheetStyle}
     role="dialog"
     aria-modal="true"

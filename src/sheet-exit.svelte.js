@@ -29,7 +29,7 @@ export function createSheetExit(remove) {
     },
     get sheetStyle() {
       return closing
-        ? `animation: ${centered ? "sheet-exit-pop" : "sheet-exit-down"} var(--motion) var(--ease-out) forwards`
+        ? `animation: ${centered ? "pop-out" : "sheet-down"} var(--motion) var(--ease-out) forwards`
         : undefined;
     },
     get scrimStyle() {
@@ -58,7 +58,7 @@ export function createSheetExit(remove) {
     /** @param {AnimationEvent} event */
     onanimationend(event) {
       if (event.target !== event.currentTarget || event.pseudoElement) return;
-      if (!["sheet-exit-down", "sheet-exit-pop"].includes(event.animationName)) return;
+      if (!["sheet-down", "pop-out"].includes(event.animationName)) return;
       finish();
     },
     reset,

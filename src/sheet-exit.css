@@ -1,4 +1,4 @@
-@keyframes sheet-exit-down {
+@keyframes sheet-down {
   from {
     transform: none;
   }
@@ -16,7 +16,7 @@
   }
 }
 
-@keyframes sheet-exit-pop {
+@keyframes pop-out {
   from {
     opacity: 1;
     transform: none;
