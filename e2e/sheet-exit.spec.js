@@ -195,8 +195,9 @@ test("More keeps the header clear like the picker after view navigation", async 
     );
     const header = await page.locator(".header").boundingBox();
     const clip = { x: 0, y: 0, width: 390, height: Math.floor(header.y + header.height) };
-    await page.clock.install();
-    await page.clock.pauseAt(new Date(Date.now() + 50));
+    const clockTime = Date.now();
+    await page.clock.install({ time: clockTime });
+    await page.clock.pauseAt(clockTime + 1000);
     await page.clock.setFixedTime(new Date(await page.evaluate(() => Date.now())));
     const reference = await page.screenshot({ clip });
     await testInfo.attach(`${kind}-header-reference`, {

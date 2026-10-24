@@ -1,6 +1,16 @@
 import { flushSync, onDestroy } from "svelte";
 import "./sheet-exit.css";
 
+/** @param {HTMLDialogElement} dialog */
+function leaveTopLayer(dialog) {
+  const parent = dialog.parentNode;
+  if (!parent) return;
+  const next = dialog.nextSibling;
+  // Dialog removal clears :modal without close()/show() focus passes.
+  dialog.remove();
+  parent.insertBefore(dialog, next);
+}
+
 /** @param {() => void} remove */
 export function createSheetExit(remove) {
   let closing = $state(false);
@@ -39,15 +49,13 @@ export function createSheetExit(remove) {
         ? `pointer-events: auto; transition: none; animation: sheet-exit-fade var(--motion) var(--ease-out) forwards; ${scrimClip}`
         : undefined;
     },
-    /** @param {{ centered?: boolean, dialog?: HTMLDialogElement, closeDialog?: () => void, viewport?: HTMLElement, scrim?: HTMLElement }} [options] */
+    /** @param {{ centered?: boolean, dialog?: HTMLDialogElement, viewport?: HTMLElement, scrim?: HTMLElement }} [options] */
     start(options = {}) {
       if (closing) return;
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        flushSync(remove);
-        return;
-      }
-      const { dialog, closeDialog, viewport, scrim } = options;
+      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const { dialog, viewport, scrim } = options;
       if (
+        !reduced &&
         !options.centered &&
         viewport &&
         scrim &&
@@ -66,11 +74,10 @@ export function createSheetExit(remove) {
         if (insets.some((n) => n > 0))
           scrimClip = `clip-path: inset(${insets.map((n) => `${n}px`).join(" ")})`;
       }
-      if (dialog?.matches(":modal")) {
-        if (closeDialog) closeDialog();
-        else dialog.close();
-        // Keep only an exit surface; show() would run dialog focus steps again.
-        dialog.open = true;
+      if (dialog?.matches(":modal")) leaveTopLayer(dialog);
+      if (reduced) {
+        flushSync(remove);
+        return;
       }
       centered = options.centered ?? false;
       closing = true;

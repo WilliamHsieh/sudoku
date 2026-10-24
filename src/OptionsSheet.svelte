@@ -61,7 +61,6 @@
       dialog: optsEl,
       viewport,
       scrim: scrimEl,
-      closeDialog: closeOpts,
       centered: window.matchMedia("(min-width: 600px)").matches,
     });
   }
