@@ -1,13 +1,27 @@
 import { test, expect } from "@playwright/test";
+import { puzzleData } from "../src/puzzles.js";
 
 test("Journal fits all calendar content and the difficulty heading at 320px", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 700 });
-  // October 24 is a Saturday after the latest puzzle in this data set.
-  await page.clock.install({ time: new Date("2026-10-24T12:00:00") });
+  // Keep a Saturday marked "Not yet" as the daily puzzle data grows.
+  const latest = Object.keys(puzzleData).sort().at(-1);
+  const latestDay = new Date(`${latest}T12:00:00`);
+  const saturday = new Date(latestDay);
+  do {
+    saturday.setDate(saturday.getDate() + 1);
+  } while (saturday.getDay() !== 6);
+  await page.clock.install({ time: saturday });
   await page.goto("./");
+  if (saturday.getMonth() !== latestDay.getMonth()) {
+    await page.locator(".mhead").getByRole("button", { name: "Next month" }).click();
+    await expect(page.locator(".track")).toHaveCount(0);
+  }
   const grid = page.locator(".mgrid");
-  await expect(grid.locator(".day")).toHaveCount(31);
-  await expect(grid.locator(".day").filter({ hasText: /^24/ })).toContainText("Not yet");
+  const days = new Date(saturday.getFullYear(), saturday.getMonth() + 1, 0).getDate();
+  await expect(grid.locator(".day")).toHaveCount(days);
+  await expect(
+    grid.locator(".day.future").filter({ hasText: new RegExp(`^${saturday.getDate()}\\b`) })
+  ).toContainText("Not yet");
   await page.evaluate(() => document.fonts.ready);
 
   const overflow = await grid.evaluate((grid) => {
@@ -36,10 +50,15 @@ test("Journal fits all calendar content and the difficulty heading at 320px", as
       return text.getClientRects().length;
     })
   );
-  expect.soft(labelLines, "status labels stay on one line").toEqual([1]);
+  expect
+    .soft(
+      labelLines.every((lines) => lines === 1),
+      "status labels stay on one line"
+    )
+    .toBe(true);
 
   const heading = page.locator(".srow.h > span").first();
-  await expect(heading).toHaveText("Oct by difficulty");
+  await expect(heading).toContainText("by difficulty");
   expect(
     await heading.evaluate((heading) => {
       const text = document.createRange();
