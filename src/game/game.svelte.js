@@ -73,6 +73,7 @@ export function createGame() {
   /** @type {import("./game.js").GameState | null} */
   let draft = $state(null);
   const state = $derived(draft ?? history.present);
+  const conflictCells = $derived(conflicts(state));
 
   function prepareMutation() {
     beforeMutate();
@@ -215,7 +216,7 @@ export function createGame() {
     },
     /** @param {number} i */
     inConflict(i) {
-      return conflicts(state).has(i);
+      return conflictCells.has(i);
     },
 
     /** Selection does not restart the cue. @param {number} i */
