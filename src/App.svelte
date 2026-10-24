@@ -379,7 +379,11 @@
     let hiddenAt = /** @type {number | null} */ (null);
     const isHidden = () => document.hidden || document.visibilityState === "hidden";
     const onAway = () => {
-      if (showCalendar || game.solved) return;
+      if (showCalendar || game.solved) {
+        // Clear #58's view/entry announcement without pausing these views.
+        resumeStatus = "";
+        return;
+      }
       hiddenAt ??= Date.now();
       let newlyPaused = false;
       flushSync(() => {
