@@ -45,11 +45,11 @@ export function createSheetExit(remove) {
         return;
       }
       const { dialog, closeDialog } = options;
-      // iOS can retain the native backdrop at the top after the sheet slides away.
       if (dialog?.matches(":modal")) {
         if (closeDialog) closeDialog();
         else dialog.close();
-        dialog.show();
+        // Keep only an exit surface; show() would run dialog focus steps again.
+        dialog.open = true;
       }
       centered = options.centered ?? false;
       closing = true;
