@@ -46,6 +46,21 @@ describe("snapshot", () => {
     expect(fromSnapshot(toSnapshot(s))).toEqual(s);
   });
 
+  it("uses auto notes for unknown saved modes", () => {
+    const good = toSnapshot(progressed());
+    const restored = fromSnapshot({ ...good, notesMode: "unknown" });
+    expect(restored).toEqual({ ...progressed(), notesMode: "auto" });
+  });
+
+  it("preserves all three saved notes modes", () => {
+    /** @type {import('./game.js').NotesMode[]} */
+    const modes = ["auto", "tidy", "manual"];
+    for (const mode of modes) {
+      const state = setNotesMode(progressed(), mode);
+      expect(fromSnapshot(JSON.parse(JSON.stringify(toSnapshot(state))))).toEqual(state);
+    }
+  });
+
   it("rejects malformed snapshots", () => {
     const good = toSnapshot(progressed());
     const bad = [
@@ -55,7 +70,6 @@ describe("snapshot", () => {
       { ...good, puzzle: PUZZLE.slice(1) },
       { ...good, answers: "3" + good.answers.slice(1) }, // answer on the given at cell 0
       { ...good, answers: good.answers.replace("9", "x") },
-      { ...good, notesMode: "pen" },
       { ...good, manualNotes: good.manualNotes.slice(1) },
       { ...good, manualNotes: good.manualNotes.map((n, i) => (i === 36 ? "10" : n)) },
       { ...good, autoOverrides: undefined },

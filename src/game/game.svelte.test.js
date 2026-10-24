@@ -466,3 +466,43 @@ it("persists progress once per stroke and never saves a draft or discard", async
   expect(save).toHaveBeenCalledTimes(1);
   save.mockRestore();
 });
+
+it("a mode switch immediately saves Tidy even at zero elapsed with no answers", () => {
+  puzzleProgress.set({});
+  g.load(DEMO_PUZZLE, { dateStr: "2026-10-24", difficulty: "easy" });
+  g.setNotesMode("tidy");
+  const saved = get(puzzleProgress)["2026-10-24"].easy;
+  expect(saved.snapshot.notesMode).toBe("tidy");
+  expect(saved.elapsed).toBe(0);
+  expect(saved.filled).toBe(0);
+  expect(g.canUndo).toBe(false);
+  const restored = createGame();
+  restored.load(DEMO_PUZZLE, {
+    dateStr: "2026-10-24",
+    difficulty: "easy",
+    snapshot: saved.snapshot,
+  });
+  expect(restored.notesMode).toBe("tidy");
+  restored.restart();
+  expect(restored.notesMode).toBe("tidy");
+  restored.load(DEMO_PUZZLE);
+  expect(restored.notesMode).toBe("auto");
+});
+
+it.each(["enter", "fill", "fillLone"])("Tidy cleans and undoes peer notes through %s", (method) => {
+  g.load("0".repeat(81));
+  g.setNotesMode("tidy");
+  for (const i of [0, 1, 9, 10, 40]) g.toggleNote(i, 3);
+  const before = g.state;
+  g[method](0, 3);
+  expect(g.hasNote(1, 3)).toBe(false);
+  expect(g.hasNote(9, 3)).toBe(false);
+  expect(g.hasNote(10, 3)).toBe(false);
+  expect(g.hasNote(40, 3)).toBe(true);
+  expect(g.peekUndo().cells).toEqual([0, 1, 9, 10]);
+  g.undo();
+  expect(g.state).toEqual(before);
+  g.redo();
+  g.clearAnswer(0);
+  expect(g.hasNote(1, 3)).toBe(false);
+});

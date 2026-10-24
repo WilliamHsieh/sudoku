@@ -1,3 +1,4 @@
+import { switchNotesMode } from "./helpers.js";
 // Desktop keyboard side of keypad r2. The pad itself is off-screen; Shift+digit,
 // Space and Escape still drive the lock.
 import { test, expect } from "@playwright/test";
@@ -141,6 +142,9 @@ test("arrows and digit keys keep the keypad and the board on the same digit", as
 });
 
 test("a click on a pencil while locked toggles only the locked digit", async ({ page }) => {
+  const time = Date.now();
+  await page.clock.install({ time });
+  await page.clock.pauseAt(time + 1_000);
   await openBoard(page);
   await cell(page, 0).click();
   await page.keyboard.press("Shift+Digit5");
@@ -216,7 +220,7 @@ for (const selected of [true, false]) {
     await expect(pad).toHaveAttribute("data-locked", "5");
     await expect(five).toHaveAttribute("aria-pressed", "true");
 
-    await page.getByRole("button", { name: "Journal", exact: true }).click();
+    await page.locator(".dbtn").click();
     const day = page.locator('.dgrid .day[data-d="2026-10-15"]');
     await day.click();
     await expect(page.locator(".dgrid .day.sel")).toHaveAttribute("data-d", "2026-10-15");
@@ -227,7 +231,7 @@ for (const selected of [true, false]) {
     await expect(day).toHaveAttribute("aria-pressed", "false");
     await expect(page.locator(".ctx .kicker")).toHaveText("Latest puzzles");
 
-    await page.getByRole("button", { name: "Play", exact: true }).click();
+    await page.locator("#time-control").click();
     await expect(pad).toHaveAttribute("data-locked", "5");
     await expect(five).toHaveAttribute("aria-pressed", "true");
     await page.keyboard.press("Escape");
@@ -238,10 +242,10 @@ for (const selected of [true, false]) {
 }
 
 for (const target of ["board", "keypad"]) {
-  test(`390px: ${target} input releases segment focus before keyboard lock`, async ({ page }) => {
+  test(`390px: ${target} input releases header focus before keyboard lock`, async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await openBoard(page);
-    const play = page.getByRole("button", { name: "Play", exact: true });
+    const play = page.locator("#time-control");
     await play.focus();
     await expect(play).toBeFocused();
     if (target === "board") {
@@ -297,7 +301,7 @@ test.describe("Manual board double-tap on a wide touch board", () => {
         await page.clock.install({ time: new Date("2026-10-23T12:00:00Z") });
         await page.clock.pauseAt(new Date("2026-10-23T12:00:01Z"));
         await openBoard(page);
-        await page.locator("#notes-mode").evaluate((el) => el.click());
+        await switchNotesMode(page);
         await cell(page, 42).click();
         for (const d of notes) {
           await page.keyboard.press(`Shift+Digit${d}`);

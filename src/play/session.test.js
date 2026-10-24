@@ -1,7 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { get } from "svelte/store";
 import { timerRunning } from "../store.js";
-import { createPlay, RESUME_HOLD_MS, RESUME_REVEAL_MS, RESUME_SHORT_MS } from "./session.svelte.js";
+import {
+  createPlay,
+  RESUME_HOLD_MS,
+  RESUME_REVEAL_MS,
+  RESUME_SHORT_MS,
+  RESUME_EASE,
+  RESUME_BLUR_PX,
+} from "./session.svelte.js";
 
 describe("play session", () => {
   /** @type {number} */
@@ -18,6 +25,15 @@ describe("play session", () => {
     play = createPlay({ live: false, idleMs: 30_000, now: () => time });
     play.bindLones(() => lones);
     play.start();
+  });
+
+  it("pins the slower reveal contract", () => {
+    expect(RESUME_HOLD_MS).toBe(250);
+    expect(RESUME_REVEAL_MS).toBe(600);
+    expect(RESUME_HOLD_MS + RESUME_REVEAL_MS).toBe(850);
+    expect(RESUME_SHORT_MS).toBe(1000);
+    expect(RESUME_EASE).toBe("cubic-bezier(.33,1,.68,1)");
+    expect(RESUME_BLUR_PX).toBe(8);
   });
 
   it("pulses every lone candidate together, and a cell that becomes lone joins the next pulse", () => {
@@ -354,16 +370,16 @@ describe("play session", () => {
 
   it("resumes instantly and quietly after an absence under 1s", () => {
     play.noteHidden();
-    time = RESUME_SHORT_MS - 1;
-    expect(play.noteVisible(RESUME_SHORT_MS - 1)).toBe("quiet");
+    time = 999;
+    expect(play.noteVisible(999)).toBe("quiet");
     expect(play.paused).toBe(false);
     expect(play.resumePhase).toBe("idle");
     expect(play.reason).toBe(null);
     expect(get(timerRunning)).toBe(true);
 
     play.noteHidden();
-    time = RESUME_SHORT_MS;
-    expect(play.noteVisible(RESUME_SHORT_MS)).toBe("hold");
+    time = 1000;
+    expect(play.noteVisible(1000)).toBe("hold");
     expect(play.paused).toBe(true);
   });
 
@@ -561,14 +577,16 @@ describe("play session", () => {
       });
       expect(live.noteHidden()).toBe(true);
       expect(live.noteVisible(2_000)).toBe("hold");
-      vi.advanceTimersByTime(RESUME_HOLD_MS - 1);
+      vi.advanceTimersByTime(249);
       expect(live.resumePhase).toBe("hold");
       expect(live.paused).toBe(true);
       expect(get(timerRunning)).toBe(false);
       vi.advanceTimersByTime(1);
       expect(live.resumePhase).toBe("reveal");
       expect(live.paused).toBe(true);
-      vi.advanceTimersByTime(RESUME_REVEAL_MS - 1);
+      vi.advanceTimersByTime(599);
+      // Exactly 849ms after return: no clock or announcement yet.
+      expect(get(timerRunning)).toBe(false);
       expect(live.paused).toBe(true);
       expect(heard).toEqual([]);
       vi.advanceTimersByTime(1);

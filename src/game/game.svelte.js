@@ -11,7 +11,6 @@ import {
   isGiven,
   isEditable,
   candidates,
-  hasCandidate,
   conflicts,
   isSolved,
   setNotesMode as changeNotesMode,
@@ -31,7 +30,7 @@ import {
   canRedo,
   changedCells,
 } from "./history.js";
-import { popcount } from "./board.js";
+import { bit, popcount } from "./board.js";
 import { fromSnapshot } from "./snapshot.js";
 import { done, timer, timerRunning, resetTimer, solvedPuzzles } from "../store.js";
 import { puzzleProgress, progressPayload } from "../journal/progress.js";
@@ -73,6 +72,8 @@ export function createGame() {
   /** @type {import("./game.js").GameState | null} */
   let draft = $state(null);
   const state = $derived(draft ?? history.present);
+  const conflictCells = $derived(conflicts(state));
+  const candidateMasks = $derived(Array.from({ length: 81 }, (_, i) => candidates(state, i)));
 
   function prepareMutation() {
     beforeMutate();
@@ -102,7 +103,7 @@ export function createGame() {
     return result;
   }
 
-  function persistProgress() {
+  function persistProgress(force = false) {
     if (!meta.dateStr || !meta.difficulty) return;
     if (isSolved(history.present)) {
       puzzleProgress.clear(meta.dateStr, meta.difficulty);
@@ -110,7 +111,8 @@ export function createGame() {
     }
     const elapsed = get(timer);
     const payload = progressPayload(history.present, elapsed);
-    if (payload.filled === 0 && elapsed === 0) return;
+    if (!force && payload.filled === 0 && elapsed === 0 && history.present.notesMode === "auto")
+      return;
     puzzleProgress.save(meta.dateStr, meta.difficulty, payload);
   }
 
@@ -202,19 +204,19 @@ export function createGame() {
     },
     /** @param {number} i */
     notes(i) {
-      return candidates(state, i);
+      return candidateMasks[i];
     },
     /** @param {number} i @param {number} d */
     hasNote(i, d) {
-      return hasCandidate(state, i, d);
+      return (candidateMasks[i] & bit(d)) !== 0;
     },
     /** @param {number} i */
     noteCount(i) {
-      return popcount(candidates(state, i));
+      return popcount(candidateMasks[i]);
     },
     /** @param {number} i */
     inConflict(i) {
-      return conflicts(state).has(i);
+      return conflictCells.has(i);
     },
 
     /** Selection does not restart the cue. @param {number} i */
@@ -229,7 +231,10 @@ export function createGame() {
       const prev = history.present;
       const next = changeNotesMode(prev, mode);
       history = replace(history, next);
-      if (next !== prev) activity();
+      if (next !== prev) {
+        persistProgress(true);
+        activity();
+      }
     },
 
     /** @param {number} i */
@@ -354,6 +359,7 @@ export function createGame() {
       done.set(false);
       resetTimer();
       if (meta.dateStr && meta.difficulty) puzzleProgress.clear(meta.dateStr, meta.difficulty);
+      if (next.notesMode !== "auto") persistProgress(true);
       if (changed) activity();
     },
 

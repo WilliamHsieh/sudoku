@@ -3,13 +3,8 @@
   import { ring } from "./ring.js";
   import { playUi } from "./play/session.svelte.js";
 
-  const auto = $derived(game.notesMode === "auto");
+  import NotesMode from "./NotesMode.svelte";
   const eraseOff = $derived(!game.eraseKind(game.selected));
-
-  function toggleNotes() {
-    if (playUi.paused) return;
-    game.setNotesMode(auto ? "manual" : "auto");
-  }
 
   function openMore() {
     playUi.openOptions();
@@ -22,7 +17,7 @@
     id="undo"
     type="button"
     aria-label="Undo"
-    disabled={!game.canUndo}
+    disabled={playUi.paused || !game.canUndo}
     onclick={() => {
       if (!playUi.paused) ring.undo();
     }}
@@ -38,7 +33,7 @@
     id="redo"
     type="button"
     aria-label="Redo"
-    disabled={!game.canRedo}
+    disabled={playUi.paused || !game.canRedo}
     onclick={() => {
       if (!playUi.paused) ring.redo();
     }}
@@ -54,7 +49,7 @@
     id="erase"
     type="button"
     aria-label="Erase"
-    disabled={eraseOff}
+    disabled={playUi.paused || eraseOff}
     onclick={() => {
       if (!playUi.paused) game.erase(game.selected);
     }}
@@ -67,18 +62,7 @@
     </svg>
     <span>Erase</span>
   </button>
-  <button
-    class="tool notes-switch"
-    id="notes-mode"
-    type="button"
-    role="switch"
-    aria-checked={auto}
-    aria-label="Auto notes"
-    onclick={toggleNotes}
-  >
-    <span class="switch" aria-hidden="true"><span class="knob"></span></span>
-    <span class="notes-label">Notes: <b>{auto ? "Auto" : "Manual"}</b></span>
-  </button>
+  <NotesMode />
   <button class="tool" type="button" data-more aria-haspopup="dialog" onclick={openMore}>
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <circle cx="12" cy="12" r="1"></circle>
@@ -92,7 +76,7 @@
 <style>
   .tools {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr 1.5fr 1fr;
+    grid-template-columns: repeat(5, 1fr);
     gap: 6px;
   }
 
@@ -147,41 +131,5 @@
     stroke-width: 1.8;
     stroke-linecap: round;
     stroke-linejoin: round;
-  }
-
-  .switch {
-    width: 38px;
-    height: 22px;
-    border-radius: 11px;
-    background: var(--switch-off);
-    position: relative;
-    transition: background var(--toggle) var(--ease-out);
-  }
-
-  .knob {
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: var(--switch-knob);
-    box-shadow: var(--shadow-knob);
-    transition: transform var(--toggle) var(--ease-out);
-  }
-
-  .notes-switch[aria-checked="true"] .switch {
-    background: var(--switch-on);
-  }
-
-  .notes-switch[aria-checked="true"] .knob {
-    transform: translateX(16px);
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .switch,
-    .knob {
-      transition: none;
-    }
   }
 </style>

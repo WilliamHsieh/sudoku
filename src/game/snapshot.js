@@ -55,14 +55,18 @@ export function fromSnapshot(snapshot) {
   const answers = parsePuzzle(/** @type {string} */ (s.answers));
   if (answers.some((v, i) => v && givens[i]))
     throw new Error("snapshot has an answer on a given cell");
-  if (s.notesMode !== "auto" && s.notesMode !== "manual")
-    throw new Error("snapshot notesMode must be auto or manual");
+  // Version 1 saves used strings. Accept legacy boolean modes as well;
+  // absent or unknown values use the app's new-puzzle default, Auto.
+  const legacy = /** @type {{ auto?: unknown, notesMode?: unknown }} */ (s);
+  const mode = legacy.notesMode ?? legacy.auto;
+  const notesMode =
+    mode === "tidy" ? "tidy" : mode === "manual" || mode === false ? "manual" : "auto";
   const o = s.autoOverrides;
   if (!o || typeof o !== "object") throw new Error("snapshot autoOverrides missing");
   return {
     givens,
     answers,
-    notesMode: s.notesMode,
+    notesMode,
     manualNotes: fromDigitStrings(s.manualNotes, "manualNotes"),
     autoAdded: fromDigitStrings(o.added, "autoOverrides.added"),
     autoRemoved: fromDigitStrings(o.removed, "autoOverrides.removed"),
