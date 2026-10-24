@@ -1567,6 +1567,15 @@
     margin-top: 10px;
   }
 
+  @media (max-width: 359px) {
+    .srow {
+      grid-template-columns: 1fr 38px 50px 50px;
+    }
+    .mobile .day {
+      padding-left: 3px;
+    }
+  }
+
   .scrim {
     position: fixed;
     inset: 0;
