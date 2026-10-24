@@ -1,6 +1,9 @@
 <script>
+  /* global __SUDOKU_BUILD__ */
+  import { installAutoUpdate } from "./auto-update-browser.js";
   import { paintBoard, discardPaint } from "./paint-actions.js";
   import Api from "./Api.svelte";
+  import UpdateNotice from "./UpdateNotice.svelte";
   import Cell from "./Cell.svelte";
   import PlayHeader from "./PlayHeader.svelte";
   import Journal from "./Journal.svelte";
@@ -330,6 +333,15 @@
     showCalendar = false;
   }
 
+  const UPDATE_COPY = "Update ready · applies next launch";
+  let updateNotice = $state(false);
+  let noticeTimer;
+
+  function dismissUpdate() {
+    clearTimeout(noticeTimer);
+    updateNotice = false;
+  }
+
   onMount(() => {
     window.addEventListener("pointerdown", releaseViewFocus, true);
     const mq = window.matchMedia(NARROW_MQ);
@@ -439,7 +451,21 @@
       hasPlayed = true;
       showCalendar = false;
     }
+    const stopUpdates =
+      typeof __SUDOKU_BUILD__ === "undefined"
+        ? () => {}
+        : installAutoUpdate({
+            current: __SUDOKU_BUILD__,
+            base: import.meta.env.BASE_URL,
+            notify: () => {
+              if (updateNotice) return;
+              updateNotice = true;
+              noticeTimer = setTimeout(dismissUpdate, 6000);
+            },
+          });
     return () => {
+      stopUpdates();
+      clearTimeout(noticeTimer);
       window.removeEventListener("pointerdown", releaseViewFocus, true);
       mq.removeEventListener("change", onNarrow);
       reduceMq.removeEventListener("change", onReduce);
@@ -603,14 +629,25 @@
           <Tools />
           <Keypad />
         </div>
-        <p class="pad-hint" aria-live="polite">
-          {#if hint.kind === "plain"}
-            {hint.text}
-          {:else}
-            <b>{hint.lead}</b>
-            {hint.rest}
+        <div class="hint-line" class:notice-active={updateNotice} class:reduced={playUi.reduced}>
+          <p class="pad-hint normal-hint" aria-live="polite" aria-hidden={updateNotice}>
+            {#if hint.kind === "plain"}
+              {hint.text}
+            {:else}
+              <b>{hint.lead}</b>
+              {hint.rest}
+            {/if}
+          </p>
+          {#if isNarrow}
+            <UpdateNotice
+              active={updateNotice}
+              inline
+              reduced={playUi.reduced}
+              copy={UPDATE_COPY}
+              ondismiss={dismissUpdate}
+            />
           {/if}
-        </p>
+        </div>
       </div>
     </div>
 
@@ -636,6 +673,19 @@
   {/if}
 </main>
 
+<!-- The polite live region stays mounted so screen readers announce the inserted notice. -->
+<div class="update-live sr-only" aria-live="polite" aria-atomic="true">
+  {updateNotice ? UPDATE_COPY : ""}
+</div>
+{#if !isNarrow || showCalendar}
+  <UpdateNotice
+    active={updateNotice}
+    reduced={playUi.reduced}
+    copy={UPDATE_COPY}
+    ondismiss={dismissUpdate}
+  />
+{/if}
+
 <style>
   .sr-only {
     position: absolute;
@@ -644,6 +694,11 @@
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
+  }
+  .update-live {
+    position: fixed;
+    top: 0;
+    left: 0;
   }
   .top-strip {
     position: fixed;
@@ -767,6 +822,31 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .hint-line {
+    display: grid;
+    align-items: center;
+    font-size: 12px;
+    line-height: normal;
+  }
+  .normal-hint {
+    grid-area: 1 / 1;
+    opacity: 1;
+    transition: opacity 260ms var(--ease-out) 180ms;
+  }
+  .notice-active .normal-hint {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 180ms var(--ease-out);
+  }
+  .reduced .normal-hint {
+    transition: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .normal-hint {
+      transition: none;
+    }
   }
 
   .pad-hint b {

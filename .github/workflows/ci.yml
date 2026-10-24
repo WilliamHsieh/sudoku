@@ -168,6 +168,8 @@ jobs:
     env:
       # WebKit needs a writable home when the container runs as root.
       HOME: /root
+      # The version plugin cannot read Git's checkout trust config after HOME changes.
+      SUDOKU_BUILD_VERSION: ${{ github.sha }}
     strategy:
       fail-fast: false
       matrix:
@@ -216,6 +218,9 @@ jobs:
       - name: E2E tests
         if: needs.changes.outputs.e2e != 'false'
         run: npm run test:e2e -- --shard=${{ matrix.shard }}/4
+      - name: Two-build upgrade tests (Chromium, mobile, WebKit)
+        if: needs.changes.outputs.e2e != 'false'
+        run: npm run test:upgrade -- --shard=${{ matrix.shard }}/4
       - name: Upload Playwright report
         if: ${{ !cancelled() && needs.changes.outputs.e2e != 'false' }}
         uses: actions/upload-artifact@v4
