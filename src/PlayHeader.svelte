@@ -375,6 +375,10 @@
   .is-paused .gm {
     color: var(--blue-d);
   }
+  :global(main.background-hiding) .well,
+  :global(main.background-hiding) .g {
+    transition: none;
+  }
   .tp:active .face {
     background: var(--neutral-2);
   }
