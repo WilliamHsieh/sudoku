@@ -73,10 +73,13 @@ function paintedTop(data, box, marker, viewport) {
 }
 
 async function settle(page) {
-  await page.evaluate(() =>
-    Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => {})))
-  );
-  await page.waitForTimeout(400);
+  await page.evaluate(async () => {
+    await Promise.all(
+      document.getAnimations().map((animation) => animation.finished.catch(() => {}))
+    );
+    // Cross a paint after the animation's final style has been applied.
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
 }
 
 for (const viewport of [
@@ -114,23 +117,27 @@ for (const viewport of [
         });
         try {
           await cdp.send("Page.startScreencast", { format: "png", everyNthFrame: 1 });
-          await page.waitForTimeout(400);
+          await settle(page);
           const button = await page
             .locator(exit === "cancel" ? "#confirm-cancel" : "#confirm-ok")
             .boundingBox();
           await page.mouse.move(button.x + button.width / 2, button.y + button.height / 2, {
             steps: 10,
           });
-          await page.waitForTimeout(250);
+          await settle(page);
           await page.mouse.down();
-          await page.waitForTimeout(80);
+          await settle(page);
           const start = await page.evaluate(() => performance.timeOrigin + performance.now());
           await page.mouse.up();
+          // Record a real-time window, including frames after the 260ms exit.
           // No DOM reads during the exit: they can change rendering behavior.
           await page.waitForTimeout(700);
           await cdp.send("Page.stopScreencast");
           const samples = frames
             .filter((frame) => frame.metadata.timestamp * 1000 >= start)
+            // CDP can deliver frames out of timestamp order under load.
+            // Check paint order, rather than protocol delivery order.
+            .sort((a, b) => a.metadata.timestamp - b.metadata.timestamp)
             .map((frame) => ({
               ms: Math.round(frame.metadata.timestamp * 1000 - start),
               top: paintedTop(frame.data, box, marker, viewport),
