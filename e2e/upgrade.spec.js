@@ -62,7 +62,7 @@ test("cold launch reloads exactly once, preserves URL and saved daily board/time
   deployment,
 }) => {
   await open(page, deployment);
-  await page.getByRole("button", { name: "Journal", exact: true }).click();
+  await page.getByRole("button", { name: /Open Journal/ }).click();
   await page.locator('button.day[data-d="2026-10-22"]:visible').click();
   await page
     .locator(".prow:visible")
@@ -74,11 +74,11 @@ test("cold launch reloads exactly once, preserves URL and saved daily board/time
     .locator(".board > .cell")
     .evaluateAll((cells) => cells.findIndex((c) => !c.querySelector(".pen-box")));
   expect(index).toBeGreaterThanOrEqual(0);
-  await expect(page.getByRole("timer")).not.toHaveText(/0:00$/);
+  await expect(page.locator("[data-time]")).not.toHaveText(/0:00$/);
   await cell(page, index).click();
   await page.keyboard.press("1");
   await expectValue(page, index, 1);
-  await page.getByRole("button", { name: "Journal", exact: true }).click();
+  await page.getByRole("button", { name: /Open Journal/ }).click();
   const saved = await page.evaluate(() => localStorage.getItem("sudoku-progress"));
   const entry = JSON.parse(saved)["2026-10-22"].easy;
   expect(entry.elapsed).toBeGreaterThan(0);
@@ -173,8 +173,8 @@ test("notice also covers Journal, wraps within the viewport, and does not move f
 }) => {
   await open(page, deployment);
   await page.emulateMedia({ reducedMotion: "reduce" });
-  const journal = page.getByRole("button", { name: "Journal", exact: true });
-  await journal.click();
+  await page.getByRole("button", { name: /Open Journal/ }).click();
+  const journal = page.getByRole("button", { name: "Back to game", exact: true });
   await journal.focus();
   await hide(page);
   deployment.publish();
@@ -351,8 +351,7 @@ for (const width of [390, 1280]) {
           await page.goto(`${deployment.url}?q=${DEMO_PUZZLE}${motion === "query" ? "&rm=1" : ""}`);
           await page.getByRole("button", { name: "Play", exact: true }).tap();
           const board = await page.locator(".board").boundingBox();
-          if (view === "Journal")
-            await page.getByRole("button", { name: "Journal", exact: true }).tap();
+          if (view === "Journal") await page.getByRole("button", { name: /Open Journal/ }).tap();
           const region = await live(page).elementHandle();
           await expect(live(page)).toBeEmpty();
           if (view === "Play")
@@ -393,7 +392,7 @@ for (const width of [390, 1280]) {
           );
           expect(transition).toBe(motion === "normal" ? "0.26s" : "0s");
           if (view === "Play") {
-            const ring = await page.locator("#pause").evaluate((el) => {
+            const ring = await page.locator("#time-control").evaluate((el) => {
               const face = el.querySelector(".face") || el;
               return {
                 outline: getComputedStyle(face).outlineStyle,
@@ -427,8 +426,7 @@ for (const width of [390, 1280]) {
       }) => {
         await page.emulateMedia({ reducedMotion: "reduce" });
         await open(page, deployment);
-        if (view === "Journal")
-          await page.getByRole("button", { name: "Journal", exact: true }).tap();
+        if (view === "Journal") await page.getByRole("button", { name: /Open Journal/ }).tap();
         await hide(page);
         deployment.publish();
         await foreground(page);
@@ -439,9 +437,8 @@ for (const width of [390, 1280]) {
         await expect(notice(page)).toHaveCount(0);
         expect(await focus.evaluate((el) => el === document.activeElement)).toBe(true);
         await expect(live(page)).toBeEmpty();
-        await page
-          .getByRole("button", { name: view === "Play" ? "Journal" : "Play", exact: true })
-          .tap();
+        if (view === "Play") await page.getByRole("button", { name: /Open Journal/ }).tap();
+        else await page.getByRole("button", { name: "Back to game", exact: true }).tap();
         expect(await region.evaluate((el) => el === document.querySelector(".update-live"))).toBe(
           true
         );
