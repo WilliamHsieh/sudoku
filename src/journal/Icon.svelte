@@ -1,5 +1,5 @@
 <script>
-  /** @typedef {'check' | 'play' | 'chevron-left' | 'chevron-right' | 'calendar-days' | 'grid-3x3' | 'flame' | 'trophy' | 'x' | 'history' | 'info' | 'arrow-left'} IconName */
+  /** @typedef {'check' | 'play' | 'chevron-left' | 'chevron-right' | 'calendar-days' | 'grid-3x3' | 'flame' | 'trophy' | 'x' | 'history' | 'info' | 'arrow-left' | 'ellipsis'} IconName */
 
   /** @type {{ name: IconName }} */
   let { name } = $props();
@@ -54,6 +54,8 @@
     <circle cx="12" cy="12" r="10"></circle>
     <path d="M12 16v-4"></path>
     <path d="M12 8h.01"></path>
+  {:else if name === "ellipsis"}
+    <circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" />
   {:else if name === "arrow-left"}
     <path d="m12 19-7-7 7-7"></path>
     <path d="M19 12H5"></path>

@@ -154,7 +154,7 @@ for (const phase of ["hold", "reveal"]) {
       else await page.keyboard.press("p");
       await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "idle");
       await expect(page.locator(".board")).not.toHaveAttribute("inert", "");
-      await expect(page.locator("#pause")).toBeFocused();
+      await expect(page.locator("#time-control")).toBeFocused();
       await expect(page.locator("#resume-status")).toHaveText("");
       await page.waitForTimeout(1_000);
       await expect(page.locator(".paused-cover, .paused-leave")).toHaveCount(0);
@@ -221,12 +221,12 @@ for (const awayMs of [500, 999]) {
       motion: [],
     });
     expect(["none", "blur(0px)"]).toContain(firstFrame.boardFilter);
-    await expect(page.locator("#pause")).toBeFocused();
-    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "false");
+    await expect(page.locator("#time-control")).toBeFocused();
+    await expect(page.locator("#time-control")).toHaveAttribute("aria-pressed", "false");
     await expect(page.locator("#resume-status")).toHaveText("");
 
     // An instant return must not suppress the next manual Resume transition.
-    await page.locator("#pause").click();
+    await page.locator("#time-control").click();
     await page.waitForTimeout(400);
     const manualMotion = await page.evaluate(async () => {
       document.querySelector("#resume").click();

@@ -4,9 +4,11 @@ name: CI
 
 on:
   pull_request:
-    # Include the ci-shard base for this stacked CI follow-up.
+    # Include the bases for the stacked CI follow-ups and their CI probes.
     # merge/** covers PRs stacked on another merge/ branch.
-    branches: ["master", "merge/**", "ci-shard"]
+    branches: ["master", "merge/**", "ci-shard", "ci-pw-container", "ci-skip-e2e"]
+  push:
+  workflow_dispatch:
 
 # Read-only; a build needs nothing more (also what Dependabot PRs get by default)
 permissions:
@@ -17,58 +19,143 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      app: ${{ steps.diff.outputs.app }}
+      e2e: ${{ steps.diff.outputs.e2e }}
+      base: ${{ steps.diff.outputs.base }}
+      head: ${{ steps.diff.outputs.head }}
+    steps:
+      - name: Checkout history for change detection
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Detect changes (unknown paths or comparisons run everything)
+        id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          BEFORE: ${{ github.event.before }}
+          FORCED: ${{ github.event.forced }}
+        shell: python
+        run: |
+          import os
+          import subprocess
+
+          def git(*args):
+              return subprocess.check_output(["git", *args])
+
+          app = e2e = True
+          base = ""
+          head = os.environ["GITHUB_SHA"]
+          forced_push = os.environ["EVENT"] == "push" and os.environ.get("FORCED") == "true"
+          try:
+              if os.environ["EVENT"] == "pull_request":
+                  head = os.environ["PR_HEAD"]
+                  base = git("merge-base", os.environ["PR_BASE"], head).decode().strip()
+              elif os.environ["EVENT"] == "push":
+                  base = os.environ["BEFORE"]
+                  # Endpoint-only diffs are unsafe after a rewrite or rollback.
+                  git("merge-base", "--is-ancestor", base, head)
+              # No truncation, rename shortcuts, or newline-delimited filenames.
+              paths = set(filter(None, git("diff", "--no-renames", "--name-only", "-z", base, head).split(b"\0")))
+              # Only these exact paths can bypass checks; every other path runs all jobs.
+              # Data is imported by the app: keep build/check/unit (puzzles.test.js)/lint.
+              python_only = {b"scraper.py", b"pyproject.toml", b"uv.lock"}
+              data = {b"src/puzzles.js"}
+              if paths and not forced_push and os.environ["REF"] != "refs/heads/master" and os.environ["EVENT"] != "workflow_dispatch":
+                  app = not paths <= python_only
+                  e2e = not paths <= python_only | data
+              print(f"Changed paths: {sorted(paths)!r}")
+          except subprocess.CalledProcessError:
+              # Rewritten history, new branches, missing SHAs, or invalid diffs run everything.
+              base = ""
+              print("Comparison unavailable; running the full suite.")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"app={str(app).lower()}\ne2e={str(e2e).lower()}\nbase={base}\nhead={head}\n")
+          print(f"Run app checks: {app}; run e2e: {e2e}")
+
   build:
+    needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
     steps:
+      - name: Skip unaffected checks
+        if: needs.changes.outputs.app == 'false'
+        run: echo "No inputs to these checks changed."
       - name: Checkout
+        if: needs.changes.outputs.app != 'false'
         uses: actions/checkout@v7
       - name: Set up Node
+        if: needs.changes.outputs.app != 'false'
         uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: "npm"
       - name: Install dependencies
+        if: needs.changes.outputs.app != 'false'
         run: npm ci
       - name: Build
+        if: needs.changes.outputs.app != 'false'
         run: npm run build
 
   check:
+    needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
     steps:
+      - name: Skip unaffected checks
+        if: needs.changes.outputs.app == 'false'
+        run: echo "No inputs to these checks changed."
       - name: Checkout
+        if: needs.changes.outputs.app != 'false'
         uses: actions/checkout@v7
       - name: Set up Node
+        if: needs.changes.outputs.app != 'false'
         uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: "npm"
       - name: Install dependencies
+        if: needs.changes.outputs.app != 'false'
         run: npm ci
       - name: svelte-check
+        if: needs.changes.outputs.app != 'false'
         run: npm run check
 
   unit:
+    needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     steps:
+      - name: Skip unaffected checks
+        if: needs.changes.outputs.app == 'false'
+        run: echo "No inputs to these checks changed."
       - name: Checkout
+        if: needs.changes.outputs.app != 'false'
         uses: actions/checkout@v7
       - name: Set up Node
+        if: needs.changes.outputs.app != 'false'
         uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: "npm"
       - name: Install dependencies
+        if: needs.changes.outputs.app != 'false'
         run: npm ci
       - name: Unit tests
+        if: needs.changes.outputs.app != 'false'
         run: npm run test:unit
 
   e2e:
+    needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 15
     container:
@@ -88,15 +175,22 @@ jobs:
       matrix:
         shard: [1, 2, 3, 4]
 
+    # Gate steps so the existing check names report success, even when bypassed.
     steps:
+      - name: Skip unaffected checks
+        if: needs.changes.outputs.e2e == 'false'
+        run: echo "No inputs to these checks changed."
       - name: Checkout
+        if: needs.changes.outputs.e2e != 'false'
         uses: actions/checkout@v7
       - name: Set up Node
+        if: needs.changes.outputs.e2e != 'false'
         uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: "npm"
       - name: Verify Playwright container version
+        if: needs.changes.outputs.e2e != 'false'
         run: |
           node <<'NODE'
           const fs = require('node:fs');
@@ -111,6 +205,7 @@ jobs:
           console.log(`Playwright container matches @playwright/test ${version}`);
           NODE
       - name: Verify DejaVu Sans test font
+        if: needs.changes.outputs.e2e != 'false'
         run: |
           fc-cache -f /usr/share/fonts/truetype/dejavu
           if [ -z "$(fc-list 'DejaVu Sans' file)" ]; then
@@ -118,13 +213,15 @@ jobs:
             exit 1
           fi
       - name: Install dependencies
+        if: needs.changes.outputs.e2e != 'false'
         run: npm ci
       - name: E2E tests
+        if: needs.changes.outputs.e2e != 'false'
         run: npm run test:e2e -- --shard=${{ matrix.shard }}/4
       - name: Two-build upgrade tests (Chromium, mobile, WebKit)
         run: npm run test:upgrade -- --shard=${{ matrix.shard }}/4
       - name: Upload Playwright report
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && needs.changes.outputs.e2e != 'false' }}
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report-${{ matrix.shard }}-attempt-${{ github.run_attempt }}
@@ -132,7 +229,7 @@ jobs:
           retention-days: 7
 
   test:
-    needs: [unit, e2e]
+    needs: [changes, unit, e2e]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -140,34 +237,50 @@ jobs:
     steps:
       - name: Require unit tests and all e2e shards to succeed
         env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
           UNIT_RESULT: ${{ needs.unit.result }}
           E2E_RESULT: ${{ needs.e2e.result }}
         run: |
+          test "$CHANGES_RESULT" = success
           test "$UNIT_RESULT" = success
           test "$E2E_RESULT" = success
 
   lint:
+    needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
+    # Gate steps so the existing check names report success, even when bypassed.
     steps:
+      - name: Skip unaffected checks
+        if: needs.changes.outputs.app == 'false'
+        run: echo "No inputs to these checks changed."
       - name: Checkout
+        if: needs.changes.outputs.app != 'false'
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Set up Node
+        if: needs.changes.outputs.app != 'false'
         uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: "npm"
       - name: Install dependencies
+        if: needs.changes.outputs.app != 'false'
         run: npm ci
       - name: Lint changed files
+        if: needs.changes.outputs.app != 'false'
         env:
-          BASE: ${{ github.base_ref }}
+          BASE: ${{ needs.changes.outputs.base }}
+          HEAD: ${{ needs.changes.outputs.head }}
         run: |
-          git fetch --no-tags origin "$BASE"
-          files=$(git diff --name-only --diff-filter=ACMR "origin/$BASE...HEAD" | grep -E '\.(js|svelte|json|css|html)$' || true)
+          if [ -n "$BASE" ]; then
+            changed=$(git diff --name-only --diff-filter=ACMR "$BASE" "$HEAD")
+          else
+            changed=$(git ls-files)
+          fi
+          files=$(echo "$changed" | grep -E '\.(js|svelte|json|css|html)$' || true)
           if [ -z "$files" ]; then
             echo "No lintable files changed; skipping."
             exit 0
