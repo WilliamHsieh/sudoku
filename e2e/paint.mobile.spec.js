@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { paintCases, paintSetup } from "./paint-cases.js";
+import { freezeTimers, paintCases, paintSetup } from "./paint-cases.js";
 import { cell, pencil } from "./helpers.js";
 paintCases(true);
 
@@ -67,11 +67,12 @@ test("HOLD cancellation restores its draft and an illegal first cell flashes wit
   page,
 }) => {
   const t = await paintSetup(page, true);
+  await freezeTimers(page);
   const k = { ...(await t.center(page.locator('.key[data-d="5"]'))), id: 1 };
   const a = { ...(await t.center(cell(page, 37))), id: 2 };
   const b = { ...(await t.center(cell(page, 42))), id: 2 };
   await t.contacts("touchStart", [k]);
-  await page.waitForTimeout(300);
+  await page.clock.runFor(300);
   await t.contacts("touchStart", [k, a]);
   await t.contacts("touchMove", [k, b]);
   await expect(cell(page, 38)).toHaveAttribute("data-notes", "5");
@@ -80,7 +81,7 @@ test("HOLD cancellation restores its draft and an illegal first cell flashes wit
   await expect(page.locator("#undo")).toBeDisabled();
   await expect(page.locator(".play .sr-only[aria-live]")).toHaveText("");
   await t.contacts("touchStart", [k]);
-  await page.waitForTimeout(300);
+  await page.clock.runFor(300);
   const refused = { ...(await t.center(cell(page, 40))), id: 2 };
   await t.contacts("touchStart", [k, refused]);
   await expect(cell(page, 4)).toHaveClass(/blocked/);
@@ -120,8 +121,7 @@ for (const brush of ["add", "remove"]) {
     await t.tap(page.locator('.key[data-d="5"]'));
     // Also exercise Space while HOLD overrides a different locked digit.
     await t.lock(6);
-    await page.clock.install();
-    await page.clock.pauseAt(new Date());
+    await freezeTimers(page);
     const k = { ...(await t.center(page.locator('.key[data-d="5"]'))), id: 1 };
     const a = { ...(await t.center(cell(page, 37))), id: 2 };
     const b = { ...(await t.center(cell(page, 38))), id: 2 };

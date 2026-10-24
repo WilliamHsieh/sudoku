@@ -16,6 +16,27 @@
   </head>
   <body>
     <div id="app"></div>
+    <script>
+      // Runs even when an update's module cannot load. No storage is needed.
+      const updateUrl = new URL(location.href);
+      if (updateUrl.searchParams.has("_sudoku_update")) {
+        updateUrl.searchParams.delete("_sudoku_update");
+        history.replaceState(history.state, "", updateUrl);
+        setTimeout(() => {
+          const app = document.getElementById("app");
+          if (!app.hasChildNodes()) {
+            const retry = document.createElement("a");
+            retry.href = updateUrl.href;
+            retry.textContent = "Reload Sudoku";
+            retry.addEventListener("click", (event) => {
+              event.preventDefault();
+              location.reload();
+            });
+            app.append(retry);
+          }
+        }, 6000);
+      }
+    </script>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
