@@ -517,16 +517,6 @@
 
 <svelte:window onkeydown={onKey} />
 
-{#snippet journalTime(seconds)}
-  {@const text = fmtTime(seconds)}
-  {#if text.length > 12}
-    <span class="long-time">{text.slice(0, -6)}<span class="time-tail">{text.slice(-6)}</span></span
-    >
-  {:else}
-    {text}
-  {/if}
-{/snippet}
-
 {#snippet monthTitle(away)}
   <button
     class="month-title"
@@ -627,12 +617,8 @@
         <div class="srow">
           <DiffLabel diff={d} />
           <span class="r num">{r.n}</span>
-          <span class="r num"
-            >{#if r.avg != null}{@render journalTime(r.avg)}{:else}—{/if}</span
-          >
-          <span class="r num"
-            >{#if r.best}{@render journalTime(r.best.time)}{:else}—{/if}</span
-          >
+          <span class="r num">{r.avg != null ? fmtTime(r.avg) : "—"}</span>
+          <span class="r num">{r.best ? fmtTime(r.best.time) : "—"}</span>
         </div>
       {/each}
       <div class="sfoot">
@@ -749,12 +735,8 @@
             <div class="stat">
               <DiffLabel diff={d} />
               <span class="r num">{r.n}</span>
-              <span class="r num"
-                >{#if r.avg != null}{@render journalTime(r.avg)}{:else}—{/if}</span
-              >
-              <span class="r num"
-                >{#if r.best}{@render journalTime(r.best.time)}{:else}—{/if}</span
-              >
+              <span class="r num">{r.avg != null ? fmtTime(r.avg) : "—"}</span>
+              <span class="r num">{r.best ? fmtTime(r.best.time) : "—"}</span>
             </div>
           {/each}
         </div>
@@ -779,7 +761,7 @@
             <DiffLabel diff={d} />
             <span>
               {#if b}
-                <b class="num">{@render journalTime(b.time)}</b>{shortDate(b.date).split(", ")[1]}
+                <b class="num">{fmtTime(b.time)}</b>{shortDate(b.date).split(", ")[1]}
               {:else}
                 —
               {/if}
@@ -802,13 +784,9 @@
               <b class="num">{r.n}</b>
               <span class="mm">
                 <span>Avg</span>
-                <span class="num"
-                  >{#if r.avg != null}{@render journalTime(r.avg)}{:else}—{/if}</span
-                >
+                <span class="num">{r.avg != null ? fmtTime(r.avg) : "—"}</span>
                 <span>Best</span>
-                <span class="num"
-                  >{#if r.best}{@render journalTime(r.best.time)}{:else}—{/if}</span
-                >
+                <span class="num">{r.best ? fmtTime(r.best.time) : "—"}</span>
               </span>
             </div>
           </div>
@@ -944,7 +922,6 @@
           <div class="plist">
             {#each DIFFS as d (d)}
               <PuzzleRow
-                time={journalTime}
                 diff={d}
                 st={rowState(latest, d)}
                 avg={avgs[d]}
@@ -980,7 +957,6 @@
           <div class="plist">
             {#each DIFFS as d (d)}
               <PuzzleRow
-                time={journalTime}
                 diff={d}
                 st={rowState(sel, d)}
                 avg={avgs[d]}
@@ -1020,9 +996,7 @@
                     <DiffLabel diff={x.diff} />
                     <span class="ud">{shortDate(x.date)}</span>
                   </span>
-                  <span class="s num"
-                    >{@render journalTime(x.elapsed)} played · {x.pct}% filled</span
-                  >
+                  <span class="s num">{fmtTime(x.elapsed)} played · {x.pct}% filled</span>
                 </span>
                 <span class="bar"><i style="width:{x.pct}%"></i></span>
                 <Icon name="chevron-right" />
@@ -1082,7 +1056,7 @@
                   <DiffLabel diff={x.diff} />
                   <span class="ud">{shortDate(x.date)}</span>
                 </span>
-                <span class="s num">{@render journalTime(x.elapsed)} played · {x.pct}% filled</span>
+                <span class="s num">{fmtTime(x.elapsed)} played · {x.pct}% filled</span>
                 <span class="bar"><i style="width:{x.pct}%"></i></span>
               </button>
               <button
@@ -1121,7 +1095,6 @@
       <div class="plist">
         {#each DIFFS as d (d)}
           <PuzzleRow
-            time={journalTime}
             diff={d}
             st={rowState(sheetDay, d)}
             avg={avgs[d]}
@@ -1147,16 +1120,6 @@
   }
   .num {
     font-variant-numeric: tabular-nums;
-  }
-  /* Keep minutes and seconds together even when emergency wrapping splits hours.
-     An inline block supplies one break unit in both Chromium and WebKit. */
-  .long-time {
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-  .time-tail {
-    display: inline-block;
-    white-space: nowrap;
   }
   .kicker {
     font-size: 12px;
@@ -1468,12 +1431,10 @@
   }
   .srow {
     display: grid;
-    /* Keep normal values at the same right edges when adding the gap. */
-    grid-template-columns: minmax(max-content, 1fr) minmax(min-content, 48px) repeat(
+    grid-template-columns: minmax(max-content, 1fr) minmax(min-content, 54px) repeat(
         2,
-        minmax(56px, max-content)
+        minmax(62px, max-content)
       );
-    column-gap: 6px;
     align-items: center;
     height: 30px;
     font-size: 14px;
@@ -1609,21 +1570,6 @@
     margin-top: 10px;
   }
 
-  /* Time has no hour limit. Let unusually long values wrap inside their column. */
-  .srow:not(.h) {
-    height: auto;
-    min-height: 30px;
-  }
-  .srow .num,
-  .stat .num,
-  .strip .num {
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-  .stat .num:nth-child(n + 3) {
-    padding-left: 1px;
-  }
-
   @media (max-width: 360px) {
     .srow.h {
       letter-spacing: 0;
@@ -1640,9 +1586,9 @@
 
   @media (max-width: 359px) {
     .srow {
-      grid-template-columns: minmax(max-content, 1fr) minmax(min-content, 42px) repeat(
+      grid-template-columns: minmax(max-content, 1fr) minmax(min-content, 48px) repeat(
           2,
-          minmax(56px, max-content)
+          minmax(62px, max-content)
         );
     }
     .srow.h {
@@ -1756,19 +1702,6 @@
   }
   .sheet :global(.prow .diff) {
     font-size: 17px;
-  }
-  .sheet :global(.prow),
-  .ctx :global(.prow) {
-    grid-template-columns: minmax(min-content, 1fr) minmax(0, auto);
-  }
-  .sheet :global(.prow .pb),
-  .ctx :global(.prow .pb) {
-    white-space: nowrap;
-  }
-  .sheet :global(.prow .num),
-  .ctx :global(.prow .num) {
-    min-width: 0;
-    overflow-wrap: anywhere;
   }
   .plist.scroll {
     overflow-y: auto;
@@ -1891,10 +1824,6 @@
       height: 44px;
       font-size: 14px;
     }
-    .stat:not(.h) {
-      height: auto;
-      min-height: 44px;
-    }
     .stat + .stat {
       border-top: 1px solid var(--neutral-2);
     }
@@ -1953,20 +1882,12 @@
     }
     .ab {
       display: flex;
-      /* Move the time and date together before breaking an extreme time. */
-      flex-wrap: wrap;
-      gap: 6px;
       justify-content: space-between;
       align-items: center;
-      min-height: 32px;
+      height: 32px;
       font-size: 14px;
     }
-    .ab :global(.diff) {
-      flex-shrink: 0;
-    }
     .ab > span:last-child {
-      min-width: 0;
-      overflow-wrap: anywhere;
       color: var(--ink2);
       font-size: 13px;
     }
@@ -1982,7 +1903,6 @@
       margin-bottom: 16px;
     }
     .strip .t {
-      min-width: 0;
       padding: 9px 12px;
     }
     .strip .tl {
@@ -1994,7 +1914,6 @@
     }
     .strip .tv {
       display: flex;
-      flex-wrap: wrap;
       align-items: center;
       gap: 12px;
       margin-top: 3px;
@@ -2003,14 +1922,9 @@
     }
     .strip .tv .mm {
       display: grid;
-      grid-template-columns: auto minmax(1em, 1fr);
-      min-width: 0;
+      grid-template-columns: auto auto;
       gap: 0 6px;
       line-height: 1.35;
-    }
-    .strip .tv .mm:has(.long-time) {
-      grid-template-columns: auto minmax(min-content, 1fr);
-      min-width: min-content;
     }
     .strip .tv .mm span:nth-child(even) {
       color: var(--ink);

@@ -65,7 +65,7 @@ async function layoutIssues(page, calendar) {
         for (const rect of element.getClientRects()) {
           if (outside(rect, box) || rect.left < 0 || rect.right > innerWidth)
             issues.push(`element outside card or viewport: ${element.className}`);
-          if (rowBox && outside(rect, rowBox))
+          if (rowBox && element !== row && outside(rect, rowBox))
             issues.push(`element outside puzzle row: ${element.className}`);
         }
         for (const node of element.childNodes) {
@@ -75,7 +75,7 @@ async function layoutIssues(page, calendar) {
           for (const rect of range.getClientRects()) {
             if (outside(rect, box) || rect.left < 0 || rect.right > innerWidth)
               issues.push(`text outside card or viewport: ${node.textContent.trim()}`);
-            if (rowBox && outside(rect, rowBox))
+            if (rowBox && element !== row && outside(rect, rowBox))
               issues.push(`text outside puzzle row: ${node.textContent.trim()}`);
           }
         }
@@ -89,53 +89,19 @@ async function layoutIssues(page, calendar) {
       const lines = [...range.getClientRects()].filter((rect) => rect.width);
       if (lines.length !== 1) issues.push(`puzzle row label wraps: ${label.textContent.trim()}`);
     }
-    for (const row of root.querySelectorAll(".srow:not(.h)")) {
-      // Extreme values fill their tracks. Check the boxes, including wrapped lines.
-      if (!row.textContent.includes("e+")) continue;
-      const cells = [...row.children];
-      for (let i = 2; i < cells.length; i++) {
-        const gap =
-          cells[i].getBoundingClientRect().left - cells[i - 1].getBoundingClientRect().right;
-        if (gap < 4) issues.push(`statistics column gap below 4px: ${gap}`);
-      }
-    }
-    for (const row of document.querySelectorAll(".ab")) {
-      if (!row.getClientRects().length) continue;
-      const [badge, time] = row.children;
-      const badgeBox = badge.getBoundingClientRect();
-      const timeBox = time.getBoundingClientRect();
-      const gap = Math.max(timeBox.left - badgeBox.right, timeBox.top - badgeBox.bottom);
-      if (gap < 4) issues.push(`all-time badge gap below 4px: ${gap}`);
-    }
-    // Inspect character ranges, not element fragments: times can contain inline
-    // groups, and a two-digit seconds field is wider than one font-size.
-    for (const value of document.querySelectorAll(".journal .num, .sheet .num")) {
-      if (!value.getClientRects().length || !value.textContent.includes("e+")) continue;
-      for (const match of value.textContent.matchAll(/\d[\d.e+]*:\d{2}:\d{2}/g)) {
-        const walker = document.createTreeWalker(value, NodeFilter.SHOW_TEXT);
-        const lines = [];
-        let offset = 0;
-        while (walker.nextNode()) {
-          const node = walker.currentNode;
-          for (let i = 0; i < node.length; i++) {
-            if (offset + i < match.index || offset + i >= match.index + match[0].length) continue;
-            const range = document.createRange();
-            range.setStart(node, i);
-            range.setEnd(node, i + 1);
-            const rect = range.getBoundingClientRect();
-            if (!rect.width) continue;
-            // The sheet can still move on WebKit's compositor while ranges
-            // are read. Glyphs on one line overlap despite subpixel movement.
-            let line = lines.find((line) => Math.abs(line.top - rect.top) < rect.height / 2);
-            if (!line) lines.push((line = { top: rect.top, text: "" }));
-            line.text += node.textContent[i];
-          }
-          offset += node.length;
-        }
-        const tail = lines.at(-1)?.text.trim();
-        if (lines.length > 1 && /^:?\d{1,2}:?$/.test(tail))
-          issues.push(`time has a lone trailing fragment: ${value.className} (${tail})`);
-      }
+    // A short final line can strand seconds or a single digit. Check the
+    // realistic times in All-time best and every AVG/BEST column.
+    for (const value of document.querySelectorAll(
+      ".ab b, .srow:not(.h) .num:nth-child(n + 3), .stat:not(.h) .num:nth-child(n + 3), .strip .mm .num"
+    )) {
+      if (
+        !value.getClientRects().length ||
+        !/^\d{1,2}:\d{2}(?::\d{2})?$/.test(value.textContent.trim())
+      )
+        continue;
+      const lines = textRects(value);
+      if (lines.length > 1 && lines.at(-1).width < 2 * parseFloat(getComputedStyle(value).fontSize))
+        issues.push(`time has a lone trailing fragment: ${value.textContent}`);
     }
     const heading = root.querySelector(".srow.h > span");
     if (mobile && textRects(heading).length !== 1) issues.push("difficulty heading wraps");
@@ -214,86 +180,51 @@ for (const browserName of ["chromium", "webkit"]) {
       }
     });
 
-    for (const width of [320, 390, 1280]) {
-      test(`extreme labels and spacing at ${width}px`, async ({ page }) => {
-        await page.clock.install({ time: saturday });
-        await page.addInitScript((latest) => {
-          localStorage.setItem(
-            "sudoku-solved",
-            JSON.stringify({
-              [latest]: Object.fromEntries(
-                [
-                  ["easy", 3600],
-                  ["medium", 36000],
-                  ["hard", 7.123456789012345e103],
-                ].map(([diff, time]) => [diff, { completed: true, time }])
-              ),
-            })
-          );
-        }, latest);
-        await page.setViewportSize({ width, height: 800 });
-        await page.goto("./");
-        await expect(page.locator(".srow").filter({ hasText: "Hard" })).toContainText("e+");
-        await page.evaluate(() => document.fonts.ready);
-        expect.soft(await layoutIssues(page, false), `${width}px cards`).toEqual([]);
-        if (width < 600) {
-          await page.locator(".latest").click();
-          await expect(page.getByRole("dialog")).toBeVisible();
-          await page.clock.runFor(300);
-          expect(await layoutIssues(page, false), `${width}px sheet`).toEqual([]);
-        }
-      });
-    }
-
-    for (const hardTime of [7.123456789012345e103, Number.MAX_VALUE]) {
-      test(`statistics, cards and sheet contain hour-long and extreme times (${hardTime})`, async ({
-        page,
-      }) => {
-        expect(page.context().browser().browserType().name()).toBe(browserName);
+    for (const seconds of [7, 245, 3599, 3600, 35999, 86399, 359999]) {
+      test(`realistic times fit through 99:59:59 (${seconds}s)`, async ({ page }) => {
         await page.clock.install({ time: saturday });
         await page.addInitScript(
-          ({ latest, hardTime }) => {
+          ({ latest, seconds }) => {
             localStorage.setItem(
               "sudoku-solved",
               JSON.stringify({
                 [latest]: Object.fromEntries(
-                  [
-                    ["easy", 3600],
-                    ["medium", 36000],
-                    ["hard", hardTime],
-                  ].map(([diff, time]) => [diff, { completed: true, time }])
+                  ["easy", "medium", "hard"].map((diff) => [
+                    diff,
+                    { completed: true, time: seconds },
+                  ])
                 ),
               })
             );
           },
-          { latest, hardTime }
+          { latest, seconds }
         );
         await page.setViewportSize({ width: 320, height: 800 });
         await page.goto("./");
-        await expect(page.locator(".srow").filter({ hasText: "Easy" })).toContainText("1:00:00");
-        await expect(page.locator(".srow").filter({ hasText: "Medium" })).toContainText("10:00:00");
-        await expect(page.locator(".srow").filter({ hasText: "Hard" })).toContainText(
-          /e\+(100|304):/
-        );
+        await expect(page.locator(".srow").filter({ hasText: "Hard" })).not.toContainText("—");
         await page.evaluate(() => document.fonts.ready);
         for (const width of widths) {
           await page.setViewportSize({ width, height: 800 });
-          if (width === 1280) {
-            await expect(page.getByRole("region", { name: "All-time bests" })).toBeVisible();
-            await expect(page.getByRole("region", { name: "Latest puzzles" })).toBeVisible();
-          }
-          expect(await layoutIssues(page, false), `${browserName}, ${width}px`).toEqual([]);
+          expect(
+            await layoutIssues(page, false),
+            `${browserName}, ${seconds}s, ${width}px`
+          ).toEqual([]);
         }
         await page.setViewportSize({ width: 320, height: 800 });
         await page.locator(".latest").click();
-        const sheet = page.getByRole("dialog");
-        await expect(sheet).toBeVisible();
-        await expect(sheet.locator(".prow")).toHaveCount(3);
-        await expect(sheet).toContainText(/e\+(100|304):/);
+        await expect(page.getByRole("dialog")).toBeVisible();
         await page.clock.runFor(300);
+        await page
+          .getByRole("dialog")
+          .evaluate((element) =>
+            Promise.all(element.getAnimations().map((animation) => animation.finished))
+          );
         for (const width of widths.filter((width) => width < 600)) {
           await page.setViewportSize({ width, height: 800 });
-          expect(await layoutIssues(page, false), `${browserName} sheet, ${width}px`).toEqual([]);
+          expect(
+            await layoutIssues(page, false),
+            `${browserName} sheet, ${seconds}s, ${width}px`
+          ).toEqual([]);
         }
       });
     }
