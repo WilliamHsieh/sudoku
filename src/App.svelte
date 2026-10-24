@@ -34,9 +34,10 @@
   import { playUi, RESUME_REVEAL_MS, RESUME_EASE, RESUME_BLUR_PX } from "./play/session.svelte.js";
   import { applyShot } from "./play/shot.js";
   import { applyKeypadShot } from "./play/keypad-shot.js";
+  import { PAUSE_ON_WINDOW_BLUR } from "./play/background-policy.js";
   import PausedCover from "./PausedCover.svelte";
   import OptionsSheet from "./OptionsSheet.svelte";
-  import { onMount, tick } from "svelte";
+  import { flushSync, onMount, tick } from "svelte";
   import { longDate } from "./journal/format.js";
 
   game.setOnActivity(() => playUi.noteActivity());
@@ -123,6 +124,8 @@
   /** Phone board stays painted until the cover is opaque, then hides. */
   let concealBoard = $state(false);
   let automaticCover = $state(false);
+  /** Backgrounding must never wait for the manual cover entrance. */
+  let backgroundCover = $state(false);
   /** Snap chrome on a short return; the next pause restores normal motion. */
   let shortReturn = $state(false);
 
@@ -138,10 +141,11 @@
       coverLeaving = false;
       showCover = true;
       automaticCover = playUi.reason === "auto";
-      concealBoard = playUi.resumePhase !== "reveal" && reduceMotion();
+      concealBoard = playUi.resumePhase !== "reveal" && (backgroundCover || reduceMotion());
       return;
     }
     concealBoard = false;
+    backgroundCover = false;
     if (!showCover) return;
     if (automaticCover || reduceMotion()) {
       showCover = false;
@@ -383,24 +387,55 @@
     };
     window.addEventListener("keydown", noteKey, true);
     window.addEventListener("pointerdown", notePointer, true);
-    let hiddenAt = 0;
-    const onVis = () => {
-      const hidden = document.hidden || document.visibilityState === "hidden";
-      if (hidden) {
-        hiddenAt = Date.now();
+    /** First departure signal; later hidden/pagehide events must not shorten the absence. */
+    let hiddenAt = /** @type {number | null} */ (null);
+    const isHidden = () => document.hidden || document.visibilityState === "hidden";
+    const onAway = () => {
+      if (showCalendar || game.solved) {
+        // Clear #58's view/entry announcement without pausing these views.
         resumeStatus = "";
-        if (playUi.noteHidden()) void focusAfterPause(true);
         return;
       }
-      if (!hiddenAt) return;
+      hiddenAt ??= Date.now();
+      let newlyPaused = false;
+      flushSync(() => {
+        backgroundCover = true;
+        resumeStatus = "";
+        newlyPaused = playUi.noteHidden();
+      });
+      // Resolve the opaque cover's style now, before the browser can suspend us.
+      // This prepares rendering; it cannot force the OS to capture a new frame.
+      const cover = wrapEl?.querySelector(".paused-cover");
+      if (cover) getComputedStyle(cover).opacity;
+      if (newlyPaused) void focusAfterPause(true);
+    };
+    const onReturn = () => {
+      if (isHidden() || hiddenAt === null) return;
       const away = Date.now() - hiddenAt;
-      hiddenAt = 0;
+      hiddenAt = null;
       const silent = showCalendar;
-      const result = playUi.noteVisible(away, { silent });
-      shortReturn = result === "quiet" && !silent;
+      let result;
+      flushSync(() => {
+        result = playUi.noteVisible(away, { silent });
+        shortReturn = result === "quiet" && !silent;
+      });
       if (result === "announced") void announceResumed();
       else if (result === "quiet" && !silent) void focusAfterPause(false);
     };
+    const onVis = () => (isHidden() ? onAway() : onReturn());
+    /** @param {FocusEvent} event */
+    const onWindowBlur = (event) => {
+      // Native dialog Tab wrapping can briefly focus browser chrome. While a
+      // dialog is open, use the explicit lifecycle signals for backgrounding.
+      if (PAUSE_ON_WINDOW_BLUR && event.target === window && (!playUi.modal || isHidden()))
+        onAway();
+    };
+    window.addEventListener("blur", onWindowBlur);
+    window.addEventListener("focus", onReturn);
+    window.addEventListener("pagehide", onAway);
+    window.addEventListener("pageshow", onReturn);
+    document.addEventListener("freeze", onAway);
+    document.addEventListener("resume", onReturn);
     document.addEventListener("visibilitychange", onVis);
     if (shotParams.has("freeze")) document.documentElement.classList.add("kp-freeze");
     revealMid = shotParams.get("reveal") === "mid";
@@ -435,6 +470,12 @@
       mq.removeEventListener("change", onNarrow);
       reduceMq.removeEventListener("change", onReduce);
       document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("blur", onWindowBlur);
+      window.removeEventListener("focus", onReturn);
+      window.removeEventListener("pagehide", onAway);
+      window.removeEventListener("pageshow", onReturn);
+      document.removeEventListener("freeze", onAway);
+      document.removeEventListener("resume", onReturn);
       window.removeEventListener("keydown", noteKey, true);
       window.removeEventListener("pointerdown", notePointer, true);
       playUi.onAutoResume(null);
@@ -501,7 +542,10 @@
 <!-- Cover the PWA top blur without changing the safe-area padding. -->
 <div class="top-strip" aria-hidden="true"></div>
 
-<main class:on-journal={showCalendar}>
+<main
+  class:on-journal={showCalendar}
+  class:background-hiding={backgroundCover && playUi.paused && playUi.resumePhase !== "reveal"}
+>
   <p id="resume-status" class="sr-only" aria-live="polite">{resumeStatus}</p>
   <Api />
   <PlayHeader
@@ -562,6 +606,7 @@
             <PausedCover
               showKey={!isNarrow}
               leaving={coverLeaving}
+              immediate={backgroundCover}
               away={playUi.reason === "auto"}
               revealing={playUi.resumePhase === "reveal"}
               onresume={onResumeCover}
@@ -1096,6 +1141,13 @@
   .play.revealing .chrome-dim {
     opacity: 1 !important;
     transition: opacity var(--resume-ms) var(--resume-ease);
+  }
+
+  /* Background controls must reach the paused look in the cover's hide frame.
+     Limit this to departure/hold so manual exits and automatic reveals keep their motion. */
+  main.background-hiding .chrome-dim {
+    opacity: 0.4;
+    transition: none;
   }
 
   /* Short absences restore interactive chrome without a trailing fade. */
