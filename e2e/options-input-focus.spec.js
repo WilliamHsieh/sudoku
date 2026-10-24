@@ -1,3 +1,4 @@
+import { switchNotesMode } from "./helpers.js";
 import { test, expect } from "@playwright/test";
 import { openBoard } from "./helpers.js";
 
@@ -51,7 +52,7 @@ for (const width of [390, 1280]) {
           // Change notes through the real mobile control, also for desktop cases.
           await page.setViewportSize({ width: 390, height: 844 });
           await openBoard(page, "./?shot=1&freeze");
-          if (manual) await page.locator("#notes-mode").tap();
+          if (manual) await switchNotesMode(page);
           await page.setViewportSize({ width, height: 844 });
         });
 
@@ -111,7 +112,7 @@ for (const width of [390, 1280]) {
           const first = page.locator(manual ? "#opt-tap-fill" : "#opt-cue");
           // Start navigation at the visible header after the mobile setup and
           // resize, rather than at a notes control that desktop has hidden.
-          await page.locator("h1").filter({ visible: true }).click();
+          await page.locator("#time-control").focus();
           await tabTo(page, more);
           await page.keyboard.press("Enter");
           await expectRing(first);

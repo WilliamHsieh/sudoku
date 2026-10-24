@@ -42,9 +42,9 @@ test("disabling PAUSE_ON_WINDOW_BLUR leaves blur-only absences running; explicit
   await page.clock.runFor(1_000);
   await page.evaluate(() => window.dispatchEvent(new Event("blur")));
   await expect(page.locator(".paused-cover")).toHaveCount(0);
-  await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator("#time-control")).toHaveAttribute("aria-pressed", "false");
   await page.clock.runFor(2_000);
-  await expect(page.locator(".timer .time")).toHaveText("0:03");
+  await expect(page.locator("[data-time]")).toHaveText("0:03");
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "idle");
 
@@ -59,7 +59,7 @@ test("disabling PAUSE_ON_WINDOW_BLUR leaves blur-only absences running; explicit
     }, signal);
     expect(opacity).toBe("1");
     await page.clock.runFor(500);
-    await expect(page.locator(".timer .time")).toHaveText("0:03");
+    await expect(page.locator("[data-time]")).toHaveText("0:03");
     await page.evaluate(() => {
       Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
       document.dispatchEvent(new Event("visibilitychange"));

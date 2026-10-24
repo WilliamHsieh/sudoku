@@ -136,7 +136,7 @@ for (const interrupted of ["manual entrance", "manual exit", "auto reveal"]) {
           await new Promise(requestAnimationFrame);
         }
       } else {
-        document.querySelector("#pause").click();
+        document.querySelector("#time-control").click();
         await new Promise(requestAnimationFrame);
         if (interrupted === "manual exit") {
           document.querySelector("#resume").click();
@@ -170,7 +170,7 @@ for (const interrupted of ["manual entrance", "manual exit", "auto reveal"]) {
 
 test("moving focus between page controls does not pause", async ({ page }) => {
   await openBoard(page);
-  await page.locator("#pause").focus();
+  await page.locator("#time-control").focus();
   await page.locator("[data-more]").last().focus();
   await expect(page.locator(".paused-cover")).toHaveCount(0);
   await expect(page.locator(".play")).toHaveAttribute("data-pause-reason", "none");
@@ -216,7 +216,7 @@ for (const width of [390, 1280]) {
         visible: document.visibilityState,
         opacity: getComputedStyle(document.querySelector(".paused-cover")).opacity,
         animation: getComputedStyle(document.querySelector(".paused-cover")).animationName,
-        paused: document.querySelector("#pause").getAttribute("aria-pressed"),
+        paused: document.querySelector("#time-control").getAttribute("aria-pressed"),
         chromeOpacity: getComputedStyle(document.querySelector(".chrome-dim")).opacity,
       };
     });
@@ -228,13 +228,13 @@ for (const width of [390, 1280]) {
       chromeOpacity: "0.4",
     });
     await page.clock.runFor(2_000);
-    await expect(page.locator(".timer .time")).toHaveText("0:01");
+    await expect(page.locator("[data-time]")).toHaveText("0:01");
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
     await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "hold");
     await expect(page.locator(".paused-cover")).toHaveCSS("opacity", "1");
     await page.clock.runFor(249);
     await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "hold");
-    await expect(page.locator(".timer .time")).toHaveText("0:01");
+    await expect(page.locator("[data-time]")).toHaveText("0:01");
     await page.clock.runFor(1);
     await expect(page.locator(".play")).toHaveAttribute("data-resume-phase", "reveal");
     const reveal = await page.evaluate(() => {
@@ -248,8 +248,8 @@ for (const width of [390, 1280]) {
     });
     expect(reveal).toEqual({ duration: 600, from: "blur(8px)", inert: true });
     await page.clock.runFor(599);
-    await expect(page.locator(".timer .time")).toHaveText("0:01");
-    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("[data-time]")).toHaveText("0:01");
+    await expect(page.locator("#time-control")).toHaveAttribute("aria-pressed", "true");
     // The virtual timer and CSS have separate clocks. Finish CSS at its end,
     // then cross the real session's virtual 600ms deadline.
     await page.evaluate(() => document.getAnimations().forEach((animation) => animation.finish()));
@@ -257,7 +257,7 @@ for (const width of [390, 1280]) {
     await expect(page.locator(".paused-cover")).toHaveCount(0);
     await expect(page.locator("#resume-status")).toHaveText("Resumed");
     await page.clock.runFor(1_000);
-    await expect(page.locator(".timer .time")).toHaveText("0:02");
+    await expect(page.locator("[data-time]")).toHaveText("0:02");
   });
 }
 
@@ -292,9 +292,9 @@ for (const awayMs of [500, 999]) {
       announcement: "",
       animations: 0,
     });
-    await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "false");
+    await expect(page.locator("#time-control")).toHaveAttribute("aria-pressed", "false");
     await page.clock.runFor(1_000);
-    await expect(page.locator(".timer .time")).toHaveText("0:01");
+    await expect(page.locator("[data-time]")).toHaveText("0:01");
     await expect(page.locator("#resume-status")).toHaveText("");
   });
 }
@@ -318,7 +318,7 @@ for (const awayMs of [999, 1_000, 1_100]) {
       return {
         phase: document.querySelector(".play").dataset.resumePhase,
         cover: cover && getComputedStyle(cover).opacity,
-        paused: document.querySelector("#pause").getAttribute("aria-pressed"),
+        paused: document.querySelector("#time-control").getAttribute("aria-pressed"),
         announcement: document.querySelector("#resume-status").textContent,
       };
     });
@@ -363,7 +363,7 @@ for (const signal of ["blur", "visibilitychange", "pagehide", "freeze"]) {
         await page.getByRole("button", { name: "Play", exact: true }).click();
       } else await expect(page.locator(".success-card")).toBeVisible();
       await expect(page.locator(".paused-cover")).toHaveCount(0);
-      await expect(page.locator("#pause")).toHaveAttribute("aria-pressed", "false");
+      await expect(page.locator("#time-control")).toHaveAttribute("aria-pressed", "false");
       await page.evaluate(() => {
         Object.defineProperty(document, "visibilityState", {
           configurable: true,

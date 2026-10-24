@@ -102,7 +102,7 @@ export function createGame() {
     return result;
   }
 
-  function persistProgress() {
+  function persistProgress(force = false) {
     if (!meta.dateStr || !meta.difficulty) return;
     if (isSolved(history.present)) {
       puzzleProgress.clear(meta.dateStr, meta.difficulty);
@@ -110,7 +110,8 @@ export function createGame() {
     }
     const elapsed = get(timer);
     const payload = progressPayload(history.present, elapsed);
-    if (payload.filled === 0 && elapsed === 0) return;
+    if (!force && payload.filled === 0 && elapsed === 0 && history.present.notesMode === "auto")
+      return;
     puzzleProgress.save(meta.dateStr, meta.difficulty, payload);
   }
 
@@ -229,7 +230,10 @@ export function createGame() {
       const prev = history.present;
       const next = changeNotesMode(prev, mode);
       history = replace(history, next);
-      if (next !== prev) activity();
+      if (next !== prev) {
+        persistProgress(true);
+        activity();
+      }
     },
 
     /** @param {number} i */
@@ -354,6 +358,7 @@ export function createGame() {
       done.set(false);
       resetTimer();
       if (meta.dateStr && meta.difficulty) puzzleProgress.clear(meta.dateStr, meta.difficulty);
+      if (next.notesMode !== "auto") persistProgress(true);
       if (changed) activity();
     },
 

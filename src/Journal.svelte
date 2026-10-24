@@ -1,5 +1,5 @@
 <script>
-  import { tick, untrack } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
   import { get } from "svelte/store";
   import { solvedPuzzles, puzzleProgress } from "./store.js";
   import { puzzleData } from "./puzzles.js";
@@ -37,12 +37,22 @@
   import { SLIDE_EASE, SLIDE_MS, slideOffsets } from "./journal/slide.js";
   import { isAway, isTodayShortcut, latestAnnouncement, monthsToLatest } from "./journal/home.js";
 
+  /** @type {{openOn?: {date: string} | null, current?: {date: string | null, diff: string | null, elapsed: number} | null, onback?: (fromSheet?: boolean) => void}} */
+  let { openOn = null, current = null, onback } = $props();
+  // Entry is consumed once. Browsing must not track later prop changes.
+  const entry = untrack(() => openOn);
+  onMount(() => {
+    if (!entry || isMobile()) return;
+    const cell = deskVp?.querySelector(`button.day[data-d="${entry.date}"]`);
+    if (cell instanceof HTMLElement) cell.focus({ preventScroll: true });
+  });
+
   const today = formatDay(new Date());
   const latest = latestPuzzleDay(puzzleData, today) ?? today;
 
-  let view = $state(startOfMonth(latest));
+  let view = $state(startOfMonth(entry?.date ?? latest));
   /** Selected puzzle day, or null for the unfocused latest panel. */
-  let sel = $state(/** @type {string | null} */ (null));
+  let sel = $state(/** @type {string | null} */ (entry?.date ?? null));
   /** Mobile sheet: a day, unfinished, or closed. */
   let sheet = $state(/** @type {null | "day" | "unfinished"} */ (null));
   /** Stays up through the close animation, then unmounts. */
@@ -111,6 +121,26 @@
     slide ? monthCells(puzzleData, latest, today, slide.destination) : cells
   );
 
+  /**
+   * A just-opened game has no saved progress until its first second or edit.
+   * Keep its current-game row distinct without writing an unfinished entry.
+   * @param {string} date
+   * @param {string} diff
+   * @returns {import('./journal/stats.js').PuzzleState}
+   */
+  function rowState(date, diff) {
+    const st = puzzleState(solved, progress, date, diff);
+    if (st.kind !== "none" || current?.date !== date || current.diff !== diff) return st;
+    return {
+      kind: "progress",
+      elapsed: current.elapsed,
+      filled: 0,
+      empty: [...(puzzleData[date]?.[diff] ?? "")].filter((d) => d === "0").length,
+      updatedAt: 0,
+      pct: 0,
+    };
+  }
+
   /** @param {string} date */
   function kinds(date) {
     return DIFFS.map((d) => puzzleState(solved, progress, date, d).kind);
@@ -118,7 +148,9 @@
 
   function prefersReduced() {
     return (
-      typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      typeof window !== "undefined" &&
+      (window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
+        new URLSearchParams(window.location.search).get("rm") === "1")
     );
   }
 
@@ -187,7 +219,7 @@
    * @param {{ selection?: string | null, onfinish?: () => void }} [options]
    */
   function shiftMonth(n, fromPx = 0, options = {}) {
-    if (animating) return;
+    if (animating || pendingPlay) return;
     if (n > 0 && !canNext) return;
     if (n === 0) return;
     const next = new Date(y, m + n, 1);
@@ -343,6 +375,10 @@
     if (!puzzle) return;
     const st = puzzleState(get(solvedPuzzles), get(puzzleProgress), date, diff);
     const play = () => {
+      if (current?.date === date && current.diff === diff && onback) {
+        onback(fromSheet);
+        return;
+      }
       if (st.kind === "progress") {
         game.load(puzzle, {
           dateStr: date,
@@ -355,16 +391,14 @@
       }
       window.dispatchEvent(
         new CustomEvent("loadPuzzle", {
-          detail: { dateStr: date, difficulty: diff, puzzleString: puzzle },
+          detail: { dateStr: date, difficulty: diff, puzzleString: puzzle, fromSheet },
         })
       );
     };
     if (fromSheet) {
       pendingPlay = play;
       closeSheet();
-    } else {
-      play();
-    }
+    } else play();
   }
 
   /** @param {string} date */
@@ -381,7 +415,7 @@
 
   /** @param {TouchEvent} e */
   function onTouchStart(e) {
-    if (animating) return;
+    if (animating || pendingPlay) return;
     touchX = e.touches[0].clientX;
     swiping = true;
     swipeX = 0;
@@ -889,9 +923,10 @@
             {#each DIFFS as d (d)}
               <PuzzleRow
                 diff={d}
-                st={puzzleState(solved, progress, latest, d)}
+                st={rowState(latest, d)}
                 avg={avgs[d]}
                 isPb={bests[d]?.date === latest}
+                inPlay={current?.date === latest && current?.diff === d ? current.elapsed : null}
                 onplay={() => playPuzzle(latest, d)}
               />
             {/each}
@@ -923,9 +958,10 @@
             {#each DIFFS as d (d)}
               <PuzzleRow
                 diff={d}
-                st={puzzleState(solved, progress, sel, d)}
+                st={rowState(sel, d)}
                 avg={avgs[d]}
                 isPb={bests[d]?.date === sel}
+                inPlay={current?.date === sel && current?.diff === d ? current.elapsed : null}
                 onplay={() => playPuzzle(sel, d)}
               />
             {/each}
@@ -1060,7 +1096,7 @@
         {#each DIFFS as d (d)}
           <PuzzleRow
             diff={d}
-            st={puzzleState(solved, progress, sheetDay, d)}
+            st={rowState(sheetDay, d)}
             avg={avgs[d]}
             isPb={bests[d]?.date === sheetDay}
             onplay={() => playPuzzle(sheetDay, d, true)}
