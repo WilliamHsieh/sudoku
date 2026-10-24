@@ -5,11 +5,13 @@ import "./sheet-exit.css";
 export function createSheetExit(remove) {
   let closing = $state(false);
   let centered = $state(false);
+  let exitingModal = $state(false);
   let timer = 0;
 
   function reset() {
     window.clearTimeout(timer);
     closing = false;
+    exitingModal = false;
   }
 
   function finish() {
@@ -32,6 +34,10 @@ export function createSheetExit(remove) {
         ? `animation: ${centered ? "pop-out" : "sheet-down"} var(--motion) var(--ease-out) forwards`
         : undefined;
     },
+    get pageSurfaceStyle() {
+      // Journal's view transform already keeps its scrim below .top-strip.
+      return closing && exitingModal ? "isolation: isolate" : "display: contents";
+    },
     get scrimStyle() {
       return closing
         ? "pointer-events: auto; transition: none; animation: sheet-exit-fade var(--motion) var(--ease-out) forwards"
@@ -46,6 +52,7 @@ export function createSheetExit(remove) {
       }
       const { dialog, closeDialog } = options;
       if (dialog?.matches(":modal")) {
+        exitingModal = true;
         if (closeDialog) closeDialog();
         else dialog.close();
         // Keep only an exit surface; show() would run dialog focus steps again.

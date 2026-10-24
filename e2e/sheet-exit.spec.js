@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { openBoard } from "./helpers.js";
+import { decode } from "./painted-options.js";
 
 const viewport = { width: 390, height: 844 };
 test.use({ viewport });
@@ -175,3 +176,55 @@ for (const reducedMotion of ["no-preference", "reduce"]) {
     });
   });
 }
+
+test("More keeps the top strip opaque like the picker reached from Play", async ({
+  page,
+}, testInfo) => {
+  for (const kind of ["difficulty", "more"]) {
+    await openBoard(page, "./?shot=1&freeze");
+    await page.addStyleTag({
+      content: ".top-strip { height: 47px !important } main { padding-top: 47px !important }",
+    });
+    if (kind === "difficulty") {
+      await page.locator(".header .dbtn").click();
+      await page.evaluate(() =>
+        Promise.all(document.getAnimations().map((a) => a.finished.catch(() => {})))
+      );
+    }
+    const clip = { x: 0, y: 0, width: 390, height: 47 };
+    const closed = decode(await page.screenshot({ clip })).data;
+    await page.clock.install();
+    await page.clock.pauseAt(new Date(Date.now() + 50));
+    if (kind === "more") await page.locator("[data-more]").filter({ visible: true }).click();
+    else await page.getByRole("button", { name: /Latest puzzles,/ }).click();
+    await page.evaluate(() =>
+      Promise.all(document.getAnimations().map((a) => a.finished.catch(() => {})))
+    );
+    await page.evaluate(async (kind) => {
+      const sheet = document.querySelector(kind === "more" ? "dialog.opts" : ".sheet");
+      const scrim = document.querySelector(kind === "more" ? ".modal-scrim" : ".scrim");
+      sheet.querySelector(kind === "more" ? "#opts-done" : "[aria-label=Close]").click();
+      await Promise.resolve();
+      window.exitFrames = [...sheet.getAnimations(), ...scrim.getAnimations()];
+      for (const a of window.exitFrames) {
+        a.pause();
+        a.currentTime = 0;
+      }
+      await Promise.all(window.exitFrames.map((a) => a.ready));
+    }, kind);
+    for (let ms = 0; ms <= 256; ms += 16) {
+      await page.evaluate((ms) => {
+        for (const a of window.exitFrames) a.currentTime = ms;
+      }, ms);
+      const png = await page.screenshot({ clip });
+      expect(decode(png).data.equals(closed), `${kind} top strip at ${ms} ms`).toBe(true);
+      if (ms === 64)
+        await testInfo.attach(`${kind}-top-64ms`, { body: png, contentType: "image/png" });
+    }
+    await page.evaluate(() => {
+      for (const a of window.exitFrames) a.finish();
+    });
+    await page.clock.runFor(400);
+    expect(decode(await page.screenshot({ clip })).data.equals(closed)).toBe(true);
+  }
+});
