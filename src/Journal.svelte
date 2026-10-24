@@ -1431,7 +1431,10 @@
   }
   .srow {
     display: grid;
-    grid-template-columns: 1fr 54px 62px 62px;
+    grid-template-columns: minmax(max-content, 1fr) minmax(min-content, 54px) repeat(
+        2,
+        minmax(62px, max-content)
+      );
     align-items: center;
     height: 30px;
     font-size: 14px;
@@ -1567,9 +1570,51 @@
     margin-top: 10px;
   }
 
+  /* Time has no hour limit. Let unusually long values wrap inside their column. */
+  .srow:not(.h) {
+    height: auto;
+    min-height: 30px;
+  }
+  .srow .num,
+  .stat .num,
+  .strip .num {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .srow .num:nth-child(n + 3),
+  .stat .num:nth-child(n + 3) {
+    padding-left: 1px;
+  }
+
+  @media (max-width: 360px) {
+    .srow.h {
+      letter-spacing: 0;
+    }
+    .mobile .day.future .x,
+    .mobile .day.nop .x {
+      position: absolute;
+      inset: auto 0 10px;
+      font-size: clamp(8.5px, calc(2.5vw + 0.5px), 9.5px);
+      text-align: center;
+      white-space: nowrap;
+    }
+  }
+
   @media (max-width: 359px) {
     .srow {
-      grid-template-columns: 1fr 38px 50px 50px;
+      grid-template-columns: minmax(max-content, 1fr) minmax(min-content, 48px) repeat(
+          2,
+          minmax(62px, max-content)
+        );
+    }
+    .srow.h {
+      height: 40px;
+    }
+    .srow.h > span:first-child {
+      grid-column: 1 / -1;
+    }
+    .srow.h > span:nth-child(2) {
+      grid-column: 2;
     }
     .mobile .day {
       padding-left: 3px;
@@ -1787,10 +1832,17 @@
     }
     .stat {
       display: grid;
-      grid-template-columns: 1fr 46px 56px 56px;
+      grid-template-columns: minmax(max-content, 1fr) minmax(min-content, 46px) repeat(
+          2,
+          minmax(56px, max-content)
+        );
       align-items: center;
       height: 44px;
       font-size: 14px;
+    }
+    .stat:not(.h) {
+      height: auto;
+      min-height: 44px;
     }
     .stat + .stat {
       border-top: 1px solid var(--neutral-2);
@@ -1799,6 +1851,7 @@
       text-align: right;
     }
     .stat.h {
+      grid-template-columns: 1fr 46px 56px 56px;
       height: 26px;
       font-size: 11px;
       color: var(--ink2);
@@ -1870,6 +1923,7 @@
       margin-bottom: 16px;
     }
     .strip .t {
+      min-width: 0;
       padding: 9px 12px;
     }
     .strip .tl {
@@ -1881,6 +1935,7 @@
     }
     .strip .tv {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       gap: 12px;
       margin-top: 3px;
@@ -1889,7 +1944,8 @@
     }
     .strip .tv .mm {
       display: grid;
-      grid-template-columns: auto auto;
+      grid-template-columns: auto minmax(1em, 1fr);
+      min-width: 0;
       gap: 0 6px;
       line-height: 1.35;
     }
