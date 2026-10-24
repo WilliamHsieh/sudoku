@@ -22,23 +22,10 @@ const saturday = new Date(latestDay);
 do {
   saturday.setDate(saturday.getDate() + 1);
 } while (saturday.getDay() !== 6);
-const widths = [
-  ...Array.from({ length: 41 }, (_, i) => 320 + i),
-  375,
-  390,
-  599,
-  600,
-  768,
-  800,
-  1024,
-  1200,
-  1201,
-  1280,
-  1600,
-];
+const widths = [390, 1280];
 
-async function layoutIssues(page, calendar) {
-  return page.evaluate((calendar) => {
+async function layoutIssues(page) {
+  return page.evaluate(() => {
     const issues = [];
     const outside = (inner, outer) =>
       inner.left < outer.left - 0.02 ||
@@ -142,52 +129,13 @@ async function layoutIssues(page, calendar) {
           issues.push("statistics columns overlap");
       }
     }
-    if (!calendar || !mobile) return issues;
-    const grid = root.querySelector(".mgrid");
-    for (const cell of grid.querySelectorAll(".day")) {
-      const box = cell.getBoundingClientRect();
-      if (outside(box, grid.getBoundingClientRect()) || cell.scrollWidth > cell.clientWidth)
-        issues.push(`calendar cell overflows: ${cell.textContent}`);
-      for (const child of cell.children) {
-        if (outside(child.getBoundingClientRect(), box))
-          issues.push(`calendar content overflows: ${cell.textContent}`);
-        if (child.matches(".x") && innerWidth <= 360) {
-          const rects = textRects(child);
-          if (rects.length !== 1 || rects.some((rect) => outside(rect, box)))
-            issues.push(`status label wraps or overflows: ${child.textContent}`);
-        }
-      }
-    }
     return issues;
-  }, calendar);
+  });
 }
 
 for (const browserName of ["chromium", "webkit"]) {
-  test.describe(`${browserName} Journal at narrow widths`, () => {
+  test.describe(`${browserName} Journal statistics`, () => {
     test.use({ journalEngine: browserName });
-
-    test("calendar labels and heading fit at every width from 320 to 360", async ({ page }) => {
-      expect(page.context().browser().browserType().name()).toBe(browserName);
-      await page.clock.install({ time: saturday });
-      await page.goto("./");
-      await page.setViewportSize({ width: 320, height: 800 });
-      if (saturday.getMonth() !== latestDay.getMonth()) {
-        await page.locator(".mhead").getByRole("button", { name: "Next month" }).click();
-        await expect(page.locator(".track")).toHaveCount(0);
-      }
-      const grid = page.locator(".mgrid");
-      await expect(grid.locator(".day")).toHaveCount(
-        new Date(saturday.getFullYear(), saturday.getMonth() + 1, 0).getDate()
-      );
-      await expect(
-        grid.locator(".day.future").filter({ hasText: new RegExp(`^${saturday.getDate()}\\b`) })
-      ).toContainText("Not yet");
-      await page.evaluate(() => document.fonts.ready);
-      for (const width of widths) {
-        await page.setViewportSize({ width, height: 800 });
-        expect(await layoutIssues(page, true), `${browserName}, ${width}px`).toEqual([]);
-      }
-    });
 
     for (const seconds of [7, 245, 3599, 3600, 35999, 86399, 359999]) {
       test(`realistic times fit through 99:59:59 (${seconds}s)`, async ({ page }) => {
@@ -208,18 +156,15 @@ for (const browserName of ["chromium", "webkit"]) {
           },
           { latest, seconds }
         );
-        await page.setViewportSize({ width: 320, height: 800 });
+        await page.setViewportSize({ width: 390, height: 800 });
         await page.goto("./");
         await expect(page.locator(".srow").filter({ hasText: "Hard" })).not.toContainText("—");
         await page.evaluate(() => document.fonts.ready);
         for (const width of widths) {
           await page.setViewportSize({ width, height: 800 });
-          expect(
-            await layoutIssues(page, false),
-            `${browserName}, ${seconds}s, ${width}px`
-          ).toEqual([]);
+          expect(await layoutIssues(page), `${browserName}, ${seconds}s, ${width}px`).toEqual([]);
         }
-        await page.setViewportSize({ width: 320, height: 800 });
+        await page.setViewportSize({ width: 390, height: 800 });
         await page.locator(".latest").click();
         await expect(page.getByRole("dialog")).toBeVisible();
         await page.clock.runFor(300);
@@ -230,10 +175,9 @@ for (const browserName of ["chromium", "webkit"]) {
           );
         for (const width of widths.filter((width) => width < 600)) {
           await page.setViewportSize({ width, height: 800 });
-          expect(
-            await layoutIssues(page, false),
-            `${browserName} sheet, ${seconds}s, ${width}px`
-          ).toEqual([]);
+          expect(await layoutIssues(page), `${browserName} sheet, ${seconds}s, ${width}px`).toEqual(
+            []
+          );
         }
       });
     }

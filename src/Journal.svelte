@@ -1576,41 +1576,6 @@
     margin-top: 10px;
   }
 
-  @media (max-width: 360px) {
-    .srow.h {
-      letter-spacing: 0;
-    }
-    .mobile .day.future .x,
-    .mobile .day.nop .x {
-      position: absolute;
-      inset: auto 0 10px;
-      font-size: clamp(8.5px, calc(2.5vw + 0.5px), 9.5px);
-      text-align: center;
-      white-space: nowrap;
-    }
-  }
-
-  @media (max-width: 359px) {
-    .srow {
-      grid-template-columns: minmax(max-content, 1fr) minmax(min-content, 48px) repeat(
-          2,
-          minmax(62px, max-content)
-        );
-    }
-    .srow.h {
-      height: 40px;
-    }
-    .srow.h > span:first-child {
-      grid-column: 1 / -1;
-    }
-    .srow.h > span:nth-child(2) {
-      grid-column: 2;
-    }
-    .mobile .day {
-      padding-left: 3px;
-    }
-  }
-
   .scrim {
     position: fixed;
     inset: 0;
