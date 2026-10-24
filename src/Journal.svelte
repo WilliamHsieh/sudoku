@@ -1110,6 +1110,12 @@
   .num {
     font-variant-numeric: tabular-nums;
   }
+  /* Include a readable gap in the intrinsic width of each time column.
+     Short times keep their existing right-aligned positions. */
+  .srow .num:nth-child(n + 3),
+  .stat .num:nth-child(n + 3) {
+    padding-inline-start: 8px;
+  }
   .kicker {
     font-size: 12px;
     font-weight: 600;
@@ -1420,7 +1426,10 @@
   }
   .srow {
     display: grid;
-    grid-template-columns: 1fr 54px 62px 62px;
+    grid-template-columns: minmax(max-content, 1fr) minmax(min-content, 54px) repeat(
+        2,
+        minmax(62px, max-content)
+      );
     align-items: center;
     height: 30px;
     font-size: 14px;
@@ -1744,7 +1753,10 @@
     }
     .stat {
       display: grid;
-      grid-template-columns: 1fr 46px 56px 56px;
+      grid-template-columns: minmax(max-content, 1fr) minmax(min-content, 46px) repeat(
+          2,
+          minmax(56px, max-content)
+        );
       align-items: center;
       height: 44px;
       font-size: 14px;
@@ -1756,6 +1768,7 @@
       text-align: right;
     }
     .stat.h {
+      grid-template-columns: 1fr 46px 56px 56px;
       height: 26px;
       font-size: 11px;
       color: var(--ink2);

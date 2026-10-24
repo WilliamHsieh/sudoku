@@ -153,15 +153,37 @@ for (const mobile of [false, true]) {
 
     test("go-home inputs during a normal month slide do not queue", async ({ page }) => {
       await watchReturn(page, mobile);
+      // A separate Playwright call after click can arrive after the slide ends.
+      // Send the inputs in the page as soon as the real transition is running.
+      await page.evaluate(
+        ({ mobile, titleSel }) => {
+          const viewport = document.querySelector(mobile ? ".mobile .viewport" : ".dcal .viewport");
+          window.__slideInputs = new Promise((resolve) => {
+            const observer = new MutationObserver(() => {
+              const track = viewport.querySelector(".track");
+              const animation = track?.getAnimations().find((a) => a.playState === "running");
+              if (!animation) return;
+              observer.disconnect();
+              document.querySelector(titleSel).click();
+              document.querySelector(".latest").click();
+              window.dispatchEvent(new KeyboardEvent("keydown", { key: "t" }));
+              resolve(animation.playState);
+            });
+            observer.observe(viewport, {
+              childList: true,
+              subtree: true,
+              attributes: true,
+              attributeFilter: ["style"],
+            });
+          });
+        },
+        { mobile, titleSel }
+      );
       await page
         .locator(mobile ? ".mhead" : ".dmhead")
         .getByRole("button", { name: "Previous month" })
         .click();
-      await page.locator(titleSel).evaluate((el) => {
-        el.click();
-        document.querySelector(".latest").click();
-        window.dispatchEvent(new KeyboardEvent("keydown", { key: "t" }));
-      });
+      expect(await page.evaluate(() => window.__slideInputs)).toBe("running");
       await expect(page.locator(".track")).toHaveCount(0);
       await expect(page.locator(titleSel)).toHaveText(/September\s+2026/);
       await expect(page.getByRole("dialog")).toHaveCount(0);
