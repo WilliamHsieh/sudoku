@@ -1431,10 +1431,12 @@
   }
   .srow {
     display: grid;
-    grid-template-columns: minmax(max-content, 1fr) minmax(min-content, 54px) repeat(
+    /* Keep normal values at the same right edges when adding the gap. */
+    grid-template-columns: minmax(max-content, 1fr) minmax(min-content, 48px) repeat(
         2,
-        minmax(62px, max-content)
+        minmax(56px, max-content)
       );
+    column-gap: 6px;
     align-items: center;
     height: 30px;
     font-size: 14px;
@@ -1581,7 +1583,6 @@
     min-width: 0;
     overflow-wrap: anywhere;
   }
-  .srow .num:nth-child(n + 3),
   .stat .num:nth-child(n + 3) {
     padding-left: 1px;
   }
@@ -1602,9 +1603,9 @@
 
   @media (max-width: 359px) {
     .srow {
-      grid-template-columns: minmax(max-content, 1fr) minmax(min-content, 48px) repeat(
+      grid-template-columns: minmax(max-content, 1fr) minmax(min-content, 42px) repeat(
           2,
-          minmax(62px, max-content)
+          minmax(56px, max-content)
         );
     }
     .srow.h {
@@ -1722,6 +1723,10 @@
   .sheet :global(.prow),
   .ctx :global(.prow) {
     grid-template-columns: minmax(min-content, 1fr) minmax(0, auto);
+  }
+  .sheet :global(.prow .pb),
+  .ctx :global(.prow .pb) {
+    white-space: nowrap;
   }
   .sheet :global(.prow .num),
   .ctx :global(.prow .num) {
@@ -1911,6 +1916,9 @@
     }
     .ab {
       display: flex;
+      /* Move the time and date together before breaking an extreme time. */
+      flex-wrap: wrap;
+      gap: 6px;
       justify-content: space-between;
       align-items: center;
       min-height: 32px;

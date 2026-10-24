@@ -81,6 +81,39 @@ async function layoutIssues(page, calendar) {
         }
       }
     }
+    for (const label of document.querySelectorAll(".prow .pb, .prow .diff > span")) {
+      if (!label.getClientRects().length) continue;
+      const range = document.createRange();
+      const text = [...label.childNodes].find((node) => node.nodeType === Node.TEXT_NODE);
+      range.selectNodeContents(text);
+      const lines = [...range.getClientRects()].filter((rect) => rect.width);
+      if (lines.length !== 1) issues.push(`puzzle row label wraps: ${label.textContent.trim()}`);
+    }
+    for (const row of root.querySelectorAll(".srow:not(.h)")) {
+      // Extreme values fill their tracks. Check the boxes, including wrapped lines.
+      if (!row.textContent.includes("e+")) continue;
+      const cells = [...row.children];
+      for (let i = 2; i < cells.length; i++) {
+        const gap =
+          cells[i].getBoundingClientRect().left - cells[i - 1].getBoundingClientRect().right;
+        if (gap < 4) issues.push(`statistics column gap below 4px: ${gap}`);
+      }
+    }
+    for (const row of document.querySelectorAll(".ab")) {
+      if (!row.getClientRects().length) continue;
+      const [badge, time] = row.children;
+      const badgeBox = badge.getBoundingClientRect();
+      const timeBox = time.getBoundingClientRect();
+      const gap = Math.max(timeBox.left - badgeBox.right, timeBox.top - badgeBox.bottom);
+      if (gap < 4) issues.push(`all-time badge gap below 4px: ${gap}`);
+      const value = time.querySelector("b");
+      if (value) {
+        const lines = textRects(value);
+        // A final digit must not be stranded on a line by itself.
+        if (lines.length > 1 && lines.at(-1).width < parseFloat(getComputedStyle(value).fontSize))
+          issues.push("all-time time has a lone trailing fragment");
+      }
+    }
     const heading = root.querySelector(".srow.h > span");
     if (mobile && textRects(heading).length !== 1) issues.push("difficulty heading wraps");
     for (const row of root.querySelectorAll(".srow, .stat, .strip .mm")) {
@@ -157,6 +190,37 @@ for (const browserName of ["chromium", "webkit"]) {
         expect(await layoutIssues(page, true), `${browserName}, ${width}px`).toEqual([]);
       }
     });
+
+    for (const width of [320, 390, 1280]) {
+      test(`extreme labels and spacing at ${width}px`, async ({ page }) => {
+        await page.clock.install({ time: saturday });
+        await page.addInitScript((latest) => {
+          localStorage.setItem(
+            "sudoku-solved",
+            JSON.stringify({
+              [latest]: Object.fromEntries(
+                [
+                  ["easy", 3600],
+                  ["medium", 36000],
+                  ["hard", 7.123456789012345e103],
+                ].map(([diff, time]) => [diff, { completed: true, time }])
+              ),
+            })
+          );
+        }, latest);
+        await page.setViewportSize({ width, height: 800 });
+        await page.goto("./");
+        await expect(page.locator(".srow").filter({ hasText: "Hard" })).toContainText("e+");
+        await page.evaluate(() => document.fonts.ready);
+        expect.soft(await layoutIssues(page, false), `${width}px cards`).toEqual([]);
+        if (width < 600) {
+          await page.locator(".latest").click();
+          await expect(page.getByRole("dialog")).toBeVisible();
+          await page.clock.runFor(300);
+          expect(await layoutIssues(page, false), `${width}px sheet`).toEqual([]);
+        }
+      });
+    }
 
     for (const hardTime of [7.123456789012345e103, Number.MAX_VALUE]) {
       test(`statistics, cards and sheet contain hour-long and extreme times (${hardTime})`, async ({
