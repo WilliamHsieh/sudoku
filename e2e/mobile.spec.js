@@ -1,3 +1,4 @@
+import { freezeTimers } from "./paint-cases.js";
 import { switchNotesMode } from "./helpers.js";
 // Mobile input: iPhone viewport + real CDP touch. Demo puzzle cell 0 is empty
 // with Auto candidates 2 3 4 6 7; cell 1 is a given 5.
@@ -53,8 +54,7 @@ async function rectOf(locator) {
 test.describe("H2 header", () => {
   test("Play header faces, hits, title, board y and no divider", async ({ page }) => {
     const startTime = new Date("2026-01-01T00:00:00Z");
-    await page.clock.install({ time: startTime });
-    await page.clock.pauseAt(startTime);
+    await freezeTimers(page, startTime);
     await openBoard(page);
     const hd = page.locator(".hd");
     await expect(hd).toBeVisible();
@@ -215,8 +215,7 @@ test.describe("H2 header", () => {
       page,
     }) => {
       const startTime = new Date("2026-01-01T00:00:00Z");
-      await page.clock.install({ time: startTime });
-      await page.clock.pauseAt(startTime);
+      await freezeTimers(page, startTime);
       await openBoard(page);
       const t = await touchDriver(page);
       await t.tap(cell(page, 0));
@@ -699,8 +698,7 @@ test.describe("narrow header", () => {
   test("ticks hold the step and a font load changes it at most once", async ({ page }) => {
     test.setTimeout(60_000);
     const time = new Date("2026-01-01T00:00:00Z");
-    await page.clock.install({ time });
-    await page.clock.pauseAt(time);
+    await freezeTimers(page, time);
 
     async function openPlay(elapsed) {
       await page.goto(`./?elapsed=${elapsed}`);

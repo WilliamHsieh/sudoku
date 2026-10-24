@@ -48,10 +48,9 @@ export async function paintSetup(page, mobile, manual = true) {
  * feedback (the 300ms blocked flash, toasts) between assertions. Pausing a
  * second ahead of the install time avoids "Cannot fast-forward to the past".
  */
-export async function freezeTimers(page) {
-  const time = Date.now();
+export async function freezeTimers(page, time = Date.now()) {
   await page.clock.install({ time });
-  await page.clock.pauseAt(time + 1_000);
+  await page.clock.pauseAt(Number(time) + 1_000);
 }
 
 export function paintCases(mobile) {
@@ -110,6 +109,10 @@ export function paintCases(mobile) {
                   initial,
                   final: opacity(),
                   durations: animations.map((animation) => animation.effect.getTiming().duration),
+                  delays: animations.map((animation) => animation.effect.getTiming().delay),
+                  endTimes: animations.map(
+                    (animation) => animation.effect.getComputedTiming().endTime
+                  ),
                   states: animations.map((animation) => animation.playState),
                 }))
               );
@@ -122,6 +125,8 @@ export function paintCases(mobile) {
         const result = await samples.evaluate((samples) => samples.done);
         expect(result.initial).toBeGreaterThan(0.99);
         expect(result.durations).toEqual([200]);
+        expect(result.delays).toEqual([0]);
+        expect(result.endTimes).toEqual([200]);
         expect(result.states).toEqual(["finished"]);
         expect(result.final).toBeLessThanOrEqual(0.01);
         await expect(cell(page, 37)).toHaveAttribute("data-notes", notes);

@@ -1,3 +1,4 @@
+import { freezeTimers } from "./paint-cases.js";
 import { switchNotesMode } from "./helpers.js";
 // Pause, More/Options, Restart, and the single-candidate cue.
 import { test, expect } from "@playwright/test";
@@ -22,8 +23,7 @@ async function openPlay(page) {
     localStorage.removeItem("sudoku-cue");
     localStorage.setItem("sudoku-keypad-coach", "1");
   });
-  await page.clock.install({ time: T0 });
-  await page.clock.pauseAt(T0);
+  await freezeTimers(page, T0);
   await page.goto(`./?q=${DEMO_PUZZLE}`);
   if ((await page.locator(".board > .cell").count()) === 0) {
     await page.getByRole("button", { name: "Play", exact: true }).click();
