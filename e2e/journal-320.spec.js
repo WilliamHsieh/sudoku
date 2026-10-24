@@ -106,12 +106,35 @@ async function layoutIssues(page, calendar) {
       const timeBox = time.getBoundingClientRect();
       const gap = Math.max(timeBox.left - badgeBox.right, timeBox.top - badgeBox.bottom);
       if (gap < 4) issues.push(`all-time badge gap below 4px: ${gap}`);
-      const value = time.querySelector("b");
-      if (value) {
-        const lines = textRects(value);
-        // A final digit must not be stranded on a line by itself.
-        if (lines.length > 1 && lines.at(-1).width < parseFloat(getComputedStyle(value).fontSize))
-          issues.push("all-time time has a lone trailing fragment");
+    }
+    // Inspect character ranges, not element fragments: times can contain inline
+    // groups, and a two-digit seconds field is wider than one font-size.
+    for (const value of document.querySelectorAll(".journal .num, .sheet .num")) {
+      if (!value.getClientRects().length || !value.textContent.includes("e+")) continue;
+      for (const match of value.textContent.matchAll(/\d[\d.e+]*:\d{2}:\d{2}/g)) {
+        const walker = document.createTreeWalker(value, NodeFilter.SHOW_TEXT);
+        const lines = [];
+        let offset = 0;
+        while (walker.nextNode()) {
+          const node = walker.currentNode;
+          for (let i = 0; i < node.length; i++) {
+            if (offset + i < match.index || offset + i >= match.index + match[0].length) continue;
+            const range = document.createRange();
+            range.setStart(node, i);
+            range.setEnd(node, i + 1);
+            const rect = range.getBoundingClientRect();
+            if (!rect.width) continue;
+            // The sheet can still move on WebKit's compositor while ranges
+            // are read. Glyphs on one line overlap despite subpixel movement.
+            let line = lines.find((line) => Math.abs(line.top - rect.top) < rect.height / 2);
+            if (!line) lines.push((line = { top: rect.top, text: "" }));
+            line.text += node.textContent[i];
+          }
+          offset += node.length;
+        }
+        const tail = lines.at(-1)?.text.trim();
+        if (lines.length > 1 && /^:?\d{1,2}:?$/.test(tail))
+          issues.push(`time has a lone trailing fragment: ${value.className} (${tail})`);
       }
     }
     const heading = root.querySelector(".srow.h > span");

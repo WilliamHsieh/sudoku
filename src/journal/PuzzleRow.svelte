@@ -6,6 +6,7 @@
 
   /**
    * @type {{
+   *   time?: import('svelte').Snippet<[number]>,
    *   diff: 'easy' | 'medium' | 'hard',
    *   st: import('./stats.js').PuzzleState,
    *   avg?: number | null,
@@ -14,10 +15,12 @@
    *   onplay?: () => void,
    * }}
    */
-  let { diff, st, avg = null, isPb = false, inPlay = null, onplay } = $props();
+  let { diff, st, avg = null, isPb = false, inPlay = null, onplay, time } = $props();
 
   const delta = $derived(st.kind === "solved" && avg != null ? st.time - avg : 0);
 </script>
+
+{#snippet defaultTime(seconds)}{fmtTime(seconds)}{/snippet}
 
 <div class="prow">
   {#if st.kind === "solved"}
@@ -27,16 +30,16 @@
         {#if isPb}
           <span class="pb"><Icon name="trophy" />Personal best</span>
         {:else if avg != null}
-          {fmtTime(Math.abs(delta))}
+          {@render (time ?? defaultTime)(Math.abs(delta))}
           {delta < 0 ? "faster" : "slower"} than average
         {/if}
       </div>
     </div>
-    <span class="tm num"><Icon name="check" />{fmtTime(st.time)}</span>
+    <span class="tm num"><Icon name="check" />{@render (time ?? defaultTime)(st.time)}</span>
   {:else if st.kind === "progress"}
     <div>
       <DiffLabel {diff} />
-      <div class="s num">{fmtTime(st.elapsed)} played · {st.pct}% filled</div>
+      <div class="s num">{@render (time ?? defaultTime)(st.elapsed)} played · {st.pct}% filled</div>
       <div class="bar"><i style="width:{st.pct}%"></i></div>
     </div>
     {#if inPlay !== null}
