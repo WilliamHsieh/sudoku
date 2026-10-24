@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createGame, DEMO_PUZZLE } from "./game.svelte.js";
-import { conflicts, newGame } from "./game.js";
+import { candidates, conflicts, newGame } from "./game.js";
+import { bit, popcount } from "./board.js";
 import { createStroke, paintCell, strokeResult } from "./paint.js";
 import { PUZZLE, solve } from "./test-fixtures.js";
 
@@ -11,6 +12,12 @@ function expectConflicts(game) {
   expect(Array.from({ length: 81 }, (_, i) => game.inConflict(i))).toEqual(expected);
   expect(game.inConflict(0)).toBe(expected[0]);
   expect(game.inConflict(80)).toBe(expected[80]);
+  const masks = Array.from({ length: 81 }, (_, i) => candidates(game.state, i));
+  expect(Array.from({ length: 81 }, (_, i) => game.notes(i))).toEqual(masks);
+  expect(game.noteCount(0)).toBe(popcount(masks[0]));
+  for (let d = 1; d <= 9; d++) {
+    expect(game.hasNote(0, d)).toBe((masks[0] & bit(d)) !== 0);
+  }
 }
 
 /** Reproducible random operations. @param {number} seed */
