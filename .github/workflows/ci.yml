@@ -223,7 +223,7 @@ jobs:
         run: npm run test:upgrade -- --shard=${{ matrix.shard }}/4
       - name: Upload Playwright report
         if: ${{ !cancelled() && needs.changes.outputs.e2e != 'false' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-${{ matrix.shard }}-attempt-${{ github.run_attempt }}
           path: playwright-report
