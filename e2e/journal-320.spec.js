@@ -119,6 +119,15 @@ async function layoutIssues(page, calendar) {
           issues.push(`hour-long time wraps: ${cell.textContent}`);
       }
       for (let i = 1; i < cells.length; i++) {
+        // Text ranges include the glyph side bearings, so an 8px range gap
+        // conservatively guarantees at least that much visible ink separation.
+        // Check both SOLVED→AVG and AVG→BEST for every in-scope fixture.
+        if (i >= 2 && row.matches(".srow:not(.h), .stat:not(.h)")) {
+          const left = textRects(cells[i - 1]);
+          const right = textRects(cells[i]);
+          if (right.some((r) => left.some((l) => r.left - l.right < 8 - 0.02)))
+            issues.push("statistics ink gap below 8px");
+        }
         if (
           textRects(cells[i - 1]).some((left) =>
             textRects(cells[i]).some(

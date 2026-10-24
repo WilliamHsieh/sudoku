@@ -1121,6 +1121,12 @@
   .num {
     font-variant-numeric: tabular-nums;
   }
+  /* Include a readable gap in the intrinsic width of each time column.
+     Short times keep their existing right-aligned positions. */
+  .srow .num:nth-child(n + 3),
+  .stat .num:nth-child(n + 3) {
+    padding-inline-start: 8px;
+  }
   .kicker {
     font-size: 12px;
     font-weight: 600;
