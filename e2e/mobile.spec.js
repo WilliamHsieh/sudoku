@@ -1,3 +1,4 @@
+import { freezeTimers } from "./paint-cases.js";
 import { headerCases } from "./header-cases.js";
 import { switchNotesMode } from "./helpers.js";
 // Mobile input: iPhone viewport + real CDP touch. Demo puzzle cell 0 is empty
@@ -33,9 +34,7 @@ function near(a, b, label) {
 }
 
 async function clockTouch(page) {
-  const time = Date.now();
-  await page.clock.install({ time });
-  await page.clock.pauseAt(time + 1_000);
+  await freezeTimers(page);
   return touchDriver(page, { clock: true });
 }
 

@@ -48,10 +48,9 @@ export async function paintSetup(page, mobile, manual = true) {
  * feedback (the 300ms blocked flash, toasts) between assertions. Pausing a
  * second ahead of the install time avoids "Cannot fast-forward to the past".
  */
-async function freezeTimers(page) {
-  const time = Date.now();
+export async function freezeTimers(page, time = Date.now()) {
   await page.clock.install({ time });
-  await page.clock.pauseAt(time + 1_000);
+  await page.clock.pauseAt(Number(time) + 1_000);
 }
 
 export function paintCases(mobile) {
@@ -88,8 +87,9 @@ export function paintCases(mobile) {
       await page.keyboard.press("Shift+Digit5");
       await page.keyboard.press("ArrowLeft");
       await page.keyboard.press("ArrowRight");
-      // Control the CSS timeline so compositor frame scheduling cannot leave
-      // the final sample a frame behind the JavaScript clock on a busy machine.
+      // Sample in the page as soon as the commit renders. Protocol round trips
+      // must not consume the short animation window on a loaded test machine.
+      // Hold the app's 700ms marker cleanup while CSS uses its real timeline.
       await freezeTimers(page);
       for (const notes of ["5", ""]) {
         const samples = await cell(page, 37).evaluateHandle((el) => {
@@ -112,8 +112,27 @@ export function paintCases(mobile) {
               const initial = opacity();
               animation.currentTime = 100;
               const middle = opacity();
-              animation.currentTime = 200;
-              resolve({ duration, initial, middle, final: opacity() });
+              animation.currentTime = 0;
+              animation.play();
+              const animations = el
+                .getAnimations({ subtree: true })
+                .filter((animation) => animation.animationName?.includes("paint-tint"));
+              // A timer can fire before the compositor advances the animation.
+              // Observe its completion in the page, including the ::after tint.
+              resolve(
+                Promise.all(animations.map((animation) => animation.finished)).then(() => ({
+                  duration,
+                  initial,
+                  middle,
+                  final: opacity(),
+                  durations: animations.map((animation) => animation.effect.getTiming().duration),
+                  delays: animations.map((animation) => animation.effect.getTiming().delay),
+                  endTimes: animations.map(
+                    (animation) => animation.effect.getComputedTiming().endTime
+                  ),
+                  states: animations.map((animation) => animation.playState),
+                }))
+              );
             });
             observer.observe(el, { attributes: true, attributeFilter: ["class"] });
           });
@@ -126,6 +145,10 @@ export function paintCases(mobile) {
         expect(result.initial).toBeGreaterThan(0.99);
         expect(result.middle).toBeGreaterThan(0);
         expect(result.middle).toBeLessThan(result.initial);
+        expect(result.durations).toEqual([200]);
+        expect(result.delays).toEqual([0]);
+        expect(result.endTimes).toEqual([200]);
+        expect(result.states).toEqual(["finished"]);
         expect(result.final).toBeLessThanOrEqual(0.01);
         await expect(cell(page, 37)).toHaveAttribute("data-notes", notes);
       }
@@ -405,9 +428,7 @@ export function paintCases(mobile) {
     await expect(cell(page, 37)).toHaveAttribute("data-notes", "5");
     // Freeze timers before commit so machine load cannot spend the 700ms
     // marker lifetime between assertions. CSS transitions are disabled by RM.
-    const now = new Date();
-    await page.clock.install({ time: now });
-    await page.clock.pauseAt(now);
+    await freezeTimers(page);
     await t.up();
     await expect(pencil(page, 37, 5)).toHaveCSS("background-color", "rgb(223, 232, 250)");
     await page.clock.runFor(400);
@@ -471,11 +492,18 @@ export function paintCases(mobile) {
     expect(blue.background).toBe("rgb(223, 232, 250)");
     expect(blue.color).toBe("rgb(34, 73, 173)");
     expect(blue.shadow).toBe("rgb(143, 168, 224) 0px 0px 0px 0.5px");
+    // Keep the 385ms blue hold phase from expiring between protocol reads.
+    // CSS animations still use real time; resume app timers to start the fade.
+    await freezeTimers(page);
     await t.up();
     await expect(pencil(page, 37, 5)).toHaveClass(/paint-added/);
     await expect(pencil(page, 37, 5)).toHaveCSS("background-color", "rgb(223, 232, 250)");
     if (!mobile) await page.mouse.move(0, 0);
+    await page.clock.resume();
     await expect(pencil(page, 37, 5)).not.toHaveClass(/paint-added/);
+    await pencil(page, 37, 5).evaluate((el) =>
+      Promise.all(el.getAnimations({ subtree: true }).map((animation) => animation.finished))
+    );
     expect(await pencil(page, 37, 5).evaluate(measure)).toEqual(yellow);
   });
 }

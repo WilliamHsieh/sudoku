@@ -17,7 +17,7 @@
     id="undo"
     type="button"
     aria-label="Undo"
-    disabled={!game.canUndo}
+    disabled={playUi.paused || !game.canUndo}
     onclick={() => {
       if (!playUi.paused) ring.undo();
     }}
@@ -33,7 +33,7 @@
     id="redo"
     type="button"
     aria-label="Redo"
-    disabled={!game.canRedo}
+    disabled={playUi.paused || !game.canRedo}
     onclick={() => {
       if (!playUi.paused) ring.redo();
     }}
@@ -49,7 +49,7 @@
     id="erase"
     type="button"
     aria-label="Erase"
-    disabled={eraseOff}
+    disabled={playUi.paused || eraseOff}
     onclick={() => {
       if (!playUi.paused) game.erase(game.selected);
     }}

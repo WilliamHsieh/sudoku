@@ -1,3 +1,4 @@
+import { freezeTimers } from "./paint-cases.js";
 import { test, expect } from "@playwright/test";
 import { touchDriver } from "./touch.js";
 import { puzzleData } from "../src/puzzles.js";
@@ -69,8 +70,7 @@ async function resumeInJournal(page, date, remaining) {
     },
     { date, entry }
   );
-  await page.clock.install({ time: NOW });
-  await page.clock.pauseAt(new Date(NOW.getTime() + 1000));
+  await freezeTimers(page, NOW);
   await page.goto("./");
   // Play resumes the most recent unfinished puzzle through the app's real path.
   await page.locator("#time-control").click();
@@ -150,8 +150,7 @@ for (const mobile of [false, true]) {
     page,
   }) => {
     await page.setViewportSize({ width: mobile ? 390 : 1280, height: 844 });
-    await page.clock.install({ time: NOW });
-    await page.clock.pauseAt(new Date(NOW.getTime() + 1000));
+    await freezeTimers(page, NOW);
     await page.addInitScript(() => {
       const previous = new Map();
       window.__loadAnnouncements = [];
