@@ -1,11 +1,13 @@
 <script>
   import { tick } from "svelte";
+  import { createSheetExit } from "./sheet-exit.svelte.js";
   import { playUi } from "./play/session.svelte.js";
   import { OPT_TAP_SUB, OPT_TAP_TITLE } from "./keypad-copy.js";
 
-  /** @type {{ onclosed?: () => void, onrestart: () => void }} */
-  let { onclosed, onrestart } = $props();
+  /** @type {{ onclosed?: () => void, onrestart: () => void, viewport?: HTMLElement }} */
+  let { onclosed, onrestart, viewport } = $props();
 
+  let scrimEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   let optsEl = $state(/** @type {HTMLDialogElement | undefined} */ (undefined));
   let confirmEl = $state(/** @type {HTMLDialogElement | undefined} */ (undefined));
   let cueRow = $state(/** @type {HTMLButtonElement | undefined} */ (undefined));
@@ -22,10 +24,7 @@
   let optsCloseDebt = 0;
   /** Esc is putting the sheet back; a nested cancel is not a dismiss. */
   let restoring = false;
-  /** Close animation is playing. The dialog stays open until it finishes. */
-  let optsClosing = $state(false);
-  let dismissLock = false;
-  let optsTimer = 0;
+  const optsExit = createSheetExit(finishOptsDismiss);
   /** Sheet leaving under the confirm; the scrim never drops. */
   let handoffAnim = /** @type {Animation | null} */ (null);
   let handoffTimer = 0;
@@ -45,36 +44,25 @@
   }
 
   function finishOptsDismiss() {
-    if (!dismissLock) return;
-    dismissLock = false;
-    window.clearTimeout(optsTimer);
-    if (playUi.modal === "options") {
-      playUi.closeModal();
-      onclosed?.();
-    }
-    optsClosing = false;
+    if (playUi.modal !== "options") return;
+    closeOpts();
+    playUi.closeModal();
+    tick().then(() => onclosed?.());
   }
 
   function dismissOpts() {
-    if (playUi.modal !== "options" || dismissLock) return;
+    if (playUi.modal !== "options" || optsExit.closing) return;
     dropHandoff();
-    if (!optsEl?.open || reduceMotion()) {
-      playUi.closeModal();
-      // Restore focus after the effect closes the native dialog.
-      tick().then(() => onclosed?.());
+    if (!optsEl?.open) {
+      finishOptsDismiss();
       return;
     }
-    dismissLock = true;
-    optsClosing = true;
-    optsTimer = window.setTimeout(finishOptsDismiss, 320);
-  }
-
-  /** @param {AnimationEvent} e */
-  function onOptsAnimEnd(e) {
-    if (!optsClosing || e.target !== optsEl || e.pseudoElement) return;
-    const name = e.animationName;
-    if (!name.includes("sheet-down") && !name.includes("pop-out")) return;
-    finishOptsDismiss();
+    optsExit.start({
+      dialog: optsEl,
+      viewport,
+      scrim: scrimEl,
+      centered: window.matchMedia("(min-width: 600px)").matches,
+    });
   }
 
   const descId = $derived(playUi.cueReason ? "cue-why" : "cue-desc");
@@ -342,19 +330,26 @@
   onkeydown={() => (pointerInput = false)}
 />
 
-<div class="modal-scrim" class:on={scrimOn} class:out={optsClosing} aria-hidden="true"></div>
+<div
+  bind:this={scrimEl}
+  class="modal-scrim"
+  class:on={scrimOn}
+  style={optsExit.scrimStyle}
+  aria-hidden="true"
+></div>
 
 <dialog
   class="opts"
   class:pointer-input={pointerInput}
-  class:closing={optsClosing}
+  class:closing={optsExit.closing}
+  style={optsExit.sheetStyle}
   class:parked={sheetParked}
   bind:this={optsEl}
   aria-labelledby="opts-title"
   onclose={onOptsClose}
   oncancel={onOptsCancel}
   onclick={onOptsClick}
-  onanimationend={onOptsAnimEnd}
+  onanimationend={optsExit.onanimationend}
 >
   <div class="opts-in">
     <span class="grabber" aria-hidden="true"></span>
@@ -703,12 +698,14 @@
 
   /* Bottom sheet on the phone; a centred dialog from 600px. */
   dialog.opts {
+    z-index: 41;
     position: fixed;
     inset: auto 0 0 0;
     margin: 0 auto;
     width: 390px;
     max-width: 100%;
     max-height: calc(100% - 48px);
+    overflow: auto;
     border-radius: 16px 16px 0 0;
     padding: 6px 16px calc(20px + env(safe-area-inset-bottom));
     box-shadow: var(--shadow-sheet);
@@ -716,10 +713,6 @@
 
   dialog.opts[open] {
     animation: sheet-up var(--motion) var(--ease-out);
-  }
-
-  dialog.opts[open].closing {
-    animation: sheet-down var(--motion) var(--ease-out) forwards;
   }
 
   /* One page scrim for both dialogs. Backdrops stay clear so the dim
@@ -736,10 +729,6 @@
 
   .modal-scrim.on {
     opacity: 1;
-  }
-
-  .modal-scrim.on.out {
-    opacity: 0;
   }
 
   dialog.opts[open]::backdrop,
@@ -766,15 +755,6 @@
     }
     to {
       transform: none;
-    }
-  }
-
-  @keyframes sheet-down {
-    from {
-      transform: none;
-    }
-    to {
-      transform: translateY(100%);
     }
   }
 
@@ -814,21 +794,6 @@
     dialog.opts[open] {
       animation: pop var(--motion) var(--ease-out);
     }
-
-    dialog.opts[open].closing {
-      animation: pop-out var(--motion) var(--ease-out) forwards;
-    }
-  }
-
-  @keyframes pop-out {
-    from {
-      opacity: 1;
-      transform: none;
-    }
-    to {
-      opacity: 0;
-      transform: translateY(8px);
-    }
   }
 
   @keyframes pop {
@@ -848,9 +813,7 @@
       transition: none;
     }
     dialog.opts[open],
-    dialog.opts[open].closing,
     dialog.opts[open]::backdrop,
-    dialog.opts[open].closing::backdrop,
     dialog.confirm[open],
     dialog.confirm[open]::backdrop {
       animation: none;

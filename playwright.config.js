@@ -21,7 +21,7 @@ export default defineConfig({
     },
     {
       name: "webkit",
-      testMatch: /(?:options-(input-)?focus|background-(?:cover|blur-policy))\.spec\.js/,
+      testMatch: /(?:options-(input-)?focus|sheet-exit|background-(?:cover|blur-policy))\.spec\.js/,
       teardown: "paint-timing",
       use: { browserName: "webkit" },
     },

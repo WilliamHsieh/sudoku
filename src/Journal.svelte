@@ -1,5 +1,6 @@
 <script>
   import { onMount, tick, untrack } from "svelte";
+  import { createSheetExit } from "./sheet-exit.svelte.js";
   import { get } from "svelte/store";
   import { solvedPuzzles, puzzleProgress } from "./store.js";
   import { puzzleData } from "./puzzles.js";
@@ -37,8 +38,8 @@
   import { SLIDE_EASE, SLIDE_MS, slideOffsets } from "./journal/slide.js";
   import { isAway, isTodayShortcut, latestAnnouncement, monthsToLatest } from "./journal/home.js";
 
-  /** @type {{openOn?: {date: string} | null, current?: {date: string | null, diff: string | null, elapsed: number} | null, onback?: (fromSheet?: boolean) => void}} */
-  let { openOn = null, current = null, onback } = $props();
+  /** @type {{openOn?: {date: string} | null, current?: {date: string | null, diff: string | null, elapsed: number} | null, onback?: (fromSheet?: boolean) => void, viewport?: HTMLElement}} */
+  let { openOn = null, current = null, onback, viewport } = $props();
   // Entry is consumed once. Browsing must not track later prop changes.
   const entry = untrack(() => openOn);
   onMount(() => {
@@ -55,9 +56,8 @@
   let sel = $state(/** @type {string | null} */ (entry?.date ?? null));
   /** Mobile sheet: a day, unfinished, or closed. */
   let sheet = $state(/** @type {null | "day" | "unfinished"} */ (null));
-  /** Stays up through the close animation, then unmounts. */
-  let sheetClosing = $state(false);
-  let sheetCloseTimer = 0;
+  let sheetScrim = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
+  const sheetExit = createSheetExit(finishCloseSheet);
   /** @type {(() => void) | null} */
   let pendingPlay = null;
   let playFrame = 0;
@@ -258,8 +258,7 @@
     if (animating || swiping || !isAway(view, sel, latest, isMobile())) return;
     const selection = sel;
     sel = null;
-    window.clearTimeout(sheetCloseTimer);
-    sheetClosing = false;
+    sheetExit.reset();
     sheet = null;
     returning = true;
     announcement = "";
@@ -301,8 +300,7 @@
     if (!puzzleData[date]) return;
     if (isMobile()) {
       sel = date;
-      window.clearTimeout(sheetCloseTimer);
-      sheetClosing = false;
+      sheetExit.reset();
       sheet = "day";
       return;
     }
@@ -314,15 +312,13 @@
   function openUnfinished() {
     if (animating || pendingPlay) return;
     sel = null;
-    window.clearTimeout(sheetCloseTimer);
-    sheetClosing = false;
+    sheetExit.reset();
     sheet = "unfinished";
   }
 
   function finishCloseSheet() {
     if (!sheet) return;
-    window.clearTimeout(sheetCloseTimer);
-    sheetClosing = false;
+    sheetExit.reset();
     sheet = null;
     if (isMobile()) sel = null;
     if (pendingPlay) {
@@ -348,20 +344,8 @@
   }
 
   function closeSheet() {
-    if (!sheet || sheetClosing) return;
-    if (prefersReduced()) {
-      finishCloseSheet();
-      return;
-    }
-    sheetClosing = true;
-    sheetCloseTimer = window.setTimeout(finishCloseSheet, 320);
-  }
-
-  /** @param {AnimationEvent} e */
-  function onSheetAnimEnd(e) {
-    if (!sheetClosing || e.target !== e.currentTarget) return;
-    if (!e.animationName.includes("sheet-down")) return;
-    finishCloseSheet();
+    if (!sheet) return;
+    sheetExit.start({ viewport, scrim: sheetScrim });
   }
 
   /**
@@ -370,7 +354,7 @@
    * @param {boolean} [fromSheet]
    */
   function playPuzzle(date, diff, fromSheet = false) {
-    if (fromSheet && (pendingPlay || !sheet || sheetClosing)) return;
+    if (fromSheet && (pendingPlay || !sheet || sheetExit.closing)) return;
     const puzzle = puzzleData[date]?.[diff];
     if (!puzzle) return;
     const st = puzzleState(get(solvedPuzzles), get(puzzleProgress), date, diff);
@@ -506,7 +490,6 @@
     return () => {
       alive = false;
       window.clearTimeout(slideTimer);
-      window.clearTimeout(sheetCloseTimer);
       window.cancelAnimationFrame(playFrame);
       pendingPlay = null;
       if (mobVp) mobVp.style.height = "";
@@ -1017,14 +1000,20 @@
 
 {#if sheet}
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="scrim on" class:closing={sheetClosing} onclick={closeSheet}></div>
+  <div
+    bind:this={sheetScrim}
+    class="scrim on"
+    style={sheetExit.scrimStyle}
+    onclick={closeSheet}
+  ></div>
   <div
     class="sheet on"
-    class:closing={sheetClosing}
+    class:closing={sheetExit.closing}
+    style={sheetExit.sheetStyle}
     role="dialog"
     aria-modal="true"
     aria-label={sheet === "unfinished" ? "Unfinished puzzles" : "Day puzzles"}
-    onanimationend={onSheetAnimEnd}
+    onanimationend={sheetExit.onanimationend}
   >
     <div class="grab"></div>
     {#if sheet === "unfinished"}
@@ -1574,9 +1563,6 @@
     z-index: 40;
     animation: fade var(--motion) var(--ease-out);
   }
-  .scrim.closing {
-    animation: fade-out var(--motion) var(--ease-out) forwards;
-  }
   .sheet {
     display: flex;
     flex-direction: column;
@@ -1593,9 +1579,6 @@
     box-shadow: 0 -6px 24px rgb(28 26 22 / 0.12);
     z-index: 41;
     animation: sheet-up var(--motion) var(--ease-out);
-  }
-  .sheet.closing {
-    animation: sheet-down var(--motion) var(--ease-out) forwards;
   }
 
   @keyframes fade {
@@ -1616,23 +1599,6 @@
     }
   }
 
-  @keyframes sheet-down {
-    from {
-      transform: none;
-    }
-    to {
-      transform: translateY(100%);
-    }
-  }
-
-  @keyframes fade-out {
-    from {
-      opacity: 1;
-    }
-    to {
-      opacity: 0;
-    }
-  }
   .grab {
     width: 36px;
     height: 5px;

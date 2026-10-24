@@ -158,6 +158,8 @@
   let resumeStatus = $state("");
   /** `?reveal=mid` freezes the reveal at 120ms, about 49% visible under the ease. */
   let revealMid = $state(false);
+  let playViewport = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
+  let journalViewport = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   let wrapEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   let ringEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   function handleKeydown(e) {
@@ -560,8 +562,13 @@
   />
 
   {#if showCalendar}
-    <div class="journal-view" class:enter-journal={viewMotion && !playUi.reduced}>
+    <div
+      bind:this={journalViewport}
+      class="journal-view"
+      class:enter-journal={viewMotion && !playUi.reduced}
+    >
       <Journal
+        viewport={journalViewport}
         openOn={journalEntry}
         current={hasPlayed
           ? { date: game.dateStr, diff: game.difficulty, elapsed: frozenElapsed }
@@ -571,6 +578,7 @@
     </div>
   {:else}
     <div
+      bind:this={playViewport}
       class="play"
       class:enter-play={viewMotion && !playUi.reduced}
       style:--resume-ms={`${RESUME_REVEAL_MS}ms`}
@@ -654,6 +662,7 @@
     </div>
 
     <OptionsSheet
+      viewport={playViewport}
       onclosed={focusMore}
       onrestart={() => {
         game.restart();
