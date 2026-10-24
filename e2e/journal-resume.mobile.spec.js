@@ -71,7 +71,7 @@ async function watchOrder(page) {
     const sample = () => {
       if (log.tapAt === null) return;
       if (log.removedAt === null && clean()) log.removedAt = performance.now();
-      if (log.playAt === null && document.querySelector(".hd .timer")) {
+      if (log.playAt === null && document.querySelector("#header-time .time")) {
         log.playAt = performance.now();
         log.cleanAtPlay = clean();
       }
@@ -95,10 +95,10 @@ async function watchOrder(page) {
 }
 
 async function expectResumed(page, testInfo, label) {
-  await expect(page.locator(".hd .timer")).toBeVisible();
+  await expect(page.locator("#header-time .time")).toBeVisible();
   await expect(page.locator(".sheet, .scrim.on")).toHaveCount(0);
   await expect(page.locator("body")).not.toHaveClass(/journal-sheet/);
-  await expect(page.locator(".timer .time")).toHaveText(/^2:0[0-2]$/);
+  await expect(page.locator("#header-time .time")).toHaveText(/^2:0[0-2]$/);
   const values = await page
     .locator(".board > .cell")
     .evaluateAll((cells) => cells.map((cell) => cell.dataset.value || "0").join(""));
@@ -108,7 +108,10 @@ async function expectResumed(page, testInfo, label) {
   expect(log.removedAt).toBeLessThan(log.playAt);
   expect(log.cleanFrames.length).toBeGreaterThanOrEqual(2);
   expect(log.loads).toEqual([
-    { clean: true, detail: { dateStr: latest, difficulty: "hard", puzzleString: puzzle } },
+    {
+      clean: true,
+      detail: { dateStr: latest, difficulty: "hard", puzzleString: puzzle, fromSheet: true },
+    },
   ]);
   // Like an immediate switch to Play, closing the sheet first stays silent.
   expect(log.announced).toEqual([]);
@@ -158,18 +161,16 @@ for (const phase of ["closing", "paint-wait"]) {
         const observer = new MutationObserver(() => {
           if (document.querySelector(".sheet")) return;
           observer.disconnect();
-          document.querySelector('.mseg button[aria-label="Play"]').click();
-          queueMicrotask(() =>
-            document.querySelector('.mseg button[aria-label="Journal"]').click()
-          );
+          document.querySelector("#time-control").click();
+          queueMicrotask(() => document.querySelector(".dbtn").click());
         });
         observer.observe(document.body, { childList: true, subtree: true });
       });
     }
     await resume.tap();
     if (phase === "closing") {
-      await page.getByRole("button", { name: "Play", exact: true }).evaluate((el) => el.click());
-      await page.getByRole("button", { name: "Journal", exact: true }).evaluate((el) => el.click());
+      await page.locator("#time-control").evaluate((el) => el.click());
+      await page.locator(".dbtn").evaluate((el) => el.click());
     }
     await expect(page.locator(".journal")).toBeVisible();
     await page.waitForTimeout(600);
@@ -201,9 +202,9 @@ test("Start and the unfinished-sheet Resume also close before loading", async ({
   await page.locator(".sheet .prow").first().getByRole("button", { name: "Start" }).tap();
   await expect(page.locator(".play")).toBeVisible();
   await expect(page.locator(".sheet, .scrim.on")).toHaveCount(0);
-  await expect(page.locator(".timer .time")).toHaveText(/^0:0[0-2]$/);
+  await expect(page.locator("#header-time .time")).toHaveText(/^0:0[0-2]$/);
   expect(await page.evaluate(() => window.__sheetPlay.announced)).toEqual([]);
-  await page.getByRole("button", { name: "Journal", exact: true }).tap();
+  await page.locator(".dbtn").tap();
   await page.getByRole("button", { name: /Unfinished/ }).tap();
   await watchOrder(page);
   await page
@@ -211,9 +212,12 @@ test("Start and the unfinished-sheet Resume also close before loading", async ({
     .filter({ hasText: "Hard" })
     .getByRole("button", { name: "Resume" })
     .tap();
-  await expect(page.locator(".hd .timer")).toBeVisible();
+  await expect(page.locator("#header-time .time")).toBeVisible();
   expect(await page.evaluate(() => window.__sheetPlay.loads)).toEqual([
-    { clean: true, detail: { dateStr: latest, difficulty: "hard", puzzleString: puzzle } },
+    {
+      clean: true,
+      detail: { dateStr: latest, difficulty: "hard", puzzleString: puzzle, fromSheet: true },
+    },
   ]);
   expect(await page.evaluate(() => window.__sheetPlay.announced)).toEqual([]);
 });

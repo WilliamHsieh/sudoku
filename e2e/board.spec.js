@@ -4,6 +4,7 @@ import { switchNotesMode } from "./helpers.js";
 // cell 1 is a given 5.
 import { test, expect } from "@playwright/test";
 import {
+  clearSelection,
   SELECTED_BG,
   GIVEN_BG,
   SAME_DIGIT_GIVEN_BG,
@@ -135,14 +136,14 @@ test("starts with no selection; givens are shaded", async ({ page }) => {
   await expectValue(page, 0, 0);
 });
 
-test("click selects a cell; clicking the title deselects", async ({ page }) => {
+test("click selects a cell; the Journal brand clears the selection", async ({ page }) => {
   await cell(page, 0).click();
   await expect(cell(page, 0)).toHaveCSS("background-color", SELECTED_BG);
   await cell(page, 10).click();
   await expect(cell(page, 10)).toHaveCSS("background-color", SELECTED_BG);
   await expect(cell(page, 0)).toHaveCSS("background-color", "rgb(255, 255, 255)");
 
-  await page.locator("h1").click();
+  await clearSelection(page);
   await expect(cell(page, 10)).not.toHaveCSS("background-color", SELECTED_BG);
   await page.keyboard.press("4");
   await expectValue(page, 10, 0);

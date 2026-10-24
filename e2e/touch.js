@@ -1,7 +1,8 @@
 // Real touch input via the Chrome DevTools protocol, so the page receives
 // genuine touchstart/touchmove/touchend and the derived pointer events.
 
-export async function touchDriver(page) {
+export async function touchDriver(page, { clock = false } = {}) {
+  const wait = (ms) => (clock ? page.clock.runFor(ms) : page.waitForTimeout(ms));
   const cdp = await page.context().newCDPSession(page);
   const send = (type, x, y) =>
     cdp.send("Input.dispatchTouchEvent", {
@@ -18,7 +19,7 @@ export async function touchDriver(page) {
     async tap(locator, { holdMs = 60 } = {}) {
       const p = await center(locator);
       await send("touchStart", p.x, p.y);
-      await page.waitForTimeout(holdMs);
+      await wait(holdMs);
       await send("touchEnd", p.x, p.y);
     },
 
@@ -42,10 +43,10 @@ export async function touchDriver(page) {
       const p = await center(locator);
       await send("touchStart", p.x, p.y);
       for (let s = 1; s <= steps; s++) {
-        await page.waitForTimeout(stepMs);
+        await wait(stepMs);
         await send("touchMove", p.x, p.y - (dy * s) / steps);
       }
-      await page.waitForTimeout(holdMs);
+      await wait(holdMs);
       await send("touchEnd", p.x, p.y - dy);
     },
 
@@ -54,10 +55,10 @@ export async function touchDriver(page) {
       const p = await center(locator);
       await send("touchStart", p.x, p.y);
       for (let s = 1; s <= steps; s++) {
-        await page.waitForTimeout(stepMs);
+        await wait(stepMs);
         await send("touchMove", p.x, p.y + (dy * s) / steps);
       }
-      await page.waitForTimeout(holdMs);
+      await wait(holdMs);
       await send("touchEnd", p.x, p.y + dy);
     },
 
@@ -71,7 +72,7 @@ export async function touchDriver(page) {
       const k = await center(keyLocator);
       const finger = { x: k.x, y: k.y, id: 1, radiusX: 6, radiusY: 6, force: 1 };
       await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [finger] });
-      await page.waitForTimeout(holdMs);
+      await wait(holdMs);
       if (afterHold) await afterHold();
       for (const loc of cellLocators) {
         const c = await center(loc);
@@ -80,9 +81,9 @@ export async function touchDriver(page) {
           type: "touchStart",
           touchPoints: [finger, second],
         });
-        await page.waitForTimeout(40);
+        await wait(40);
         await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [second] });
-        await page.waitForTimeout(40);
+        await wait(40);
       }
       if (beforeRelease) await beforeRelease();
       await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });

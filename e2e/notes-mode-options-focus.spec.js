@@ -61,19 +61,18 @@ for (const [width, height] of [
           expect(geometry.height).toBe(30);
           rects.push({
             width: geometry.width,
-            timer: (await page.locator(".header .timer").boundingBox()).x,
-            pause: (await page.locator(".header #pause").boundingBox()).x,
+            time: (await page.locator("#time-control").boundingBox()).x,
             icon: (await trigger(page).locator(".pencil").boundingBox()).x,
             label: (await trigger(page).locator(".value").boundingBox()).x,
           });
           const order = await page
             .locator(".header")
             .evaluate((el) =>
-              [...el.children]
+              [...el.querySelectorAll(".notes-mode, .more, .tp")]
                 .filter((e) => e.tagName === "BUTTON")
                 .map((e) => e.getAttribute("aria-label"))
             );
-          expect(order).toEqual(["Pause", `Notes mode: ${mode}`, "More"]);
+          expect(order).toEqual([`Notes mode: ${mode}`, "More", "Pause"]);
         }
         await trigger(page).click();
         await expect(menu(page)).toHaveAccessibleName("Notes");
@@ -105,7 +104,7 @@ for (const [width, height] of [
         await expect(trigger(page)).toBeFocused();
         await expect(page.locator(".notes-menu:popover-open")).toHaveCount(0);
       }
-      // Desktop timer, pause, pencil and label stay at exactly the same x in all modes.
+      // Desktop C, pencil and label stay at exactly the same x in all modes.
       expect(rects).toEqual([rects[0], rects[0], rects[0]]);
 
       // Wider platform fallback metrics must not resize the toolbar or clip a label.
@@ -181,7 +180,7 @@ for (const [width, height] of [
       await expect(trigger(page)).toBeFocused();
       await expect(page.locator(".notes-menu:popover-open")).toHaveCount(0);
       await trigger(page).click();
-      await page.locator("#pause").click();
+      await page.locator("#time-control").click();
       await expect(trigger(page)).toHaveAttribute("aria-expanded", "false");
       await expect(trigger(page)).toBeDisabled();
       await expect(page.locator(".notes-menu:popover-open")).toHaveCount(0);
@@ -323,8 +322,8 @@ test("Tidy cleanup, undo rings, reload, Journal return, restart, and new puzzle 
   await page.reload();
   await page.getByRole("button", { name: "Play", exact: true }).click();
   await expect(trigger(page)).toHaveAccessibleName("Notes mode: Tidy");
-  await page.getByRole("button", { name: "Journal", exact: true }).click();
-  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await page.locator(".dbtn").click();
+  await page.locator("#time-control").click();
   await expect(trigger(page)).toHaveAccessibleName("Notes mode: Tidy");
   await page.locator("[data-more]").filter({ visible: true }).click();
   await page.locator("#opt-restart").click();
