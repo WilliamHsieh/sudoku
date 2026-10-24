@@ -1,6 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const PORT = 4173;
+const PORT = Number(process.env.PLAYWRIGHT_PORT || 4173);
 
 export default defineConfig({
   testDir: "e2e",
@@ -15,7 +15,7 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      testIgnore: /mobile\.spec\.js/,
+      testIgnore: /mobile\.spec\.js|upgrade\.spec\.js/,
       use: { ...devices["Desktop Chrome"] },
     },
     {
