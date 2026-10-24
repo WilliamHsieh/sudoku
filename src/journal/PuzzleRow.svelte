@@ -1,6 +1,7 @@
 <script>
   import Icon from "./Icon.svelte";
   import DiffLabel from "./DiffLabel.svelte";
+  import { formatTime } from "../store.js";
   import { fmtTime } from "./format.js";
 
   /**
@@ -9,10 +10,11 @@
    *   st: import('./stats.js').PuzzleState,
    *   avg?: number | null,
    *   isPb?: boolean,
+   *   inPlay?: number | null,
    *   onplay?: () => void,
    * }}
    */
-  let { diff, st, avg = null, isPb = false, onplay } = $props();
+  let { diff, st, avg = null, isPb = false, inPlay = null, onplay } = $props();
 
   const delta = $derived(st.kind === "solved" && avg != null ? st.time - avg : 0);
 </script>
@@ -37,9 +39,15 @@
       <div class="s num">{fmtTime(st.elapsed)} played · {st.pct}% filled</div>
       <div class="bar"><i style="width:{st.pct}%"></i></div>
     </div>
-    <button class="btn btn-primary" type="button" onclick={onplay}
-      ><Icon name="play" />Resume</button
-    >
+    {#if inPlay !== null}
+      <span class="cur-tag" aria-label={`In play, ${formatTime(inPlay)}`}
+        >In play · {formatTime(inPlay)}</span
+      >
+    {:else}
+      <button class="btn btn-primary" type="button" onclick={onplay}
+        ><Icon name="play" />Resume</button
+      >
+    {/if}
   {:else}
     <div>
       <DiffLabel {diff} />
@@ -50,6 +58,18 @@
 </div>
 
 <style>
+  .cur-tag {
+    display: inline-flex;
+    align-items: center;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 9px;
+    font: 600 13px/1 var(--ui-font);
+    color: var(--ink2);
+    box-shadow: inset 0 0 0 1px var(--hair);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
   .prow {
     display: grid;
     grid-template-columns: 1fr auto;

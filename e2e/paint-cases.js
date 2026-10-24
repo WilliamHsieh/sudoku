@@ -98,7 +98,22 @@ export function paintCases(mobile) {
               if (!el.classList.contains("paint-committed")) return;
               observer.disconnect();
               const opacity = () => Number(getComputedStyle(el, "::after").opacity);
+              opacity(); // Resolve styles before reading the pseudo-element animation.
+              const animation = el
+                .getAnimations({ subtree: true })
+                .find((a) => a instanceof CSSAnimation && a.animationName.includes("paint-tint"));
+              if (!animation) {
+                resolve(null);
+                return;
+              }
+              const duration = animation.effect.getTiming().duration;
+              animation.pause();
+              animation.currentTime = 0;
               const initial = opacity();
+              animation.currentTime = 100;
+              const middle = opacity();
+              animation.currentTime = 0;
+              animation.play();
               const animations = el
                 .getAnimations({ subtree: true })
                 .filter((animation) => animation.animationName?.includes("paint-tint"));
@@ -106,7 +121,9 @@ export function paintCases(mobile) {
               // Observe its completion in the page, including the ::after tint.
               resolve(
                 Promise.all(animations.map((animation) => animation.finished)).then(() => ({
+                  duration,
                   initial,
+                  middle,
                   final: opacity(),
                   durations: animations.map((animation) => animation.effect.getTiming().duration),
                   delays: animations.map((animation) => animation.effect.getTiming().delay),
@@ -123,7 +140,11 @@ export function paintCases(mobile) {
         });
         await page.keyboard.press(key);
         const result = await samples.evaluate((samples) => samples.done);
+        expect(result).not.toBeNull();
+        expect(result.duration).toBe(200);
         expect(result.initial).toBeGreaterThan(0.99);
+        expect(result.middle).toBeGreaterThan(0);
+        expect(result.middle).toBeLessThan(result.initial);
         expect(result.durations).toEqual([200]);
         expect(result.delays).toEqual([0]);
         expect(result.endTimes).toEqual([200]);

@@ -73,9 +73,16 @@ async function resumeInJournal(page, date, remaining) {
   await freezeTimers(page, NOW);
   await page.goto("./");
   // Play resumes the most recent unfinished puzzle through the app's real path.
-  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await page.locator("#time-control").click();
   await page.locator(".board > .cell").nth(missing[0]).click();
-  await page.getByRole("button", { name: "Journal", exact: true }).click();
+  await page.locator(".dbtn").click();
+  const home = page.locator(".month-title:visible");
+  if ((await home.getAttribute("aria-disabled")) !== "true") {
+    await home.click();
+    await page.clock.runFor(400);
+    await expect(page.locator('.journal [role="status"]')).toHaveText(SPOKEN);
+  }
+  await page.clock.runFor(400);
   await expect(page.locator(".ctx")).toContainText("October 21");
   return solution[missing[0]];
 }
@@ -117,13 +124,13 @@ for (const mobile of [false, true]) {
   }
 }
 
-test("an identical progress data copy stays silent", async ({ page }) => {
+test("Escape on the latest card stays silent", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 844 });
-  await resumeInJournal(page, "2026-09-10", 2, false);
+  await resumeInJournal(page, "2026-09-10", 2);
   await watch(page);
   const before = await page.evaluate(() => localStorage.getItem("sudoku-progress"));
-  // With the clock paused, flushProgress saves a new object with identical data.
-  await page.getByRole("button", { name: "Journal", exact: true }).click();
+  // Escape leaves the latest browse card and saved progress unchanged.
+  await page.keyboard.press("Escape");
   expect(await page.evaluate(() => localStorage.getItem("sudoku-progress"))).toBe(before);
   await expectQuiet(page);
   await page.locator('.dgrid button[data-d="2026-10-09"]').click();
@@ -134,7 +141,7 @@ test("an identical progress data copy stays silent", async ({ page }) => {
     .poll(() => page.evaluate(() => window.__regressionLog.announcements))
     .toEqual([SPOKEN]);
   await clearLog(page);
-  await page.getByRole("button", { name: "Journal", exact: true }).click();
+  await page.keyboard.press("Escape");
   await expectQuiet(page);
 });
 
