@@ -6,9 +6,12 @@ function leaveTopLayer(dialog) {
   const parent = dialog.parentNode;
   if (!parent) return;
   const next = dialog.nextSibling;
+  const { scrollTop, scrollLeft } = dialog;
   // Dialog removal clears :modal without close()/show() focus passes.
   dialog.remove();
   parent.insertBefore(dialog, next);
+  dialog.scrollTop = scrollTop;
+  dialog.scrollLeft = scrollLeft;
 }
 
 /** @param {() => void} remove */
@@ -33,7 +36,10 @@ export function createSheetExit(remove) {
     });
   }
 
-  onDestroy(reset);
+  onDestroy(() => {
+    if (closing) remove();
+    reset();
+  });
 
   return {
     get closing() {

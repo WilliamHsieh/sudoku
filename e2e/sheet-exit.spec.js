@@ -240,3 +240,101 @@ test("More keeps the header clear like the picker after view navigation", async 
     expect(decode(await page.screenshot({ clip })).data.equals(closed)).toBe(true);
   }
 });
+
+async function settleAnimations(page) {
+  await page.evaluate(() =>
+    Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => {})))
+  );
+}
+
+for (const kind of ["more", "difficulty"]) {
+  test(`navigation during ${kind} exit completes dismissal`, async ({ page }, testInfo) => {
+    await openBoard(page, "./?shot=1&freeze");
+    await page.locator(".header .dbtn").click();
+    await settleAnimations(page);
+    if (kind === "more") {
+      await page.getByRole("button", { name: "Back to game", exact: true }).click();
+      await settleAnimations(page);
+      await page.locator("[data-more]").filter({ visible: true }).click();
+    } else {
+      await page.getByRole("button", { name: /Latest puzzles,/ }).click();
+    }
+    await settleAnimations(page);
+    // Hold the fallback timer while real pointer input navigates at a fixed exit pose.
+    const now = Date.now();
+    await page.clock.install({ time: new Date(now) });
+    await page.clock.pauseAt(new Date(now + 1000));
+    const pose = await page.evaluate(async (kind) => {
+      const sheet = document.querySelector(kind === "more" ? "dialog.opts" : ".sheet");
+      sheet.querySelector(kind === "more" ? "#opts-done" : "[aria-label=Close]").click();
+      await Promise.resolve();
+      const animation = sheet.getAnimations()[0];
+      animation.pause();
+      animation.currentTime = 130;
+      await animation.ready;
+      const y = new DOMMatrixReadOnly(getComputedStyle(sheet).transform).m42;
+      return {
+        ms: Number(animation.currentTime),
+        fraction: y / sheet.getBoundingClientRect().height,
+      };
+    }, kind);
+    expect(pose.ms).toBe(130);
+    expect(pose.fraction).toBeGreaterThan(0);
+    expect(pose.fraction).toBeLessThan(1);
+    const target =
+      kind === "more"
+        ? page.locator(".header .dbtn")
+        : page.getByRole("button", { name: "Back to game", exact: true });
+    const box = await target.boundingBox();
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await page.clock.resume();
+    if (kind === "more") {
+      await expect(page.locator(".journal-view")).toBeVisible();
+      await settleAnimations(page);
+      await page.getByRole("button", { name: "Back to game", exact: true }).click();
+    }
+    await settleAnimations(page);
+    await expect(page.locator(".board > .cell")).toHaveCount(81);
+    await expect(page.locator("dialog.opts")).not.toBeVisible();
+    await expect(page.locator(".sheet, .scrim.on, .modal-scrim.on")).toHaveCount(0);
+    await expect(page.locator("body")).not.toHaveClass(/journal-sheet/);
+    await expect(page.locator("#time-control")).toBeFocused();
+    await page.locator(".header .dbtn").click();
+    await expect(page.locator(".journal-view")).toBeVisible();
+    await expect(page.locator(".sheet, .scrim.on")).toHaveCount(0);
+    await testInfo.attach("navigation-exit-pose", {
+      body: JSON.stringify({ kind, ...pose }),
+      contentType: "application/json",
+    });
+  });
+}
+
+test("More preserves its scroll position when leaving the top layer", async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 360 });
+  await openSheet(page, "more");
+  const positions = await page.locator("dialog.opts").evaluate(async (dialog) => {
+    dialog.scrollTop = 11;
+    const before = dialog.scrollTop;
+    dialog.querySelector("#opts-done").click();
+    await Promise.resolve();
+    const after = dialog.scrollTop;
+    const animation = dialog.getAnimations()[0];
+    animation.pause();
+    const samples = [];
+    for (let ms = 0; ms <= 256; ms += 16) {
+      animation.currentTime = ms;
+      samples.push({ ms, scrollTop: dialog.scrollTop });
+    }
+    animation.finish();
+    return { before, after, samples };
+  });
+  expect(positions.before).toBe(11);
+  expect(positions.after).toBe(positions.before);
+  for (const sample of positions.samples) expect(sample.scrollTop).toBe(positions.before);
+  await testInfo.attach("exit-scroll-positions", {
+    body: JSON.stringify(positions),
+    contentType: "application/json",
+  });
+});

@@ -490,7 +490,6 @@
     return () => {
       alive = false;
       window.clearTimeout(slideTimer);
-      sheetExit.reset();
       window.cancelAnimationFrame(playFrame);
       pendingPlay = null;
       if (mobVp) mobVp.style.height = "";

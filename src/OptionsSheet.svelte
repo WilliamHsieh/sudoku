@@ -705,6 +705,7 @@
     width: 390px;
     max-width: 100%;
     max-height: calc(100% - 48px);
+    overflow: auto;
     border-radius: 16px 16px 0 0;
     padding: 6px 16px calc(20px + env(safe-area-inset-bottom));
     box-shadow: var(--shadow-sheet);
