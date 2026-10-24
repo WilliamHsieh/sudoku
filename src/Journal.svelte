@@ -1904,10 +1904,15 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      height: 32px;
+      min-height: 32px;
       font-size: 14px;
     }
+    .ab :global(.diff) {
+      flex-shrink: 0;
+    }
     .ab > span:last-child {
+      min-width: 0;
+      overflow-wrap: anywhere;
       color: var(--ink2);
       font-size: 13px;
     }
@@ -2195,6 +2200,13 @@
     }
     .ctx :global(.prow .diff) {
       font-size: 16px;
+    }
+    .ctx :global(.prow) {
+      grid-template-columns: minmax(min-content, 1fr) minmax(0, auto);
+    }
+    .ctx :global(.prow .num) {
+      min-width: 0;
+      overflow-wrap: anywhere;
     }
     .back {
       display: flex;

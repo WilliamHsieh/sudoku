@@ -52,6 +52,29 @@ async function layoutIssues(page, calendar) {
     };
     const mobile = innerWidth < 600;
     const root = document.querySelector(mobile ? ".mobile" : ".desktop");
+    if (document.documentElement.scrollWidth > document.documentElement.clientWidth)
+      issues.push("horizontal page overflow");
+    // These cards use flex/grid rows rather than the statistics column markup.
+    // Check painted text too: an element's box can fit while its digits escape.
+    for (const card of root.querySelectorAll(".alltime, .ctx")) {
+      if (!card.getClientRects().length) continue;
+      const box = card.getBoundingClientRect();
+      for (const element of card.querySelectorAll("*")) {
+        for (const rect of element.getClientRects()) {
+          if (outside(rect, box) || rect.left < 0 || rect.right > innerWidth)
+            issues.push(`element outside card or viewport: ${element.className}`);
+        }
+        for (const node of element.childNodes) {
+          if (node.nodeType !== Node.TEXT_NODE || !node.textContent.trim()) continue;
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          for (const rect of range.getClientRects()) {
+            if (outside(rect, box) || rect.left < 0 || rect.right > innerWidth)
+              issues.push(`text outside card or viewport: ${node.textContent.trim()}`);
+          }
+        }
+      }
+    }
     const heading = root.querySelector(".srow.h > span");
     if (mobile && textRects(heading).length !== 1) issues.push("difficulty heading wraps");
     for (const row of root.querySelectorAll(".srow, .stat, .strip .mm")) {
@@ -129,38 +152,46 @@ for (const browserName of ["chromium", "webkit"]) {
       }
     });
 
-    test("statistics fit hour-long and maximum finite times without overlap or clipping", async ({
-      page,
-    }) => {
-      expect(page.context().browser().browserType().name()).toBe(browserName);
-      await page.clock.install({ time: saturday });
-      await page.addInitScript(
-        ({ latest }) => {
-          localStorage.setItem(
-            "sudoku-solved",
-            JSON.stringify({
-              [latest]: Object.fromEntries(
-                [
-                  ["easy", 3600],
-                  ["medium", 36000],
-                  ["hard", Number.MAX_VALUE],
-                ].map(([diff, time]) => [diff, { completed: true, time }])
-              ),
-            })
-          );
-        },
-        { latest }
-      );
-      await page.setViewportSize({ width: 320, height: 800 });
-      await page.goto("./");
-      await expect(page.locator(".srow").filter({ hasText: "Easy" })).toContainText("1:00:00");
-      await expect(page.locator(".srow").filter({ hasText: "Medium" })).toContainText("10:00:00");
-      await expect(page.locator(".srow").filter({ hasText: "Hard" })).toContainText(/e\+304:/);
-      await page.evaluate(() => document.fonts.ready);
-      for (const width of widths) {
-        await page.setViewportSize({ width, height: 800 });
-        expect(await layoutIssues(page, false), `${browserName}, ${width}px`).toEqual([]);
-      }
-    });
+    for (const hardTime of [7.123456789012345e103, Number.MAX_VALUE]) {
+      test(`statistics and cards contain hour-long and extreme times (${hardTime})`, async ({
+        page,
+      }) => {
+        expect(page.context().browser().browserType().name()).toBe(browserName);
+        await page.clock.install({ time: saturday });
+        await page.addInitScript(
+          ({ latest, hardTime }) => {
+            localStorage.setItem(
+              "sudoku-solved",
+              JSON.stringify({
+                [latest]: Object.fromEntries(
+                  [
+                    ["easy", 3600],
+                    ["medium", 36000],
+                    ["hard", hardTime],
+                  ].map(([diff, time]) => [diff, { completed: true, time }])
+                ),
+              })
+            );
+          },
+          { latest, hardTime }
+        );
+        await page.setViewportSize({ width: 320, height: 800 });
+        await page.goto("./");
+        await expect(page.locator(".srow").filter({ hasText: "Easy" })).toContainText("1:00:00");
+        await expect(page.locator(".srow").filter({ hasText: "Medium" })).toContainText("10:00:00");
+        await expect(page.locator(".srow").filter({ hasText: "Hard" })).toContainText(
+          /e\+(100|304):/
+        );
+        await page.evaluate(() => document.fonts.ready);
+        for (const width of widths) {
+          await page.setViewportSize({ width, height: 800 });
+          if (width === 1280) {
+            await expect(page.getByRole("region", { name: "All-time bests" })).toBeVisible();
+            await expect(page.getByRole("region", { name: "Latest puzzles" })).toBeVisible();
+          }
+          expect(await layoutIssues(page, false), `${browserName}, ${width}px`).toEqual([]);
+        }
+      });
+    }
   });
 }
