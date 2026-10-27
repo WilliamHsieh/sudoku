@@ -192,7 +192,15 @@ for (const failure of ["aborted", "failed"]) {
     await page.route("**/*", (route) =>
       route.request().isNavigationRequest() ? route.abort(failure) : route.continue()
     );
+    // A tap can finish before WebKit starts the navigation. Keep the route until it fails.
+    const navigationFailed = page.waitForEvent(
+      "requestfailed",
+      (request) => request.isNavigationRequest() && request.url().includes("_sudoku_update=")
+    );
     await notice(page).getByRole("button", { name: "Update", exact: true }).tap();
+    await navigationFailed;
+    // Chromium can show an error document; WebKit keeps the app and recovers the notice.
+    await expect(page.locator(".update-notice.updating")).toHaveCount(0, { timeout: 6000 });
     if (failure === "aborted") {
       await expect(notice(page).getByRole("button", { name: "Update", exact: true })).toBeVisible({
         timeout: 6000,
