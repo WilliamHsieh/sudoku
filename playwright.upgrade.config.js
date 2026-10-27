@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "e2e",
-  testMatch: "upgrade.spec.js",
+  testMatch: /(?:upgrade|update-regressions)\.spec\.js/,
   globalSetup: "./e2e/upgrade-builds.js",
   fullyParallel: true,
   workers: 3,

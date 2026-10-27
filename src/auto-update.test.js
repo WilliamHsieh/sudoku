@@ -144,35 +144,55 @@ function browser() {
   return { replace, values, href: () => href };
 }
 describe("next launch", () => {
-  it("applies a verified pending build synchronously without a network request", () => {
+  it("revalidates the pending build after mount before navigating", async () => {
     const x = browser();
     x.values.set("sudoku-pending-update", JSON.stringify(next));
-    deploymentProbe.mockImplementation(() => new Promise(() => {}));
-    expect(applyPendingUpdate(current)).toBe(true);
-    expect(deploymentProbe).not.toHaveBeenCalled();
+    expect(await applyPendingUpdate(current)).toBe(true);
+    expect(deploymentProbe).toHaveBeenCalledWith(expect.any(String), current, { verify: true });
     expect(x.href()).toBe("https://example.test/sudoku/?q=123&other=ok#board");
     expect(x.replace).toHaveBeenCalledExactlyOnceWith(
       "https://example.test/sudoku/?q=123&other=ok&_sudoku_update=new#board"
     );
-    expect(applyPendingUpdate(current)).toBe(false);
+    expect(await applyPendingUpdate(current)).toBe(false);
   });
-  it("allows immediate mount without a pending build even when version.json never resolves", () => {
+  it("allows immediate mount without a pending build even when version.json never resolves", async () => {
     const x = browser();
     deploymentProbe.mockImplementation(() => new Promise(() => {}));
-    expect(applyPendingUpdate(current)).toBe(false);
+    expect(await applyPendingUpdate(current)).toBe(false);
     expect(deploymentProbe).not.toHaveBeenCalled();
     expect(x.replace).not.toHaveBeenCalled();
   });
-  it("keeps the current shell when storage is blocked", () => {
+  it("keeps the current shell when storage is blocked", async () => {
     const x = browser();
     vi.stubGlobal("localStorage", {
       getItem: () => {
         throw Error("blocked");
       },
     });
-    expect(applyPendingUpdate(current)).toBe(false);
+    expect(await applyPendingUpdate(current)).toBe(false);
     expect(x.replace).not.toHaveBeenCalled();
     expect(x.href()).not.toContain("_sudoku_update");
+  });
+  it("retains an unreachable staged update and applies it on a later reachable launch", async () => {
+    const x = browser();
+    x.values.set("sudoku-pending-update", JSON.stringify(next));
+    deploymentProbe.mockResolvedValueOnce(null);
+    expect(await applyPendingUpdate(current)).toBe(false);
+    expect(x.replace).not.toHaveBeenCalled();
+    expect(x.values.get("sudoku-pending-update")).toBe(JSON.stringify(next));
+    expect(await applyPendingUpdate(current)).toBe(true);
+    expect(x.replace).toHaveBeenCalledOnce();
+  });
+  it("does not navigate while offline or when the reachable deployment differs", async () => {
+    const x = browser();
+    x.values.set("sudoku-pending-update", JSON.stringify(next));
+    vi.stubGlobal("navigator", { onLine: false });
+    expect(await applyPendingUpdate(current)).toBe(false);
+    expect(deploymentProbe).not.toHaveBeenCalled();
+    vi.stubGlobal("navigator", { onLine: true });
+    deploymentProbe.mockResolvedValueOnce(current);
+    expect(await applyPendingUpdate(current)).toBe(false);
+    expect(x.replace).not.toHaveBeenCalled();
   });
 });
 

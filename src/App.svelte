@@ -342,6 +342,7 @@
   let updateVersion = "";
   let noticeHadFocus = false;
   let updating = $state(false);
+  let updateNavigationPending = false;
   // Once visible, keep it visible through later resume animations. A newly
   // discovered version waits for both the hold and the 600ms reveal to finish.
   let noticeRevealed = $state(false);
@@ -369,15 +370,9 @@
   const updateAction = createUpdateAction({
     setUpdating: (value) => {
       updating = value;
-      if (!value) {
-        try {
-          sessionStorage.removeItem(UPDATE_RESUME);
-        } catch {
-          /* Storage may be blocked. */
-        }
-      }
     },
     flush: () => {
+      if (updateNavigationPending) return;
       game.flushProgress();
       if (!showCalendar) {
         sessionStorage.setItem(
@@ -392,7 +387,10 @@
       }
     },
     reload: () => {
-      reloadForUpdate(updateVersion);
+      if (updateNavigationPending) return;
+      updateNavigationPending = reloadForUpdate(updateVersion);
+      // Discard an unused record only when navigation definitely did not start.
+      if (!updateNavigationPending) sessionStorage.removeItem(UPDATE_RESUME);
     },
   });
 
@@ -514,11 +512,11 @@
     }
     try {
       const saved = sessionStorage.getItem(UPDATE_RESUME);
-      sessionStorage.removeItem(UPDATE_RESUME);
       if (saved) {
         const resume = JSON.parse(saved);
         game.load(resume.snapshot.puzzle, resume);
         backToGame();
+        sessionStorage.removeItem(UPDATE_RESUME);
       }
     } catch {
       // Invalid or unavailable session storage leaves the normal launch intact.

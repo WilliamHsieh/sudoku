@@ -33,10 +33,11 @@ export function reloadForUpdate(version) {
   }
 }
 
-/** Apply an already verified deployment on the next launch. Never fetch here.
+/** Revalidate a staged deployment after mount before applying it on launch.
  * @param {import('./auto-update.js').Build} current
+ * @param {string} [base]
  */
-export function applyPendingUpdate(current) {
+export async function applyPendingUpdate(current, base = import.meta.env.BASE_URL) {
   stripUpdateParam();
   try {
     const next = JSON.parse(localStorage.getItem(PENDING) ?? "null");
@@ -49,6 +50,11 @@ export function applyPendingUpdate(current) {
       next.version === current.version
     )
       return false;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return false;
+    const reachable = await probeDeployment(base, current, { verify: true });
+    if (!reachable || reachable.version !== next.version || reachable.builtAt < next.builtAt)
+      return false;
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") return false;
     return reloadForUpdate(next.version);
   } catch {
     return false;

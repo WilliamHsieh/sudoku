@@ -94,7 +94,7 @@ it.each([0, 1])(
     vi.stubGlobal("sessionStorage", storage);
     vi.stubGlobal("localStorage", { getItem: () => JSON.stringify(manifest) });
 
-    expect(applyPendingUpdate(current)).toBe(false);
+    expect(await applyPendingUpdate(current)).toBe(false);
     expect(replace).not.toHaveBeenCalled();
     expect(storage.setItem).not.toHaveBeenCalled();
     expect(fetcher).not.toHaveBeenCalled();

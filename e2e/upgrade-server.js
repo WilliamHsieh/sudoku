@@ -4,7 +4,7 @@ import { join, extname } from "node:path";
 import { buildRoot } from "./upgrade-builds.js";
 
 // Each test owns a deployment of two real production builds.
-export async function upgradeServer() {
+export async function upgradeServer(buildDirectory = buildRoot) {
   let version = "old";
   let fault = "";
   let oldLaunches = 0;
@@ -54,11 +54,11 @@ export async function upgradeServer() {
     try {
       let body;
       try {
-        body = await readFile(join(buildRoot, selected, relative));
+        body = await readFile(join(buildDirectory, selected, relative));
       } catch (error) {
         // Retain both builds' hashed assets for already-open or cached shells.
         if (!relative.startsWith("assets/")) throw error;
-        body = await readFile(join(buildRoot, selected === "old" ? "new" : "old", relative));
+        body = await readFile(join(buildDirectory, selected === "old" ? "new" : "old", relative));
       }
       const types = {
         ".html": "text/html",

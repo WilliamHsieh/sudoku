@@ -2,20 +2,59 @@
   /** @type {{ active: boolean, inline?: boolean, reduced: boolean, updating: boolean,
    * ondismiss: () => void, onupdate: () => void }} */
   let { active, inline = false, reduced, updating, ondismiss, onupdate } = $props();
+  /** @type {{ id: number, x: number, y: number, button: EventTarget | null } | null} */
+  let touchStart = null;
+  let touchCancelled = false;
+
+  /** @param {TouchEvent} event */
+  function startTouch(event) {
+    const touch = event.touches[0];
+    touchCancelled = event.touches.length !== 1;
+    touchStart = touch
+      ? {
+          id: touch.identifier,
+          x: touch.clientX,
+          y: touch.clientY,
+          button: event.currentTarget,
+        }
+      : null;
+  }
+
+  /** Movement is latched: returning inside the button does not restore a tap.
+   * @param {TouchEvent} event
+   */
+  function moveTouch(event) {
+    if (!touchStart) return;
+    const touch = [...event.touches].find((item) => item.identifier === touchStart?.id);
+    if (!touch || Math.hypot(touch.clientX - touchStart.x, touch.clientY - touchStart.y) > 10)
+      touchCancelled = true;
+  }
+
+  function cancelTouch() {
+    touchCancelled = true;
+  }
+
   /** WebKit suppresses its compatibility click after pointerdown.preventDefault.
-   * Handle a completed touch once; cancel its compatibility click in Chromium.
-   * A drag released outside the button must never trigger Update.
+   * Accept only an uncancelled tap; suppress the compatibility click in Chromium.
    * @param {TouchEvent} event
    * @param {() => void} action
    */
   function finishTouch(event, action) {
-    const touch = event.changedTouches[0];
-    if (!touch || !(event.currentTarget instanceof HTMLElement)) return;
+    const start = touchStart;
+    const touch = [...event.changedTouches].find((item) => item.identifier === start?.id);
+    touchStart = null;
+    if (event.cancelable) event.preventDefault();
+    if (
+      !start ||
+      touchCancelled ||
+      !touch ||
+      start.button !== event.currentTarget ||
+      Math.hypot(touch.clientX - start.x, touch.clientY - start.y) > 10 ||
+      !(event.currentTarget instanceof HTMLElement)
+    )
+      return;
     const target = document.elementFromPoint(touch.clientX, touch.clientY);
-    if (target && event.currentTarget.contains(target)) {
-      event.preventDefault();
-      action();
-    }
+    if (target && event.currentTarget.contains(target)) action();
   }
 </script>
 
@@ -47,7 +86,10 @@
       <button
         type="button"
         class="btn update"
-        ontouchstart={() => {}}
+        ontouchstart={startTouch}
+        ontouchmove={moveTouch}
+        ontouchcancel={cancelTouch}
+        onpointercancel={cancelTouch}
         onpointerdown={(event) => event.preventDefault()}
         ontouchend={(event) => finishTouch(event, onupdate)}
         onclick={onupdate}>Update</button
@@ -56,7 +98,10 @@
         type="button"
         class="btn x"
         aria-label="Dismiss"
-        ontouchstart={() => {}}
+        ontouchstart={startTouch}
+        ontouchmove={moveTouch}
+        ontouchcancel={cancelTouch}
+        onpointercancel={cancelTouch}
         onpointerdown={(event) => event.preventDefault()}
         ontouchend={(event) => finishTouch(event, ondismiss)}
         onclick={ondismiss}
