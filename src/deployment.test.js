@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
 import { probeDeployment } from "./auto-update.js";
-import { updateBeforeMount } from "./auto-update-browser.js";
+import { applyPendingUpdate } from "./auto-update-browser.js";
 
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const current = { version: "old", builtAt: 1 };
@@ -44,7 +44,7 @@ it("verifies HTML, warms exact asset URLs and rereads the manifest within one bu
   });
   expect(fetcher).toHaveBeenCalledTimes(4);
 });
-it("foreground checks read only version.json", async () => {
+it("manifest-only probes read only version.json", async () => {
   const { fetcher } = deployment();
   expect(await probeDeployment("/sudoku/", current)).toMatchObject({ version: "new" });
   expect(fetcher).toHaveBeenCalledOnce();
@@ -92,11 +92,12 @@ it.each([0, 1])(
     };
     vi.stubGlobal("location", { href: "https://example.test/sudoku/?q=123", replace });
     vi.stubGlobal("sessionStorage", storage);
+    vi.stubGlobal("localStorage", { getItem: () => JSON.stringify(manifest) });
 
-    expect(await updateBeforeMount({ current, base: "/sudoku/" })).toBe(false);
+    expect(applyPendingUpdate(current)).toBe(false);
     expect(replace).not.toHaveBeenCalled();
     expect(storage.setItem).not.toHaveBeenCalled();
-    expect(fetcher).toHaveBeenCalledOnce();
+    expect(fetcher).not.toHaveBeenCalled();
   }
 );
 it("does not fetch HTML for the current version", async () => {

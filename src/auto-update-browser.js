@@ -12,29 +12,76 @@ export function stripUpdateParam() {
   }
 }
 
-/**
- * Called before mount. No player state is read or written.
- * @param {{ current: import('./auto-update.js').Build, base: string }} options
- * @returns {Promise<boolean>} whether navigation started
+const PENDING = "sudoku-pending-update";
+
+/** Navigate once per build per tab, preserving the URL and cache-busting marker.
+ * @param {string} version
  */
-export async function updateBeforeMount({ current, base }) {
-  stripUpdateParam();
+export function reloadForUpdate(version) {
   try {
-    const next = await probeDeployment(base, current, { verify: true });
-    if (!next) return false;
     const attempts = JSON.parse(sessionStorage.getItem(ATTEMPTS) ?? "[]");
-    if (!Array.isArray(attempts) || attempts.includes(next.version)) return false;
-    const saved = JSON.stringify([...attempts, next.version]);
+    if (!Array.isArray(attempts) || attempts.includes(version)) return false;
+    const saved = JSON.stringify([...attempts, version]);
     sessionStorage.setItem(ATTEMPTS, saved);
     if (sessionStorage.getItem(ATTEMPTS) !== saved) return false;
     const url = new URL(location.href);
-    url.searchParams.set(UPDATE_PARAM, next.version);
+    url.searchParams.set(UPDATE_PARAM, version);
     location.replace(url.href);
     return true;
   } catch {
-    // Offline, blocked storage or navigation: mount the current build.
     return false;
   }
+}
+
+/** Apply an already verified deployment on the next launch. Never fetch here.
+ * @param {import('./auto-update.js').Build} current
+ */
+export function applyPendingUpdate(current) {
+  stripUpdateParam();
+  try {
+    const next = JSON.parse(localStorage.getItem(PENDING) ?? "null");
+    if (
+      !next ||
+      typeof next.version !== "string" ||
+      !/^[a-zA-Z0-9._-]{1,100}$/.test(next.version) ||
+      !Number.isSafeInteger(next.builtAt) ||
+      next.builtAt <= current.builtAt ||
+      next.version === current.version
+    )
+      return false;
+    return reloadForUpdate(next.version);
+  } catch {
+    return false;
+  }
+}
+
+/** Flush and save before navigation; restore the action if navigation fails.
+ * @param {{ flush: () => void, reload: () => void, setUpdating: (value: boolean) => void }} options
+ */
+export function createUpdateAction({ flush, reload, setUpdating }) {
+  let busy = false;
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let timer;
+  return {
+    run() {
+      if (busy) return;
+      busy = true;
+      setUpdating(true);
+      timer = setTimeout(() => {
+        busy = false;
+        setUpdating(false);
+      }, 3000);
+      try {
+        flush();
+        reload();
+      } catch {
+        // Keep Updating… until the same three-second recovery deadline.
+      }
+    },
+    stop() {
+      clearTimeout(timer);
+    },
+  };
 }
 
 /**
@@ -45,7 +92,23 @@ export async function updateBeforeMount({ current, base }) {
 export function installAutoUpdate(options) {
   const updater = createUpdater({
     current: options.current,
-    probe: () => probeDeployment(options.base, options.current),
+    probe: async () => {
+      const next = await probeDeployment(options.base, options.current, { verify: true });
+      if (next) {
+        try {
+          const pending = JSON.parse(localStorage.getItem(PENDING) ?? "null");
+          if (!pending || pending.builtAt < next.builtAt) {
+            localStorage.setItem(
+              PENDING,
+              JSON.stringify({ version: next.version, builtAt: next.builtAt })
+            );
+          }
+        } catch {
+          // The notice and explicit Update still work with blocked storage.
+        }
+      }
+      return next;
+    },
     visible: () => document.visibilityState === "visible",
     notify: options.notify,
   });
@@ -58,6 +121,7 @@ export function installAutoUpdate(options) {
   }
   document.addEventListener("visibilitychange", foreground);
   window.addEventListener("pageshow", pageshow);
+  foreground();
   return () => {
     updater.stop();
     document.removeEventListener("visibilitychange", foreground);

@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createUpdater } from "./auto-update.js";
-import { installAutoUpdate, updateBeforeMount } from "./auto-update-browser.js";
+import {
+  installAutoUpdate,
+  applyPendingUpdate,
+  createUpdateAction,
+} from "./auto-update-browser.js";
 
 const { deploymentProbe } = vi.hoisted(() => ({ deploymentProbe: vi.fn() }));
 vi.mock("./auto-update.js", async (original) => ({
@@ -35,6 +39,20 @@ describe("foreground notices", () => {
     vi.advanceTimersByTime(30_000);
     await x.updater.check();
     expect(x.notify).toHaveBeenLastCalledWith("newer");
+  });
+  it("only re-shows for a newer build after dismissal, never an unseen intermediate build", async () => {
+    vi.useFakeTimers();
+    const x = setup();
+    await x.updater.check();
+    // Dismissal clears the UI, not the updater's version history.
+    x.notify.mockClear();
+    x.probe.mockResolvedValue({ version: "latest", builtAt: 4 });
+    vi.advanceTimersByTime(30_000);
+    await x.updater.check();
+    x.probe.mockResolvedValue({ version: "intermediate", builtAt: 3 });
+    vi.advanceTimersByTime(30_000);
+    await x.updater.check();
+    expect(x.notify).toHaveBeenCalledExactlyOnceWith("latest");
   });
   it.each([null, current, { version: "older", builtAt: 0 }])("ignores %j", async (candidate) => {
     const x = setup({ probe: async () => candidate });
@@ -92,7 +110,7 @@ describe("foreground notices", () => {
     expect(deploymentProbe).not.toHaveBeenCalled();
     doc.visibilityState = "visible";
     win.dispatchEvent(Object.assign(new Event("pageshow"), { persisted: true }));
-    await Promise.resolve();
+    await vi.waitFor(() => expect(notify).toHaveBeenCalled());
     expect(notify).toHaveBeenCalledExactlyOnceWith("new");
     stop();
     doc.dispatchEvent(new Event("visibilitychange"));
@@ -114,6 +132,10 @@ function browser() {
     state: null,
     replaceState: (_state, _title, url) => (href = url.href),
   });
+  vi.stubGlobal("localStorage", {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, value),
+  });
   vi.stubGlobal("sessionStorage", {
     getItem: (key) => values.get(key) ?? null,
     setItem: (key, value) => values.set(key, value),
@@ -121,28 +143,78 @@ function browser() {
   deploymentProbe.mockResolvedValue(next);
   return { replace, values, href: () => href };
 }
-describe("before mount", () => {
-  it("strips the marker and attempts a version only once, preserving query and hash", async () => {
+describe("next launch", () => {
+  it("applies a verified pending build synchronously without a network request", () => {
     const x = browser();
-    expect(await updateBeforeMount({ current, base: "/sudoku/" })).toBe(true);
+    x.values.set("sudoku-pending-update", JSON.stringify(next));
+    deploymentProbe.mockImplementation(() => new Promise(() => {}));
+    expect(applyPendingUpdate(current)).toBe(true);
+    expect(deploymentProbe).not.toHaveBeenCalled();
     expect(x.href()).toBe("https://example.test/sudoku/?q=123&other=ok#board");
     expect(x.replace).toHaveBeenCalledExactlyOnceWith(
       "https://example.test/sudoku/?q=123&other=ok&_sudoku_update=new#board"
     );
-    expect(await updateBeforeMount({ current, base: "/sudoku/" })).toBe(false);
-    expect(x.replace).toHaveBeenCalledOnce();
+    expect(applyPendingUpdate(current)).toBe(false);
   });
-  it("mounts normally on a failed check or blocked attempt storage", async () => {
+  it("allows immediate mount without a pending build even when version.json never resolves", () => {
     const x = browser();
-    deploymentProbe.mockResolvedValueOnce(null);
-    expect(await updateBeforeMount({ current, base: "/sudoku/" })).toBe(false);
-    vi.stubGlobal("sessionStorage", {
+    deploymentProbe.mockImplementation(() => new Promise(() => {}));
+    expect(applyPendingUpdate(current)).toBe(false);
+    expect(deploymentProbe).not.toHaveBeenCalled();
+    expect(x.replace).not.toHaveBeenCalled();
+  });
+  it("keeps the current shell when storage is blocked", () => {
+    const x = browser();
+    vi.stubGlobal("localStorage", {
       getItem: () => {
         throw Error("blocked");
       },
     });
-    expect(await updateBeforeMount({ current, base: "/sudoku/" })).toBe(false);
+    expect(applyPendingUpdate(current)).toBe(false);
     expect(x.replace).not.toHaveBeenCalled();
     expect(x.href()).not.toContain("_sudoku_update");
+  });
+});
+
+describe("explicit Update", () => {
+  it("flushes progress before reload and reverts after three seconds without navigation", () => {
+    vi.useFakeTimers();
+    const calls = [];
+    const setUpdating = vi.fn();
+    const action = createUpdateAction({
+      flush: () => {
+        calls.push("flush");
+      },
+      reload: () => {
+        calls.push("reload");
+      },
+      setUpdating,
+    });
+    action.run();
+    action.run();
+    expect(calls).toEqual(["flush", "reload"]);
+    expect(setUpdating).toHaveBeenCalledExactlyOnceWith(true);
+    vi.advanceTimersByTime(2999);
+    expect(setUpdating).not.toHaveBeenCalledWith(false);
+    vi.advanceTimersByTime(1);
+    expect(setUpdating).toHaveBeenLastCalledWith(false);
+    action.run();
+    expect(calls).toEqual(["flush", "reload", "flush", "reload"]);
+    action.stop();
+  });
+  it("recovers from a throwing flush without reloading", () => {
+    vi.useFakeTimers();
+    const reload = vi.fn(),
+      setUpdating = vi.fn();
+    createUpdateAction({
+      flush: () => {
+        throw Error("storage");
+      },
+      reload,
+      setUpdating,
+    }).run();
+    expect(reload).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(3000);
+    expect(setUpdating).toHaveBeenLastCalledWith(false);
   });
 });
