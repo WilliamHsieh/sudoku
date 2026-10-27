@@ -11,7 +11,6 @@
   import Keypad from "./Keypad.svelte";
   import { get } from "svelte/store";
   import { done, puzzleProgress, solvedPuzzles, timer, formatTime } from "./store";
-  import { toSnapshot } from "./game/snapshot.js";
   import { game } from "./game/game.svelte.js";
   import { firstUnsolvedLatest } from "./game/daily.js";
   import { puzzleData } from "./puzzles.js";
@@ -337,12 +336,11 @@
   }
 
   const UPDATE_COPY = "New version ready. Update available.";
-  const UPDATE_RESUME = "sudoku-update-resume";
+  const UPDATE_PLAY = "sudoku-update-play";
   let updateNotice = $state(false);
   let updateVersion = "";
   let noticeHadFocus = false;
   let updating = $state(false);
-  let updateNavigationPending = false;
   // Once visible, keep it visible through later resume animations. A newly
   // discovered version waits for both the hold and the 600ms reveal to finish.
   let noticeRevealed = $state(false);
@@ -371,26 +369,15 @@
     setUpdating: (value) => {
       updating = value;
     },
-    flush: () => {
-      if (updateNavigationPending) return;
-      game.flushProgress();
-      if (!showCalendar) {
-        sessionStorage.setItem(
-          UPDATE_RESUME,
-          JSON.stringify({
-            snapshot: toSnapshot(game.state),
-            dateStr: game.dateStr,
-            difficulty: game.difficulty,
-            elapsed: get(timer),
-          })
-        );
-      }
-    },
+    flush: () => game.flushProgress(),
     reload: () => {
-      if (updateNavigationPending) return;
-      updateNavigationPending = reloadForUpdate(updateVersion);
-      // Discard an unused record only when navigation definitely did not start.
-      if (!updateNavigationPending) sessionStorage.removeItem(UPDATE_RESUME);
+      try {
+        // This flag holds no game state. A late reload reads the latest autosave.
+        if (!hasQueryPuzzle()) sessionStorage.setItem(UPDATE_PLAY, "1");
+      } catch {
+        // Update still works when session storage is unavailable.
+      }
+      reloadForUpdate(updateVersion);
     },
   });
 
@@ -511,13 +498,10 @@
       showCalendar = false;
     }
     try {
-      const saved = sessionStorage.getItem(UPDATE_RESUME);
-      if (saved) {
-        const resume = JSON.parse(saved);
-        game.load(resume.snapshot.puzzle, resume);
-        backToGame();
-        sessionStorage.removeItem(UPDATE_RESUME);
-      }
+      const returnToPlay = sessionStorage.getItem(UPDATE_PLAY);
+      // Consume before loading so later ordinary launches use the normal entry.
+      sessionStorage.removeItem(UPDATE_PLAY);
+      if (returnToPlay && !hasQueryPuzzle()) playFromJournal();
     } catch {
       // Invalid or unavailable session storage leaves the normal launch intact.
     }

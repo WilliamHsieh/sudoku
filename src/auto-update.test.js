@@ -1,10 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createUpdater } from "./auto-update.js";
-import {
-  installAutoUpdate,
-  applyPendingUpdate,
-  createUpdateAction,
-} from "./auto-update-browser.js";
+import { installAutoUpdate, createUpdateAction } from "./auto-update-browser.js";
 
 const { deploymentProbe } = vi.hoisted(() => ({ deploymentProbe: vi.fn() }));
 vi.mock("./auto-update.js", async (original) => ({
@@ -115,84 +111,6 @@ describe("foreground notices", () => {
     stop();
     doc.dispatchEvent(new Event("visibilitychange"));
     expect(deploymentProbe).toHaveBeenCalledOnce();
-  });
-});
-
-function browser() {
-  let href = "https://example.test/sudoku/?q=123&other=ok&_sudoku_update=prior#board";
-  const replace = vi.fn();
-  const values = new Map();
-  vi.stubGlobal("location", {
-    get href() {
-      return href;
-    },
-    replace,
-  });
-  vi.stubGlobal("history", {
-    state: null,
-    replaceState: (_state, _title, url) => (href = url.href),
-  });
-  vi.stubGlobal("localStorage", {
-    getItem: (key) => values.get(key) ?? null,
-    setItem: (key, value) => values.set(key, value),
-  });
-  vi.stubGlobal("sessionStorage", {
-    getItem: (key) => values.get(key) ?? null,
-    setItem: (key, value) => values.set(key, value),
-  });
-  deploymentProbe.mockResolvedValue(next);
-  return { replace, values, href: () => href };
-}
-describe("next launch", () => {
-  it("revalidates the pending build after mount before navigating", async () => {
-    const x = browser();
-    x.values.set("sudoku-pending-update", JSON.stringify(next));
-    expect(await applyPendingUpdate(current)).toBe(true);
-    expect(deploymentProbe).toHaveBeenCalledWith(expect.any(String), current, { verify: true });
-    expect(x.href()).toBe("https://example.test/sudoku/?q=123&other=ok#board");
-    expect(x.replace).toHaveBeenCalledExactlyOnceWith(
-      "https://example.test/sudoku/?q=123&other=ok&_sudoku_update=new#board"
-    );
-    expect(await applyPendingUpdate(current)).toBe(false);
-  });
-  it("allows immediate mount without a pending build even when version.json never resolves", async () => {
-    const x = browser();
-    deploymentProbe.mockImplementation(() => new Promise(() => {}));
-    expect(await applyPendingUpdate(current)).toBe(false);
-    expect(deploymentProbe).not.toHaveBeenCalled();
-    expect(x.replace).not.toHaveBeenCalled();
-  });
-  it("keeps the current shell when storage is blocked", async () => {
-    const x = browser();
-    vi.stubGlobal("localStorage", {
-      getItem: () => {
-        throw Error("blocked");
-      },
-    });
-    expect(await applyPendingUpdate(current)).toBe(false);
-    expect(x.replace).not.toHaveBeenCalled();
-    expect(x.href()).not.toContain("_sudoku_update");
-  });
-  it("retains an unreachable staged update and applies it on a later reachable launch", async () => {
-    const x = browser();
-    x.values.set("sudoku-pending-update", JSON.stringify(next));
-    deploymentProbe.mockResolvedValueOnce(null);
-    expect(await applyPendingUpdate(current)).toBe(false);
-    expect(x.replace).not.toHaveBeenCalled();
-    expect(x.values.get("sudoku-pending-update")).toBe(JSON.stringify(next));
-    expect(await applyPendingUpdate(current)).toBe(true);
-    expect(x.replace).toHaveBeenCalledOnce();
-  });
-  it("does not navigate while offline or when the reachable deployment differs", async () => {
-    const x = browser();
-    x.values.set("sudoku-pending-update", JSON.stringify(next));
-    vi.stubGlobal("navigator", { onLine: false });
-    expect(await applyPendingUpdate(current)).toBe(false);
-    expect(deploymentProbe).not.toHaveBeenCalled();
-    vi.stubGlobal("navigator", { onLine: true });
-    deploymentProbe.mockResolvedValueOnce(current);
-    expect(await applyPendingUpdate(current)).toBe(false);
-    expect(x.replace).not.toHaveBeenCalled();
   });
 });
 

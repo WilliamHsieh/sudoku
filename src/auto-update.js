@@ -50,7 +50,7 @@ async function digest(bytes) {
 
 /**
  * A single deadline covers fetches, response bodies and hashes. Verification
- * warms a coherent deployment in the background before staging it for launch.
+ * checks a coherent deployment in the background before showing the notice.
  * @param {string} base
  * @param {Build} current
  * @param {{ verify?: boolean, budgetMs?: number }} [options]
