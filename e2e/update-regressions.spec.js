@@ -1,6 +1,6 @@
 import { test as base, expect } from "@playwright/test";
 import { upgradeServer } from "./upgrade-server.js";
-import { cell, expectValue, DEMO_PUZZLE } from "./helpers.js";
+import { cell, expectValue, DEMO_PUZZLE, solve } from "./helpers.js";
 
 const test = base.extend({
   // eslint-disable-next-line no-empty-pattern
@@ -57,14 +57,14 @@ async function state(page) {
   }));
 }
 
-async function openDaily(page, deployment) {
+async function openDaily(page, deployment, date = "2026-10-22") {
   await page.clock.setSystemTime(new Date("2026-10-23T12:00:00Z"));
   await page.addInitScript(() => {
     localStorage.setItem("sudoku-keypad-coach", "1");
     localStorage.setItem("sudoku-cue", "0");
   });
   await page.goto(deployment.url);
-  await page.locator('button.day[data-d="2026-10-22"]:visible').click();
+  await page.locator(`button.day[data-d="${date}"]:visible`).click();
   await page
     .locator(".prow:visible")
     .filter({ hasText: "Easy" })
@@ -129,6 +129,8 @@ for (const mode of ["Manual", "Auto"]) {
       });
       await notice(page).getByRole("button", { name: "Update", exact: true }).tap();
       await expect(build(page)).toHaveAttribute("content", "new");
+      await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+      await page.getByRole("button", { name: "Play", exact: true }).tap();
       await expect(cell(page, answer)).toBeVisible();
       const after = await state(page);
       expect(after.cells).toEqual(before.cells);
@@ -140,16 +142,16 @@ for (const mode of ["Manual", "Auto"]) {
         1
       );
       expect(Math.abs(seconds(after.time) - seconds(before.time))).toBeLessThanOrEqual(1);
-      expect(await page.evaluate(() => sessionStorage.getItem("sudoku-update-play"))).toBeNull();
+      expect(await page.evaluate(() => Object.keys(sessionStorage))).toEqual([]);
       expect(attempts(deployment)).toHaveLength(1);
-      // The marker is one-shot: an ordinary later reload lands in Journal.
+      // An ordinary later reload also uses the normal start screen.
       await page.reload();
       await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible();
     });
   }
 }
 
-test("Update from Journal returns to the latest unfinished daily puzzle", async ({
+test("Update from Journal opens the start screen; Play resumes the daily autosave", async ({
   page,
   deployment,
 }) => {
@@ -164,6 +166,8 @@ test("Update from Journal returns to the latest unfinished daily puzzle", async 
   await publish(page, deployment);
   await notice(page).getByRole("button", { name: "Update", exact: true }).tap();
   await expect(build(page)).toHaveAttribute("content", "new");
+  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Play", exact: true }).tap();
   await expectValue(page, answer, 1);
   const after = await state(page);
   expect(after.cells).toEqual(before.cells);
@@ -172,11 +176,11 @@ test("Update from Journal returns to the latest unfinished daily puzzle", async 
   expect(await page.getByRole("button", { name: /Open Journal/ }).getAttribute("aria-label")).toBe(
     puzzle
   );
-  expect(await page.evaluate(() => sessionStorage.getItem("sudoku-update-play"))).toBeNull();
+  expect(await page.evaluate(() => Object.keys(sessionStorage))).toEqual([]);
 });
 
-for (const failure of ["cancelled", "blocked-marker"]) {
-  test(`failed Update (${failure}) cannot overwrite later daily moves`, async ({
+for (const failure of ["aborted", "failed"]) {
+  test(`failed Update (${failure}) then normal reload opens the start screen`, async ({
     page,
     deployment,
   }) => {
@@ -184,43 +188,29 @@ for (const failure of ["cancelled", "blocked-marker"]) {
     await cell(page, first).click();
     await page.keyboard.press("1");
     await publish(page, deployment);
-    if (failure === "cancelled") {
-      await page.route("**/*", (route) =>
-        route.request().isNavigationRequest() ? route.abort("aborted") : route.continue()
-      );
-    } else {
-      // Updating can still reload when session storage is unavailable.
-      await page.evaluate(() => {
-        const write = Storage.prototype.setItem;
-        Storage.prototype.setItem = function (key, value) {
-          if (key === "sudoku-update-play") throw Error("storage unavailable");
-          return write.call(this, key, value);
-        };
-      });
-      await page.route("**/*", (route) =>
-        route.request().isNavigationRequest() ? route.abort("aborted") : route.continue()
-      );
-    }
+    let newest = await state(page);
+    await page.route("**/*", (route) =>
+      route.request().isNavigationRequest() ? route.abort(failure) : route.continue()
+    );
     await notice(page).getByRole("button", { name: "Update", exact: true }).tap();
-    await expect(notice(page).getByRole("button", { name: "Update", exact: true })).toBeVisible({
-      timeout: 6000,
-    });
-    await cell(page, second).click();
-    await page.keyboard.press("2");
-    await expectValue(page, second, 2);
-    const newest = await state(page);
+    if (failure === "aborted") {
+      await expect(notice(page).getByRole("button", { name: "Update", exact: true })).toBeVisible({
+        timeout: 6000,
+      });
+      await cell(page, second).click();
+      await page.keyboard.press("2");
+      await expectValue(page, second, 2);
+      newest = await state(page);
+    }
     await page.unrouteAll({ behavior: "wait" });
     await page.reload();
-    if (failure === "blocked-marker")
-      await page.getByRole("button", { name: "Play", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+    await expect(page.locator(".play")).not.toBeVisible();
+    expect(await page.evaluate(() => Object.keys(sessionStorage))).toEqual([]);
+    await page.getByRole("button", { name: "Play", exact: true }).tap();
     await expectValue(page, first, 1);
-    await expectValue(page, second, 2);
+    if (failure === "aborted") await expectValue(page, second, 2);
     expect((await state(page)).cells).toEqual(newest.cells);
-    expect(await page.evaluate(() => sessionStorage.getItem("sudoku-update-play"))).toBeNull();
-    await page.getByRole("button", { name: /Open Journal/ }).click();
-    await page.reload();
-    await page.getByRole("button", { name: "Play", exact: true }).click();
-    await expectValue(page, second, 2);
   });
 }
 
@@ -238,7 +228,6 @@ test("moves made during a slow Update survive the eventual navigation", async ({
   const started = new Promise((resolve) => {
     updateStarted = resolve;
   });
-  await page.exposeFunction("updateStarted", updateStarted);
   await page.exposeFunction("progressSaved", (value) => {
     newest = JSON.parse(value)["2026-10-22"].easy;
   });
@@ -246,14 +235,15 @@ test("moves made during a slow Update survive the eventual navigation", async ({
     const write = Storage.prototype.setItem;
     Storage.prototype.setItem = function (key, value) {
       const result = write.call(this, key, value);
-      if (key === "sudoku-update-play") window.updateStarted();
       if (key === "sudoku-progress") window.progressSaved(value);
       return result;
     };
   });
   await page.route("**/*", async (route) => {
-    if (route.request().isNavigationRequest())
+    if (route.request().isNavigationRequest()) {
+      updateStarted();
       await new Promise((resolve) => setTimeout(resolve, 5500));
+    }
     await route.continue().catch(() => {});
   });
   const tap = notice(page)
@@ -266,6 +256,8 @@ test("moves made during a slow Update survive the eventual navigation", async ({
   await page.keyboard.press("2");
   await tap;
   await expect(build(page)).toHaveAttribute("content", "new");
+  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Play", exact: true }).tap();
   await expectValue(page, first, 1);
   await expectValue(page, second, 2);
   expect(newest.snapshot.answers[second]).toBe("2");
@@ -274,7 +266,59 @@ test("moves made during a slow Update survive the eventual navigation", async ({
       () => JSON.parse(localStorage.getItem("sudoku-progress"))["2026-10-22"].easy.snapshot
     )
   ).toEqual(newest.snapshot);
-  expect(await page.evaluate(() => sessionStorage.getItem("sudoku-update-play"))).toBeNull();
+  expect(await page.evaluate(() => Object.keys(sessionStorage))).toEqual([]);
+});
+
+test("Update after finishing today's Easy stays on the normal start screen", async ({
+  page,
+  deployment,
+}) => {
+  const empty = await openDaily(page, deployment, "2026-10-23");
+  const puzzle = await page
+    .locator(".board > .cell")
+    .evaluateAll((cells) =>
+      cells.map((el) => el.querySelector(".pen-box")?.textContent.trim() || "0").join("")
+    );
+  const solution = solve(puzzle);
+  for (const index of empty) {
+    await cell(page, index).click();
+    await page.keyboard.press(solution[index]);
+  }
+  await expect(page.getByRole("heading", { name: "Puzzle Complete!" })).toBeVisible();
+  await page.locator(".success-close").click();
+  const solved = await page.evaluate(() => localStorage.getItem("sudoku-solved"));
+  expect(JSON.parse(solved)["2026-10-23"].easy.completed).toBe(true);
+  await publish(page, deployment);
+  await notice(page).getByRole("button", { name: "Update", exact: true }).tap();
+  await expect(build(page)).toHaveAttribute("content", "new");
+  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+  await expect(page.locator(".play")).not.toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem("sudoku-solved"))).toBe(solved);
+  expect(await page.evaluate(() => Object.keys(sessionStorage))).toEqual([]);
+});
+
+test("Update writes no return marker to either storage area", async ({ page, deployment }) => {
+  const writes = [];
+  await page.exposeFunction("recordStorageWrite", (area, key) => writes.push([area, key]));
+  await page.addInitScript(() => {
+    const write = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      window.recordStorageWrite(this === sessionStorage ? "session" : "local", key);
+      return write.call(this, key, value);
+    };
+  });
+  const [answer] = await openDaily(page, deployment);
+  await cell(page, answer).click();
+  await page.keyboard.press("1");
+  await publish(page, deployment);
+  await notice(page).getByRole("button", { name: "Update", exact: true }).tap();
+  await expect(build(page)).toHaveAttribute("content", "new");
+  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+  expect(writes.filter(([area, key]) => area === "session" || /update/i.test(key))).toEqual([]);
+  expect(await page.evaluate(() => Object.keys(sessionStorage))).toEqual([]);
+  expect(
+    await page.evaluate(() => Object.keys(localStorage).filter((key) => /update/i.test(key)))
+  ).toEqual([]);
 });
 
 test("share-link Update keeps master behaviour without saving the board", async ({
@@ -292,7 +336,7 @@ test("share-link Update keeps master behaviour without saving the board", async 
   await expectValue(page, 0, 0);
   expect(new URL(page.url()).searchParams.get("q")).toBe(DEMO_PUZZLE);
   expect(await page.evaluate(() => localStorage.getItem("sudoku-progress"))).toBeNull();
-  expect(await page.evaluate(() => sessionStorage.getItem("sudoku-update-play"))).toBeNull();
+  expect(await page.evaluate(() => Object.keys(sessionStorage))).toEqual([]);
 });
 
 for (const edited of [false, true]) {
@@ -358,14 +402,6 @@ for (const gesture of ["pointercancel", "touchcancel", "drag-return"]) {
   test(`regression: ${gesture} cannot activate Update`, async ({ page, deployment }) => {
     await openDaily(page, deployment);
     await publish(page, deployment);
-    await page.evaluate(() => {
-      window.updateWrites = 0;
-      const write = Storage.prototype.setItem;
-      Storage.prototype.setItem = function (key, value) {
-        if (key === "sudoku-update-play") window.updateWrites++;
-        return write.call(this, key, value);
-      };
-    });
     await notice(page)
       .locator(".update")
       .evaluate((button, gesture) => {
@@ -390,7 +426,6 @@ for (const gesture of ["pointercancel", "touchcancel", "drag-return"]) {
         else send("touchcancel");
         send("touchend");
       }, gesture);
-    expect(await page.evaluate(() => window.updateWrites)).toBe(0);
     await expect(notice(page)).toHaveAttribute("aria-busy", "false");
     expect(attempts(deployment)).toHaveLength(0);
   });
@@ -428,15 +463,6 @@ for (const input of ["touch", "mouse", "Enter", "Space"]) {
   test(`Update activates exactly once with ${input}`, async ({ page, deployment }) => {
     await openDaily(page, deployment);
     await publish(page, deployment);
-    let writes = 0;
-    await page.exposeFunction("recordUpdateSave", () => writes++);
-    await page.evaluate(() => {
-      const write = Storage.prototype.setItem;
-      Storage.prototype.setItem = function (key, value) {
-        if (key === "sudoku-update-play") window.recordUpdateSave();
-        return write.call(this, key, value);
-      };
-    });
     const button = notice(page).getByRole("button", { name: "Update", exact: true });
     if (input === "touch") await button.tap();
     else if (input === "mouse") await button.click();
@@ -445,7 +471,6 @@ for (const input of ["touch", "mouse", "Enter", "Space"]) {
       await button.press(input);
     }
     await expect(build(page)).toHaveAttribute("content", "new");
-    expect(writes).toBe(1);
     expect(attempts(deployment)).toHaveLength(1);
   });
 }

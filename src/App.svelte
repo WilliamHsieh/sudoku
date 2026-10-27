@@ -336,7 +336,6 @@
   }
 
   const UPDATE_COPY = "New version ready. Update available.";
-  const UPDATE_PLAY = "sudoku-update-play";
   let updateNotice = $state(false);
   let updateVersion = "";
   let noticeHadFocus = false;
@@ -370,15 +369,7 @@
       updating = value;
     },
     flush: () => game.flushProgress(),
-    reload: () => {
-      try {
-        // This flag holds no game state. A late reload reads the latest autosave.
-        if (!hasQueryPuzzle()) sessionStorage.setItem(UPDATE_PLAY, "1");
-      } catch {
-        // Update still works when session storage is unavailable.
-      }
-      reloadForUpdate(updateVersion);
-    },
+    reload: () => reloadForUpdate(updateVersion),
   });
 
   function updateNow() {
@@ -496,14 +487,6 @@
       applyKeypadShot(game, kp);
       hasPlayed = true;
       showCalendar = false;
-    }
-    try {
-      const returnToPlay = sessionStorage.getItem(UPDATE_PLAY);
-      // Consume before loading so later ordinary launches use the normal entry.
-      sessionStorage.removeItem(UPDATE_PLAY);
-      if (returnToPlay && !hasQueryPuzzle()) playFromJournal();
-    } catch {
-      // Invalid or unavailable session storage leaves the normal launch intact.
     }
     const stopUpdates =
       typeof __SUDOKU_BUILD__ === "undefined"
