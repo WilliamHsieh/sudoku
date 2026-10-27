@@ -1,7 +1,5 @@
 import { test as base, expect } from "@playwright/test";
 import { upgradeServer } from "./upgrade-server.js";
-import { buildRoot } from "./upgrade-builds.js";
-import { join } from "node:path";
 import { cell, expectValue, DEMO_PUZZLE } from "./helpers.js";
 
 const test = base.extend({
@@ -59,78 +57,312 @@ async function state(page) {
   }));
 }
 
+async function openDaily(page, deployment) {
+  await page.clock.setSystemTime(new Date("2026-10-23T12:00:00Z"));
+  await page.addInitScript(() => {
+    localStorage.setItem("sudoku-keypad-coach", "1");
+    localStorage.setItem("sudoku-cue", "0");
+  });
+  await page.goto(deployment.url);
+  await page.locator('button.day[data-d="2026-10-22"]:visible').click();
+  await page
+    .locator(".prow:visible")
+    .filter({ hasText: "Easy" })
+    .getByRole("button", { name: "Start", exact: true })
+    .click();
+  await expect(page.locator(".board > .cell")).toHaveCount(81);
+  await settle(page);
+  return page
+    .locator(".board > .cell")
+    .evaluateAll((cells) => cells.flatMap((c, i) => (c.querySelector(".pen-box") ? [] : [i])));
+}
+function seconds(text) {
+  const [m, s] = text.trim().split(":").map(Number);
+  return m * 60 + s;
+}
+
 for (const mode of ["Manual", "Auto"]) {
   for (const delay of [100, 4500]) {
-    test(`regression: ${mode} game survives Update navigation delayed ${delay}ms`, async ({
+    test(`daily ${mode} game survives Update navigation delayed ${delay}ms`, async ({
       page,
       deployment,
     }) => {
-      await open(page, deployment);
-      await cell(page, 0).click();
-      await page.keyboard.press("4");
+      const [answer] = await openDaily(page, deployment);
+      await cell(page, answer).click();
+      await page.keyboard.press("1");
+      const note = await page
+        .locator(".board > .cell")
+        .evaluateAll((cells) => cells.findIndex((c) => c.getAttribute("data-notes").includes("3")));
+      expect(note).toBeGreaterThanOrEqual(0);
       if (mode === "Manual") {
         await page.locator(".notes-mode").click();
         await page.getByRole("menuitemradio", { name: /^Manual / }).click();
       }
       await page.keyboard.press("Shift+Digit3");
-      await cell(page, 2).click();
+      await cell(page, note).click();
       await page.keyboard.press("Escape");
+      if (mode === "Manual") await expect(cell(page, note)).toHaveAttribute("data-notes", /3/);
+      else await expect(cell(page, note)).not.toHaveAttribute("data-notes", /3/);
       await publish(page, deployment);
       const before = await state(page);
+      const puzzle = await page
+        .getByRole("button", { name: /Open Journal/ })
+        .getAttribute("aria-label");
       let saved;
-      let removedBeforeArrival = false;
-      page.on("console", (message) => {
-        if (message.text().startsWith("R2_RESUME ")) saved = JSON.parse(message.text().slice(10));
-        if (message.text() === "R2_REMOVED") removedBeforeArrival = true;
+      await page.exposeFunction("recordProgress", (value) => {
+        saved = JSON.parse(value);
       });
       await page.evaluate(() => {
-        const write = Storage.prototype.setItem,
-          remove = Storage.prototype.removeItem;
+        const write = Storage.prototype.setItem;
         Storage.prototype.setItem = function (key, value) {
-          if (key === "sudoku-update-resume") console.log("R2_RESUME " + value);
+          if (key === "sudoku-progress") window.recordProgress(value);
           return write.call(this, key, value);
-        };
-        Storage.prototype.removeItem = function (key) {
-          if (key === "sudoku-update-resume") console.log("R2_REMOVED");
-          return remove.call(this, key);
         };
       });
       await page.route("**/*", async (route) => {
         if (
           route.request().isNavigationRequest() &&
           route.request().url().includes("_sudoku_update=")
-        ) {
+        )
           await new Promise((resolve) => setTimeout(resolve, delay));
-        }
         await route.continue().catch(() => {});
       });
       await notice(page).getByRole("button", { name: "Update", exact: true }).tap();
       await expect(build(page)).toHaveAttribute("content", "new");
-      if (delay > 3000) expect(removedBeforeArrival).toBe(false);
-      await expect(cell(page, 0)).toBeVisible();
+      await expect(cell(page, answer)).toBeVisible();
       const after = await state(page);
       expect(after.cells).toEqual(before.cells);
       expect(after.mode).toBe(`Notes mode: ${mode}`);
-      const elapsed = Number(saved.elapsed);
-      expect(after.time?.trim()).toBe(
-        `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, "0")}`
+      expect(
+        await page.getByRole("button", { name: /Open Journal/ }).getAttribute("aria-label")
+      ).toBe(puzzle);
+      expect(Math.abs(seconds(after.time) - saved["2026-10-22"].easy.elapsed)).toBeLessThanOrEqual(
+        1
       );
-      expect(await page.evaluate(() => sessionStorage.getItem("sudoku-update-resume"))).toBeNull();
+      expect(Math.abs(seconds(after.time) - seconds(before.time))).toBeLessThanOrEqual(1);
+      expect(await page.evaluate(() => sessionStorage.getItem("sudoku-update-play"))).toBeNull();
       expect(attempts(deployment)).toHaveLength(1);
+      // The marker is one-shot: an ordinary later reload lands in Journal.
+      await page.reload();
+      await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible();
     });
   }
 }
 
+test("Update from Journal returns to the latest unfinished daily puzzle", async ({
+  page,
+  deployment,
+}) => {
+  const [answer] = await openDaily(page, deployment);
+  await cell(page, answer).click();
+  await page.keyboard.press("1");
+  const before = await state(page);
+  const puzzle = await page
+    .getByRole("button", { name: /Open Journal/ })
+    .getAttribute("aria-label");
+  await page.getByRole("button", { name: /Open Journal/ }).click();
+  await publish(page, deployment);
+  await notice(page).getByRole("button", { name: "Update", exact: true }).tap();
+  await expect(build(page)).toHaveAttribute("content", "new");
+  await expectValue(page, answer, 1);
+  const after = await state(page);
+  expect(after.cells).toEqual(before.cells);
+  expect(after.mode).toBe(before.mode);
+  expect(Math.abs(seconds(after.time) - seconds(before.time))).toBeLessThanOrEqual(1);
+  expect(await page.getByRole("button", { name: /Open Journal/ }).getAttribute("aria-label")).toBe(
+    puzzle
+  );
+  expect(await page.evaluate(() => sessionStorage.getItem("sudoku-update-play"))).toBeNull();
+});
+
+for (const failure of ["cancelled", "blocked-marker"]) {
+  test(`failed Update (${failure}) cannot overwrite later daily moves`, async ({
+    page,
+    deployment,
+  }) => {
+    const [first, second] = await openDaily(page, deployment);
+    await cell(page, first).click();
+    await page.keyboard.press("1");
+    await publish(page, deployment);
+    if (failure === "cancelled") {
+      await page.route("**/*", (route) =>
+        route.request().isNavigationRequest() ? route.abort("aborted") : route.continue()
+      );
+    } else {
+      // Updating can still reload when session storage is unavailable.
+      await page.evaluate(() => {
+        const write = Storage.prototype.setItem;
+        Storage.prototype.setItem = function (key, value) {
+          if (key === "sudoku-update-play") throw Error("storage unavailable");
+          return write.call(this, key, value);
+        };
+      });
+      await page.route("**/*", (route) =>
+        route.request().isNavigationRequest() ? route.abort("aborted") : route.continue()
+      );
+    }
+    await notice(page).getByRole("button", { name: "Update", exact: true }).tap();
+    await expect(notice(page).getByRole("button", { name: "Update", exact: true })).toBeVisible({
+      timeout: 6000,
+    });
+    await cell(page, second).click();
+    await page.keyboard.press("2");
+    await expectValue(page, second, 2);
+    const newest = await state(page);
+    await page.unrouteAll({ behavior: "wait" });
+    await page.reload();
+    if (failure === "blocked-marker")
+      await page.getByRole("button", { name: "Play", exact: true }).click();
+    await expectValue(page, first, 1);
+    await expectValue(page, second, 2);
+    expect((await state(page)).cells).toEqual(newest.cells);
+    expect(await page.evaluate(() => sessionStorage.getItem("sudoku-update-play"))).toBeNull();
+    await page.getByRole("button", { name: /Open Journal/ }).click();
+    await page.reload();
+    await page.getByRole("button", { name: "Play", exact: true }).click();
+    await expectValue(page, second, 2);
+  });
+}
+
+test("moves made during a slow Update survive the eventual navigation", async ({
+  page,
+  deployment,
+}) => {
+  const [first, second] = await openDaily(page, deployment);
+  await cell(page, first).click();
+  await page.keyboard.press("1");
+  await publish(page, deployment);
+  const box = await cell(page, second).boundingBox();
+  let updateStarted;
+  let newest;
+  const started = new Promise((resolve) => {
+    updateStarted = resolve;
+  });
+  await page.exposeFunction("updateStarted", updateStarted);
+  await page.exposeFunction("progressSaved", (value) => {
+    newest = JSON.parse(value)["2026-10-22"].easy;
+  });
+  await page.evaluate(() => {
+    const write = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      const result = write.call(this, key, value);
+      if (key === "sudoku-update-play") window.updateStarted();
+      if (key === "sudoku-progress") window.progressSaved(value);
+      return result;
+    };
+  });
+  await page.route("**/*", async (route) => {
+    if (route.request().isNavigationRequest())
+      await new Promise((resolve) => setTimeout(resolve, 5500));
+    await route.continue().catch(() => {});
+  });
+  const tap = notice(page)
+    .getByRole("button", { name: "Update", exact: true })
+    .tap({ noWaitAfter: true });
+  // Use page-level input while the browser has a pending document navigation.
+  await started;
+  await page.waitForTimeout(3300);
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await page.keyboard.press("2");
+  await tap;
+  await expect(build(page)).toHaveAttribute("content", "new");
+  await expectValue(page, first, 1);
+  await expectValue(page, second, 2);
+  expect(newest.snapshot.answers[second]).toBe("2");
+  expect(
+    await page.evaluate(
+      () => JSON.parse(localStorage.getItem("sudoku-progress"))["2026-10-22"].easy.snapshot
+    )
+  ).toEqual(newest.snapshot);
+  expect(await page.evaluate(() => sessionStorage.getItem("sudoku-update-play"))).toBeNull();
+});
+
+test("share-link Update keeps master behaviour without saving the board", async ({
+  page,
+  deployment,
+}) => {
+  await open(page, deployment);
+  await cell(page, 0).click();
+  await page.keyboard.press("4");
+  await expectValue(page, 0, 4);
+  await publish(page, deployment);
+  await notice(page).getByRole("button", { name: "Update", exact: true }).tap();
+  await expect(build(page)).toHaveAttribute("content", "new");
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await expectValue(page, 0, 0);
+  expect(new URL(page.url()).searchParams.get("q")).toBe(DEMO_PUZZLE);
+  expect(await page.evaluate(() => localStorage.getItem("sudoku-progress"))).toBeNull();
+  expect(await page.evaluate(() => sessionStorage.getItem("sudoku-update-play"))).toBeNull();
+});
+
+for (const edited of [false, true]) {
+  test(`newer startup version only shows notice, entered digit: ${edited}`, async ({
+    page,
+    deployment,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    deployment.publish();
+    deployment.launchOld();
+    // Hold the initial check until Play is usable, including the first edit.
+    let release;
+    const gate = new Promise((resolve) => {
+      release = resolve;
+    });
+    await page.route("**/version.json?*", async (route) => {
+      await gate;
+      await route.continue().catch(() => {});
+    });
+    const navigations = [];
+    page.on("framenavigated", (frame) => {
+      if (frame === page.mainFrame()) navigations.push(frame.url());
+    });
+    // Freeze scheduling so the 1.5s network budget cannot race test-driver input.
+    await page.clock.install();
+    await page.clock.pauseAt(new Date());
+    await page.addInitScript(() => {
+      localStorage.setItem("sudoku-keypad-coach", "1");
+      window.documentIdentity = {};
+    });
+    await page.goto(`${deployment.url}?q=${DEMO_PUZZLE}`);
+    await page.getByRole("button", { name: "Play", exact: true }).dispatchEvent("click");
+    if (edited) {
+      await cell(page, 0).dispatchEvent("click");
+      await page.keyboard.press("4");
+      await expectValue(page, 0, 4);
+    }
+    const identity = await page.evaluateHandle(() => window.documentIdentity);
+    release();
+    await expect(notice(page)).toHaveCSS("opacity", "1");
+    await page.clock.runFor(1600);
+    expect(navigations).toHaveLength(1);
+    expect(attempts(deployment)).toHaveLength(0);
+    expect(await identity.evaluate((value) => value === window.documentIdentity)).toBe(true);
+    await expect(cell(page, 0)).toBeVisible();
+    if (edited) await expectValue(page, 0, 4);
+    await expect(build(page)).toHaveAttribute("content", "old");
+  });
+}
+
+test("no service worker is registered before or after Update", async ({ page, deployment }) => {
+  await openDaily(page, deployment);
+  const registrations = () =>
+    page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length);
+  expect(await registrations()).toBe(0);
+  await publish(page, deployment);
+  await notice(page).getByRole("button", { name: "Update", exact: true }).tap();
+  await expect(build(page)).toHaveAttribute("content", "new");
+  expect(await registrations()).toBe(0);
+});
+
 for (const gesture of ["pointercancel", "touchcancel", "drag-return"]) {
   test(`regression: ${gesture} cannot activate Update`, async ({ page, deployment }) => {
-    await open(page, deployment);
+    await openDaily(page, deployment);
     await publish(page, deployment);
     await page.evaluate(() => {
-      sessionStorage.setItem("sudoku-update-attempts", '["new"]');
       window.updateWrites = 0;
       const write = Storage.prototype.setItem;
       Storage.prototype.setItem = function (key, value) {
-        if (key === "sudoku-update-resume") window.updateWrites++;
+        if (key === "sudoku-update-play") window.updateWrites++;
         return write.call(this, key, value);
       };
     });
@@ -173,7 +405,7 @@ test("regression: native touch drag with pointercancel does not reload", async (
     browserName !== "chromium",
     "Native CDP touch input is Chromium-only; cancellation is covered in both engines above."
   );
-  await open(page, deployment);
+  await openDaily(page, deployment);
   await publish(page, deployment);
   const r = await notice(page).locator(".update").boundingBox();
   const x = r.x + r.width / 2,
@@ -194,14 +426,14 @@ test("regression: native touch drag with pointercancel does not reload", async (
 
 for (const input of ["touch", "mouse", "Enter", "Space"]) {
   test(`Update activates exactly once with ${input}`, async ({ page, deployment }) => {
-    await open(page, deployment);
+    await openDaily(page, deployment);
     await publish(page, deployment);
     let writes = 0;
     await page.exposeFunction("recordUpdateSave", () => writes++);
     await page.evaluate(() => {
       const write = Storage.prototype.setItem;
       Storage.prototype.setItem = function (key, value) {
-        if (key === "sudoku-update-resume") window.recordUpdateSave();
+        if (key === "sudoku-update-play") window.recordUpdateSave();
         return write.call(this, key, value);
       };
     });
@@ -217,91 +449,6 @@ for (const input of ["touch", "mouse", "Enter", "Space"]) {
     expect(attempts(deployment)).toHaveLength(1);
   });
 }
-
-for (const fault of ["offline", "version-error", "old-html", "asset-error"]) {
-  test(`regression: staged launch stays editable on ${fault}, applies when reachable`, async ({
-    page,
-    deployment,
-  }) => {
-    await page.addInitScript(() => {
-      localStorage.setItem("sudoku-keypad-coach", "1");
-      localStorage.setItem(
-        "sudoku-pending-update",
-        JSON.stringify({ version: "new", builtAt: 2000 })
-      );
-    });
-    deployment.publish();
-    deployment.launchOld();
-    deployment.fault(fault);
-    await page.route("**/*", (route) => {
-      const request = route.request();
-      if (request.isNavigationRequest() && request.url().includes("_sudoku_update="))
-        return route.abort("internetdisconnected");
-      if (
-        fault === "asset-error" &&
-        request.resourceType() === "fetch" &&
-        request.url().includes("/assets/")
-      )
-        return route.fulfill({ status: 503, body: "asset unavailable" });
-      return route.continue();
-    });
-    await page.goto(`${deployment.url}?q=${DEMO_PUZZLE}`).catch(() => {});
-    await page.getByRole("button", { name: "Play", exact: true }).click({ timeout: 4000 });
-    await expect(cell(page, 0)).toBeVisible();
-    await page.waitForTimeout(1700);
-    await expect(build(page)).toHaveAttribute("content", "old");
-    await cell(page, 0).click();
-    await page.keyboard.press("4");
-    await expectValue(page, 0, 4);
-    expect(attempts(deployment)).toHaveLength(0);
-    expect(await page.evaluate(() => localStorage.getItem("sudoku-pending-update"))).not.toBeNull();
-    deployment.fault("");
-    deployment.launchOld();
-    await page.unroute("**/*");
-    await page.reload();
-    await expect(build(page)).toHaveAttribute("content", "new");
-    expect(attempts(deployment)).toHaveLength(1);
-  });
-}
-
-test("regression: offline context retains the cached shell and pending build", async ({
-  page,
-  deployment,
-}) => {
-  await page.addInitScript(() => {
-    localStorage.setItem("sudoku-keypad-coach", "1");
-    localStorage.setItem(
-      "sudoku-pending-update",
-      JSON.stringify({ version: "new", builtAt: 2000 })
-    );
-  });
-  await page.context().setOffline(true);
-  // Supply only the already cached old shell and assets; all update networking fails.
-  await page.route("**/*", (route) => {
-    const url = new URL(route.request().url());
-    if (url.pathname.endsWith("version.json") || url.searchParams.has("_sudoku_update"))
-      return route.abort("internetdisconnected");
-    const relative = url.pathname.replace(/^\/sudoku\//, "") || "index.html";
-    return route.fulfill({
-      path: join(process.env.SUDOKU_UPGRADE_BASELINE || buildRoot, "old", relative),
-    });
-  });
-  await page.goto(`${deployment.url}?q=${DEMO_PUZZLE}`).catch(() => {});
-  await page.getByRole("button", { name: "Play", exact: true }).click({ timeout: 4000 });
-  await cell(page, 0).click();
-  await page.keyboard.press("4");
-  await expectValue(page, 0, 4);
-  await expect(build(page)).toHaveAttribute("content", "old");
-  expect(await page.evaluate(() => navigator.onLine)).toBe(false);
-  expect(attempts(deployment)).toHaveLength(0);
-  expect(await page.evaluate(() => localStorage.getItem("sudoku-pending-update"))).not.toBeNull();
-  await page.context().setOffline(false);
-  await page.unrouteAll({ behavior: "wait" });
-  deployment.publish();
-  deployment.launchOld();
-  await page.reload();
-  await expect(build(page)).toHaveAttribute("content", "new");
-});
 
 test("cold launch keeps the newer shell when the server offers an older deployment", async ({
   page,
@@ -322,61 +469,9 @@ test("cold launch keeps the newer shell when the server offers an older deployme
   expect(navigations).toEqual([url]);
   expect(attempts(deployment)).toHaveLength(0);
   expect(page.url()).toBe(url);
-  expect(await page.evaluate(() => sessionStorage.getItem("sudoku-update-attempts"))).toBeNull();
   await cell(page, 0).click();
   await page.keyboard.press("4");
   await expectValue(page, 0, 4);
-});
-
-test("daily progress bytes and elapsed time survive next-launch apply", async ({
-  page,
-  deployment,
-}) => {
-  await page.clock.setSystemTime(new Date("2026-10-23T12:00:00Z"));
-  await open(page, deployment);
-  await page.getByRole("button", { name: /Open Journal/ }).click();
-  await page.locator('button.day[data-d="2026-10-22"]:visible').click();
-  await page
-    .locator(".prow:visible")
-    .filter({ hasText: "Easy" })
-    .getByRole("button", { name: "Start", exact: true })
-    .click();
-  await expect(page.locator(".board > .cell")).toHaveCount(81);
-  await settle(page);
-  const index = await page
-    .locator(".board > .cell")
-    .evaluateAll((cells) => cells.findIndex((c) => !c.querySelector(".pen-box")));
-  expect(index).toBeGreaterThanOrEqual(0);
-  await expect(page.locator("[data-time]")).not.toHaveText(/0:00$/);
-  await cell(page, index).click();
-  await page.keyboard.press("1");
-  await expectValue(page, index, 1);
-  await page.getByRole("button", { name: /Open Journal/ }).click();
-  const saved = await page.evaluate(() => localStorage.getItem("sudoku-progress"));
-  const entry = JSON.parse(saved)["2026-10-22"].easy;
-  expect(entry.elapsed).toBeGreaterThan(0);
-  await publish(page, deployment);
-  await notice(page).getByRole("button", { name: "Dismiss", exact: true }).click();
-  deployment.launchOld();
-  await page.goto(`${deployment.url}?q=${DEMO_PUZZLE}&keep=yes#board`);
-  await expect(build(page)).toHaveAttribute("content", "new");
-  expect(await page.evaluate(() => localStorage.getItem("sudoku-progress"))).toBe(saved);
-  expect(new URL(page.url()).searchParams.get("keep")).toBe("yes");
-  expect(new URL(page.url()).hash).toBe("#board");
-  await page.locator('button.day[data-d="2026-10-22"]:visible').click();
-  await page
-    .locator(".prow:visible")
-    .filter({ hasText: "Easy" })
-    .getByRole("button", { name: "Resume", exact: true })
-    .click();
-  await expectValue(page, index, 1);
-  const elapsed = await page.locator("[data-time]").evaluate((el) => {
-    const [m, s] = el.textContent.trim().split(":").map(Number);
-    return m * 60 + s;
-  });
-  expect(elapsed).toBeGreaterThanOrEqual(entry.elapsed);
-  expect(elapsed).toBeLessThan(entry.elapsed + 3);
-  expect(attempts(deployment)).toHaveLength(1);
 });
 
 test("offline foreground retains the document and usable input", async ({ page, deployment }) => {

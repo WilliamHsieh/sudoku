@@ -45,17 +45,6 @@ async function publish(page, deployment) {
   await check(page);
   await expect(notice(page)).toHaveCSS("opacity", "1");
 }
-async function state(page) {
-  return page.evaluate(() => ({
-    cells: [...document.querySelectorAll(".board > .cell")].map((el) => [
-      el.getAttribute("data-value"),
-      el.getAttribute("data-notes"),
-    ]),
-    mode: document.querySelector(".notes-mode")?.textContent,
-    time: document.querySelector("[data-time]")?.textContent,
-  }));
-}
-
 test("a three-second version request never blocks the board", async ({ page, deployment }) => {
   let completed = false;
   await page.route("**/version.json?*", async (route) => {
@@ -108,49 +97,12 @@ test("notice persists for 60 seconds; dismissal dedupes the same version", async
   await expect(build(page)).toHaveAttribute("content", "old");
 });
 
-test("mid-game Update restores the exact puzzle, board, notes, mode and displayed time", async ({
-  page,
-  deployment,
-}) => {
-  await open(page, deployment);
-  await page.locator(".notes-mode").tap();
-  await page.getByRole("menuitemradio", { name: /^Manual / }).tap();
-  await expect(page.locator(".notes-mode")).toHaveAccessibleName("Notes mode: Manual");
-  await page.keyboard.press("Shift+Digit3");
-  await cell(page, 2).tap();
-  await expect(cell(page, 2)).toHaveAttribute("data-notes", /3/);
-  await publish(page, deployment);
-  await page.clock.install();
-  await page.clock.pauseAt(new Date(Date.now() + 65_000));
-  const before = await state(page);
-  await notice(page).getByRole("button", { name: "Update", exact: true }).tap();
-  await expect(build(page)).toHaveAttribute("content", "new");
-  await expect(cell(page, 0)).toBeVisible();
-  expect(await state(page)).toEqual(before);
-  await expect(notice(page)).toHaveCount(0);
-  expect(page.url()).not.toContain("_sudoku_update");
-});
-
-test("next launch applies the verified update once without probing before mount", async ({
-  page,
-  deployment,
-}) => {
-  await open(page, deployment);
-  await publish(page, deployment);
-  await notice(page).getByRole("button", { name: "Dismiss", exact: true }).tap();
-  deployment.launchOld();
-  await page.goto(`${deployment.url}?q=${DEMO_PUZZLE}&keep=yes#board`);
-  await expect(build(page)).toHaveAttribute("content", "new");
-  expect(new URL(page.url()).searchParams.get("keep")).toBe("yes");
-  expect(new URL(page.url()).hash).toBe("#board");
-  expect(deployment.requests.filter((r) => r.includes("_sudoku_update="))).toHaveLength(1);
-});
-
 test("failed Update restores the buttons after three seconds", async ({ page, deployment }) => {
   await open(page, deployment);
   await publish(page, deployment);
-  // Simulate a navigation rejected by the existing per-version loop guard.
-  await page.evaluate(() => sessionStorage.setItem("sudoku-update-attempts", '["new"]'));
+  await page.route("**/*", (route) =>
+    route.request().isNavigationRequest() ? route.abort("aborted") : route.continue()
+  );
   await page.clock.install();
   await page.clock.pauseAt(new Date(Date.now() + 65_000));
   await notice(page).getByRole("button", { name: "Update", exact: true }).tap();
@@ -160,7 +112,6 @@ test("failed Update restores the buttons after three seconds", async ({ page, de
   await expect(notice(page)).toHaveAttribute("aria-busy", "true");
   await page.clock.fastForward(1);
   await expect(notice(page).getByRole("button", { name: "Update", exact: true })).toBeVisible();
-  expect(await page.evaluate(() => sessionStorage.getItem("sudoku-update-resume"))).toBeNull();
 });
 
 test("new notice waits until automatic resume reveal finishes", async ({ page, deployment }) => {
@@ -260,24 +211,6 @@ test("responsive notice removal restores keyboard focus to More", async ({ page,
   await expect(page.locator("[data-more]:visible")).toBeFocused();
 });
 
-test("a stale navigation attempts each verified version at most once per tab", async ({
-  page,
-  deployment,
-}) => {
-  await open(page, deployment);
-  await publish(page, deployment);
-  deployment.fault("stale-navigation");
-  await page.reload();
-  await page.getByRole("button", { name: "Play", exact: true }).tap();
-  await expect(build(page)).toHaveAttribute("content", "old");
-  await page.reload();
-  await page.getByRole("button", { name: "Play", exact: true }).tap();
-  expect(deployment.requests.filter((r) => r.includes("_sudoku_update="))).toHaveLength(1);
-  await cell(page, 0).tap();
-  await page.keyboard.press("4");
-  await expectValue(page, 0, 4);
-});
-
 test("a missing module still offers Reload Sudoku and recovers on the next launch", async ({
   page,
   deployment,
@@ -293,8 +226,9 @@ test("a missing module still offers Reload Sudoku and recovers on the next launc
   deployment.fault("");
   await retry.click();
   await expect(build(page)).toHaveAttribute("content", "new");
+  await page.getByRole("button", { name: "Play", exact: true }).tap();
   await expect(cell(page, 0)).toBeVisible();
-  await expectValue(page, 0, 4);
+  await expectValue(page, 0, 0);
 });
 
 for (const fault of ["offline", "version-error", "timeout", "old-html"]) {

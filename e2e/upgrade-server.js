@@ -47,8 +47,7 @@ export async function upgradeServer(buildDirectory = buildRoot) {
     const selected =
       navigation && newLaunches-- > 0
         ? "new"
-        : (fault === "old-html" && relative === "index.html") ||
-            (navigation && (fault === "stale-navigation" || oldLaunches-- > 0))
+        : (fault === "old-html" && relative === "index.html") || (navigation && oldLaunches-- > 0)
           ? "old"
           : version;
     try {
