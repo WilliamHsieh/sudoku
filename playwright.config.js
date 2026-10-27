@@ -15,7 +15,11 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      testIgnore: [/mobile\.spec\.js/, /options-exit\.spec\.js/, /upgrade\.spec\.js/],
+      testIgnore: [
+        /mobile\.spec\.js/,
+        /options-exit\.spec\.js/,
+        /(?:upgrade|update-regressions)\.spec\.js/,
+      ],
       teardown: "paint-timing",
       use: { ...devices["Desktop Chrome"] },
     },

@@ -1,7 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
 import { probeDeployment } from "./auto-update.js";
-import { updateBeforeMount } from "./auto-update-browser.js";
 
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const current = { version: "old", builtAt: 1 };
@@ -44,7 +43,7 @@ it("verifies HTML, warms exact asset URLs and rereads the manifest within one bu
   });
   expect(fetcher).toHaveBeenCalledTimes(4);
 });
-it("foreground checks read only version.json", async () => {
+it("manifest-only probes read only version.json", async () => {
   const { fetcher } = deployment();
   expect(await probeDeployment("/sudoku/", current)).toMatchObject({ version: "new" });
   expect(fetcher).toHaveBeenCalledOnce();
@@ -79,26 +78,6 @@ it.each([
   expect(await probeDeployment("/sudoku/", current, { verify: true })).toBeNull();
   expect(fetcher).toHaveBeenCalledOnce();
 });
-it.each([0, 1])(
-  "cold launch does not navigate to a different build with builtAt %i",
-  async (builtAt) => {
-    const { manifest, fetcher } = deployment();
-    manifest.builtAt = builtAt;
-    const replace = vi.fn();
-    const values = new Map();
-    const storage = {
-      getItem: vi.fn((key) => values.get(key) ?? null),
-      setItem: vi.fn((key, value) => values.set(key, value)),
-    };
-    vi.stubGlobal("location", { href: "https://example.test/sudoku/?q=123", replace });
-    vi.stubGlobal("sessionStorage", storage);
-
-    expect(await updateBeforeMount({ current, base: "/sudoku/" })).toBe(false);
-    expect(replace).not.toHaveBeenCalled();
-    expect(storage.setItem).not.toHaveBeenCalled();
-    expect(fetcher).toHaveBeenCalledOnce();
-  }
-);
 it("does not fetch HTML for the current version", async () => {
   const { manifest, fetcher } = deployment();
   manifest.version = "old";

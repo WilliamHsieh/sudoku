@@ -10,6 +10,7 @@ export function createUpdater(options) {
   let inFlight = false;
   let lastCheck = -Infinity;
   const shown = new Set();
+  let newestBuiltAt = options.current.builtAt;
   return {
     async check() {
       if (stopped || inFlight || !options.visible() || Date.now() - lastCheck < 30_000) return;
@@ -22,11 +23,12 @@ export function createUpdater(options) {
           !options.visible() ||
           !next ||
           next.version === options.current.version ||
-          next.builtAt <= options.current.builtAt ||
+          next.builtAt <= newestBuiltAt ||
           shown.has(next.version)
         )
           return;
         shown.add(next.version);
+        newestBuiltAt = next.builtAt;
         options.notify(next.version);
       } catch {
         // An unavailable deployment leaves the current app usable.
@@ -47,8 +49,8 @@ async function digest(bytes) {
 }
 
 /**
- * A single deadline covers fetches, response bodies and hashes. Verification is
- * for cold launch only; foreground checks need only the validated manifest.
+ * A single deadline covers fetches, response bodies and hashes. Verification
+ * checks a coherent deployment in the background before showing the notice.
  * @param {string} base
  * @param {Build} current
  * @param {{ verify?: boolean, budgetMs?: number }} [options]

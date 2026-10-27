@@ -1,6 +1,5 @@
 import { createUpdater, probeDeployment } from "./auto-update.js";
 
-const ATTEMPTS = "sudoku-update-attempts";
 export const UPDATE_PARAM = "_sudoku_update";
 
 /** Remove the navigation marker even if the check fails or storage is blocked. */
@@ -12,29 +11,42 @@ export function stripUpdateParam() {
   }
 }
 
-/**
- * Called before mount. No player state is read or written.
- * @param {{ current: import('./auto-update.js').Build, base: string }} options
- * @returns {Promise<boolean>} whether navigation started
+/** Reload only after an explicit Update action, preserving the URL.
+ * @param {string} version
  */
-export async function updateBeforeMount({ current, base }) {
-  stripUpdateParam();
-  try {
-    const next = await probeDeployment(base, current, { verify: true });
-    if (!next) return false;
-    const attempts = JSON.parse(sessionStorage.getItem(ATTEMPTS) ?? "[]");
-    if (!Array.isArray(attempts) || attempts.includes(next.version)) return false;
-    const saved = JSON.stringify([...attempts, next.version]);
-    sessionStorage.setItem(ATTEMPTS, saved);
-    if (sessionStorage.getItem(ATTEMPTS) !== saved) return false;
-    const url = new URL(location.href);
-    url.searchParams.set(UPDATE_PARAM, next.version);
-    location.replace(url.href);
-    return true;
-  } catch {
-    // Offline, blocked storage or navigation: mount the current build.
-    return false;
-  }
+export function reloadForUpdate(version) {
+  const url = new URL(location.href);
+  url.searchParams.set(UPDATE_PARAM, version);
+  location.replace(url.href);
+}
+
+/** Flush autosave before navigation; restore the action if navigation fails.
+ * @param {{ flush: () => void, reload: () => void, setUpdating: (value: boolean) => void }} options
+ */
+export function createUpdateAction({ flush, reload, setUpdating }) {
+  let busy = false;
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let timer;
+  return {
+    run() {
+      if (busy) return;
+      busy = true;
+      setUpdating(true);
+      timer = setTimeout(() => {
+        busy = false;
+        setUpdating(false);
+      }, 3000);
+      try {
+        flush();
+        reload();
+      } catch {
+        // Keep Updating… until the same three-second recovery deadline.
+      }
+    },
+    stop() {
+      clearTimeout(timer);
+    },
+  };
 }
 
 /**
@@ -45,7 +57,7 @@ export async function updateBeforeMount({ current, base }) {
 export function installAutoUpdate(options) {
   const updater = createUpdater({
     current: options.current,
-    probe: () => probeDeployment(options.base, options.current),
+    probe: () => probeDeployment(options.base, options.current, { verify: true }),
     visible: () => document.visibilityState === "visible",
     notify: options.notify,
   });
@@ -58,6 +70,7 @@ export function installAutoUpdate(options) {
   }
   document.addEventListener("visibilitychange", foreground);
   window.addEventListener("pageshow", pageshow);
+  foreground();
   return () => {
     updater.stop();
     document.removeEventListener("visibilitychange", foreground);

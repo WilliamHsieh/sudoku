@@ -1,6 +1,6 @@
 <script>
   /* global __SUDOKU_BUILD__ */
-  import { installAutoUpdate } from "./auto-update-browser.js";
+  import { installAutoUpdate, createUpdateAction, reloadForUpdate } from "./auto-update-browser.js";
   import { paintBoard, discardPaint } from "./paint-actions.js";
   import Api from "./Api.svelte";
   import UpdateNotice from "./UpdateNotice.svelte";
@@ -335,13 +335,46 @@
     showCalendar = false;
   }
 
-  const UPDATE_COPY = "Update ready · applies next launch";
+  const UPDATE_COPY = "New version ready. Update available.";
   let updateNotice = $state(false);
-  let noticeTimer;
+  let updateVersion = "";
+  let noticeHadFocus = false;
+  let updating = $state(false);
+  // Once visible, keep it visible through later resume animations. A newly
+  // discovered version waits for both the hold and the 600ms reveal to finish.
+  let noticeRevealed = $state(false);
+  const noticeActive = $derived(updateNotice && (noticeRevealed || playUi.resumePhase === "idle"));
+  $effect(() => {
+    if (noticeActive) noticeRevealed = true;
+  });
+
+  function restoreNoticeFocus() {
+    if (!document.activeElement?.closest(".update-notice")) return;
+    focusAfterNotice();
+  }
+
+  function focusAfterNotice() {
+    if (showCalendar) focusId("time-control");
+    else focusMore();
+  }
 
   function dismissUpdate() {
-    clearTimeout(noticeTimer);
+    restoreNoticeFocus();
     updateNotice = false;
+    noticeRevealed = false;
+  }
+
+  const updateAction = createUpdateAction({
+    setUpdating: (value) => {
+      updating = value;
+    },
+    flush: () => game.flushProgress(),
+    reload: () => reloadForUpdate(updateVersion),
+  });
+
+  function updateNow() {
+    restoreNoticeFocus();
+    updateAction.run();
   }
 
   onMount(() => {
@@ -349,7 +382,9 @@
     const mq = window.matchMedia(NARROW_MQ);
     isNarrow = mq.matches;
     const onNarrow = () => {
+      const hadNoticeFocus = noticeHadFocus;
       isNarrow = mq.matches;
+      if (hadNoticeFocus) void tick().then(focusAfterNotice);
     };
     mq.addEventListener("change", onNarrow);
     game.setBeforeMutate(() => {
@@ -459,15 +494,14 @@
         : installAutoUpdate({
             current: __SUDOKU_BUILD__,
             base: import.meta.env.BASE_URL,
-            notify: () => {
-              if (updateNotice) return;
+            notify: (version) => {
+              updateVersion = version;
               updateNotice = true;
-              noticeTimer = setTimeout(dismissUpdate, 6000);
             },
           });
     return () => {
       stopUpdates();
-      clearTimeout(noticeTimer);
+      updateAction.stop();
       window.removeEventListener("pointerdown", releaseViewFocus, true);
       mq.removeEventListener("change", onNarrow);
       reduceMq.removeEventListener("change", onReduce);
@@ -535,7 +569,12 @@
   });
 </script>
 
-<svelte:window onkeydown={handleGlobalKeydown} />
+<svelte:window
+  onkeydown={handleGlobalKeydown}
+  onfocusin={(event) => {
+    noticeHadFocus = event.target instanceof Element && !!event.target.closest(".update-notice");
+  }}
+/>
 
 <svelte:head>
   <title>Sudoku</title>
@@ -639,8 +678,8 @@
           <Tools />
           <Keypad />
         </div>
-        <div class="hint-line" class:notice-active={updateNotice} class:reduced={playUi.reduced}>
-          <p class="pad-hint normal-hint" aria-live="polite" aria-hidden={updateNotice}>
+        <div class="hint-line" class:notice-active={noticeActive} class:reduced={playUi.reduced}>
+          <p class="pad-hint normal-hint" aria-live="polite" aria-hidden={noticeActive}>
             {#if hint.kind === "plain"}
               {hint.text}
             {:else}
@@ -650,10 +689,11 @@
           </p>
           {#if isNarrow}
             <UpdateNotice
-              active={updateNotice}
+              active={noticeActive}
               inline
               reduced={playUi.reduced}
-              copy={UPDATE_COPY}
+              {updating}
+              onupdate={updateNow}
               ondismiss={dismissUpdate}
             />
           {/if}
@@ -686,13 +726,14 @@
 
 <!-- The polite live region stays mounted so screen readers announce the inserted notice. -->
 <div class="update-live sr-only" aria-live="polite" aria-atomic="true">
-  {updateNotice ? UPDATE_COPY : ""}
+  {noticeActive ? (updating ? "Updating…" : UPDATE_COPY) : ""}
 </div>
 {#if !isNarrow || showCalendar}
   <UpdateNotice
-    active={updateNotice}
+    active={noticeActive}
     reduced={playUi.reduced}
-    copy={UPDATE_COPY}
+    {updating}
+    onupdate={updateNow}
     ondismiss={dismissUpdate}
   />
 {/if}
