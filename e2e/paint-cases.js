@@ -54,7 +54,7 @@ export async function freezeTimers(page, time = Date.now()) {
 }
 
 export function paintCases(mobile) {
-  for (const key of ["Space", "Enter"]) {
+  for (const key of mobile ? ["Space", "Enter"] : ["Space"]) {
     test(`${key} re-announces identical keyboard commits`, async ({ page }) => {
       await paintSetup(page, mobile);
       await cell(page, 37).dispatchEvent("pointerdown", {

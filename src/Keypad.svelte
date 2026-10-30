@@ -19,6 +19,7 @@
     setLastKeyPress,
     showDigit,
     syncHighlightAfterEdit,
+    toggleDigitLock,
     unlockKeepShown,
   } from "./keypad-actions.js";
   import {
@@ -27,11 +28,15 @@
     ariaShow,
     COACH_OK,
     COACH_ROWS,
+    DESKTOP_COACH_ROWS,
     COACH_TITLE,
     LABEL_HOLD,
     LABEL_LOCK,
     LABEL_UNLOCK,
   } from "./keypad-copy.js";
+
+  /** @type {{ desktop?: boolean }} */
+  let { desktop = false } = $props();
 
   const DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
   const COACH_KEY = "sudoku-keypad-coach";
@@ -508,6 +513,17 @@
     const key = /** @type {HTMLButtonElement} */ (e.currentTarget);
     if (gesture) endGesture(true);
     settleFlights(key);
+    if (
+      desktop &&
+      e.pointerType === "mouse" &&
+      e.shiftKey &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.altKey
+    ) {
+      toggleDigitLock(Number(key.dataset.d));
+      return;
+    }
     gesture = startGesture(e, key);
     try {
       key.setPointerCapture(e.pointerId);
@@ -540,9 +556,9 @@
 
   /** @param {number} d */
   function keyLabel(d) {
-    if (padUi.locked === d) return ariaLocked(d);
+    if (padUi.locked === d) return ariaLocked(d, desktop);
     if (playUi.tapFill) return ariaEnter(d);
-    return ariaShow(d);
+    return ariaShow(d, desktop);
   }
 
   onMount(() => {
@@ -607,7 +623,7 @@
         {COACH_TITLE}
       </h2>
       <ul>
-        {#each COACH_ROWS as row (row.label)}
+        {#each desktop ? DESKTOP_COACH_ROWS : COACH_ROWS as row (row.label)}
           <li><b>{row.label}</b><span>{row.body}</span></li>
         {/each}
       </ul>
@@ -645,6 +661,9 @@
         data-d={d}
         aria-pressed={padUi.locked === d}
         aria-label={keyLabel(d)}
+        title={desktop
+          ? `Shift + click to ${padUi.locked === d ? "unlock" : "lock"} ${d}`
+          : undefined}
         onpointerdown={onKeyPointerDown}
         onclick={(e) => onKeyClick(e, d)}
         onlostpointercapture={onLostCapture}
@@ -672,6 +691,22 @@
     gap: 8px;
     touch-action: none;
     overscroll-behavior: none;
+  }
+
+  @media (hover: hover) and (min-width: 600px) {
+    .key:hover:not(.pressed, .locked, .shown) {
+      background: var(--key-pressed);
+    }
+  }
+
+  @media (min-width: 600px) and (max-width: 899px) {
+    .keypad {
+      grid-template-columns: repeat(9, minmax(0, 1fr));
+      gap: 6px;
+    }
+    .keypad .key {
+      height: 48px;
+    }
   }
 
   .key {
@@ -878,6 +913,12 @@
     display: flex;
     align-items: center;
     gap: 8px;
+  }
+  @media (min-width: 600px) {
+    .coach {
+      top: 0;
+      bottom: auto;
+    }
   }
   .coach h2 svg {
     width: 18px;

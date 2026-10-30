@@ -46,9 +46,9 @@ async function expectCardAnnouncement(page) {
     .toEqual([cardText.trim()]);
 }
 
-// Resume a real saved puzzle, then keep its selected cell when opening Journal.
-// The app's window keyboard handler still accepts moves in Journal. This reaches
-// the normal progress/solved store methods while the observed card stays mounted.
+// Resume a real saved puzzle, then open Journal with a near-complete game.
+// Desktop keyboard input leaves the saved game and observed card alone.
+// Mobile retains its existing store-update coverage and input behavior.
 async function resumeInJournal(page, date, remaining) {
   const puzzle = puzzleData[date].easy;
   const solution = solve(puzzle);
@@ -96,26 +96,41 @@ async function expectQuiet(page) {
 for (const mobile of [false, true]) {
   for (const kind of ["progress", "solved"]) {
     for (const latest of [false, true]) {
-      test(`${mobile ? "mobile" : "desktop"} ${latest ? "latest" : "different"}-day ${kind} update ${latest ? "announces once" : "stays silent"}`, async ({
+      test(`${mobile ? "mobile" : "desktop"} ${latest ? "latest" : "different"}-day ${kind} ${mobile ? "update preserves existing announcements" : "game ignores Journal digit input"}`, async ({
         page,
       }) => {
         await page.setViewportSize({ width: mobile ? 390 : 1280, height: 844 });
         const date = latest ? "2026-10-21" : "2026-09-10";
         const digit = await resumeInJournal(page, date, kind === "solved" ? 1 : 2);
         const before = await page.locator(".ctx").textContent();
+        const savedBefore = await page.evaluate(() => ({
+          progress: localStorage.getItem("sudoku-progress"),
+          solved: localStorage.getItem("sudoku-solved"),
+        }));
         await watch(page);
         await page.keyboard.press(digit);
-        const key = kind === "solved" ? "sudoku-solved" : "sudoku-progress";
-        const saved = await page.evaluate(
-          ({ key, date }) => JSON.parse(localStorage.getItem(key))[date].easy,
-          { key, date }
-        );
-        if (kind === "solved") expect(saved.completed).toBe(true);
-        else expect(saved.empty - saved.filled).toBe(1);
-        if (latest) {
-          await expectCardAnnouncement(page);
-          expect(await page.locator(".ctx").textContent()).not.toBe(before);
+        if (mobile) {
+          const key = kind === "solved" ? "sudoku-solved" : "sudoku-progress";
+          const saved = await page.evaluate(
+            ({ key, date }) => JSON.parse(localStorage.getItem(key))[date].easy,
+            { key, date }
+          );
+          if (kind === "solved") expect(saved.completed).toBe(true);
+          else expect(saved.empty - saved.filled).toBe(1);
+          if (latest) {
+            await expectCardAnnouncement(page);
+            expect(await page.locator(".ctx").textContent()).not.toBe(before);
+          } else {
+            expect(await page.locator(".ctx").textContent()).toBe(before);
+            await expectQuiet(page);
+          }
         } else {
+          expect(
+            await page.evaluate(() => ({
+              progress: localStorage.getItem("sudoku-progress"),
+              solved: localStorage.getItem("sudoku-solved"),
+            }))
+          ).toEqual(savedBefore);
           expect(await page.locator(".ctx").textContent()).toBe(before);
           await expectQuiet(page);
         }

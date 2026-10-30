@@ -13,6 +13,7 @@ import {
 } from "./paint-actions.js";
 import { game } from "./game/game.svelte.js";
 import { padUi } from "./pad-ui.svelte.js";
+import { releaseShiftHover } from "./shift-hover.svelte.js";
 import { HIDE_MS, TOAST_MS } from "./game/key-gesture.js";
 import { TOAST_GIVEN, TOAST_NO_CELL } from "./keypad-copy.js";
 
@@ -94,6 +95,13 @@ export function syncHighlightAfterEdit(i, before) {
   if (v !== before || v) padUi.shown = v;
 }
 
+/** Same erase and highlight update for the toolbar, keyboard and right-click. @param {number} i */
+export function eraseCell(i) {
+  const before = game.value(i);
+  game.erase(i);
+  syncHighlightAfterEdit(i, before);
+}
+
 /** @param {number} d */
 export function scheduleHide(d) {
   clearHideTimer();
@@ -160,6 +168,17 @@ export function unlockKeepShown() {
   padUi.shown = d;
   lastKey = NO_KEY;
   clearHideTimer();
+}
+
+/** Keyboard and Shift-click lock the same digit without losing the selected cell. @param {number} d */
+export function toggleDigitLock(d) {
+  if (padUi.locked === d) unlockKeepShown();
+  else lockDigit(d);
+  releaseShiftHover();
+  if (game.selected < 0 || typeof document === "undefined") return;
+  const active = document.activeElement;
+  // Space/Enter should now edit the board rather than activate the previous control.
+  if (active instanceof HTMLElement && active.closest("button, summary")) active.blur();
 }
 
 /** Puzzle change, restart, reload: unlocked and nothing shown. */

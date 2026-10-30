@@ -6,14 +6,14 @@
   import { nextDoubleTap } from "./game/pad.js";
   import { maskDigits } from "./game/board.js";
   import { getShiftHover } from "./shift-hover.svelte.js";
-  import { focusedDigit, lockTap, revealCellDigit } from "./keypad-actions.js";
+  import { eraseCell, focusedDigit, lockTap, revealCellDigit } from "./keypad-actions.js";
 
   /** Touch pointerdowns also synthesize a click; ignore that click.
    * -Infinity so a mouse click in the first 700ms of the page is not swallowed. */
   let touchAt = -Infinity;
 
-  /** @type {{ cell_id: number }} */
-  let { cell_id } = $props();
+  /** @type {{ cell_id: number, desktop?: boolean }} */
+  let { cell_id, desktop = false } = $props();
   const NOTE_SLOTS = Array.from({ length: 9 }, (_, i) => i);
   const row = $derived(Math.floor(cell_id / 9));
   const col = $derived(cell_id % 9);
@@ -32,9 +32,10 @@
   const undoTarget = $derived(padUi.undoTargets.includes(cell_id));
 
   function handleRightClick() {
-    // Same as master: only the selected non-given cell.
+    // Right-click and Erase operate on the same selected editable cell.
     if (game.selected == cell_id && !game.given(cell_id)) {
-      game.clear(cell_id);
+      if (desktop) eraseCell(cell_id);
+      else game.clear(cell_id);
     }
   }
 
