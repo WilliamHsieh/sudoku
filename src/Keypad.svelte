@@ -261,6 +261,7 @@
     const lift = document.createElement("div");
     lift.className = `lift ${g.blockers.length ? "illegal" : g.mode || ""}`;
     lift.textContent = String(g.d);
+    sizeLift(lift, g.key);
     document.body.appendChild(lift);
     g.lift = lift;
     if (!g.concealed) {
@@ -351,10 +352,21 @@
     });
   }
 
-  /** @param {Element} slot */
-  function noteScale(slot) {
+  /** Match the transformed key while the flying digit lives on document.body.
+   * @param {HTMLElement} lift @param {HTMLButtonElement} key */
+  function sizeLift(lift, key) {
+    const pad = key.closest(".pad");
+    const scale =
+      pad instanceof HTMLElement && pad.offsetWidth
+        ? pad.getBoundingClientRect().width / pad.offsetWidth
+        : 1;
+    lift.style.fontSize = `${parseFloat(getComputedStyle(key).fontSize) * scale}px`;
+  }
+
+  /** @param {Element} slot @param {HTMLElement} lift */
+  function noteScale(slot, lift) {
     const fs = parseFloat(getComputedStyle(slot).fontSize);
-    return fs / 28;
+    return fs / parseFloat(getComputedStyle(lift).fontSize);
   }
 
   /** @param {Gesture} g */
@@ -375,16 +387,22 @@
     const lift = g.lift;
     g.lift = null;
     const target = center(slot);
-    fly(lift, lift.style.transform, liftTransform(target.x, target.y, noteScale(slot)), FLY_MS, {
-      key: g.key,
-      done: () => {
-        padUi.pending = null;
-        if (g.concealed) {
-          concealBy(g.d, -1);
-          g.concealed = false;
-        }
-      },
-    });
+    fly(
+      lift,
+      lift.style.transform,
+      liftTransform(target.x, target.y, noteScale(slot, lift)),
+      FLY_MS,
+      {
+        key: g.key,
+        done: () => {
+          padUi.pending = null;
+          if (g.concealed) {
+            concealBy(g.d, -1);
+            g.concealed = false;
+          }
+        },
+      }
+    );
   }
 
   /** @param {Gesture} g */
@@ -398,9 +416,10 @@
     const el = document.createElement("div");
     el.className = "lift remove";
     el.textContent = String(g.d);
+    sizeLift(el, key);
     document.body.appendChild(el);
     const start = center(slot);
-    const scale = noteScale(slot);
+    const scale = noteScale(slot, el);
     const from = liftTransform(start.x, start.y, scale);
     el.style.transform = from;
     fly(el, from, liftTransform(g.origin.x, g.origin.y), FLY_MS, {

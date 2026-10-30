@@ -9,6 +9,7 @@
   import Journal from "./Journal.svelte";
   import Tools from "./Tools.svelte";
   import Keypad from "./Keypad.svelte";
+  import { fitKeypad } from "./fit-keypad.js";
   import { get } from "svelte/store";
   import { done, puzzleProgress, solvedPuzzles, timer, formatTime } from "./store";
   import { game } from "./game/game.svelte.js";
@@ -640,6 +641,7 @@
     </div>
   {:else}
     <div
+      use:fitKeypad
       bind:this={playViewport}
       class="play"
       class:enter-play={viewMotion && !playUi.reduced}
@@ -713,7 +715,9 @@
         {/if}
         <div class="chrome-dim" class:dim={playUi.paused} inert={playUi.paused}>
           <Tools desktop={!isNarrow} />
-          <Keypad desktop={!isNarrow} />
+          <div class="keypad-slot">
+            <div class="keypad-scale"><Keypad desktop={!isNarrow} /></div>
+          </div>
         </div>
         <div
           class="hint-line"
@@ -1200,8 +1204,7 @@
 
   /* Phone controls follow the board; wide screens put them alongside it. */
   @media (max-width: 599px) {
-    /* Mockup C: 8px sides and top, 16px bottom. The 768px rule's 12px
-       would shrink the board to 366 and the keys below 119.33. */
+    /* Keep the board's 8px side inset while the keypad scales independently. */
     main {
       display: flex;
       flex-direction: column;
@@ -1230,7 +1233,8 @@
       gap: 12px;
     }
 
-    /* Shrinks on a short viewport. The keypad stays in .mobile-chrome and does not scale. */
+    /* fitKeypad gives the keypad space first; this square only shrinks once
+       the keypad reaches its minimum scale. */
     .board-slot {
       display: flex;
       justify-content: center;
@@ -1262,6 +1266,18 @@
       flex-direction: column;
       gap: 12px;
       transition: opacity var(--motion) var(--ease-out);
+    }
+
+    .keypad-slot {
+      flex: none;
+      width: 100%;
+      height: var(--keypad-height, 187.2px);
+    }
+
+    .keypad-scale {
+      width: 100%;
+      transform: scale(var(--keypad-scale, 0.9));
+      transform-origin: top center;
     }
 
     .chrome-dim.dim {

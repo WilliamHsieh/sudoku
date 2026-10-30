@@ -1,4 +1,4 @@
-// Short phones shrink the board; below the minimum layout, the body can scroll.
+// Short phones shrink the keypad before the board; below the minimum layout, the body can scroll.
 import { test, expect } from "@playwright/test";
 
 const VIEWS = [
@@ -68,7 +68,9 @@ test.describe("native shell", () => {
         await expectInsideViewport(page, ".keypad");
         await expectInsideViewport(page, ".tools");
         await expectInsideViewport(page, ".pad-hint");
-        expect((await page.locator(".key").first().boundingBox()).height).toBe(64);
+        const keyHeight = (await page.locator(".key").first().boundingBox()).height;
+        // The tall fixture uses 90%; both short fixtures reach the 70% floor.
+        expect(keyHeight).toBeCloseTo(vp.height === 844 ? 57.6 : 44.8, 1);
       } else {
         await expectInsideViewport(page, ".header");
       }

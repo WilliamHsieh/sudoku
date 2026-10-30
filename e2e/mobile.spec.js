@@ -55,8 +55,8 @@ test.describe("pad", () => {
     await expect(page.locator(".key")).toHaveCount(9);
     await expect(page.locator(".tools")).toBeVisible();
     const keyBox = await page.locator(".key").first().boundingBox();
-    expect(keyBox.width).toBeCloseTo(119.33, 1);
-    expect(keyBox.height).toBe(64);
+    expect(keyBox.width).toBeCloseTo(107.4, 1);
+    expect(keyBox.height).toBeCloseTo(57.6, 1);
     const pad = await page.locator(".keypad").boundingBox();
     expect(pad.y + pad.height).toBeLessThanOrEqual(844);
     const scrollW = await page.evaluate(() => document.documentElement.scrollWidth);
