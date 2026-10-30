@@ -4,6 +4,9 @@ A daily Sudoku where pencil marks get as much care as answers.
 
 **[Play it →](https://williamhsieh.github.io/sudoku/)**
 
+Appearance follows your system by default. During a puzzle, open **More → Appearance** to choose
+**System**, **Light**, or **Dark**. Your choice is saved on this device.
+
 https://github.com/user-attachments/assets/710dc796-4721-42ac-8d1d-6b18db8ff009
 
 ## Development

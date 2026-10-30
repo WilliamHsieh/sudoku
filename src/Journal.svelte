@@ -1132,7 +1132,7 @@
     border-radius: 11px;
     background: var(--chip-bg);
     border: 1px solid var(--chip-line);
-    color: var(--amber);
+    color: var(--chip-ink);
     font-size: 12.5px;
     font-weight: 700;
   }
@@ -1196,7 +1196,7 @@
   }
   .btn-primary {
     background: var(--blue);
-    color: #fff;
+    color: var(--on-accent);
   }
   .sr-only {
     position: absolute;
@@ -1258,7 +1258,7 @@
   }
   .month-title.away:not([aria-disabled]):active,
   .month-title.away:not([aria-disabled]):active .year {
-    color: #73716d;
+    color: var(--ui-pressed);
   }
   .month-title:focus-visible {
     outline: 2px solid var(--blue);
@@ -1568,7 +1568,7 @@
   .scrim {
     position: fixed;
     inset: 0;
-    background: rgb(28 26 22 / 0.34);
+    background: var(--overlay-pr6);
     z-index: 40;
     animation: fade var(--motion) var(--ease-out);
   }
@@ -1585,7 +1585,7 @@
     background: var(--card);
     border-radius: 18px 18px 0 0;
     padding: 8px 16px calc(20px + env(safe-area-inset-bottom));
-    box-shadow: 0 -6px 24px rgb(28 26 22 / 0.12);
+    box-shadow: var(--shadow-sheet);
     z-index: 41;
     animation: sheet-up var(--motion) var(--ease-out);
   }
@@ -1969,8 +1969,8 @@
       --dh: clamp(64px, calc((100vh - 330px) / 6), 112px);
     }
     .dgrid .wd {
-      background: var(--line-box);
-      color: #f5f4f0;
+      background: var(--calendar-header-bg);
+      color: var(--calendar-header-ink);
       font-size: 12px;
       font-weight: 600;
       text-align: center;
@@ -2002,7 +2002,7 @@
       padding: 10px 0;
     }
     .dgrid button.day:hover:not(.sel) {
-      background: #faf9f6;
+      background: var(--neutral-2);
     }
     .dgrid .day .n {
       font-size: 16px;
@@ -2240,7 +2240,7 @@
       color: var(--ink2);
     }
     .ulist.more {
-      box-shadow: inset 0 -10px 8px -8px rgb(28 26 22 / 0.1);
+      box-shadow: inset 0 -10px 8px -8px var(--overlay);
     }
     .ucard .uempty {
       padding: 10px 18px 8px;

@@ -102,7 +102,7 @@ test("HOLD blue chip shows even when another digit remains locked", async ({ pag
   await t.contacts("touchStart", [k, a]);
   await expect(pencil(page, 37, 5)).toHaveClass(/paint-blue/);
   await expect(pencil(page, 37, 5)).not.toHaveClass(/matching-number/);
-  await expect(pencil(page, 37, 5)).toHaveCSS("background-color", "rgb(223, 232, 250)");
+  await expect(pencil(page, 37, 5)).toHaveCSS("background-color", "rgb(48, 68, 94)");
   await t.contacts("touchEnd", []);
   await expect(pencil(page, 37, 5)).not.toHaveClass(/paint-added/);
   await expect(pencil(page, 37, 5)).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
