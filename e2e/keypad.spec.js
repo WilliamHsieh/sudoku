@@ -1,6 +1,6 @@
 import { switchNotesMode } from "./helpers.js";
-// Desktop keyboard side of keypad r2. The pad itself is off-screen; Shift+digit,
-// Space and Escape still drive the lock.
+// Desktop keyboard side of the shared keypad: Shift+digit, Space and Escape
+// drive the same lock as the pointer controls.
 import { test, expect } from "@playwright/test";
 import { touchDriver } from "./touch.js";
 import {
@@ -51,7 +51,7 @@ test("Shift+digit locks, keeps the selection, and does not stick shift-hover", a
   await page.locator("#undo").focus();
   await page.keyboard.press("Space");
   await expect(page.locator("#keypad")).toHaveAttribute("data-locked", "2");
-  await expectValue(page, 0, 4);
+  await expectValue(page, 0, 0);
 });
 
 for (const viewport of [
@@ -61,7 +61,7 @@ for (const viewport of [
   test.describe(`keyboard lock at ${viewport.width}×${viewport.height}`, () => {
     test.use({ viewport, hasTouch: viewport.width === 390, isMobile: viewport.width === 390 });
 
-    test("arrows, Space and Enter edit the locked candidate and keep the selection", async ({
+    test(`arrows and Space preserve selection; Enter ${viewport.width < 600 ? "keeps the phone note toggle" : "fills the desktop answer"}`, async ({
       page,
     }) => {
       await openBoard(page);
@@ -79,9 +79,15 @@ for (const viewport of [
       await expect(cell(page, 59)).toHaveAttribute("data-notes", "268");
       await expect(cell(page, 59)).toHaveClass(/selected/);
       await page.keyboard.press("Enter");
-      await expect(cell(page, 59)).toHaveAttribute("data-notes", "2568");
+      if (viewport.width < 600) {
+        await expect(cell(page, 59)).toHaveAttribute("data-notes", "2568");
+        await expectValue(page, 59, 0);
+      } else {
+        await expectValue(page, 59, 5);
+        await page.keyboard.press("Enter");
+        await expectValue(page, 59, 5);
+      }
       await expect(cell(page, 59)).toHaveClass(/selected/);
-      await expectValue(page, 59, 0);
 
       await page.keyboard.press("ArrowLeft");
       const notes = await cell(page, 58).getAttribute("data-notes");
@@ -89,7 +95,10 @@ for (const viewport of [
       await expect(cell(page, 58)).toHaveAttribute("data-notes", notes.replace("5", ""));
       await expect(cell(page, 58)).toHaveClass(/selected/);
       await page.keyboard.press("Enter");
-      await expect(cell(page, 58)).toHaveAttribute("data-notes", notes);
+      if (viewport.width < 600) {
+        await expect(cell(page, 58)).toHaveAttribute("data-notes", notes);
+        await expectValue(page, 58, 0);
+      } else await expectValue(page, 58, 5);
       await expect(cell(page, 58)).toHaveClass(/selected/);
       await expect(page.locator(".cell.selected")).toHaveCount(1);
       await expect(page.locator("#keypad")).toHaveAttribute("data-locked", "5");
@@ -205,7 +214,7 @@ test("Shift+digit locks without sticking shift-hover; Space toggles; digits stil
   await page.locator("#undo").focus();
   await page.keyboard.press("Space");
   await expect(page.locator("#keypad")).toHaveAttribute("data-locked", "2");
-  await expectValue(page, 0, 7);
+  await expectValue(page, 0, 4);
 });
 
 for (const selected of [true, false]) {

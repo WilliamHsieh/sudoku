@@ -2,9 +2,9 @@ import { switchNotesMode } from "./helpers.js";
 import { test, expect } from "@playwright/test";
 import { openBoard } from "./helpers.js";
 
-async function tabTo(page, target) {
+async function tabTo(page, target, key = "Tab") {
   for (let i = 0; i < 30; i++) {
-    await page.keyboard.press("Tab");
+    await page.keyboard.press(key);
     if (await target.evaluate((el) => el === document.activeElement)) return;
   }
   await expect(target).toBeFocused();
@@ -113,7 +113,9 @@ for (const width of [390, 1280]) {
           // Start navigation at the visible header after the mobile setup and
           // resize, rather than at a notes control that desktop has hidden.
           await page.locator("#time-control").focus();
-          await tabTo(page, more);
+          // Desktop More precedes the time control; avoid leaving the window,
+          // which intentionally pauses the game when browser chrome gains focus.
+          await tabTo(page, more, width >= 600 ? "Shift+Tab" : "Tab");
           await page.keyboard.press("Enter");
           await expectRing(first);
           const checked = await first.getAttribute("aria-checked");

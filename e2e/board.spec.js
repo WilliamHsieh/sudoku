@@ -34,10 +34,10 @@ test.beforeEach(async ({ page }) => {
   await openBoard(page);
 });
 
-test("the number pad is a mobile-only control", async ({ page }) => {
+test("desktop exposes the shared number pad and editing controls", async ({ page }) => {
   await expect(page.locator(".keypad")).toHaveCount(1);
-  await expect(page.locator(".keypad")).not.toBeVisible();
-  await expect(page.locator(".tools")).not.toBeVisible();
+  await expect(page.locator(".keypad")).toBeVisible();
+  await expect(page.locator(".tools")).toBeVisible();
 });
 
 test("highlight chips, conflict and notes do not resize the board or cells", async ({ page }) => {
@@ -220,15 +220,15 @@ test("givens are protected from typing and right-click", async ({ page }) => {
   await expectValue(page, 1, 5);
 });
 
-test("right-click clears the selected cell and restores its hidden pencil marks", async ({
-  page,
-}) => {
+test("right-click erases the answer before restoring its hidden pencil marks", async ({ page }) => {
   await cell(page, 0).click();
   await pencil(page, 0, 2).click();
   await expect(pencil(page, 0, 2)).toHaveClass(/invisible/);
   await page.keyboard.press("4");
   await cell(page, 0).click({ button: "right" });
   await expectValue(page, 0, 0);
+  await expect(pencil(page, 0, 2)).toHaveClass(/invisible/);
+  await cell(page, 0).click({ button: "right" });
   await expect(pencil(page, 0, 2)).not.toHaveClass(/invisible/);
 
   // Empty cell: right-click alone also restores hidden marks.

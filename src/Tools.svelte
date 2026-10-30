@@ -2,8 +2,11 @@
   import { game } from "./game/game.svelte.js";
   import { ring } from "./ring.js";
   import { playUi } from "./play/session.svelte.js";
+  import { eraseCell } from "./keypad-actions.js";
 
   import NotesMode from "./NotesMode.svelte";
+  /** @type {{ desktop?: boolean }} */
+  let { desktop = false } = $props();
   const eraseOff = $derived(!game.eraseKind(game.selected));
 
   function openMore() {
@@ -11,7 +14,7 @@
   }
 </script>
 
-<div class="tools" role="toolbar" aria-label="Tools">
+<div class="tools" class:desktop role="toolbar" aria-label="Tools">
   <button
     class="tool"
     id="undo"
@@ -19,7 +22,7 @@
     aria-label="Undo"
     disabled={playUi.paused || !game.canUndo}
     onclick={() => {
-      if (!playUi.paused) ring.undo();
+      if (!playUi.paused) ring.undo({ syncHighlight: desktop });
     }}
   >
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -35,7 +38,7 @@
     aria-label="Redo"
     disabled={playUi.paused || !game.canRedo}
     onclick={() => {
-      if (!playUi.paused) ring.redo();
+      if (!playUi.paused) ring.redo({ syncHighlight: desktop });
     }}
   >
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -51,7 +54,9 @@
     aria-label="Erase"
     disabled={playUi.paused || eraseOff}
     onclick={() => {
-      if (!playUi.paused) game.erase(game.selected);
+      if (playUi.paused) return;
+      if (desktop) eraseCell(game.selected);
+      else game.erase(game.selected);
     }}
   >
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -62,15 +67,17 @@
     </svg>
     <span>Erase</span>
   </button>
-  <NotesMode />
-  <button class="tool" type="button" data-more aria-haspopup="dialog" onclick={openMore}>
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="1"></circle>
-      <circle cx="19" cy="12" r="1"></circle>
-      <circle cx="5" cy="12" r="1"></circle>
-    </svg>
-    <span>More</span>
-  </button>
+  {#if !desktop}
+    <NotesMode />
+    <button class="tool" type="button" data-more aria-haspopup="dialog" onclick={openMore}>
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="1"></circle>
+        <circle cx="19" cy="12" r="1"></circle>
+        <circle cx="5" cy="12" r="1"></circle>
+      </svg>
+      <span>More</span>
+    </button>
+  {/if}
 </div>
 
 <style>
@@ -78,6 +85,16 @@
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     gap: 6px;
+  }
+
+  .tools.desktop {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  @media (hover: hover) and (min-width: 600px) {
+    .tool:hover:not(:disabled) {
+      background: var(--neutral-2);
+    }
   }
 
   .tool {

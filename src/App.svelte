@@ -22,12 +22,14 @@
   import { digitFromCode } from "./game/key-gesture.js";
   import {
     clearToast,
+    eraseCell,
     lockDigit,
     lockTap,
     placedCount,
     resetKeypad,
     revealCellDigit,
     syncHighlightAfterEdit,
+    toggleDigitLock,
     unlockKeepShown,
   } from "./keypad-actions.js";
   import { hintModel } from "./keypad-copy.js";
@@ -168,24 +170,29 @@
     // still enters the digit.
     if (e.ctrlKey && e.key.toLowerCase() === "y") {
       e.preventDefault();
-      game.redo();
+      if (isNarrow) game.redo();
+      else ring.redo({ immediate: true, syncHighlight: true });
       return;
     }
     if (cmd && e.key.toLowerCase() === "z" && e.shiftKey) {
       e.preventDefault();
-      game.redo();
+      if (isNarrow) game.redo();
+      else ring.redo({ immediate: true, syncHighlight: true });
       return;
     }
     if (cmd && e.key.toLowerCase() === "z") {
       e.preventDefault();
-      game.undo();
+      if (isNarrow) game.undo();
+      else ring.undo({ immediate: true, syncHighlight: true });
       return;
     }
 
     if (game.selected == -1) return;
     const id = game.selected;
 
-    if (e.key >= "0" && e.key <= "9" && game.editable(id)) {
+    if (!isNarrow && ["Backspace", "Delete", "0"].includes(e.key) && game.editable(id)) {
+      eraseCell(id);
+    } else if (e.key >= "0" && e.key <= "9" && game.editable(id)) {
       const d = parseInt(e.key, 10);
       const before = game.value(id);
       if (d === 0) game.clearAnswer(id);
@@ -215,25 +222,39 @@
     const d = digitFromCode(e.code);
     if (!d) return false;
     e.preventDefault();
-    if (padUi.locked === d) unlockKeepShown();
-    else lockDigit(d);
-    releaseShiftHover();
+    if (isNarrow) {
+      if (padUi.locked === d) unlockKeepShown();
+      else lockDigit(d);
+      releaseShiftHover();
+    } else toggleDigitLock(d);
     return true;
   }
 
-  /** Space or Enter toggles the locked digit in the selected cell, unless a control has focus. */
-  function tryLockedSpace(e) {
+  /** Desktop Enter fills the locked answer; phone keeps its original note toggle. */
+  function tryLockedInput(e) {
     if (!padUi.locked || (e.key !== " " && e.key !== "Enter")) return false;
-    if (e.target instanceof Element && e.target.closest("button, a, input, textarea, select")) {
+    if (
+      e.target instanceof Element &&
+      e.target.closest("button, a, input, textarea, select, summary")
+    ) {
       return false;
     }
     e.preventDefault();
-    if (game.selected >= 0) lockTap(game.selected);
+    if (game.selected >= 0) {
+      if (e.key === "Enter" && !isNarrow) game.fill(game.selected, padUi.locked);
+      else lockTap(game.selected);
+    }
     return true;
   }
 
   function handleGlobalKeydown(e) {
     if (playUi.modal) return;
+    if (
+      !isNarrow &&
+      e.target instanceof Element &&
+      e.target.closest("input, textarea, select, [contenteditable]")
+    )
+      return;
     const plainP =
       (e.key === "p" || e.key === "P") && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey;
     if (plainP) {
@@ -242,6 +263,7 @@
       return;
     }
     if (playUi.paused) return;
+    if (showCalendar && !isNarrow) return;
     if (e.key === "Escape") {
       if (showCalendar) return;
       if (discardPaint()) {
@@ -256,7 +278,7 @@
       if ($done) game.dismiss();
       return;
     }
-    if (tryShiftLock(e) || tryLockedSpace(e)) return;
+    if (tryShiftLock(e) || tryLockedInput(e)) return;
     handleKeydown(e);
   }
 
@@ -533,6 +555,7 @@
       locked,
       shown: locked ? 0 : padUi.shown,
       placed: placedCount(shown),
+      desktop: !isNarrow,
     });
   });
 
@@ -646,7 +669,7 @@
             data-cue-phase={playUi.phase}
           >
             {#each CELL_IDS as id (id)}
-              <Cell cell_id={id} />
+              <Cell cell_id={id} desktop={!isNarrow} />
             {/each}
           </div>
           {#if showCover}
@@ -674,12 +697,30 @@
         </div>
       </div>
       <div class="mobile-chrome">
+        {#if !isNarrow}
+          <p class="controls-label">
+            Numbers
+            <span>
+              {#if padUi.locked}
+                Digit {padUi.locked} locked
+              {:else if game.selected >= 0}
+                Row {Math.floor(game.selected / 9) + 1} · Column {(game.selected % 9) + 1}
+              {:else}
+                Select a cell to get started
+              {/if}
+            </span>
+          </p>
+        {/if}
         <div class="chrome-dim" class:dim={playUi.paused} inert={playUi.paused}>
-          <Tools />
-          <Keypad />
+          <Tools desktop={!isNarrow} />
+          <Keypad desktop={!isNarrow} />
         </div>
-        <div class="hint-line" class:notice-active={noticeActive} class:reduced={playUi.reduced}>
-          <p class="pad-hint normal-hint" aria-live="polite" aria-hidden={noticeActive}>
+        <div
+          class="hint-line"
+          class:notice-active={isNarrow && noticeActive}
+          class:reduced={playUi.reduced}
+        >
+          <p class="pad-hint normal-hint" aria-live="polite" aria-hidden={isNarrow && noticeActive}>
             {#if hint.kind === "plain"}
               {hint.text}
             {:else}
@@ -698,6 +739,57 @@
             />
           {/if}
         </div>
+        {#if !isNarrow}
+          <details class="keyboard-help">
+            <summary>Keyboard shortcuts</summary>
+            <p class="keyboard-example">
+              Lock 4, then use the arrow keys to select a cell. Space adds or removes candidate 4;
+              Enter fills 4 as the answer.
+            </p>
+            <dl>
+              <div>
+                <dt><kbd>1–9</kbd></dt>
+                <dd>Fill answer</dd>
+              </div>
+              <div>
+                <dt><kbd>↑ ↓ ← →</kbd></dt>
+                <dd>Move selection</dd>
+              </div>
+              <div>
+                <dt><kbd>Shift + 1–9</kbd></dt>
+                <dd>Lock digit</dd>
+              </div>
+              <div>
+                <dt><kbd>Shift + click</kbd></dt>
+                <dd>Lock digit on keypad</dd>
+              </div>
+              <div>
+                <dt><kbd>Space</kbd></dt>
+                <dd>Toggle note in selected cell</dd>
+              </div>
+              <div>
+                <dt><kbd>Enter</kbd></dt>
+                <dd>Fill locked digit as answer</dd>
+              </div>
+              <div>
+                <dt><kbd>⌫ / Del / 0</kbd></dt>
+                <dd>Erase answer or notes</dd>
+              </div>
+              <div>
+                <dt><kbd>Ctrl / ⌘ Z</kbd></dt>
+                <dd>Undo · add Shift to redo</dd>
+              </div>
+              <div>
+                <dt><kbd>Esc</kbd></dt>
+                <dd>Cancel stroke / unlock</dd>
+              </div>
+              <div>
+                <dt><kbd>P</kbd></dt>
+                <dd>Pause / resume</dd>
+              </div>
+            </dl>
+          </details>
+        {/if}
       </div>
     </div>
 
@@ -895,6 +987,58 @@
     display: none;
   }
 
+  .controls-label {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .controls-label span {
+    display: block;
+    margin-top: 5px;
+    color: var(--ui-soft);
+    font-size: 12px;
+    font-weight: 400;
+  }
+  .keyboard-help {
+    border-top: 1px solid var(--hair);
+    padding-top: 14px;
+    font-size: 12px;
+    color: var(--ui-soft);
+  }
+  .keyboard-help summary {
+    width: fit-content;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  .keyboard-help summary:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 4px;
+  }
+  .keyboard-help dl {
+    display: grid;
+    gap: 10px;
+    margin: 16px 0 0;
+  }
+  .keyboard-example {
+    margin: 12px 0 0;
+    line-height: 1.6;
+  }
+  .keyboard-help dl div {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .keyboard-help dd {
+    margin: 0;
+    text-align: right;
+  }
+  kbd {
+    color: var(--ui-ink);
+    font: inherit;
+    white-space: nowrap;
+  }
+
   .pad-hint {
     margin: 0;
     text-align: center;
@@ -1054,8 +1198,7 @@
     }
   }
 
-  /* Prototype used 600px as the wide-board line; the pad lives below that so
-     1280 desktop chrome (and every existing e2e test) stays unchanged. */
+  /* Phone controls follow the board; wide screens put them alongside it. */
   @media (max-width: 599px) {
     /* Mockup C: 8px sides and top, 16px bottom. The 768px rule's 12px
        would shrink the board to 366 and the keys below 119.33. */
@@ -1143,6 +1286,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
+      gap: 16px;
     }
 
     .board-slot {
@@ -1162,6 +1306,62 @@
       width: min(100cqw, 100cqh);
       max-width: none;
       margin: 0;
+    }
+
+    .mobile-chrome {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      flex: none;
+      width: min(650px, 100%);
+      min-width: 0;
+    }
+    .chrome-dim {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      transition: opacity var(--motion) var(--ease-out);
+    }
+    .chrome-dim.dim {
+      opacity: 0.4;
+    }
+    .pad-hint {
+      white-space: normal;
+      line-height: 1.6;
+      text-align: left;
+    }
+    .play.board-concealed .board {
+      visibility: hidden;
+    }
+    .controls-label {
+      display: none;
+    }
+    .keyboard-help dl {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      column-gap: 24px;
+    }
+  }
+
+  @media (min-width: 900px) {
+    .play {
+      flex-direction: row;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 32px;
+    }
+    .board-slot {
+      flex: 0 1 650px;
+    }
+    .mobile-chrome {
+      width: 264px;
+      padding-top: 8px;
+      gap: 20px;
+    }
+    .controls-label {
+      display: block;
+    }
+    .keyboard-help dl {
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 
