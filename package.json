@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "prototype:keypad": "node src/keypad-scale.prototype/build.mjs",
     "dev": "vite --port 8000 --host",
     "build": "vite build",
     "preview": "vite preview",

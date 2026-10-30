@@ -1,0 +1,585 @@
+<!doctype html>
+<!-- PROTOTYPE: three keypad scales in the existing upstream play layout.
+     Source: WilliamHsieh/sudoku origin/master cc31b205a9ca518ab9a3f773013e56f3022f4300.
+     Variants: ?variant=compare|A|B|C|upstream&w=390&h=760. No production UI changes.
+     Decision: user selected A (90%) on 2026-10-30. Default to this variant.
+     All state is disposable. Production UI has not been changed. -->
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Sudoku · 鍵盤等比例縮小 mock</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font: 13px/1.5 var(--font-sans, system-ui, sans-serif);
+        color: var(--foreground, CanvasText);
+      }
+      button,
+      input {
+        font: inherit;
+      }
+      button {
+        cursor: pointer;
+      }
+      button:focus-visible,
+      input:focus-visible {
+        outline: 2px solid var(--ring, Highlight);
+        outline-offset: 3px;
+      }
+      .source {
+        color: var(--muted-foreground, GrayText);
+        font-size: 11px;
+        margin: 0 0 12px;
+      }
+      .controls {
+        padding: 16px;
+        border-radius: var(--radius, 12px);
+        background: var(--card, Canvas);
+        border: 1px solid var(--border, GrayText);
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .row + .row {
+        margin-top: 12px;
+      }
+      .label {
+        color: var(--muted-foreground, GrayText);
+        font-size: 12px;
+        min-width: 46px;
+      }
+      button {
+        padding: 6px 10px;
+        border: 1px solid var(--border, GrayText);
+        background: var(--secondary, ButtonFace);
+        color: var(--secondary-foreground, ButtonText);
+        border-radius: 8px;
+        line-height: 1.4;
+      }
+      button[aria-pressed="true"] {
+        background: var(--primary, Highlight);
+        color: var(--primary-foreground, HighlightText);
+        border-color: var(--primary, Highlight);
+      }
+      input[type="range"] {
+        width: min(180px, 35%);
+        accent-color: var(--primary, Highlight);
+        cursor: ew-resize;
+      }
+      output,
+      .number {
+        font-variant-numeric: tabular-nums;
+        font-family: var(--font-mono, monospace);
+      }
+      output {
+        min-width: 58px;
+        font-size: 12px;
+      }
+      .presets {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .presets button {
+        font-size: 11px;
+        padding: 4px 8px;
+      }
+      .note {
+        color: var(--muted-foreground, GrayText);
+        font-size: 12px;
+        margin: 12px 0;
+      }
+      #scenes {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+      }
+      #scenes.single {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .scene-card {
+        min-width: 0;
+        padding: 16px;
+        background: var(--card, Canvas);
+        border-radius: var(--radius, 12px);
+        border: 1px solid var(--border, GrayText);
+      }
+      .scene-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        margin: 0 0 6px;
+        font-size: 13px;
+      }
+      .scene-title button {
+        font-size: 10px;
+        padding: 2px 6px;
+      }
+      .subtitle {
+        font-size: 10px;
+        min-height: 16px;
+        color: var(--muted-foreground, GrayText);
+        margin: 0 0 10px;
+      }
+      .screen-space {
+        position: relative;
+        margin: 0 auto;
+        overflow: hidden;
+        border-radius: 6px;
+      }
+      iframe {
+        position: absolute;
+        left: 0;
+        top: 0;
+        border: 0;
+        transform-origin: top left;
+        background: transparent;
+      }
+      .metrics {
+        margin-top: 12px;
+        font-size: 11px;
+      }
+      .metric-line {
+        display: flex;
+        justify-content: space-between;
+        gap: 4px;
+        margin-top: 3px;
+      }
+      .metric-line span:first-child {
+        color: var(--muted-foreground, GrayText);
+      }
+      .budget {
+        height: 5px;
+        display: flex;
+        gap: 2px;
+        margin: 9px 0 6px;
+      }
+      .budget span {
+        display: block;
+        border-radius: 2px;
+      }
+      .budget .board-bar {
+        background: var(--chart-1, Highlight);
+      }
+      .budget .pad-bar {
+        background: var(--chart-2, GrayText);
+      }
+      .state {
+        margin: 8px 0 0;
+        font-size: 11px;
+        color: var(--foreground, CanvasText);
+        min-height: 32px;
+      }
+      .legend {
+        font-size: 10px;
+        color: var(--muted-foreground, GrayText);
+        margin: 9px 0 0;
+      }
+      .legend i {
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        border-radius: 2px;
+        margin: 0 4px 0 8px;
+      }
+      .legend i:first-child {
+        margin-left: 0;
+        background: var(--chart-1, Highlight);
+      }
+      .legend i:last-of-type {
+        background: var(--chart-2, GrayText);
+      }
+      .policy {
+        padding: 16px;
+        margin-top: 12px;
+        border: 1px solid var(--border, GrayText);
+        border-radius: var(--radius, 12px);
+        background: var(--card, Canvas);
+      }
+      .policy p {
+        margin: 0;
+        font-size: 12px;
+      }
+      .policy p + p {
+        margin-top: 6px;
+        color: var(--muted-foreground, GrayText);
+        font-size: 11px;
+      }
+      .steps {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        flex-wrap: wrap;
+        margin-bottom: 8px;
+        font-size: 11px;
+      }
+      .steps span {
+        border-radius: 5px;
+        padding: 3px 6px;
+        background: var(--secondary, ButtonFace);
+      }
+      .switcher {
+        position: sticky;
+        bottom: 8px;
+        z-index: 10;
+        width: max-content;
+        max-width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 16px auto 8px;
+        padding: 7px;
+        background: var(--popover, Canvas);
+        border: 1px solid var(--border, GrayText);
+        border-radius: 14px;
+        box-shadow: 0 3px 14px color-mix(in srgb, var(--foreground, CanvasText) 14%, transparent);
+      }
+      .switcher button {
+        min-width: 32px;
+      }
+      .switcher span {
+        min-width: 110px;
+        text-align: center;
+        font-size: 12px;
+      }
+      @media (max-width: 500px) {
+        .scene-card {
+          padding: 16px 8px;
+        }
+        #scenes {
+          gap: 6px;
+        }
+        .scene-title {
+          font-size: 11px;
+        }
+        .scene-title button {
+          display: none;
+        }
+        .subtitle {
+          font-size: 9px;
+        }
+        .metric-line {
+          flex-direction: column;
+          gap: 0;
+        }
+        .metrics,
+        .state {
+          font-size: 10px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="source">
+        可丟棄 mock · upstream <span class="number">cc31b20</span> · 實際 Svelte 元件／示範題目 ·
+        已選 A · 90% · 正式 UI 尚未套用
+      </p>
+      <section class="controls" aria-label="Mock 控制">
+        <div class="row" id="variants">
+          <span class="label">版本</span>
+          <button data-variant="compare">三版並排</button>
+          <button data-variant="A">A · 90%</button>
+          <button data-variant="B">B · 80%</button>
+          <button data-variant="C">C · 70%</button>
+          <button data-variant="upstream">原版 100%</button>
+        </div>
+        <div class="row">
+          <label class="label" for="width">寬度</label
+          ><input id="width" type="range" min="280" max="1024" step="1" value="390" /><output
+            id="width-value"
+            >390 px</output
+          >
+          <label class="label" for="height">高度</label
+          ><input id="height" type="range" min="480" max="900" step="1" value="760" /><output
+            id="height-value"
+            >760 px</output
+          >
+        </div>
+        <div class="row presets">
+          <span class="label">情境</span>
+          <button data-size="390,760">一般 390 × 760</button>
+          <button data-size="390,700">短窗 390 × 700</button>
+          <button data-size="390,640">更短 390 × 640</button>
+          <button data-size="320,700">窄窗 320 × 700</button>
+          <button data-size="599,844">599px 臨界</button>
+          <button data-size="600,844">600px 桌面</button>
+        </div>
+        <div class="row">
+          <label><input id="highlight" type="checkbox" checked /> 顯示 upstream「5」反白狀態</label>
+        </div>
+      </section>
+      <p class="note" id="view-note">
+        三版使用相同 viewport 與盤面。畫面縮圖會適應欄寬；標示尺寸皆為模擬 viewport 內的 CSS
+        px。點版本可放大檢視。
+      </p>
+      <div id="scenes" aria-live="polite"></div>
+      <p class="legend"><i></i>盤面高度 <i></i>鍵盤高度（長條依目前 viewport 高度計算）</p>
+      <section class="policy">
+        <div class="steps">
+          <span>保留可容納的完整盤面</span> → <span>鍵盤先縮至 70%</span> →
+          <span>仍不足才縮盤面</span>
+        </div>
+        <p>按鍵外框、數字、8px 間距、圓角與陰影一起等比例縮小；鍵盤維持在工具列下方、水平置中。</p>
+        <p>
+          upstream
+          是上下排列：寬度小於盤面時，盤面仍須配合容器縮小；高度不足才是兩者可互讓的空間。這裡先縮鍵盤，70%
+          暫作比較下限。≥ 600px 依 upstream 隱藏觸控數字鍵盤。
+        </p>
+        <p>
+          玩法與選單僅作畫面脈絡；可點數字查看反白。重新整理即重設，沒有存檔。← / →
+          切換版本，網址保留目前版本與 viewport。
+        </p>
+      </section>
+      <nav class="switcher" aria-label="切換 prototype 版本">
+        <button id="prev" aria-label="上一版">←</button><span id="current">三版並排</span
+        ><button id="next" aria-label="下一版">→</button>
+      </nav>
+    </main>
+    <script>
+      /*__SCENE_BUNDLE__*/
+      const variants = {
+        A: { title: "A · 90%", target: 0.9, label: "目標鍵高 57.6px · 字體 27px" },
+        B: { title: "B · 80%", target: 0.8, label: "目標鍵高 51.2px · 字體 24px" },
+        C: { title: "C · 70%", target: 0.7, label: "目標鍵高 44.8px · 字體 21px" },
+        upstream: { title: "原版 · 100%", target: 1, label: "按鍵 64px · 字體 30px" },
+      };
+      const keys = ["compare", "A", "B", "C", "upstream"];
+      const query = new URLSearchParams(location.search);
+      let variant = keys.includes(query.get("variant")) ? query.get("variant") : "A";
+      const clamp = (value, fallback, min, max) =>
+        Number.isFinite(Number(value)) && value !== null
+          ? Math.max(min, Math.min(max, Number(value)))
+          : fallback;
+      let width = clamp(query.get("w"), 390, 280, 1024);
+      let height = clamp(query.get("h"), 760, 480, 900);
+      let metrics = {};
+      const container = document.getElementById("scenes");
+      const widthInput = document.getElementById("width");
+      const heightInput = document.getElementById("height");
+      const highlight = document.getElementById("highlight");
+      const n = (value) => Number(value.toFixed(1)).toString();
+
+      function updateURL() {
+        try {
+          const url = new URL(location.href);
+          url.searchParams.set("variant", variant);
+          url.searchParams.set("w", width);
+          url.searchParams.set("h", height);
+          history.replaceState(null, "", url);
+        } catch {
+          /* Embedded renderer may provide an opaque origin. */
+        }
+      }
+      function configure(id) {
+        const frame = document.getElementById(`frame-${id}`);
+        frame?.contentWindow.postMessage(
+          {
+            type: "keypad-prototype-config",
+            target: variants[id].target,
+            upstream: id === "upstream",
+            highlight: highlight.checked,
+          },
+          "*"
+        );
+      }
+      function sceneHTML(id) {
+        // The storage mock is installed before upstream imports execute.
+        // Keep the real game and font styling inside the simulated viewport.
+        return (
+          '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+          "<style>" +
+          sceneBundle.css +
+          "</style>" +
+          '<style>html,body{height:var(--scene-height);min-height:0}#app{min-height:0}body{overflow:hidden} .pad .coach{display:none!important}</style></head><body><div id="app"></div>' +
+          "<script>document.documentElement.dataset.mockId=" +
+          JSON.stringify(id) +
+          ';document.documentElement.style.setProperty("--scene-height",innerHeight+"px");' +
+          'Object.defineProperty(window,"localStorage",{value:{getItem:(key)=>key==="sudoku-keypad-coach"?"1":null,setItem:()=>{},removeItem:()=>{}}});' +
+          "<\/script><script>" +
+          sceneBundle.js.replaceAll("</script", "<\\/script") +
+          "<\/script></body></html>"
+        );
+      }
+      function fit() {
+        document.querySelectorAll(".scene-card").forEach((card) => {
+          const frame = card.querySelector("iframe");
+          const holder = card.querySelector(".screen-space");
+          const available =
+            card.clientWidth -
+            parseFloat(getComputedStyle(card).paddingLeft) -
+            parseFloat(getComputedStyle(card).paddingRight);
+          const displayScale = Math.min(1, available / width);
+          frame.style.width = width + "px";
+          frame.style.height = height + "px";
+          frame.style.transform = `scale(${displayScale})`;
+          holder.style.width = width * displayScale + "px";
+          holder.style.height = height * displayScale + "px";
+          const out = card.querySelector(".display-scale");
+          out.textContent = `viewport ${width} × ${height} · 顯示 ${Math.round(displayScale * 100)}%`;
+          configure(card.dataset.id);
+        });
+      }
+      function render() {
+        metrics = {};
+        container.classList.toggle("single", variant !== "compare");
+        const shown = variant === "compare" ? ["A", "B", "C"] : [variant];
+        container.innerHTML = shown
+          .map(
+            (id) => `<section class="scene-card" data-id="${id}">
+    <h2 class="scene-title">${variants[id].title}<button data-focus="${id}">放大 ↗</button></h2>
+    <p class="subtitle">${variants[id].label}<br><span class="display-scale"></span></p>
+    <div class="screen-space"><iframe id="frame-${id}" title="${variants[id].title} Sudoku 畫面"></iframe></div>
+    <div class="metrics" id="metrics-${id}">載入實際元件…</div>
+  </section>`
+          )
+          .join("");
+        shown.forEach((id) => {
+          const frame = document.getElementById(`frame-${id}`);
+          frame.srcdoc = sceneHTML(id);
+          frame.addEventListener("load", () => configure(id));
+        });
+        document
+          .querySelectorAll("[data-variant]")
+          .forEach((button) =>
+            button.setAttribute("aria-pressed", String(button.dataset.variant === variant))
+          );
+        document.getElementById("current").textContent =
+          variant === "compare" ? "三版並排" : variants[variant].title;
+        document.getElementById("view-note").textContent =
+          variant === "compare"
+            ? "三版使用相同 viewport 與盤面。畫面縮圖會適應欄寬；標示尺寸皆為模擬 viewport 內的 CSS px。點版本可放大檢視。"
+            : "單版檢視。畫面最多以 1:1 顯示；欄寬不足時縮小預覽。調整 viewport 可檢視鍵盤與盤面的實際變化。";
+        syncControls();
+        fit();
+        updateURL();
+      }
+      function syncControls() {
+        widthInput.value = width;
+        heightInput.value = height;
+        document.getElementById("width-value").value = width + " px";
+        document.getElementById("height-value").value = height + " px";
+        document
+          .querySelectorAll("[data-size]")
+          .forEach((button) =>
+            button.setAttribute(
+              "aria-pressed",
+              String(button.dataset.size === `${width},${height}`)
+            )
+          );
+      }
+      function resize() {
+        syncControls();
+        fit();
+        updateURL();
+      }
+      function setVariant(value) {
+        variant = value;
+        render();
+      }
+      function cycle(direction) {
+        setVariant(keys[(keys.indexOf(variant) + direction + keys.length) % keys.length]);
+      }
+      document.getElementById("variants").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-variant]");
+        if (button) setVariant(button.dataset.variant);
+      });
+      container.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-focus]");
+        if (button) setVariant(button.dataset.focus);
+      });
+      document.querySelectorAll("[data-size]").forEach((button) =>
+        button.addEventListener("click", () => {
+          [width, height] = button.dataset.size.split(",").map(Number);
+          resize();
+        })
+      );
+      widthInput.addEventListener("input", () => {
+        width = Number(widthInput.value);
+        resize();
+      });
+      heightInput.addEventListener("input", () => {
+        height = Number(heightInput.value);
+        resize();
+      });
+      highlight.addEventListener("change", () =>
+        document.querySelectorAll(".scene-card").forEach((card) => configure(card.dataset.id))
+      );
+      document.getElementById("prev").addEventListener("click", () => cycle(-1));
+      document.getElementById("next").addEventListener("click", () => cycle(1));
+      window.addEventListener("keydown", (event) => {
+        if (
+          event.target.closest("input,textarea,select,[contenteditable]") ||
+          event.altKey ||
+          event.ctrlKey ||
+          event.metaKey
+        )
+          return;
+        if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+          event.preventDefault();
+          cycle(event.key === "ArrowLeft" ? -1 : 1);
+        }
+      });
+      window.addEventListener("popstate", () => {
+        const params = new URLSearchParams(location.search);
+        variant = keys.includes(params.get("variant")) ? params.get("variant") : "A";
+        width = clamp(params.get("w"), 390, 280, 1024);
+        height = clamp(params.get("h"), 760, 480, 900);
+        render();
+      });
+      window.addEventListener("message", (event) => {
+        const data = event.data;
+        if (
+          !data ||
+          !variants[data.id] ||
+          event.source !== document.getElementById(`frame-${data.id}`)?.contentWindow
+        )
+          return;
+        if (data.type === "keypad-prototype-ready") return configure(data.id);
+        if (data.type !== "keypad-prototype-metrics") return;
+        metrics[data.id] = data;
+        const node = document.getElementById(`metrics-${data.id}`);
+        if (!node) return;
+        const boardShrank = data.naturalBoard - data.board > 1;
+        const padShrank = data.scale + 0.002 < data.target;
+        const status = !data.narrow
+          ? "桌面版：沿用 upstream，不顯示觸控鍵盤。"
+          : data.id === "upstream"
+            ? boardShrank
+              ? "原版：鍵盤保持 100%，盤面先縮。"
+              : "原版：盤面與鍵盤皆可完整放入。"
+            : boardShrank
+              ? "鍵盤已到 70%；空間仍不足，盤面才縮小。"
+              : padShrank
+                ? "先讓鍵盤縮小，盤面仍保留完整寬度。"
+                : "盤面保留完整寬度；使用本版鍵盤比例。";
+        node.innerHTML =
+          `<div class="metric-line"><span>盤面</span><strong class="number">${n(data.board)} × ${n(data.board)}</strong></div>` +
+          `<div class="metric-line"><span>鍵盤實際比例</span><strong class="number">${data.narrow ? n(data.scale * 100) + "%" : "隱藏"}</strong></div>` +
+          (data.narrow
+            ? `<div class="metric-line"><span>單鍵</span><span class="number">${n(data.keyWidth)} × ${n(data.keyHeight)}</span></div>` +
+              `<div class="metric-line"><span>字體／間距</span><span class="number">${n(30 * data.scale)} / ${n(8 * data.scale)} px</span></div>`
+            : "") +
+          `<div class="budget" aria-label="盤面與鍵盤占用高度"><span class="board-bar" style="width:${(data.board / data.height) * 100}%"></span><span class="pad-bar" style="width:${(data.padHeight / data.height) * 100}%"></span></div>` +
+          `<p class="state">${status}</p>`;
+      });
+      new ResizeObserver(fit).observe(container);
+      render();
+    </script>
+  </body>
+</html>
