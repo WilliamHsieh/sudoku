@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 8000 --host",
+    "mock:themes": "vite --port 8000 --host --open /sudoku/prototype/themes-a-variants.prototype.html",
     "build": "vite build",
     "preview": "vite preview",
     "test": "npm run test:unit && npm run test:e2e",

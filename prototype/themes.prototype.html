@@ -1,0 +1,220 @@
+<!doctype html>
+<!-- Throwaway visual prototype: five Sudoku themes, shared puzzle, ?variant=A–E. No persistence. -->
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sudoku · Theme studies</title>
+    <style>
+      :root { color-scheme: dark; --background:#151619; --foreground:#edeef0; --muted:#9b9da6; --card:#222328; --border:#36373e; --primary:#b6ead1; --radius:16px; --font-sans:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif; }
+      * { box-sizing:border-box; }
+      html,body { margin:0; padding:0; }
+      body { color:var(--foreground); font-family:var(--font-sans); -webkit-font-smoothing:antialiased; }
+      button { font:inherit; cursor:pointer; }
+      button:focus-visible { outline:2px solid var(--primary); outline-offset:4px; }
+      .study { padding:0 0 14px; }
+      .intro { display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin:0 0 14px; }
+      .intro strong { font-size:14px; font-weight:600; }
+      .intro span { color:var(--muted); font-size:11px; letter-spacing:1px; }
+      .choices { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; margin-bottom:18px; }
+      .choice { --primary:var(--accent); min-width:0; padding:6px; border:1px solid var(--border); border-radius:12px; color:var(--foreground); background:transparent; text-align:left; transition:border-color .15s; }
+      .choice[aria-pressed="true"] { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+      .mini { height:92px; overflow:hidden; display:flex; gap:6px; align-items:center; justify-content:center; background:var(--page); border-radius:7px; }
+      .mini-board { display:grid; grid-template-columns:repeat(9,1fr); width:70px; height:70px; border:1px solid var(--major); background:var(--board); }
+      .mini-cell { display:grid; place-items:center; color:var(--ink); font-size:5px; border-right:.3px solid var(--line); border-bottom:.3px solid var(--line); }
+      .mini-cell:nth-child(3n) { border-right-color:var(--major); }
+      .mini-cell.mini-hit { background:var(--match); color:var(--accent); }
+      .mini-side { display:none; width:20px; grid-template-columns:repeat(3,1fr); gap:2px; }
+      .mini-side i { height:9px; background:var(--key); border:1px solid var(--line); border-radius:2px; }
+      .choice[data-theme="B"] .mini-side { display:grid; }
+      .choice[data-theme="B"] .mini-board { width:61px; height:61px; }
+      .choice-name { display:block; margin:9px 1px 3px; font-size:11px; white-space:nowrap; }
+      .choice-meta { display:flex; gap:4px; align-items:center; margin:0 1px 3px; color:var(--muted); font-size:9px; }
+      .swatch { width:6px; height:6px; border-radius:50%; background:var(--accent); }
+      [data-theme="A"] { --page:#121415; --board:#1c2021; --given:#252a2b; --ink:#e5eae8; --soft:#a0adab; --accent:#acd9c3; --line:#41494a; --major:#7c8c88; --match:#344b40; --selected:#375b4b; --key:#232829; --key-line:#3b4442; --note:#a9b8b2; --on-accent:#11251c; --round:9px; }
+      [data-theme="B"] { --page:#0c1424; --board:#14223a; --given:#1b2d48; --ink:#e2ebfc; --soft:#99abc6; --accent:#83b9fa; --line:#354b6a; --major:#8198bc; --match:#28466c; --selected:#305784; --key:#1b2d48; --key-line:#385171; --note:#a4b7d6; --on-accent:#0e2543; --round:5px; }
+      [data-theme="C"] { --page:#121e1a; --board:#1c2e26; --given:#293d31; --ink:#e6ecdf; --soft:#a6b7a5; --accent:#c3d69b; --line:#425d47; --major:#8b9f7a; --match:#435b37; --selected:#4e663c; --key:#2b3d2e; --key-line:#42573d; --note:#b2c3a8; --on-accent:#24301b; --round:19px; }
+      [data-theme="D"] { --page:#211a17; --board:#302520; --given:#3b3028; --ink:#f1e5d0; --soft:#bead99; --accent:#e8b77e; --line:#665040; --major:#b2916f; --match:#64482e; --selected:#735333; --key:#3b2d25; --key-line:#70543c; --note:#c7b29b; --on-accent:#3a2614; --round:3px; }
+      [data-theme="E"] { color-scheme:light; --page:#f3eee4; --board:#fffcf5; --given:#e8e2d7; --ink:#33342e; --soft:#6b6b5c; --accent:#8b3f4b; --line:#b5b0a3; --major:#6c6b5b; --match:#f0d7d4; --selected:#e9c0c1; --key:#fffcf5; --key-line:#cbc3b4; --note:#6a6b5d; --on-accent:#fff9f1; --round:8px; }
+      .stage { position:relative; padding:26px 28px 24px; border-radius:var(--radius); background:var(--page); color:var(--ink); border:1px solid var(--line); overflow:hidden; }
+      .app-header { display:flex; justify-content:space-between; align-items:center; gap:14px; padding-bottom:20px; border-bottom:1px solid var(--line); }
+      .brand { font-size:21px; font-weight:650; letter-spacing:-.8px; display:flex; gap:10px; align-items:center; }
+      .brand-mark { width:21px; height:21px; display:grid; grid-template-columns:repeat(3,1fr); gap:2px; }
+      .brand-mark i { border:1px solid var(--accent); border-radius:1px; }
+      .brand-mark i:nth-child(5) { background:var(--accent); }
+      .header-right { display:flex; align-items:center; gap:14px; }
+      .daily-label { color:var(--soft); font-size:10px; letter-spacing:1.5px; }
+      .icon-button { color:var(--soft); border:1px solid var(--line); background:transparent; border-radius:50%; width:30px; height:30px; display:grid; place-items:center; }
+      svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+      .game { max-width:430px; margin:25px auto 0; }
+      .game-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:17px; }
+      .date { margin:0 0 6px; color:var(--ink); font-size:13px; font-weight:500; }
+      .difficulty { display:flex; align-items:center; gap:6px; font-size:10px; color:var(--soft); }
+      .diff-dot { width:5px; height:5px; background:var(--accent); border-radius:50%; }
+      .timer { display:flex; align-items:center; gap:11px; border:1px solid var(--key-line); border-radius:30px; background:var(--key); color:var(--ink); padding:9px 12px; font-size:13px; font-variant-numeric:tabular-nums; }
+      .timer svg { width:13px; height:13px; }
+      .board-wrap { position:relative; }
+      .board { display:grid; grid-template-columns:repeat(9,minmax(0,1fr)); aspect-ratio:1; border:2px solid var(--major); border-radius:3px; overflow:hidden; background:var(--board); }
+      .cell { position:relative; min-width:0; padding:0; border:0; border-right:1px solid var(--line); border-bottom:1px solid var(--line); background:var(--board); color:var(--accent); display:grid; place-items:center; font-size:clamp(19px,4.3vw,27px); font-weight:400; line-height:1; font-variant-numeric:tabular-nums; }
+      .cell.given { background:var(--given); color:var(--ink); font-weight:600; }
+      .cell.box-right { border-right:2px solid var(--major); }
+      .cell.box-bottom { border-bottom:2px solid var(--major); }
+      .cell:last-child,.cell:nth-child(9n) { border-right:0; }
+      .cell:nth-child(n+73) { border-bottom:0; }
+      .cell.match { background:var(--match); color:var(--accent); }
+      .cell.selected { background:var(--selected); box-shadow:inset 0 0 0 2px var(--accent); z-index:1; }
+      .cell:focus-visible { outline:none; box-shadow:inset 0 0 0 2px var(--accent); z-index:2; }
+      .notes { display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,1fr); position:absolute; inset:3px; color:var(--note); font-size:9px; line-height:1; }
+      .notes span { display:grid; place-items:center; }
+      .notes .note-match { color:var(--on-accent); background:var(--accent); border-radius:2px; }
+      .pause-cover { position:absolute; inset:0; display:grid; place-content:center; gap:12px; text-align:center; background:var(--page); color:var(--accent); border:2px solid var(--major); z-index:5; }
+      .pause-cover[hidden] { display:none; }
+      .pause-cover strong { font-size:24px; font-weight:500; }
+      .pause-cover button { background:var(--accent); color:var(--on-accent); border:0; border-radius:var(--round); padding:12px 24px; }
+      .progress-line { display:flex; justify-content:space-between; align-items:center; color:var(--soft); margin-top:11px; font-size:10px; }
+      .progress-track { width:62px; height:3px; background:var(--line); border-radius:4px; overflow:hidden; }
+      .progress-track:before { content:""; display:block; width:43%; height:3px; background:var(--accent); }
+      .controls { margin-top:20px; }
+      .tools { display:flex; align-items:center; justify-content:space-around; margin-bottom:15px; }
+      .tool { display:flex; flex-direction:column; align-items:center; gap:6px; padding:6px 8px; color:var(--soft); background:transparent; border:0; font-size:10px; border-radius:var(--round); }
+      .tool[aria-pressed="true"] { color:var(--accent); background:var(--key); }
+      .tool:disabled { cursor:default; opacity:.35; }
+      .keypad { display:grid; grid-template-columns:repeat(9,minmax(0,1fr)); gap:7px; }
+      .key { height:49px; padding:0; font-size:23px; background:var(--key); color:var(--ink); border:1px solid var(--key-line); border-radius:var(--round); box-shadow:0 2px 0 var(--key-line); }
+      .key.active { background:var(--accent); color:var(--on-accent); border-color:var(--accent); box-shadow:0 2px 0 var(--accent); }
+      .hint { margin:15px 0 0; font-size:10px; color:var(--soft); text-align:center; line-height:1.6; }
+      .side-label { display:none; }
+      .stage[data-theme="B"] .game { max-width:none; display:grid; grid-template-columns:minmax(0,1fr) 138px; gap:0 22px; }
+      .stage[data-theme="B"] .game-heading { grid-column:1/-1; }
+      .stage[data-theme="B"] .board-area { grid-column:1; }
+      .stage[data-theme="B"] .controls { margin:0; grid-column:2; grid-row:2; border-left:1px solid var(--line); padding-left:18px; display:flex; flex-direction:column; }
+      .stage[data-theme="B"] .side-label { display:block; margin:0 0 14px; color:var(--soft); font:9px ui-monospace,monospace; letter-spacing:1.5px; }
+      .stage[data-theme="B"] .keypad { grid-template-columns:repeat(3,1fr); gap:6px; order:1; }
+      .stage[data-theme="B"] .key { height:46px; font-size:22px; box-shadow:none; }
+      .stage[data-theme="B"] .tools { order:2; display:grid; grid-template-columns:repeat(2,1fr); gap:5px; margin:20px 0 0; }
+      .stage[data-theme="B"] .hint { order:3; text-align:left; }
+      .stage[data-theme="B"] .brand,.stage[data-theme="B"] .date,.stage[data-theme="B"] .timer { font-family:ui-monospace,monospace; }
+      .stage[data-theme="C"] { padding:30px 34px; }
+      .stage[data-theme="C"] .app-header { border:0; padding-bottom:8px; }
+      .stage[data-theme="C"] .brand { font-family:Georgia,serif; font-style:italic; font-weight:400; font-size:26px; }
+      .stage[data-theme="C"] .game { padding:20px; background:var(--board); border:1px solid var(--line); border-radius:24px; margin-top:17px; max-width:450px; }
+      .stage[data-theme="C"] .board { border-radius:7px; }
+      .stage[data-theme="C"] .keypad { grid-template-columns:repeat(9,minmax(0,1fr)); gap:5px; }
+      .stage[data-theme="C"] .key { border-radius:30px; height:43px; font-size:21px; box-shadow:none; }
+      .stage[data-theme="D"] .brand,.stage[data-theme="E"] .brand { font-family:Georgia,"Times New Roman",serif; font-size:28px; font-weight:400; }
+      .stage[data-theme="D"] .brand-mark,.stage[data-theme="E"] .brand-mark { display:none; }
+      .stage[data-theme="D"] .app-header { border-top:1px solid var(--accent); padding-top:17px; }
+      .stage[data-theme="D"] .date { font-family:Georgia,serif; font-size:20px; }
+      .stage[data-theme="D"] .timer { border:0; background:transparent; padding-right:0; color:var(--accent); }
+      .stage[data-theme="D"] .controls { border-top:1px solid var(--line); padding-top:13px; }
+      .stage[data-theme="D"] .key { box-shadow:0 3px 0 var(--key-line); }
+      .stage[data-theme="E"] .app-header { border-bottom:3px double var(--major); }
+      .stage[data-theme="E"] .cell { font-family:Georgia,"Times New Roman",serif; }
+      .stage[data-theme="E"] .key { box-shadow:0 2px 0 var(--key-line); }
+      .caption { display:flex; justify-content:space-between; align-items:flex-start; gap:20px; padding:16px 1px 13px; }
+      .caption h2 { font-size:15px; margin:0 0 6px; font-weight:550; }
+      .caption p { color:var(--muted); margin:0; font-size:12px; line-height:1.7; }
+      .palette { display:flex; flex:none; gap:4px; padding-top:3px; }
+      .palette span { width:15px; height:15px; border:1px solid var(--border); border-radius:50%; }
+      .mock-status { color:var(--muted); font-size:10px; margin:0 0 12px; line-height:1.6; }
+      .switcher { position:sticky; bottom:10px; width:max-content; max-width:100%; margin:5px auto 0; display:flex; align-items:center; gap:8px; border:1px solid var(--border); padding:5px; border-radius:40px; background:var(--card); box-shadow:0 5px 25px #0003; z-index:10; }
+      .switcher button { display:grid; place-items:center; width:34px; height:30px; border:0; background:transparent; color:var(--foreground); border-radius:50%; font-size:18px; }
+      .switcher button:hover { background:var(--border); }
+      #variant-label { font-size:11px; min-width:158px; text-align:center; }
+      @media (max-width:480px) { .choices { gap:5px; } .choice { padding:4px; border-radius:8px; } .mini { height:65px; } .mini-board { width:49px; height:49px; } .mini-cell { font-size:4px; } .choice[data-theme="B"] .mini-board { width:40px; height:40px; } .mini-side { width:13px; gap:1px; } .mini-side i { height:6px; } .choice-name { font-size:9px; } .choice-meta { font-size:8px; gap:3px; } .stage,.stage[data-theme="C"] { padding:19px 15px; } .game { margin-top:20px; } .daily-label { display:none; } .notes { font-size:8px; inset:2px; } .keypad { gap:5px; } .key { font-size:21px; height:44px; } .stage[data-theme="B"] .game { grid-template-columns:minmax(0,1fr); } .stage[data-theme="B"] .controls { grid-column:1; grid-row:auto; margin-top:18px; border:0; padding:0; } .stage[data-theme="B"] .side-label { display:none; } .stage[data-theme="B"] .tools { order:0; display:flex; margin:0 0 14px; } .stage[data-theme="B"] .keypad { grid-template-columns:repeat(9,minmax(0,1fr)); gap:4px; } .stage[data-theme="B"] .key { font-size:20px; height:43px; } .stage[data-theme="B"] .hint { text-align:center; } .stage[data-theme="C"] .game { padding:13px; } .stage[data-theme="C"] .key { height:37px; font-size:18px; } .caption { gap:10px; } .palette span { width:12px; height:12px; } }
+      @media (prefers-reduced-motion:reduce) { * { transition:none!important; } }
+    </style>
+  </head>
+  <body>
+    <main class="study">
+      <div class="intro"><strong>選一種解題的氛圍</strong><span>4 DARK / 1 LIGHT</span></div>
+      <nav class="choices" aria-label="主題預覽"></nav>
+      <section class="stage" data-theme="A" aria-label="數獨主題 mock">
+        <header class="app-header">
+          <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>Sudoku<span id="brand-suffix"></span></div>
+          <div class="header-right"><span class="daily-label">A LITTLE SPACE TO THINK</span><button class="icon-button" id="cycle-theme" aria-label="下一個主題"><svg viewBox="0 0 24 24"><path d="M20.9 13a9 9 0 0 1-9.9-9.9A9 9 0 1 0 20.9 13Z"/></svg></button></div>
+        </header>
+        <div class="game">
+          <div class="game-heading"><div><p class="date">Friday, October 30</p><span class="difficulty"><i class="diff-dot"></i>Medium <span aria-hidden="true">·</span> Daily puzzle</span></div><button class="timer" id="pause" aria-label="暫停預覽"><span>08:24</span><svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14" stroke-width="3"/></svg></button></div>
+          <div class="board-area"><div class="board-wrap"><div class="board" aria-label="數獨棋盤"></div><div class="pause-cover" hidden><strong>A moment of quiet.</strong><button id="resume">Resume</button></div></div><div class="progress-line"><span>35 / 81 filled</span><span class="progress-track" aria-hidden="true"></span></div></div>
+          <div class="controls">
+            <p class="side-label">YOUR NEXT MOVE</p>
+            <div class="tools" aria-label="預覽工具">
+              <button class="tool" id="reset" aria-label="重設預覽"><svg viewBox="0 0 24 24"><path d="m9 4-5 5 5 5M4 9h10a6 6 0 0 1 0 12"/></svg><span>Reset</span></button>
+              <button class="tool" disabled><svg viewBox="0 0 24 24"><path d="m15 4 5 5-5 5M20 9H10a6 6 0 0 0 0 12"/></svg><span>Redo</span></button>
+              <button class="tool" id="clear"><svg viewBox="0 0 24 24"><path d="m4 13 9-9 7 7-9 9H8l-5-5zM9 8l7 7M11 20h10"/></svg><span>Clear</span></button>
+              <button class="tool" id="notes" aria-pressed="true"><svg viewBox="0 0 24 24"><path d="m15 4 5 5M4 20l4-1L21 6l-4-4L4 15z"/></svg><span>Notes</span></button>
+            </div>
+            <div class="keypad" aria-label="數字醒目提示"></div>
+            <p class="hint">Tap a number to follow it across the board.</p>
+          </div>
+        </div>
+      </section>
+      <div class="caption"><div><h2 id="theme-title"></h2><p id="theme-description"></p></div><div class="palette" aria-label="主題配色"></div></div>
+      <p class="mock-status" id="mock-status" aria-live="polite"></p>
+      <nav class="switcher" aria-label="切換主題"><button id="previous" aria-label="上一款">←</button><span id="variant-label"></span><button id="next" aria-label="下一款">→</button></nav>
+    </main>
+    <script>
+      const themes = [
+        { id:'A', name:'曜石黑', en:'Obsidian', kind:'DARK', description:'中性炭黑 × 薄荷綠。俐落、低干擾，最接近現有介面的深色延伸。', palette:['#121415','#252a2b','#acd9c3','#e5eae8'] },
+        { id:'B', name:'午夜藍', en:'Midnight', kind:'DARK', description:'深海軍藍 × 冰藍。桌面採側邊數字盤，像一張安靜的解題工作桌。', palette:['#0c1424','#1b2d48','#83b9fa','#e2ebfc'] },
+        { id:'C', name:'深森林', en:'Forest', kind:'DARK', description:'墨綠 × 鼠尾草綠。圓角棋盤容器、柔和膠囊按鍵，氛圍更放鬆。', palette:['#121e1a','#293d31','#c3d69b','#e6ecdf'] },
+        { id:'D', name:'暖琥珀', en:'Ember', kind:'DARK', description:'濃咖啡 × 琥珀。襯線字、細分隔與實體按鍵感，帶一點書房氣息。', palette:['#211a17','#3b3028','#e8b77e','#f1e5d0'] },
+        { id:'E', name:'紙本白', en:'Paper', kind:'LIGHT', description:'暖紙白 × 莓果紅。保留紙本數獨的清楚格線與墨色數字，適合白天。', palette:['#f3eee4','#e8e2d7','#8b3f4b','#33342e'] },
+      ];
+      const puzzle = '530070000600195000098000060800060003400803001700020006060000280000419005000080079';
+      const solution = '534678912672195348198342567859761423426853791713924856961537284287419635345286179';
+      const values = puzzle.split('').map(Number);
+      [2,3,5,6,8].forEach(i => values[i] = Number(solution[i]));
+      let selected = 40, digit = 5, showNotes = true, paused = false;
+      const query = new URLSearchParams(location.search);
+      let current = Math.max(0,themes.findIndex(t => t.id === (query.get('variant') || 'A').toUpperCase()));
+      const board = document.querySelector('.board');
+      function candidates(index) {
+        const row = Math.floor(index/9), col = index%9;
+        return Array.from({length:9},(_,i)=>i+1).filter(n => !values.some((v,j) => v === n && (Math.floor(j/9) === row || j%9 === col || (Math.floor(j/27) === Math.floor(row/3) && Math.floor(j%9/3) === Math.floor(col/3)))));
+      }
+      function renderBoard() {
+        board.innerHTML = values.map((n,i) => {
+          const fixed = puzzle[i] !== '0';
+          const classes = ['cell',fixed?'given':'',n === digit?'match':'',i === selected?'selected':'',i%9 === 2 || i%9 === 5?'box-right':'',Math.floor(i/9) === 2 || Math.floor(i/9) === 5?'box-bottom':''].join(' ');
+          const notes = !n && showNotes ? `<span class="notes">${Array.from({length:9},(_,k)=>`<span class="${k+1===digit && candidates(i).includes(k+1)?'note-match':''}">${candidates(i).includes(k+1)?k+1:''}</span>`).join('')}</span>` : '';
+          return `<button class="${classes}" data-cell="${i}" aria-label="第 ${Math.floor(i/9)+1} 列，第 ${i%9+1} 欄，${n||'空格'}${fixed?'，題目數字':''}" aria-pressed="${i===selected}">${n||''}${notes}</button>`;
+        }).join('');
+        document.querySelectorAll('.key').forEach((el,i) => {el.classList.toggle('active',i+1===digit);el.setAttribute('aria-pressed',String(i+1===digit));});
+        document.querySelector('.mock-status').textContent = `視覺 mock · 同一題目 · 選取 R${Math.floor(selected/9)+1}C${selected%9+1} · 醒目數字 ${digit||'無'} · 筆記${showNotes?'開啟':'關閉'} · ${paused?'已暫停':'預覽中'}`;
+      }
+      function selectTheme(index,updateUrl=true) {
+        current = (index + themes.length)%themes.length;
+        const theme = themes[current];
+        document.querySelector('.stage').dataset.theme = theme.id;
+        document.querySelectorAll('.choice').forEach(el => el.setAttribute('aria-pressed',String(el.dataset.theme===theme.id)));
+        document.querySelector('#theme-title').textContent = `${theme.id} / ${theme.en} ${theme.name}`;
+        document.querySelector('#theme-description').textContent = theme.description;
+        document.querySelector('#variant-label').textContent = `${theme.id} · ${theme.en} ${theme.name}`;
+        document.querySelector('.palette').innerHTML = theme.palette.map(c => `<span style="background:${c}" title="${c}"></span>`).join('');
+        if(updateUrl) { try {const url = new URL(location.href);url.searchParams.set('variant',theme.id);history.replaceState(null,'',url);} catch { /* Embedded renderers may disallow history writes. */ } }
+      }
+      document.querySelector('.choices').innerHTML = themes.map(theme => `<button class="choice" data-theme="${theme.id}" aria-pressed="false"><span class="mini" aria-hidden="true"><span class="mini-board">${puzzle.split('').map(n=>`<span class="mini-cell ${n==='5'?'mini-hit':''}">${n==='0'?'':n}</span>`).join('')}</span><span class="mini-side">${'<i></i>'.repeat(9)}</span></span><strong class="choice-name">${theme.id} ${theme.name}</strong><span class="choice-meta"><i class="swatch"></i>${theme.kind}</span></button>`).join('');
+      document.querySelector('.keypad').innerHTML = Array.from({length:9},(_,i)=>`<button class="key" data-digit="${i+1}" aria-label="醒目提示數字 ${i+1}">${i+1}</button>`).join('');
+      document.querySelector('.choices').addEventListener('click',e => {const button = e.target.closest('[data-theme]');if(button) selectTheme(themes.findIndex(t => t.id===button.dataset.theme));});
+      document.querySelector('#previous').onclick = () => selectTheme(current-1);
+      document.querySelector('#next').onclick = document.querySelector('#cycle-theme').onclick = () => selectTheme(current+1);
+      board.addEventListener('click',e => {const button=e.target.closest('[data-cell]');if(!button || paused)return;selected=Number(button.dataset.cell);renderBoard();});
+      document.querySelector('.keypad').addEventListener('click',e => {const button=e.target.closest('[data-digit]');if(!button || paused)return;digit=digit===Number(button.dataset.digit)?0:Number(button.dataset.digit);renderBoard();});
+      document.querySelector('#notes').onclick = () => {if(paused)return;showNotes=!showNotes;document.querySelector('#notes').setAttribute('aria-pressed',String(showNotes));renderBoard();};
+      document.querySelector('#clear').onclick = () => {if(paused)return;digit=0;renderBoard();};
+      document.querySelector('#reset').onclick = () => {selected=40;digit=5;showNotes=true;document.querySelector('#notes').setAttribute('aria-pressed','true');renderBoard();};
+      function setPaused(value) {paused=value;document.querySelector('.pause-cover').hidden=!value;board.inert=value;document.querySelector('#pause').setAttribute('aria-label',value?'繼續預覽':'暫停預覽');renderBoard();}
+      document.querySelector('#pause').onclick = () => setPaused(!paused);
+      document.querySelector('#resume').onclick = () => setPaused(false);
+      document.addEventListener('keydown',e => {
+        if((e.target instanceof Element && e.target.closest('input,textarea,select,[contenteditable="true"]')) || e.metaKey || e.ctrlKey || e.altKey)return;
+        if(e.key==='ArrowLeft' || e.key==='ArrowRight') {e.preventDefault();selectTheme(current+(e.key==='ArrowRight'?1:-1));}
+      });
+      window.addEventListener('popstate',() => {const id=new URLSearchParams(location.search).get('variant')||'A';selectTheme(Math.max(0,themes.findIndex(t=>t.id===id)),false);});
+      selectTheme(current,false);
+      renderBoard();
+    </script>
+  </body>
+</html>
