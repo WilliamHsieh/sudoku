@@ -816,6 +816,8 @@
   }
 
   .board {
+    position: relative;
+    isolation: isolate;
     container-type: inline-size;
     display: grid;
     grid-template-columns: repeat(9, 1fr);
@@ -829,6 +831,34 @@
     user-select: none;
     touch-action: manipulation;
     overscroll-behavior: none;
+  }
+
+  /* Paint continuous box lines above cell borders, selection and note cues.
+     The outer border is protected by overflow clipping. Keep cell borders for
+     layout and fractional-pixel coverage so digits and hit targets stay put. */
+  .board::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    pointer-events: none;
+    background:
+      linear-gradient(
+        to right,
+        transparent calc(100% / 3 - var(--line-box-w)),
+        var(--line-box) 0 calc(100% / 3),
+        transparent 0 calc(200% / 3 - var(--line-box-w)),
+        var(--line-box) 0 calc(200% / 3),
+        transparent 0
+      ),
+      linear-gradient(
+        to bottom,
+        transparent calc(100% / 3 - var(--line-box-w)),
+        var(--line-box) 0 calc(100% / 3),
+        transparent 0 calc(200% / 3 - var(--line-box-w)),
+        var(--line-box) 0 calc(200% / 3),
+        transparent 0
+      );
   }
 
   .undo-ring {
