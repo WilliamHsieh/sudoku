@@ -1,5 +1,5 @@
 // Travelling undo/redo ring. Toolbar undo/redo delay the state change until
-// the ring lands (prototype). Keyboard Ctrl+Z stays immediate.
+// the ring lands. Keyboard Ctrl+Z applies immediately with the same target feedback.
 
 import { RING, ringTiming } from "./game/pad.js";
 
@@ -7,7 +7,7 @@ import { RING, ringTiming } from "./game/pad.js";
 const MOTION_EASE = "cubic-bezier(0.22, 0.8, 0.24, 1)";
 import { game } from "./game/game.svelte.js";
 import { padUi } from "./pad-ui.svelte.js";
-import { revealCellDigit } from "./keypad-actions.js";
+import { revealCellDigit, syncHighlightAfterEdit } from "./keypad-actions.js";
 
 const HL_IN_MS = 150;
 
@@ -158,8 +158,8 @@ export function createRingController() {
     }, ms);
   }
 
-  /** @param {'undo' | 'redo'} dir */
-  function travel(dir) {
+  /** @param {'undo' | 'redo'} dir @param {{ immediate?: boolean, syncHighlight?: boolean }} options */
+  function travel(dir, { immediate = false, syncHighlight = false } = {}) {
     const now = performance.now();
     const rapid = deferred.isPending || now < ringEndsAt + RING.rapidGap;
     flush();
@@ -168,11 +168,13 @@ export function createRingController() {
     const start = game.selected >= 0 ? game.selected : lastRingCell >= 0 ? lastRingCell : 40;
     const first = peek.first >= 0 ? peek.first : start;
     const apply = () => {
+      const before = first >= 0 ? game.value(first) : 0;
       if (dir === "undo") game.undo();
       else game.redo();
       if (first >= 0) {
         game.select(first);
         revealCellDigit(first);
+        if (syncHighlight) syncHighlightAfterEdit(first, before);
       }
       padUi.undoTargets = peek.cells.filter((i) => i !== first);
       later(() => {
@@ -186,7 +188,7 @@ export function createRingController() {
     lastRingCell = first;
     if (reducedMotion()) {
       padUi.undoTargets = peek.cells;
-      quietHighlights(RING.still);
+      if (!immediate) quietHighlights(RING.still);
       ringEndsAt = now + RING.still;
       apply();
       later(() => {
@@ -197,17 +199,18 @@ export function createRingController() {
     const t = ringTiming(start, first, rapid);
     const total = t.travel + t.apply + t.fade;
     moveRing(start, first, t);
-    quietHighlights(total);
+    if (!immediate) quietHighlights(total);
     ringEndsAt = now + total;
-    deferred.schedule(apply, t.travel + t.apply);
+    if (immediate) apply();
+    else deferred.schedule(apply, t.travel + t.apply);
   }
 
   return {
     bind,
     flush,
     destroy,
-    undo: () => travel("undo"),
-    redo: () => travel("redo"),
+    undo: (options = {}) => travel("undo", options),
+    redo: (options = {}) => travel("redo", options),
   };
 }
 

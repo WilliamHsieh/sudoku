@@ -59,7 +59,7 @@ test("a shorter viewport shrinks the keypad before the board, then restores both
   expect((await geometry(page)).board.width).toBeCloseTo(374, 1);
 });
 
-test("narrow widths fit and the desktop breakpoint keeps the existing board", async ({ page }) => {
+test("narrow widths fit and desktop keeps its original keypad size", async ({ page }) => {
   for (const width of [320, 280, 599]) {
     await page.setViewportSize({ width, height: 844 });
     await expect.poll(async () => (await geometry(page)).pad.width).toBeLessThan(width);
@@ -71,10 +71,17 @@ test("narrow widths fit and the desktop breakpoint keeps the existing board", as
     expectUnclippedEqualCells(await measureBoard(page));
   }
   await page.setViewportSize({ width: 600, height: 844 });
-  await expect(page.locator(".keypad")).toBeHidden();
-  expect((await geometry(page)).board.width).toBeCloseTo(568, 1);
+  await expect(page.locator(".keypad")).toBeVisible();
+  expect((await geometry(page)).key.height).toBe(48);
+  const desktop = await geometry(page);
+  // The 600px layout reserves height for its newly visible desktop controls.
+  expect(desktop.board.width).toBeLessThanOrEqual(568);
+  expect(desktop.board.width).toBeGreaterThan(160);
+  expect(desktop.board.height).toBeCloseTo(desktop.board.width, 1);
+  expect(desktop.overflow).toBe(false);
   await page.setViewportSize({ width: 1280, height: 800 });
   expect((await geometry(page)).board.width).toBe(650);
+  expect((await geometry(page)).key.height).toBe(64);
   await page.setViewportSize({ width: 390, height: 760 });
   await expect(page.locator(".keypad")).toBeVisible();
   await expect.poll(async () => (await geometry(page)).key.height).toBeCloseTo(57.6, 1);

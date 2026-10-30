@@ -22,6 +22,16 @@ export const COACH_ROWS = [
   { label: "Swipe down", body: "Locks it; tap or slide across empty cells to toggle candidates" },
 ];
 
+export const DESKTOP_COACH_ROWS = [
+  { label: "Click", body: "Highlights this digit and its candidates" },
+  { label: "Double-click", body: "Fills the selected cell" },
+  { label: "Drag up", body: "Toggles a candidate in the selected cell" },
+  {
+    label: "Shift + click",
+    body: "Locks a digit; click or drag across cells to toggle candidates",
+  },
+];
+
 /** @param {number} d */
 export const toastLockedCell = (d) => `${d} locked — tap an empty cell`;
 /** @param {number} d */
@@ -29,18 +39,23 @@ export const toastBlocked = (d) => `Can't place ${d} — already in row, column 
 export const TOAST_NO_CELL = "Select a cell, then double-tap";
 export const TOAST_GIVEN = "Given digits can't change";
 
-/** @param {number} d */
-export const ariaLocked = (d) =>
-  `Digit ${d}, locked: tap or slide across empty cells to toggle, tap again to unlock`;
-/** @param {number} d */
-export const ariaShow = (d) => `Digit ${d}: tap to show, double-tap to fill`;
+/** @param {number} d @param {boolean} [desktop] */
+export const ariaLocked = (d, desktop = false) =>
+  desktop
+    ? `Digit ${d}, locked: click or drag across empty cells to toggle, click again to unlock`
+    : `Digit ${d}, locked: tap or slide across empty cells to toggle, tap again to unlock`;
+/** @param {number} d @param {boolean} [desktop] */
+export const ariaShow = (d, desktop = false) =>
+  desktop
+    ? `Digit ${d}: click to show, double-click to fill`
+    : `Digit ${d}: tap to show, double-tap to fill`;
 /** @param {number} d */
 export const ariaEnter = (d) => `Enter ${d}`;
 
 /**
  * Hint line under the keypad. Legacy mode keeps the master's sentence unless
  * a digit is locked, which always explains the lock.
- * @param {{ legacy: boolean, locked: number, shown: number, placed: number }} s
+ * @param {{ legacy: boolean, locked: number, shown: number, placed: number, desktop?: boolean }} s
  * @returns {Hint}
  */
 export function hintModel(s) {
@@ -48,18 +63,29 @@ export function hintModel(s) {
     return {
       kind: "rich",
       lead: `${s.locked} locked`,
-      rest: `· Tap or slide across cells · Tap ${s.locked} to unlock`,
+      rest: s.desktop
+        ? `· Space toggles candidate ${s.locked} · Enter fills answer ${s.locked} in the selected cell · Esc unlocks`
+        : `· Tap or slide across cells · Tap ${s.locked} to unlock`,
     };
   }
-  if (s.legacy) return { kind: "plain", text: HINT_LEGACY };
+  if (s.legacy)
+    return {
+      kind: "plain",
+      text: s.desktop ? "Click = answer · Drag up = candidate" : HINT_LEGACY,
+    };
   if (s.shown) {
     const left = 9 - s.placed;
     const count = left > 0 ? `${left} left` : "all placed";
     return {
       kind: "rich",
       lead: String(s.shown),
-      rest: `· ${count} · Double-tap fills · Swipe down locks`,
+      rest: s.desktop
+        ? `· ${count} · Double-click fills · Shift + click locks`
+        : `· ${count} · Double-tap fills · Swipe down locks`,
     };
   }
-  return { kind: "plain", text: HINT_IDLE };
+  return {
+    kind: "plain",
+    text: s.desktop ? "Click to show · Double-click to fill · Drag up for candidate" : HINT_IDLE,
+  };
 }
