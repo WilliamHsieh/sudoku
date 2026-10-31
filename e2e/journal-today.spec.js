@@ -94,7 +94,7 @@ for (const mobile of [false, true]) {
       await expect(title.locator("svg")).toHaveAttribute("width", "22");
       await expect(title.locator("svg")).toHaveAttribute("stroke-width", "2.25");
       await page.mouse.move(0, 0);
-      await expect(title).toHaveCSS("color", "rgb(28, 26, 22)");
+      await expect(title).toHaveCSS("color", "rgb(237, 241, 246)");
       await watchReturn(page, mobile);
       await title.click();
       await expect(title).toHaveAttribute("aria-disabled", "true");
@@ -421,9 +421,9 @@ for (const mobile of [true, false]) {
     });
     const home = await geometry();
     await title.hover();
-    await expect(title).toHaveCSS("color", "rgb(28, 26, 22)");
+    await expect(title).toHaveCSS("color", "rgb(237, 241, 246)");
     await page.mouse.down();
-    await expect(title).toHaveCSS("color", "rgb(28, 26, 22)");
+    await expect(title).toHaveCSS("color", "rgb(237, 241, 246)");
     await page.mouse.up();
     expect(await geometry()).toEqual(home);
     if (mobile) await backMonths(page, true, 1);
@@ -456,11 +456,11 @@ for (const mobile of [true, false]) {
     expect(icon.height).toBe(22);
     expect(icon.x + icon.width + 6).toBeLessThanOrEqual(away.next.x);
     await title.hover();
-    await expect(title).toHaveCSS("color", "rgb(93, 88, 79)");
+    await expect(title).toHaveCSS("color", "rgb(181, 191, 206)");
     expect(await geometry()).toEqual(away);
     await page.mouse.down();
-    await expect(title).toHaveCSS("color", "rgb(115, 113, 109)");
-    await expect(title.locator(".year")).toHaveCSS("color", "rgb(115, 113, 109)");
+    await expect(title).toHaveCSS("color", "rgb(201, 211, 224)");
+    await expect(title.locator(".year")).toHaveCSS("color", "rgb(201, 211, 224)");
     expect(await geometry()).toEqual(away);
     await page.mouse.move(0, 0);
     await page.mouse.up();
@@ -468,7 +468,7 @@ for (const mobile of [true, false]) {
     await page.keyboard.press("Shift");
     await expect(title).toHaveCSS("outline-width", "2px");
     await expect(title).toHaveCSS("outline-offset", "3px");
-    await expect(title).toHaveCSS("outline-color", "rgb(42, 86, 198)");
+    await expect(title).toHaveCSS("outline-color", "rgb(155, 188, 226)");
     expect(await geometry()).toEqual(away);
   });
 }

@@ -9,15 +9,15 @@
 
   /** @param {MarkKind} kind */
   function fill(kind) {
-    if (kind === "solved") return "#1c1a16";
-    if (kind === "progress") return "#fbe08a";
+    if (kind === "solved") return "var(--ink)";
+    if (kind === "progress") return "var(--same-digit)";
     return "none";
   }
 
   /** @param {MarkKind} kind */
   function stroke(kind) {
-    if (kind === "progress") return "#7a4b08";
-    if (kind === "none") return "#a2a09b";
+    if (kind === "progress") return "var(--same-digit-ink)";
+    if (kind === "none") return "var(--line-box)";
     return "none";
   }
 
@@ -41,7 +41,7 @@
   {#each items as kind, i (i)}
     {@const x = i * (size + gap) + 0.75}
     {#if pos != null && i !== pos}
-      <rect {x} y="0.75" width={size - 1.5} height={size - 1.5} rx="2" fill="#dcd7cd"></rect>
+      <rect {x} y="0.75" width={size - 1.5} height={size - 1.5} rx="2" fill="var(--hair)"></rect>
     {:else}
       <rect
         {x}

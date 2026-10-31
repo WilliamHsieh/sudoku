@@ -787,10 +787,10 @@
   }
   .key.shown {
     box-shadow:
-      inset 0 0 0 2px var(--chip-line),
+      inset 0 0 0 2px var(--chip-bg),
       var(--key-shadow);
-    background: var(--chip-bg);
-    color: var(--chip-ink);
+    background: var(--same-digit);
+    color: var(--same-digit-ink);
   }
   .key.holding {
     box-shadow:
@@ -803,7 +803,7 @@
     background: var(--primary);
     border-color: var(--primary);
     color: var(--on-accent);
-    box-shadow: 0 1px 0 #000;
+    box-shadow: var(--key-shadow);
   }
   .key.locked.pressed {
     background: var(--primary-hover);

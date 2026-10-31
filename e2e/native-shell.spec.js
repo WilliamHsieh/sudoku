@@ -458,10 +458,10 @@ test.describe("native shell", () => {
 
     const meta = await page.locator('meta[name="viewport"]').getAttribute("content");
     expect(meta).toContain("viewport-fit=cover");
-    await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", "#f5f4f0");
+    await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", "#191b1f");
     await expect(
       page.locator('meta[name="apple-mobile-web-app-status-bar-style"]')
-    ).toHaveAttribute("content", "default");
+    ).toHaveAttribute("content", "black");
   });
 
   test("standalone keeps browser-tab geometry at every viewport", async ({ page, context }) => {

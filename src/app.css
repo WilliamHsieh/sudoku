@@ -19,6 +19,7 @@
 }
 
 :root {
+  color-scheme: light;
   --page-bg: #f5f4f0;
   --board-bg: #ffffff;
   --given-bg: #e5e4e0;
@@ -42,6 +43,7 @@
   --line-outer-w: 3px;
   --line-outer-w-wide: 4px;
   --board-radius: 6px;
+  --same-digit-ink: #7a4b08;
   --same-digit: #fbe08a;
   --same-digit-given: #f1d377;
   --sel-ring: #2a56c6;
@@ -62,9 +64,11 @@
   --ui-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
   --ui-ink: #1c1a16;
   --ui-soft: #5d584f;
+  --ui-pressed: #73716d;
   --switch-on: #1c1a16;
   --switch-off: #d3cec4;
   --switch-knob: #ffffff;
+  --switch-knob-on: #ffffff;
   --timer-ink: #1c1a16;
   --timer-bg: rgb(255 255 255 / 0.7);
   --timer-line: rgb(0 0 0 / 0.08);
@@ -105,6 +109,7 @@
   --hair: #dcd7cd;
   --neutral: #e5e4e0;
   --neutral-2: #ecebe7;
+  --neutral-hover: #dbdad5;
   --sel: #d3e0f8;
   --sel-press: #c3d4f4;
   --blue: #2a56c6;
@@ -113,6 +118,8 @@
   --card: #ffffff;
   --page: #f5f4f0;
   --ink2: #5d584f;
+  --calendar-header-bg: var(--line-box);
+  --calendar-header-ink: var(--page-bg);
   --ease-out: cubic-bezier(0.22, 0.8, 0.24, 1);
   /* Overlays (sheet, scrim, dialog, cover). Direct toggles use --toggle. */
   --motion: 260ms;
@@ -125,6 +132,91 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
+}
+
+:root[data-theme="dark"] {
+  /* A3 muted graphite: blue selection, gold matches, green cues, rose conflicts. */
+  color-scheme: dark;
+  --page-bg: #191b1f;
+  --board-bg: #22262c;
+  --given-bg: #30363f;
+  --ink: #edf1f6;
+  --given-ink: var(--ink);
+  --answer-ink: #9dbfe5;
+  --cand: #b9c4d3;
+  --cand-on-selected: var(--cand);
+  --line-thin: #404b5a;
+  --line-box: #63758c;
+  --line-outer: #71839a;
+  --same-digit-ink: #e7d4a5;
+  --same-digit: #4c4531;
+  --same-digit-given: var(--same-digit);
+  --sel-ring: #9bbce2;
+  --sel-bg: #30445e;
+  --sel-ink: var(--ink);
+  --add-chip-bg: var(--sel-bg);
+  --add-chip-ink: var(--sel-ring);
+  --add-chip-line: #63758c;
+  --chip-bg: #d5bb7c;
+  --chip-line: #b79e63;
+  --chip-ink: #2c2517;
+  --undo-ring: #ddb28d;
+  --conflict: #e6a8b5;
+  --conflict-bg: #4b3039;
+  --ui-ink: var(--ink);
+  --ui-soft: #b5bfce;
+  --ui-pressed: #c9d3e0;
+  --switch-on: var(--sel-ring);
+  --switch-off: #404b5a;
+  --switch-knob: #edf1f6;
+  --switch-knob-on: var(--on-accent);
+  --timer-ink: var(--ink);
+  --timer-bg: var(--key-bg);
+  --timer-line: #37414f;
+  --key-bg: #2c333c;
+  --key-line: #3e4a59;
+  --key-shadow: 0 1px 2px rgb(25 27 31 / 0.65);
+  --key-ink: var(--ink);
+  --key-pressed: #36404e;
+  --key-pressed-illegal: #38332a;
+  --cue: #9bcdaf;
+  --cue-ink: var(--cue);
+  --cue-line: var(--cue);
+  --cue-fill: #293e34;
+  --cue-halo: rgb(155 205 175 / 0.18);
+  --on-accent: #19283a;
+  --overlay: rgb(0 0 0 / 0.56);
+  --shadow-knob: 0 1px 2px rgb(0 0 0 / 0.35);
+  --shadow-dialog: 0 12px 32px rgb(0 0 0 / 0.45);
+  --paused-cover: var(--board-bg);
+  --focus: var(--sel-ring);
+  --primary: var(--sel-ring);
+  --primary-hover: #b1cae8;
+  --danger: var(--conflict);
+  --danger-hover: #efbac5;
+  --switch-disabled: #2c333c;
+  --switch-disabled-knob: #63758c;
+  --overlay-pr6: var(--overlay);
+  --shadow-pr6: var(--shadow-dialog);
+  --shadow-sheet: 0 -8px 24px rgb(0 0 0 / 0.36);
+  --diff-easy: var(--cue);
+  --diff-medium: var(--chip-bg);
+  --diff-hard: var(--conflict);
+  --dot-idle: #404b5a;
+  --hair: #2f3742;
+  --neutral: var(--given-bg);
+  --neutral-2: #2c333c;
+  --neutral-hover: #3b444f;
+  --sel: var(--sel-bg);
+  --sel-press: #3c526f;
+  --blue: var(--sel-ring);
+  --blue-d: var(--primary-hover);
+  --amber: var(--same-digit-ink);
+  --card: var(--board-bg);
+  --page: var(--page-bg);
+  --ink2: var(--ui-soft);
+  --calendar-header-bg: var(--neutral);
+  --calendar-header-ink: var(--ink);
 }
 
 @media (min-width: 600px) {

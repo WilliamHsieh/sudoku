@@ -139,7 +139,7 @@
   }
   .btn-primary {
     background: var(--blue);
-    color: #fff;
+    color: var(--on-accent);
   }
   .btn-primary:hover {
     background: var(--blue-d);
@@ -149,6 +149,6 @@
     color: var(--ink);
   }
   .btn-quiet:hover {
-    background: #dbdad5;
+    background: var(--neutral-hover);
   }
 </style>

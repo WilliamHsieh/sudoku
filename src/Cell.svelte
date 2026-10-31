@@ -155,6 +155,9 @@
   .cell.same.given {
     background: var(--same-digit-given);
   }
+  .cell.same:not(.given):not(.conflict) :global(.pen-box) {
+    color: var(--same-digit-ink);
+  }
   .cell.selected {
     background: var(--sel-bg);
     box-shadow: inset 0 0 0 var(--sel-ring-w) var(--sel-ring);
@@ -163,7 +166,9 @@
   .cell.given.selected {
     background: var(--sel-bg);
   }
-  .cell.conflict {
+  .cell.conflict,
+  .cell.same.conflict,
+  .cell.same.given.conflict {
     background: var(--conflict-bg);
   }
 
@@ -287,12 +292,6 @@
 
     .candidate {
       pointer-events: none;
-    }
-
-    /* Prototype: conflict fill wins over same-digit yellow, including givens. */
-    .cell.same.conflict,
-    .cell.same.given.conflict {
-      background: var(--conflict-bg);
     }
 
     /* Combo C `.cell.conf::after` — 5×5 at a 3px inset. Don't clip the dot. */

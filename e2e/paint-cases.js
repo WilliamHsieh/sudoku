@@ -188,7 +188,10 @@ export function paintCases(mobile) {
       await expect(cell(page, i).locator(".paint-added, .ghost")).toHaveCount(0);
     }
     await expect(cell(page, 42)).toHaveClass(/finger-add/);
-    await expect(cell(page, 42)).toHaveCSS("box-shadow", "rgb(42, 86, 198) 0px 0px 0px 3px inset");
+    await expect(cell(page, 42)).toHaveCSS(
+      "box-shadow",
+      "rgb(155, 188, 226) 0px 0px 0px 3px inset"
+    );
     await expect(page.locator("#undo")).toBeDisabled(); // Still a draft.
     await t.to(37); // Revisiting does not reverse the brush.
     await t.up();
@@ -430,16 +433,16 @@ export function paintCases(mobile) {
     // marker lifetime between assertions. CSS transitions are disabled by RM.
     await freezeTimers(page);
     await t.up();
-    await expect(pencil(page, 37, 5)).toHaveCSS("background-color", "rgb(223, 232, 250)");
+    await expect(pencil(page, 37, 5)).toHaveCSS("background-color", "rgb(48, 68, 94)");
     await page.clock.runFor(400);
     await expect(pencil(page, 37, 5)).toHaveCSS("transition-duration", "0s");
-    await expect(pencil(page, 37, 5)).toHaveCSS("background-color", "rgb(223, 232, 250)");
+    await expect(pencil(page, 37, 5)).toHaveCSS("background-color", "rgb(48, 68, 94)");
     await page.clock.runFor(299);
     await expect(pencil(page, 37, 5)).toHaveClass(/paint-added/);
-    await expect(pencil(page, 37, 5)).toHaveCSS("background-color", "rgb(223, 232, 250)");
+    await expect(pencil(page, 37, 5)).toHaveCSS("background-color", "rgb(48, 68, 94)");
     await page.clock.runFor(1);
     await expect(pencil(page, 37, 5)).not.toHaveClass(/paint-added/);
-    await expect(pencil(page, 37, 5)).toHaveCSS("background-color", "rgb(252, 239, 190)");
+    await expect(pencil(page, 37, 5)).toHaveCSS("background-color", "rgb(213, 187, 124)");
   });
 
   test("blue add chip shares the yellow chip geometry and fades on the 700ms clock", async ({
@@ -489,15 +492,15 @@ export function paintCases(mobile) {
       "top",
     ])
       expect(blue[key], key).toEqual(yellow[key]);
-    expect(blue.background).toBe("rgb(223, 232, 250)");
-    expect(blue.color).toBe("rgb(34, 73, 173)");
-    expect(blue.shadow).toBe("rgb(143, 168, 224) 0px 0px 0px 0.5px");
+    expect(blue.background).toBe("rgb(48, 68, 94)");
+    expect(blue.color).toBe("rgb(155, 188, 226)");
+    expect(blue.shadow).toBe("rgb(99, 117, 140) 0px 0px 0px 0.5px");
     // Keep the 385ms blue hold phase from expiring between protocol reads.
     // CSS animations still use real time; resume app timers to start the fade.
     await freezeTimers(page);
     await t.up();
     await expect(pencil(page, 37, 5)).toHaveClass(/paint-added/);
-    await expect(pencil(page, 37, 5)).toHaveCSS("background-color", "rgb(223, 232, 250)");
+    await expect(pencil(page, 37, 5)).toHaveCSS("background-color", "rgb(48, 68, 94)");
     if (!mobile) await page.mouse.move(0, 0);
     await page.clock.resume();
     await expect(pencil(page, 37, 5)).not.toHaveClass(/paint-added/);
