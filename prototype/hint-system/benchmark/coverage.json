@@ -1,0 +1,1907 @@
+{
+  "metadata": {
+    "hardware": "Apple M3 desktop macOS; not physical phone",
+    "percentiles": "Nearest-rank P50/P99. Each board N=20 => P99 is observed maximum, not a robust population tail estimate.",
+    "boards": "Every included query has3 distinct original puzzles, each5 warmups +20 measured calls. No permutation-generated duplicates.",
+    "measurement": "Independent specified-result queries; family enumeration + exact-type filtering includes its full cost. No first-result substitution.",
+    "comparability": "Java rows are search-only; JS/.NET supplement rows include native evidence. Different inputs/runtimes/scopes: do not rank engines by raw finder timings.",
+    "limitations": "Limited implementations and partial families retain explicit scopes. Supplemental related queries are not substituted for Wiki targets. 1-shot internal nested probes have no P50/P99 and are excluded.",
+    "counts": {
+      "wikiRows": 43,
+      "mainQueries": 89,
+      "mainBoardRows": 267,
+      "mainSamples": 5340,
+      "supplementalRelatedQueries": 8
+    },
+    "sourceMetadata": {
+      "java": {
+        "date": "2026-11-02T10:37:57.603148+00:00",
+        "hardware": "Apple M3, arm64 macOS, desktop Java; no physical phone measurement",
+        "runtime": "Temurin OpenJDK 17.0.21+9",
+        "engines": {
+          "se": {
+            "release": "1.18.1",
+            "commit": "362854eea4e983017726d406ac9ee8a28909bcc7",
+            "jarSHA256": "37831647bf1727be02c159f25aefd8602918185d79d4aee73472eff40cd6736c",
+            "numThreads": 1
+          },
+          "hodoku": {
+            "repository": "https://github.com/PseudoFish/Hodoku",
+            "commit": "c37fe90bf1da7a95485d8f32a79060fa27dae47b",
+            "compile": "javac --release 8 -encoding UTF-8",
+            "sourceModified": false
+          }
+        },
+        "method": {
+          "samplesPerBoard": 20,
+          "warmupPerBoard": 5,
+          "boardsPerDetector": 3,
+          "fixtureSelection": "Prefer two successful states from distinct original puzzles and one negative state from a third original puzzle; accepted negative boards have <=60 filled cells and >=60 candidate entries. Fallback coverage is explicit.",
+          "percentiles": "Nearest rank: sorted[ceil(p*N)-1] for both P50 and P99; N=20 board and N=60 aggregate imply P99 is the observed maximum.",
+          "sourceIndependence": "Distinct SHA256(original 81-digit puzzle) prefixes; no permutation/symmetry-generated fixtures. Multiple states from one source puzzle never count as multiple independent boards.",
+          "cache": "Fresh producer/finder on every call; grid load and initialization outside timing; solver search caches cannot make repeated calls a cached replay.",
+          "included": "Actual next-hint search or explicitly marked complete family enumeration plus exact actual SolutionType filtering. No shared-scanner first-hint substitution.",
+          "excluded": "JVM cold start, input conversion, static dispatcher initialization, proof HTML/JSON, IPC/network, frontend rendering.",
+          "timeouts": "5s individual search ceiling; raw censored records retained and affected P99 left null instead of discarding timeout samples.",
+          "samplingLimit": "Purposive representative boards, not random puzzle sampling or worst-case bounds; 20 samples cannot estimate population P99 robustly.",
+          "warmupLimit": "Five warmup calls; JVM JIT/GC/system noise remains visible.",
+          "phoneLimit": "Desktop Java timings cannot predict actual mobile JS/WASM or backend end-to-end latency."
+        },
+        "corpus": {
+          "validatedStates": 2251,
+          "independentSourcePuzzles": 132,
+          "selectedStates": 32
+        }
+      },
+      "seCounterparts": {
+        "scope": "36 required SE counterpart/result queries. Internal nested configurations are separate supplemental probes and excluded from completed counts/P99.",
+        "date": "2026-11-02T10:50:17.323536+00:00",
+        "hardware": "Apple M3, arm64 macOS, desktop Java; no physical phone measurement",
+        "runtime": "Temurin OpenJDK 17.0.21+9",
+        "engines": {
+          "se": {
+            "release": "1.18.1",
+            "commit": "362854eea4e983017726d406ac9ee8a28909bcc7",
+            "jarSHA256": "37831647bf1727be02c159f25aefd8602918185d79d4aee73472eff40cd6736c",
+            "numThreads": 1
+          },
+          "hodoku": {
+            "repository": "https://github.com/PseudoFish/Hodoku",
+            "commit": "c37fe90bf1da7a95485d8f32a79060fa27dae47b",
+            "compile": "javac --release 8 -encoding UTF-8",
+            "sourceModified": false
+          }
+        },
+        "method": {
+          "samplesPerBoard": 20,
+          "warmupPerBoard": 5,
+          "boardsPerDetector": 3,
+          "fixtureSelection": "Prefer two successful states from distinct original puzzles and one negative state from a third original puzzle; accepted negative boards have <=60 filled cells and >=60 candidate entries. Fallback coverage is explicit.",
+          "percentiles": "Nearest rank: sorted[ceil(p*N)-1] for both P50 and P99; N=20 board and N=60 aggregate imply P99 is the observed maximum.",
+          "sourceIndependence": "Distinct SHA256(original 81-digit puzzle) prefixes; no permutation/symmetry-generated fixtures. Multiple states from one source puzzle never count as multiple independent boards.",
+          "cache": "Fresh producer/finder on every call; grid load and initialization outside timing; solver search caches cannot make repeated calls a cached replay.",
+          "included": "Actual next-hint search or explicitly marked complete family enumeration plus exact actual SolutionType filtering. No shared-scanner first-hint substitution.",
+          "excluded": "JVM cold start, input conversion, static dispatcher initialization, proof HTML/JSON, IPC/network, frontend rendering.",
+          "timeouts": "5s individual search ceiling; raw censored records retained and affected P99 left null instead of discarding timeout samples.",
+          "samplingLimit": "Purposive representative boards, not random puzzle sampling or worst-case bounds; 20 samples cannot estimate population P99 robustly.",
+          "warmupLimit": "Five warmup calls; JVM JIT/GC/system noise remains visible.",
+          "phoneLimit": "Desktop Java timings cannot predict actual mobile JS/WASM or backend end-to-end latency."
+        },
+        "corpus": {
+          "validatedStates": 2251,
+          "independentSourcePuzzles": 132,
+          "selectedStates": 36
+        }
+      },
+      "supplements": {
+        "date": "2026-11-02",
+        "hardware": "Apple M3 arm64 macOS; desktop, no physical phone",
+        "engines": {
+          "sudokui": {
+            "repository": "https://github.com/AImenes/sudokUI",
+            "commit": "5147ebe0040439bfa06595ab694d1ffdf3d8d2d1",
+            "runtime": "v22.23.1",
+            "license": "GPL-3.0",
+            "timingScope": "Finder including native explanation/link generation; clone/input conversion excluded",
+            "algorithmModified": "Only the separately named Quad and Bowman2026 research entries; all other upstream functions unchanged"
+          },
+          "classic9": {
+            "repository": "https://github.com/RichardCao/classic9-sudoku",
+            "commit": "b15c6000cf7d346dca03ea333f352c5b2af75f91",
+            "runtime": "v22.23.1",
+            "license": "See included upstream LICENSE",
+            "timingScope": "Independent .find(context), including native evidence; context construction excluded",
+            "algorithmModified": false
+          },
+          "sudoku-csharp": {
+            "repository": "https://github.com/kyoyama-kazusa/Sudoku",
+            "commit": "af01a1a7c35649b0e4a439d3be735c113ea20fd4",
+            "runtime": ".NET 11.0.100-rc.3.26522.148, osx-arm64",
+            "timingScope": "Dedicated finder including native Step/evidence; input/Grid conversion, MemoryCached.Initialize and fresh searcher construction excluded",
+            "algorithmModified": "Added benchmark Main and direct SystemExtensions ProjectReference to build; Exocet uses the upstream compile-time selection flags for Junior only, no rule code changed"
+          }
+        },
+        "warmupCalls": 5,
+        "repeatsPerBoard": 20,
+        "quantiles": "nearest-rank: P50=sorted[9], P99=sorted[19] for n20. P99 is maximum, not a reliable 1% tail estimate.",
+        "selection": "At least3 independently sourced original puzzles for every query; no manufactured digit/row/column permutations; each original uniquely solved independently of the timed detector",
+        "soundness": "Every selected snapshot preserves all givens, the independently checked unique solution and legal candidate masks. Every returned placement/elimination is checked against that unique solution; C# checks all25 calls in harness. This is selected-fixture soundness, not a global correctness proof.",
+        "timingCaveat": "Different runtimes and evidence construction scopes; do not rank engines by these numbers. Concurrent host tasks were not isolated. Warm direct finder latency, not browser/network/end-to-end latency.",
+        "rejectedInputs": "Classic9 full solve replays on two official Tridagon initial puzzles produced a non-target elimination inconsistent with the known solution. Those solve paths were rejected; no snapshots from them appear here. Only explicitly checked selected detector steps are retained.",
+        "sources": [
+          "https://www.sudokuwiki.org/Static_Patterns",
+          "https://www.sudokuwiki.org/Bowmans_Bingo",
+          "https://www.sudokuwiki.org/Gurths_Theorem",
+          "https://www.sudokuwiki.org/Twinned_XY_Chains",
+          "https://www.sudokuwiki.org/Rectangle_Elimination",
+          "https://www.sudokuwiki.org/Exocet"
+        ],
+        "reproduction": "run.mjs / bench-tech.mjs for TS; bench-classic9.mjs for Classic9; ResearchBench.cs and selected JSONs for C#. See pinned repositories and configuration diffs."
+      }
+    },
+    "skippedBaseRuns": [
+      {
+        "query": [
+          "se",
+          "AlignedPairExclusion",
+          "0"
+        ],
+        "reason": "Superseded by exact-result SE counterpart batch; original raw preserved in base archive."
+      },
+      {
+        "query": [
+          "se",
+          "Jellyfish",
+          "0"
+        ],
+        "reason": "Superseded by exact-result SE counterpart batch; original raw preserved in base archive."
+      },
+      {
+        "query": [
+          "se",
+          "NishioForcingChain",
+          "0"
+        ],
+        "reason": "Superseded by exact-result SE counterpart batch; original raw preserved in base archive."
+      },
+      {
+        "query": [
+          "se",
+          "Swordfish",
+          "0"
+        ],
+        "reason": "Superseded by exact-result SE counterpart batch; original raw preserved in base archive."
+      },
+      {
+        "query": [
+          "se",
+          "WXYZWing",
+          "0"
+        ],
+        "reason": "Superseded by exact-result SE counterpart batch; original raw preserved in base archive."
+      },
+      {
+        "query": [
+          "se",
+          "XWing",
+          "0"
+        ],
+        "reason": "Superseded by exact-result SE counterpart batch; original raw preserved in base archive."
+      }
+    ]
+  },
+  "rows": [
+    {
+      "wikiOrder": "1",
+      "wikiTechnique": "Singles",
+      "queries": [
+        {
+          "queryId": "java-base:hodoku:HIDDEN_SINGLE:0",
+          "engine": "hodoku",
+          "variant": "HIDDEN_SINGLE",
+          "wikiOrders": [
+            "1"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "java-base:hodoku:NAKED_SINGLE:0",
+          "engine": "hodoku",
+          "variant": "NAKED_SINGLE",
+          "wikiOrders": [
+            "1"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "se-counterparts:se:NAKED_SINGLE:0",
+          "engine": "se",
+          "variant": "NAKED_SINGLE",
+          "wikiOrders": [
+            "1"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-producer-exact-result-check",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "se-counterparts:se:HIDDEN_SINGLE:0",
+          "engine": "se",
+          "variant": "HIDDEN_SINGLE",
+          "wikiOrders": [
+            "1"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-producer-exact-result-check",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 4,
+      "scopeStatuses": [
+        "dedicated"
+      ]
+    },
+    {
+      "wikiOrder": "2",
+      "wikiTechnique": "Pairs Naked + Hidden",
+      "queries": [
+        {
+          "queryId": "java-base:hodoku:HIDDEN_PAIR:0",
+          "engine": "hodoku",
+          "variant": "HIDDEN_PAIR",
+          "wikiOrders": [
+            "2"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "java-base:hodoku:NAKED_PAIR:0",
+          "engine": "hodoku",
+          "variant": "NAKED_PAIR",
+          "wikiOrders": [
+            "2"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "se-counterparts:se:NAKED_PAIR:0",
+          "engine": "se",
+          "variant": "NAKED_PAIR",
+          "wikiOrders": [
+            "2"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-producer-exact-result-check",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "se-counterparts:se:HIDDEN_PAIR:0",
+          "engine": "se",
+          "variant": "HIDDEN_PAIR",
+          "wikiOrders": [
+            "2"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-producer-exact-result-check",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 4,
+      "scopeStatuses": [
+        "dedicated"
+      ]
+    },
+    {
+      "wikiOrder": "3",
+      "wikiTechnique": "Pointing Pairs",
+      "queries": [
+        {
+          "queryId": "java-base:hodoku:LOCKED_CANDIDATES_1:0",
+          "engine": "hodoku",
+          "variant": "LOCKED_CANDIDATES_1",
+          "wikiOrders": [
+            "3"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "se-counterparts:se:LOCKED_CANDIDATES_1:0",
+          "engine": "se",
+          "variant": "LOCKED_CANDIDATES_1",
+          "wikiOrders": [
+            "3"
+          ],
+          "scopeStatus": "family-exact-filter",
+          "method": "shared-producer-enumeration-filtered-exact-hint",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 2,
+      "scopeStatuses": [
+        "dedicated",
+        "family-exact-filter"
+      ]
+    },
+    {
+      "wikiOrder": "4",
+      "wikiTechnique": "Box/Line Reduction",
+      "queries": [
+        {
+          "queryId": "java-base:hodoku:LOCKED_CANDIDATES_2:0",
+          "engine": "hodoku",
+          "variant": "LOCKED_CANDIDATES_2",
+          "wikiOrders": [
+            "4"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "se-counterparts:se:LOCKED_CANDIDATES_2:0",
+          "engine": "se",
+          "variant": "LOCKED_CANDIDATES_2",
+          "wikiOrders": [
+            "4"
+          ],
+          "scopeStatus": "family-exact-filter",
+          "method": "shared-producer-enumeration-filtered-exact-hint",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 2,
+      "scopeStatuses": [
+        "dedicated",
+        "family-exact-filter"
+      ]
+    },
+    {
+      "wikiOrder": "5",
+      "wikiTechnique": "Triples Naked + Hidden",
+      "queries": [
+        {
+          "queryId": "java-base:hodoku:HIDDEN_TRIPLE:0",
+          "engine": "hodoku",
+          "variant": "HIDDEN_TRIPLE",
+          "wikiOrders": [
+            "5"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "java-base:hodoku:NAKED_TRIPLE:0",
+          "engine": "hodoku",
+          "variant": "NAKED_TRIPLE",
+          "wikiOrders": [
+            "5"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "se-counterparts:se:NAKED_TRIPLE:0",
+          "engine": "se",
+          "variant": "NAKED_TRIPLE",
+          "wikiOrders": [
+            "5"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-producer-exact-result-check",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "se-counterparts:se:HIDDEN_TRIPLE:0",
+          "engine": "se",
+          "variant": "HIDDEN_TRIPLE",
+          "wikiOrders": [
+            "5"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-producer-exact-result-check",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 4,
+      "scopeStatuses": [
+        "dedicated"
+      ]
+    },
+    {
+      "wikiOrder": "*",
+      "wikiTechnique": "Gurth’s Theorem",
+      "queries": [
+        {
+          "queryId": "gap:sudoku-csharp:GURTH",
+          "engine": "sudoku-csharp",
+          "variant": "GURTH",
+          "wikiOrders": [
+            "*"
+          ],
+          "scopeStatus": "dedicated",
+          "scope": "C# symmetry helper checks diagonal, anti-diagonal and central symmetries; initial symmetry step only, not mirrored-elimination hooks after every later step.",
+          "method": "independent-finder-including-evidence",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 1,
+      "scopeStatuses": [
+        "dedicated"
+      ]
+    },
+    {
+      "wikiOrder": "6",
+      "wikiTechnique": "BUG+1",
+      "queries": [
+        {
+          "queryId": "java-base:hodoku:BUG_PLUS_1:0",
+          "engine": "hodoku",
+          "variant": "BUG_PLUS_1",
+          "wikiOrders": [
+            "6"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "se-counterparts:se:BUG_PLUS_1:0",
+          "engine": "se",
+          "variant": "BUG_PLUS_1",
+          "wikiOrders": [
+            "6"
+          ],
+          "scopeStatus": "family-exact-filter",
+          "method": "shared-producer-enumeration-filtered-exact-hint",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 2,
+      "scopeStatuses": [
+        "dedicated",
+        "family-exact-filter"
+      ]
+    },
+    {
+      "wikiOrder": "7",
+      "wikiTechnique": "X-Wing",
+      "queries": [
+        {
+          "queryId": "se-counterparts:se:X_WING:0",
+          "engine": "se",
+          "variant": "X_WING",
+          "wikiOrders": [
+            "7"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-producer-exact-result-check",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "hodoku-fish:hodoku:X_WING:0",
+          "engine": "hodoku",
+          "variant": "X_WING",
+          "wikiOrders": [
+            "7"
+          ],
+          "scopeStatus": "family-exact-filter",
+          "method": "size-limited-fish-enumeration-filtered-exact-type",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 2,
+      "scopeStatuses": [
+        "dedicated",
+        "family-exact-filter"
+      ]
+    },
+    {
+      "wikiOrder": "8",
+      "wikiTechnique": "Unique Rectangles 1",
+      "queries": [
+        {
+          "queryId": "java-base:hodoku:UNIQUENESS_1:0",
+          "engine": "hodoku",
+          "variant": "UNIQUENESS_1",
+          "wikiOrders": [
+            "8"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "se-counterparts:se:UNIQUENESS_1:0",
+          "engine": "se",
+          "variant": "UNIQUENESS_1",
+          "wikiOrders": [
+            "8"
+          ],
+          "scopeStatus": "family-exact-filter",
+          "method": "shared-producer-enumeration-filtered-exact-hint",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 2,
+      "scopeStatuses": [
+        "dedicated",
+        "family-exact-filter"
+      ]
+    },
+    {
+      "wikiOrder": "9",
+      "wikiTechnique": "Chute Remote Pairs",
+      "queries": [
+        {
+          "queryId": "gap:sudokui:CHUTE_REMOTE_PAIR",
+          "engine": "sudokui",
+          "variant": "CHUTE_REMOTE_PAIR",
+          "wikiOrders": [
+            "9"
+          ],
+          "scopeStatus": "dedicated",
+          "scope": "Dedicated chute restriction, not general Remote Pairs renamed.",
+          "method": "independent-finder-including-evidence",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 1,
+      "scopeStatuses": [
+        "dedicated"
+      ]
+    },
+    {
+      "wikiOrder": "10",
+      "wikiTechnique": "Y-Wing",
+      "queries": [
+        {
+          "queryId": "java-base:hodoku:XY_WING:0",
+          "engine": "hodoku",
+          "variant": "XY_WING",
+          "wikiOrders": [
+            "10"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "se-counterparts:se:XY_WING:0",
+          "engine": "se",
+          "variant": "XY_WING",
+          "wikiOrders": [
+            "10"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-producer-exact-result-check",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 2,
+      "scopeStatuses": [
+        "dedicated"
+      ]
+    },
+    {
+      "wikiOrder": "11",
+      "wikiTechnique": "W-Wing",
+      "queries": [
+        {
+          "queryId": "java-base:hodoku:W_WING:0",
+          "engine": "hodoku",
+          "variant": "W_WING",
+          "wikiOrders": [
+            "11"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 1,
+      "scopeStatuses": [
+        "dedicated"
+      ]
+    },
+    {
+      "wikiOrder": "12",
+      "wikiTechnique": "Rectangle Elimination",
+      "queries": [
+        {
+          "queryId": "gap:classic9:rectangle-elimination",
+          "engine": "classic9",
+          "variant": "rectangle-elimination",
+          "wikiOrders": [
+            "12"
+          ],
+          "scopeStatus": "dedicated",
+          "scope": "Independent row/column conjugate pair, weak wing and fourth box all covered; matches standard9x9 Wiki rectangle geometry; not UR or Empty Rectangle renamed.",
+          "method": "independent-finder-including-evidence",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 1,
+      "scopeStatuses": [
+        "dedicated"
+      ]
+    },
+    {
+      "wikiOrder": "13",
+      "wikiTechnique": "Simple Colouring",
+      "queries": [
+        {
+          "queryId": "java-base:hodoku:SIMPLE_COLORS_TRAP:0",
+          "engine": "hodoku",
+          "variant": "SIMPLE_COLORS_TRAP",
+          "wikiOrders": [
+            "13"
+          ],
+          "scopeStatus": "family-exact-filter",
+          "method": "shared-full-scan-filtered-exact-type",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "java-base:hodoku:SIMPLE_COLORS_WRAP:0",
+          "engine": "hodoku",
+          "variant": "SIMPLE_COLORS_WRAP",
+          "wikiOrders": [
+            "13"
+          ],
+          "scopeStatus": "family-exact-filter",
+          "method": "shared-full-scan-filtered-exact-type",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 2,
+      "scopeStatuses": [
+        "family-exact-filter"
+      ]
+    },
+    {
+      "wikiOrder": "14",
+      "wikiTechnique": "Quads Naked + Hidden",
+      "queries": [
+        {
+          "queryId": "java-base:hodoku:HIDDEN_QUADRUPLE:0",
+          "engine": "hodoku",
+          "variant": "HIDDEN_QUADRUPLE",
+          "wikiOrders": [
+            "14"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "java-base:hodoku:NAKED_QUADRUPLE:0",
+          "engine": "hodoku",
+          "variant": "NAKED_QUADRUPLE",
+          "wikiOrders": [
+            "14"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "se-counterparts:se:NAKED_QUADRUPLE:0",
+          "engine": "se",
+          "variant": "NAKED_QUADRUPLE",
+          "wikiOrders": [
+            "14"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-producer-exact-result-check",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "se-counterparts:se:HIDDEN_QUADRUPLE:0",
+          "engine": "se",
+          "variant": "HIDDEN_QUADRUPLE",
+          "wikiOrders": [
+            "14"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-producer-exact-result-check",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 4,
+      "scopeStatuses": [
+        "dedicated"
+      ]
+    },
+    {
+      "wikiOrder": "15",
+      "wikiTechnique": "Swordfish",
+      "queries": [
+        {
+          "queryId": "se-counterparts:se:SWORDFISH:0",
+          "engine": "se",
+          "variant": "SWORDFISH",
+          "wikiOrders": [
+            "15"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-producer-exact-result-check",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "hodoku-fish:hodoku:SWORDFISH:0",
+          "engine": "hodoku",
+          "variant": "SWORDFISH",
+          "wikiOrders": [
+            "15"
+          ],
+          "scopeStatus": "family-exact-filter",
+          "method": "size-limited-fish-enumeration-filtered-exact-type",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 2,
+      "scopeStatuses": [
+        "dedicated",
+        "family-exact-filter"
+      ]
+    },
+    {
+      "wikiOrder": "16",
+      "wikiTechnique": "XYZ Wing",
+      "queries": [
+        {
+          "queryId": "java-base:hodoku:XYZ_WING:0",
+          "engine": "hodoku",
+          "variant": "XYZ_WING",
+          "wikiOrders": [
+            "16"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "se-counterparts:se:XYZ_WING:0",
+          "engine": "se",
+          "variant": "XYZ_WING",
+          "wikiOrders": [
+            "16"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-producer-exact-result-check",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 2,
+      "scopeStatuses": [
+        "dedicated"
+      ]
+    },
+    {
+      "wikiOrder": "17",
+      "wikiTechnique": "X-Cycles",
+      "queries": [
+        {
+          "queryId": "se-counterparts:se:SE_X_CYCLE:0",
+          "engine": "se",
+          "variant": "SE_X_CYCLE",
+          "wikiOrders": [
+            "17"
+          ],
+          "scopeStatus": "family-exact-filter",
+          "method": "shared-producer-enumeration-filtered-exact-hint",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "gap:sudokui:X_CYCLES",
+          "engine": "sudokui",
+          "variant": "X_CYCLES",
+          "wikiOrders": [
+            "17"
+          ],
+          "scopeStatus": "dedicated",
+          "scope": "Dedicated single-digit X-Cycle detector; no mixed XY-chain first-result shortcut.",
+          "method": "independent-finder-including-evidence",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 2,
+      "scopeStatuses": [
+        "dedicated",
+        "family-exact-filter"
+      ]
+    },
+    {
+      "wikiOrder": "18",
+      "wikiTechnique": "XY-Chain",
+      "queries": [
+        {
+          "queryId": "java-base:hodoku:XY_CHAIN:0",
+          "engine": "hodoku",
+          "variant": "XY_CHAIN",
+          "wikiOrders": [
+            "18"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 1,
+      "scopeStatuses": [
+        "dedicated"
+      ]
+    },
+    {
+      "wikiOrder": "19",
+      "wikiTechnique": "3D Medusa",
+      "queries": [
+        {
+          "queryId": "gap:sudokui:MEDUSA_3D",
+          "engine": "sudokui",
+          "variant": "MEDUSA_3D",
+          "wikiOrders": [
+            "19"
+          ],
+          "scopeStatus": "dedicated",
+          "scope": "Dedicated two-color multi-digit cluster detector with all six upstream Medusa rules.",
+          "method": "independent-finder-including-evidence",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 1,
+      "scopeStatuses": [
+        "dedicated"
+      ]
+    },
+    {
+      "wikiOrder": "20",
+      "wikiTechnique": "Jellyfish",
+      "queries": [
+        {
+          "queryId": "se-counterparts:se:JELLYFISH:0",
+          "engine": "se",
+          "variant": "JELLYFISH",
+          "wikiOrders": [
+            "20"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-producer-exact-result-check",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "hodoku-fish:hodoku:JELLYFISH:0",
+          "engine": "hodoku",
+          "variant": "JELLYFISH",
+          "wikiOrders": [
+            "20"
+          ],
+          "scopeStatus": "family-exact-filter",
+          "method": "size-limited-fish-enumeration-filtered-exact-type",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 2,
+      "scopeStatuses": [
+        "dedicated",
+        "family-exact-filter"
+      ]
+    },
+    {
+      "wikiOrder": "21",
+      "wikiTechnique": "Unique Rectangles 2+",
+      "queries": [
+        {
+          "queryId": "java-base:hodoku:UNIQUENESS_2:0",
+          "engine": "hodoku",
+          "variant": "UNIQUENESS_2",
+          "wikiOrders": [
+            "21"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "java-base:hodoku:UNIQUENESS_3:0",
+          "engine": "hodoku",
+          "variant": "UNIQUENESS_3",
+          "wikiOrders": [
+            "21"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "java-base:hodoku:UNIQUENESS_4:0",
+          "engine": "hodoku",
+          "variant": "UNIQUENESS_4",
+          "wikiOrders": [
+            "21"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "java-base:hodoku:UNIQUENESS_5:0",
+          "engine": "hodoku",
+          "variant": "UNIQUENESS_5",
+          "wikiOrders": [
+            "21"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 0
+        },
+        {
+          "queryId": "java-base:hodoku:UNIQUENESS_6:0",
+          "engine": "hodoku",
+          "variant": "UNIQUENESS_6",
+          "wikiOrders": [
+            "21"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "se-counterparts:se:UNIQUENESS_2:0",
+          "engine": "se",
+          "variant": "UNIQUENESS_2",
+          "wikiOrders": [
+            "21"
+          ],
+          "scopeStatus": "family-exact-filter",
+          "method": "shared-producer-enumeration-filtered-exact-hint",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "se-counterparts:se:UNIQUENESS_3:0",
+          "engine": "se",
+          "variant": "UNIQUENESS_3",
+          "wikiOrders": [
+            "21"
+          ],
+          "scopeStatus": "family-exact-filter",
+          "method": "shared-producer-enumeration-filtered-exact-hint",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "se-counterparts:se:UNIQUENESS_4:0",
+          "engine": "se",
+          "variant": "UNIQUENESS_4",
+          "wikiOrders": [
+            "21"
+          ],
+          "scopeStatus": "family-exact-filter",
+          "method": "shared-producer-enumeration-filtered-exact-hint",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 8,
+      "scopeStatuses": [
+        "dedicated",
+        "family-exact-filter"
+      ]
+    },
+    {
+      "wikiOrder": "22",
+      "wikiTechnique": "Various static patterns",
+      "queries": [
+        {
+          "queryId": "gap:sudokui:AVOIDABLE_RECTANGLE_1",
+          "engine": "sudokui",
+          "variant": "AVOIDABLE_RECTANGLE_1",
+          "wikiOrders": [
+            "22"
+          ],
+          "scopeStatus": "dedicated",
+          "scope": "Upstream Type1 detector; correct original given-vs-progress mask retained.",
+          "method": "independent-finder-including-evidence",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 1
+        },
+        {
+          "queryId": "gap:sudokui:AVOIDABLE_RECTANGLE_2",
+          "engine": "sudokui",
+          "variant": "AVOIDABLE_RECTANGLE_2",
+          "wikiOrders": [
+            "22"
+          ],
+          "scopeStatus": "dedicated",
+          "scope": "Upstream Type2 detector; correct original given-vs-progress mask retained.",
+          "method": "independent-finder-including-evidence",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 1
+        },
+        {
+          "queryId": "gap:sudokui:FIREWORKS",
+          "engine": "sudokui",
+          "variant": "FIREWORKS",
+          "wikiOrders": [
+            "22"
+          ],
+          "scopeStatus": "dedicated",
+          "scope": "Upstream independent Fireworks finder.",
+          "method": "independent-finder-including-evidence",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "gap:sudokui:TRIDAGON",
+          "engine": "sudokui",
+          "variant": "TRIDAGON",
+          "wikiOrders": [
+            "22"
+          ],
+          "scopeStatus": "partial-family",
+          "scope": "Local exhaustive 12-cell trio check, one guardian; three real no-result boards; no successful fixture in this query.",
+          "method": "independent-finder-including-evidence",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 0
+        },
+        {
+          "queryId": "gap:classic9:twinned-xy-chains",
+          "engine": "classic9",
+          "variant": "twinned-xy-chains",
+          "wikiOrders": [
+            "22"
+          ],
+          "scopeStatus": "dedicated",
+          "scope": "Independent 6-cell 2x3/3x2, six-digit set, equal-digit occurrences pairwise visible; elimination at peers of paired digits.",
+          "method": "independent-finder-including-evidence",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "gap:classic9:tridagons",
+          "engine": "classic9",
+          "variant": "tridagons",
+          "wikiOrders": [
+            "22"
+          ],
+          "scopeStatus": "partial-family",
+          "scope": "Four boxes with odd cyclical parity and exactly one guardian cell; Type1 only. Includes one constructed but valid unique 81-digit puzzle, not a fabricated candidate grid.",
+          "method": "independent-finder-including-evidence",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 1
+        },
+        {
+          "queryId": "gap:sudoku-csharp:SK_LOOP",
+          "engine": "sudoku-csharp",
+          "variant": "SK_LOOP",
+          "wikiOrders": [
+            "22"
+          ],
+          "scopeStatus": "dedicated",
+          "scope": "C# DominoLoop first-result search; official Easter Monster and triple/single-link example successful.",
+          "method": "independent-finder-including-evidence",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 7,
+      "scopeStatuses": [
+        "dedicated",
+        "partial-family"
+      ]
+    },
+    {
+      "wikiOrder": "23",
+      "wikiTechnique": "Extended Unique Rectangles",
+      "queries": [
+        {
+          "queryId": "gap:sudokui:EXTENDED_RECTANGLE",
+          "engine": "sudokui",
+          "variant": "EXTENDED_RECTANGLE",
+          "wikiOrders": [
+            "23"
+          ],
+          "scopeStatus": "partial-family",
+          "scope": "Upstream Extended Rectangle types1/2 only; see csharp query for types1..4.",
+          "method": "independent-finder-including-evidence",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 1
+        },
+        {
+          "queryId": "gap:sudoku-csharp:EXTENDED_RECTANGLE_CSHARP",
+          "engine": "sudoku-csharp",
+          "variant": "EXTENDED_RECTANGLE_CSHARP",
+          "wikiOrders": [
+            "23"
+          ],
+          "scopeStatus": "dedicated",
+          "scope": "C# dedicated ExtendedRectangle type1..4 family scanner; first matching subtype, other technique families are not called.",
+          "method": "independent-finder-including-evidence",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 2,
+      "scopeStatuses": [
+        "dedicated",
+        "partial-family"
+      ]
+    },
+    {
+      "wikiOrder": "24",
+      "wikiTechnique": "Hidden Unique Rectangles",
+      "queries": [
+        {
+          "queryId": "java-base:hodoku:HIDDEN_RECTANGLE:0",
+          "engine": "hodoku",
+          "variant": "HIDDEN_RECTANGLE",
+          "wikiOrders": [
+            "24"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 1,
+      "scopeStatuses": [
+        "dedicated"
+      ]
+    },
+    {
+      "wikiOrder": "25",
+      "wikiTechnique": "WXYZ Wing",
+      "queries": [
+        {
+          "queryId": "se-counterparts:se:WXYZ_WING:0",
+          "engine": "se",
+          "variant": "WXYZ_WING",
+          "wikiOrders": [
+            "25"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-producer-exact-result-check",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 1,
+      "scopeStatuses": [
+        "dedicated"
+      ]
+    },
+    {
+      "wikiOrder": "26",
+      "wikiTechnique": "Aligned Pair Exclusion",
+      "queries": [
+        {
+          "queryId": "se-counterparts:se:ALIGNED_PAIR_EXCLUSION:0",
+          "engine": "se",
+          "variant": "ALIGNED_PAIR_EXCLUSION",
+          "wikiOrders": [
+            "26"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-producer-exact-result-check",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 1,
+      "scopeStatuses": [
+        "dedicated"
+      ]
+    },
+    {
+      "wikiOrder": "27",
+      "wikiTechnique": "Grouped X-Cycles",
+      "queries": [
+        {
+          "queryId": "gap:sudokui:GROUPED_X_CYCLES",
+          "engine": "sudokui",
+          "variant": "GROUPED_X_CYCLES",
+          "wikiOrders": [
+            "27"
+          ],
+          "scopeStatus": "dedicated",
+          "scope": "Dedicated single-digit grouped X-Cycle detector.",
+          "method": "independent-finder-including-evidence",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 1,
+      "scopeStatuses": [
+        "dedicated"
+      ]
+    },
+    {
+      "wikiOrder": "28",
+      "wikiTechnique": "Forcing Nets",
+      "queries": [
+        {
+          "queryId": "java-base:hodoku:FORCING_NET_CONTRADICTION:0",
+          "engine": "hodoku",
+          "variant": "FORCING_NET_CONTRADICTION",
+          "wikiOrders": [
+            "28"
+          ],
+          "scopeStatus": "family-exact-filter",
+          "method": "shared-full-scan-filtered-exact-type",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 3
+        },
+        {
+          "queryId": "java-base:hodoku:FORCING_NET_VERITY:0",
+          "engine": "hodoku",
+          "variant": "FORCING_NET_VERITY",
+          "wikiOrders": [
+            "28"
+          ],
+          "scopeStatus": "family-exact-filter",
+          "method": "shared-full-scan-filtered-exact-type",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 2,
+      "scopeStatuses": [
+        "family-exact-filter"
+      ]
+    },
+    {
+      "wikiOrder": "29",
+      "wikiTechnique": "Exocet",
+      "queries": [
+        {
+          "queryId": "gap:sudokui:EXOCET",
+          "engine": "sudokui",
+          "variant": "EXOCET",
+          "wikiOrders": [
+            "29"
+          ],
+          "scopeStatus": "partial-family",
+          "scope": "Junior geometric shape with per-position complete digit-template proof, only basic target/base eliminations; not the full Wiki rule suite.",
+          "method": "independent-finder-including-evidence",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "gap:sudoku-csharp:EXOCET_JUNIOR",
+          "engine": "sudoku-csharp",
+          "variant": "EXOCET_JUNIOR",
+          "wikiOrders": [
+            "29"
+          ],
+          "scopeStatus": "dedicated-config",
+          "scope": "C# ExocetStepSearcher compiled with only JUNIOR_EXOCET, SIZE_ONLY_THREE and BASE_SIZE_ONLY_TWO. Senior/Weak/Double/Complex/Advanced branches disabled to avoid mixed-family first hints.",
+          "method": "independent-finder-including-evidence",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 1
+        }
+      ],
+      "timedQueries": 2,
+      "scopeStatuses": [
+        "dedicated-config",
+        "partial-family"
+      ]
+    },
+    {
+      "wikiOrder": "30",
+      "wikiTechnique": "Finned X-Wing",
+      "queries": [
+        {
+          "queryId": "java-base:hodoku:FINNED_X_WING:0",
+          "engine": "hodoku",
+          "variant": "FINNED_X_WING",
+          "wikiOrders": [
+            "30"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 1,
+      "scopeStatuses": [
+        "dedicated"
+      ]
+    },
+    {
+      "wikiOrder": "31",
+      "wikiTechnique": "Finned Swordfish",
+      "queries": [
+        {
+          "queryId": "java-base:hodoku:FINNED_SWORDFISH:0",
+          "engine": "hodoku",
+          "variant": "FINNED_SWORDFISH",
+          "wikiOrders": [
+            "31"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 1,
+      "scopeStatuses": [
+        "dedicated"
+      ]
+    },
+    {
+      "wikiOrder": "32",
+      "wikiTechnique": "Alternating Inference Chains",
+      "queries": [
+        {
+          "queryId": "java-base:hodoku:AIC:0",
+          "engine": "hodoku",
+          "variant": "AIC",
+          "wikiOrders": [
+            "32"
+          ],
+          "scopeStatus": "family-exact-filter",
+          "method": "shared-full-scan-filtered-exact-type",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 1,
+      "scopeStatuses": [
+        "family-exact-filter"
+      ]
+    },
+    {
+      "wikiOrder": "33",
+      "wikiTechnique": "Almost Locked Sets",
+      "queries": [
+        {
+          "queryId": "java-base:hodoku:ALS_XY_CHAIN:0",
+          "engine": "hodoku",
+          "variant": "ALS_XY_CHAIN",
+          "wikiOrders": [
+            "33"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "java-base:hodoku:ALS_XY_WING:0",
+          "engine": "hodoku",
+          "variant": "ALS_XY_WING",
+          "wikiOrders": [
+            "33"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "java-base:hodoku:ALS_XZ:0",
+          "engine": "hodoku",
+          "variant": "ALS_XZ",
+          "wikiOrders": [
+            "33"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 3,
+      "scopeStatuses": [
+        "dedicated"
+      ]
+    },
+    {
+      "wikiOrder": "34",
+      "wikiTechnique": "Death Blossom",
+      "queries": [
+        {
+          "queryId": "java-base:hodoku:DEATH_BLOSSOM:0",
+          "engine": "hodoku",
+          "variant": "DEATH_BLOSSOM",
+          "wikiOrders": [
+            "34"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 1,
+      "scopeStatuses": [
+        "dedicated"
+      ]
+    },
+    {
+      "wikiOrder": "35",
+      "wikiTechnique": "Sue-de-Coq",
+      "queries": [
+        {
+          "queryId": "java-base:hodoku:SUE_DE_COQ:0",
+          "engine": "hodoku",
+          "variant": "SUE_DE_COQ",
+          "wikiOrders": [
+            "35"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 1,
+      "scopeStatuses": [
+        "dedicated"
+      ]
+    },
+    {
+      "wikiOrder": "36",
+      "wikiTechnique": "Digit Forcing Chains",
+      "queries": [
+        {
+          "queryId": "gap:sudokui:DIGIT_FORCING_CHAIN",
+          "engine": "sudokui",
+          "variant": "DIGIT_FORCING_CHAIN",
+          "wikiOrders": [
+            "36"
+          ],
+          "scopeStatus": "limited-implementation",
+          "scope": "Positive/negative candidate branches, propagation of naked/hidden singles; no grouped/ALS extensions.",
+          "method": "independent-finder-including-evidence",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 1,
+      "scopeStatuses": [
+        "limited-implementation"
+      ]
+    },
+    {
+      "wikiOrder": "37",
+      "wikiTechnique": "Nishio Forcing Chains",
+      "queries": [
+        {
+          "queryId": "se-counterparts:se:NISHIO_FORCING_CHAIN:0",
+          "engine": "se",
+          "variant": "NISHIO_FORCING_CHAIN",
+          "wikiOrders": [
+            "37"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-producer-exact-result-check",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 1,
+      "scopeStatuses": [
+        "dedicated"
+      ]
+    },
+    {
+      "wikiOrder": "38",
+      "wikiTechnique": "Cell Forcing Chains",
+      "queries": [
+        {
+          "queryId": "se-counterparts:se:SE_MULTIPLE_CELL_FORCING:0",
+          "engine": "se",
+          "variant": "SE_MULTIPLE_CELL_FORCING",
+          "wikiOrders": [
+            "38"
+          ],
+          "scopeStatus": "family-exact-filter",
+          "method": "shared-producer-enumeration-filtered-exact-hint",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "se-counterparts:se:SE_DYNAMIC_CELL_FORCING:0",
+          "engine": "se",
+          "variant": "SE_DYNAMIC_CELL_FORCING",
+          "wikiOrders": [
+            "38"
+          ],
+          "scopeStatus": "family-exact-filter",
+          "method": "shared-producer-enumeration-filtered-exact-hint",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "gap:sudokui:CELL_FORCING_CHAIN",
+          "engine": "sudokui",
+          "variant": "CELL_FORCING_CHAIN",
+          "wikiOrders": [
+            "38"
+          ],
+          "scopeStatus": "limited-implementation",
+          "scope": "Cell-only branch scope, 2..4 candidates; singles propagation; no shared region scanner.",
+          "method": "independent-finder-including-evidence",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 3,
+      "scopeStatuses": [
+        "family-exact-filter",
+        "limited-implementation"
+      ]
+    },
+    {
+      "wikiOrder": "39",
+      "wikiTechnique": "Unit Forcing Chains",
+      "queries": [
+        {
+          "queryId": "se-counterparts:se:SE_MULTIPLE_UNIT_FORCING:0",
+          "engine": "se",
+          "variant": "SE_MULTIPLE_UNIT_FORCING",
+          "wikiOrders": [
+            "39"
+          ],
+          "scopeStatus": "family-exact-filter",
+          "method": "shared-producer-enumeration-filtered-exact-hint",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "se-counterparts:se:SE_DYNAMIC_UNIT_FORCING:0",
+          "engine": "se",
+          "variant": "SE_DYNAMIC_UNIT_FORCING",
+          "wikiOrders": [
+            "39"
+          ],
+          "scopeStatus": "family-exact-filter",
+          "method": "shared-producer-enumeration-filtered-exact-hint",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "gap:sudokui:UNIT_FORCING_CHAIN",
+          "engine": "sudokui",
+          "variant": "UNIT_FORCING_CHAIN",
+          "wikiOrders": [
+            "39"
+          ],
+          "scopeStatus": "limited-implementation",
+          "scope": "Unit-only branch scope, 2..4 positions; singles propagation; no shared cell scanner.",
+          "method": "independent-finder-including-evidence",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 3,
+      "scopeStatuses": [
+        "family-exact-filter",
+        "limited-implementation"
+      ]
+    },
+    {
+      "wikiOrder": "40",
+      "wikiTechnique": "Pattern Overlay Method",
+      "queries": [
+        {
+          "queryId": "java-base:hodoku:TEMPLATE_DEL:0",
+          "engine": "hodoku",
+          "variant": "TEMPLATE_DEL",
+          "wikiOrders": [
+            "40"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        },
+        {
+          "queryId": "java-base:hodoku:TEMPLATE_SET:0",
+          "engine": "hodoku",
+          "variant": "TEMPLATE_SET",
+          "wikiOrders": [
+            "40"
+          ],
+          "scopeStatus": "dedicated",
+          "method": "dedicated-detector",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 2,
+      "scopeStatuses": [
+        "dedicated"
+      ]
+    },
+    {
+      "wikiOrder": "41",
+      "wikiTechnique": "Quad Forcing Chains",
+      "queries": [
+        {
+          "queryId": "gap:sudokui:QUAD_CELL_FORCING_CHAIN",
+          "engine": "sudokui",
+          "variant": "QUAD_CELL_FORCING_CHAIN",
+          "wikiOrders": [
+            "41"
+          ],
+          "scopeStatus": "limited-prototype",
+          "scope": "Copied upstream CellForcing, changing only entry cardinality to exactly4. All four branches must yield a common consequence.",
+          "method": "independent-finder-including-evidence",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 1,
+      "scopeStatuses": [
+        "limited-prototype"
+      ]
+    },
+    {
+      "wikiOrder": "42",
+      "wikiTechnique": "Bowman’s Bingo",
+      "queries": [
+        {
+          "queryId": "gap:sudokui:BOWMAN_2026_FULL_NET",
+          "engine": "sudokui",
+          "variant": "BOWMAN_2026_FULL_NET",
+          "wikiOrders": [
+            "42"
+          ],
+          "scopeStatus": "limited-prototype",
+          "scope": "Research detector for positive assumption -> deterministic singles+intersections forcing net -> complete contradiction-free board; validated unique input required. NOT the older candidate-contradiction Bowman technique and NOT the unknown full Wiki propagator.",
+          "method": "independent-finder-including-evidence",
+          "boards": 3,
+          "samples": 60,
+          "includedInMainTable": true,
+          "foundBoards": 2
+        }
+      ],
+      "timedQueries": 1,
+      "scopeStatuses": [
+        "limited-prototype"
+      ]
+    }
+  ]
+}

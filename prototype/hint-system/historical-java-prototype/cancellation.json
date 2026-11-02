@@ -1,0 +1,18 @@
+[
+  {
+    "engine": "se",
+    "cancelledPid": 46364,
+    "clientResult": "AbortError",
+    "processStopped": true,
+    "restartedPid": 46365,
+    "nextHint": "X-Wing"
+  },
+  {
+    "engine": "hodoku",
+    "cancelledPid": 46366,
+    "clientResult": "AbortError",
+    "processStopped": true,
+    "restartedPid": 46367,
+    "nextHint": "X-Wing"
+  }
+]
