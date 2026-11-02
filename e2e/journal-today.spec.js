@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { test as fixedPuzzleTest } from "./fixed-puzzles.js";
 
 const NOW = new Date("2026-10-21T12:00:00");
 const LATEST = "2026-10-21";
@@ -371,35 +372,37 @@ test.describe("mobile Latest card", () => {
 });
 
 for (const width of [599, 600, 1280]) {
-  test(`latest in the previous month is home, returning from the future enters from the left at ${width}px`, async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width, height: 844 });
-    await page.clock.install({ time: new Date("2026-11-01T12:00:00") });
-    await page.goto("./");
-    const mobile = width < 600;
-    const header = page.locator(mobile ? ".mhead" : ".dmhead");
-    await expect(header.locator(".month-title")).toHaveAttribute("aria-label", "October 2026");
-    await header.getByRole("button", { name: "Next month" }).click();
-    await expect(header).toContainText("November");
-    await expect(header.locator(".month-title")).toHaveAttribute(
-      "aria-label",
-      "Back to October 2026, latest puzzles"
-    );
-    await watchReturn(page, mobile);
-    await header.locator(".month-title").click();
-    await expect(header).toContainText("October");
-    const snapshots = await page.evaluate(() => window.__homeLog.snapshots);
-    expect(
-      snapshots.some((s) => s.transition === "none" && /^translateX\(-/.test(s.transform))
-    ).toBe(true);
-    expect(
-      snapshots.some((s) => /300ms/.test(s.transition) && s.transform === "translateX(0px)")
-    ).toBe(true);
-    const first = snapshots[0];
-    expect(first.grids[0].dates.every((d) => d.startsWith("2026-10"))).toBe(true);
-    expect(first.grids[1].dates).toEqual([]);
-  });
+  fixedPuzzleTest(
+    `latest in the previous month is home, returning from the future enters from the left at ${width}px`,
+    async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await page.clock.install({ time: new Date("2026-11-01T12:00:00") });
+      await page.goto("./");
+      await expect(page.locator(".latest")).toHaveAttribute("data-d", "2026-10-31");
+      const mobile = width < 600;
+      const header = page.locator(mobile ? ".mhead" : ".dmhead");
+      await expect(header.locator(".month-title")).toHaveAttribute("aria-label", "October 2026");
+      await header.getByRole("button", { name: "Next month" }).click();
+      await expect(header).toContainText("November");
+      await expect(header.locator(".month-title")).toHaveAttribute(
+        "aria-label",
+        "Back to October 2026, latest puzzles"
+      );
+      await watchReturn(page, mobile);
+      await header.locator(".month-title").click();
+      await expect(header).toContainText("October");
+      const snapshots = await page.evaluate(() => window.__homeLog.snapshots);
+      expect(
+        snapshots.some((s) => s.transition === "none" && /^translateX\(-/.test(s.transform))
+      ).toBe(true);
+      expect(
+        snapshots.some((s) => /300ms/.test(s.transition) && s.transform === "translateX(0px)")
+      ).toBe(true);
+      const first = snapshots[0];
+      expect(first.grids[0].dates.every((d) => d.startsWith("2026-10"))).toBe(true);
+      expect(first.grids[1].dates).toEqual([]);
+    }
+  );
 }
 
 for (const mobile of [true, false]) {
