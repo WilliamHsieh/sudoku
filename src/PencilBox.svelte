@@ -9,11 +9,24 @@
    * @typedef {Object} Props
    * @property {number} cell_id
    * @property {number} idx
+   * @property {number} [hintMask]
+   * @property {boolean} [hintPremise]
+   * @property {boolean} [hintExcluded]
+   * @property {boolean} [hintElimination]
    */
   /** @type {Props} */
-  let { cell_id, idx } = $props();
+  let {
+    cell_id,
+    idx,
+    hintMask,
+    hintPremise = false,
+    hintExcluded = false,
+    hintElimination = false,
+  } = $props();
 
-  const visible = $derived(game.hasNote(cell_id, idx + 1));
+  const visible = $derived(
+    hintMask === undefined ? game.hasNote(cell_id, idx + 1) : !!(hintMask & (1 << (idx + 1)))
+  );
   const isSelected = $derived(game.selected === cell_id);
   const isShiftSlot = $derived.by(() => {
     const target = getShiftHover();
@@ -62,7 +75,10 @@
 <div class="note-slot">
   <div
     class="pencil-box"
-    class:invisible={!visible && !previewAdd && !ghost}
+    class:invisible={!visible && !previewAdd && !ghost && !hintExcluded}
+    class:hint-premise={hintPremise}
+    class:hint-excluded={hintExcluded}
+    class:hint-elimination={hintElimination}
     class:paint-added={added}
     class:paint-blue={added && !fading}
     class:paint-fading={fading && (added || ghost)}
@@ -339,6 +355,16 @@
 
   .pencil-box.hidden-pending {
     opacity: 0 !important;
+  }
+  .pencil-box.hint-premise {
+    background: var(--chip-bg);
+    color: var(--chip-ink);
+  }
+  .pencil-box.hint-excluded,
+  .pencil-box.hint-elimination {
+    color: var(--conflict);
+    text-decoration: line-through;
+    text-decoration-thickness: 2px;
   }
 
   @media (max-width: 599px) {

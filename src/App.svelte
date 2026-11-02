@@ -50,8 +50,87 @@
   import { PAUSE_ON_WINDOW_BLUR } from "./play/background-policy.js";
   import PausedCover from "./PausedCover.svelte";
   import OptionsSheet from "./OptionsSheet.svelte";
+  import HintPanel from "./hints/HintPanel.svelte";
+  import { createHintSession } from "./hints/session.svelte.js";
   import { flushSync, onMount, tick, untrack } from "svelte";
   import { longDate } from "./journal/format.js";
+
+  /** @type {{hintProvider?: import('./hints/hint.js').HintProvider | null}} */
+  let { hintProvider = null } = $props();
+  // The source is bound once at mount. Production has no solver yet; capture
+  // fixtures inject a source without shipping a fake hint in the game.
+  const hints = createHintSession({ game, provider: untrack(() => hintProvider) });
+  /** @type {{mode: 'docked'|'side', left: number, top: number, width: number, maxHeight: number} | null} */
+  let hintFrame = $state(null);
+
+  function measureHint() {
+    const board = wrapEl?.querySelector(".board");
+    const controls = playViewport?.querySelector(".mobile-chrome");
+    if (!board || !controls || !hints.isOpen) return;
+    const rect = board.getBoundingClientRect();
+    const chrome = controls.getBoundingClientRect();
+    // Preserve the current board and controls layout. The hint temporarily
+    // occupies the existing controls area, on both wide and stacked layouts.
+    const side = innerWidth >= 900 && chrome.left >= rect.right;
+    const left = side ? rect.right + 24 : chrome.left;
+    const top = side ? rect.top : rect.bottom + 12;
+    const next = {
+      mode: /** @type {'side'|'docked'} */ (side ? "side" : "docked"),
+      left,
+      top,
+      width: side ? Math.min(340, innerWidth - 16 - left) : chrome.width,
+      maxHeight: innerHeight - top - 16,
+    };
+    if (JSON.stringify(next) !== JSON.stringify(hintFrame)) hintFrame = next;
+  }
+
+  async function closeHint() {
+    hints.close();
+    hintFrame = null;
+    await tick();
+    document.getElementById("hint-trigger")?.focus({ preventScroll: true });
+  }
+
+  function openHint() {
+    if (hints.isOpen) {
+      void closeHint();
+      return;
+    }
+    discardPaint();
+    unlockKeepShown();
+    clearToast();
+    clearAutofill();
+    void hints.open();
+    measureHint();
+  }
+
+  $effect(() => {
+    hints.reconcile(game.state);
+  });
+  $effect(() => {
+    if (showCalendar || playUi.paused || playUi.modal) {
+      hints.close();
+      hintFrame = null;
+    }
+  });
+  $effect(() => {
+    if (!wrapEl || !hints.isOpen) return;
+    const observer = new ResizeObserver(measureHint);
+    observer.observe(wrapEl);
+    void Promise.all(
+      document
+        .querySelector(".play")
+        ?.getAnimations()
+        .map((a) => a.finished) ?? []
+    ).then(measureHint, () => {});
+    window.addEventListener("resize", measureHint);
+    window.addEventListener("scroll", measureHint, { passive: true });
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measureHint);
+      window.removeEventListener("scroll", measureHint);
+    };
+  });
 
   game.setOnActivity(() => playUi.noteActivity());
   game.setOnLoad(() => {
@@ -351,6 +430,13 @@
       e.target.closest("input, textarea, select, [contenteditable]")
     )
       return;
+    if (hints.isOpen && e.key === "Escape") {
+      e.preventDefault();
+      void closeHint();
+      return;
+    }
+    if (e.target instanceof Element && e.target.closest(".hint-panel")) return;
+    if (hints.isOpen && e.key === "Tab") return;
     const plainP =
       (e.key === "p" || e.key === "P") && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey;
     if (plainP) {
@@ -746,6 +832,8 @@
       ondate={openJournal}
       ontime={onPauseClick}
       onbrand={removeFocus}
+      onhint={openHint}
+      hintOpen={hints.isOpen}
     />
   {/if}
 
@@ -807,7 +895,7 @@
             data-cue-phase={playUi.phase}
           >
             {#each CELL_IDS as id (id)}
-              <Cell cell_id={id} desktop={!isNarrow} />
+              <Cell cell_id={id} desktop={!isNarrow} hint={hints.evidence(id)} />
             {/each}
           </div>
           {#if showCover}
@@ -840,7 +928,7 @@
           {/if}
         </div>
       </div>
-      <div class="mobile-chrome">
+      <div class="mobile-chrome" class:hint-replaced={hints.isOpen} inert={hints.isOpen}>
         {#if !isNarrow}
           <p class="controls-label">
             Numbers
@@ -1018,6 +1106,26 @@
   {/if}
 </main>
 
+<!-- Fixed surfaces live outside the animated play view, whose transform would
+     otherwise turn the view into their positioning container. -->
+{#if hints.isOpen && hintFrame}
+  <div
+    class="hint-surface"
+    class:docked={hintFrame.mode === "docked"}
+    style:left={`${hintFrame.left}px`}
+    style:top={`${hintFrame.top}px`}
+    style:--hint-max-height={`${hintFrame.maxHeight}px`}
+    style:width={`${hintFrame.width}px`}
+  >
+    <HintPanel
+      session={hints}
+      onclose={() => void closeHint()}
+      oncoordinate={(cell) => game.select(cell)}
+      docked={hintFrame.mode === "docked"}
+    />
+  </div>
+{/if}
+
 <!-- The polite live region stays mounted so screen readers announce the inserted notice. -->
 <div class="update-live sr-only" aria-live="polite" aria-atomic="true">
   {noticeActive ? (updating ? "Updating…" : UPDATE_COPY) : ""}
@@ -1187,6 +1295,18 @@
 
   .mobile-chrome {
     display: none;
+  }
+  .hint-surface {
+    position: fixed;
+    z-index: 10;
+    max-width: calc(100% - 16px);
+  }
+  .hint-surface.docked {
+    bottom: max(8px, env(safe-area-inset-bottom));
+  }
+
+  .hint-replaced {
+    visibility: hidden;
   }
 
   .controls-label {

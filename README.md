@@ -24,6 +24,16 @@ npm test        # Vitest, then Playwright
 
 You'll need Node 22. Run `npx playwright install --with-deps chromium webkit` once for the end-to-end tests. `npm run check`, `npm run lint` and `npm run format` cover the rest.
 
+The hint UI can be reviewed with fixed, validated examples without a server or solver:
+
+```sh
+npm run mock:hint          # Open the existing App with a fixture hint provider
+npm run mock:hint:check    # Chromium/WebKit layout and interaction checks
+npm run mock:hint:capture  # Desktop/phone screenshots and MP4 recordings (requires ffmpeg)
+```
+
+These commands write local artifacts to `.lavish/hint-ui-implemented/`. The production App remains static and displays “提示功能準備中” until a hint provider is supplied; the fixture provider is not included in its bundle.
+
 Puzzles come from `scraper.py`, which a GitHub Action runs daily at 04:00 UTC (`uv run python scraper.py` to run it yourself). Every push to `master` deploys to GitHub Pages.
 
 ## License
