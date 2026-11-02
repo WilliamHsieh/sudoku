@@ -32,14 +32,15 @@
     unfinishedList,
   } from "./journal/stats.js";
   import Icon from "./journal/Icon.svelte";
+  import CustomPuzzleEntry from "./custom/CustomPuzzleEntry.svelte";
   import Marks from "./journal/Marks.svelte";
   import DiffLabel from "./journal/DiffLabel.svelte";
   import PuzzleRow from "./journal/PuzzleRow.svelte";
   import { SLIDE_EASE, SLIDE_MS, slideOffsets } from "./journal/slide.js";
   import { isAway, isTodayShortcut, latestAnnouncement, monthsToLatest } from "./journal/home.js";
 
-  /** @type {{openOn?: {date: string} | null, current?: {date: string | null, diff: string | null, elapsed: number} | null, onback?: (fromSheet?: boolean) => void, viewport?: HTMLElement}} */
-  let { openOn = null, current = null, onback, viewport } = $props();
+  /** @type {{openOn?: {date: string} | null, current?: {date: string | null, diff: string | null, elapsed: number} | null, onback?: (fromSheet?: boolean) => void, oncustom?: () => void, viewport?: HTMLElement}} */
+  let { openOn = null, current = null, onback, oncustom, viewport } = $props();
   // Entry is consumed once. Browsing must not track later prop changes.
   const entry = untrack(() => openOn);
   onMount(() => {
@@ -551,6 +552,7 @@
         </span>
         <Icon name="chevron-right" />
       </button>
+      {#if oncustom}<CustomPuzzleEntry onopen={oncustom} embedded />{/if}
       {#if unfinished.length}
         <button
           class="ulink"
@@ -780,6 +782,7 @@
           <span>day<br />streak</span>
         </div>
       </div>
+      {#if oncustom}<div class="compact-custom"><CustomPuzzleEntry onopen={oncustom} /></div>{/if}
       <div class="dmhead">
         <h2>{@render monthTitle(desktopAway)}</h2>
         <button
@@ -956,6 +959,7 @@
         </section>
       {/if}
 
+      {#if oncustom}<div class="sidebar-custom"><CustomPuzzleEntry onopen={oncustom} /></div>{/if}
       <section class="card ucard" aria-label="Unfinished puzzles (other than the day shown above)">
         <div class="uh">
           <Icon name="history" />
@@ -1282,6 +1286,13 @@
 
   .desktop {
     display: none;
+  }
+
+  .compact-custom {
+    display: none;
+  }
+  .sidebar-custom {
+    margin-top: 16px;
   }
 
   /* —— mobile M1 + U2 —— */
@@ -2274,6 +2285,13 @@
 
   /* Keep the title and its hit area clear of the arrows at narrow desktop widths. */
   @media (min-width: 600px) and (max-width: 799px) {
+    .compact-custom {
+      display: block;
+      margin-bottom: 16px;
+    }
+    .sidebar-custom {
+      display: none;
+    }
     .desktop {
       grid-template-columns: minmax(0, 1fr);
     }
