@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { solvedModel, spokenTime } from "./solved.js";
+import { solvedModel, spokenTime, resumeDateLabel } from "./solved.js";
 const day = "2026-11-01";
 const puzzles = Object.fromEntries(
   ["2026-10-29", "2026-10-30", "2026-10-31", day].map((d) => [
@@ -116,4 +116,13 @@ describe("solved result data", () => {
     [88, "1 minute 28 seconds"],
     [402, "6 minutes 42 seconds"],
   ])("speaks %i seconds", (seconds, text) => expect(spokenTime(seconds)).toBe(text));
+});
+
+it.each([
+  ["2026-05-10", "May 10"],
+  ["2026-12-28", "Dec 28"],
+  ["2025-12-28", "Dec 28, 2025"],
+  ["2024-01-04", "Jan 4, 2024"],
+])("Resume date %s keeps only the necessary year", (date, label) => {
+  expect(resumeDateLabel(date, new Date("2026-11-01T12:00:00"))).toBe(label);
 });

@@ -1055,9 +1055,11 @@
     </div>
 
     <OptionsSheet
+      canRestart={!game.solved}
       viewport={playViewport}
       onclosed={focusMore}
       onrestart={() => {
+        if (game.solved) return;
         game.restart();
         resetKeypad();
         resetAutofill();

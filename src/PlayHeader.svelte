@@ -32,7 +32,12 @@
   );
 </script>
 
-<header class="header" class:on-journal={journal} class:reduced={playUi.reduced}>
+<header
+  class="header"
+  class:on-journal={journal}
+  class:reduced={playUi.reduced}
+  class:solved={game.solved && !journal}
+>
   <div class="left">
     {#if journal}
       <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
@@ -445,6 +450,9 @@
     .more,
     .auto-slot {
       display: none;
+    }
+    .solved .more {
+      display: grid;
     }
   }
   @media (max-width: 359px) {

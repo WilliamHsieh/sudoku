@@ -1,3 +1,4 @@
+import { prepareResume } from "./solved-resume-fixture.js";
 import { test, expect } from "@playwright/test";
 import { prepareDecision, finishDecision, PAST } from "./solved-decisions-fixture.js";
 test.use({ colorScheme: "light", viewport: { width: 1280, height: 800 } });
@@ -213,3 +214,85 @@ for (const focus of ["heading", "body"])
     await expect(day).toBeInViewport({ ratio: 1 });
     await expect(day).toHaveClass(/solve-highlight/);
   });
+
+for (const width of [390, 1280]) {
+  for (const solved of [false, true])
+    test(`More ${solved ? "hides Restart after solve" : "retains Restart while unsolved"} at ${width}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: width === 390 ? 844 : 800 });
+      const p = await prepareDecision(page);
+      if (solved) await finishDecision(page, p);
+      const saved = await page.evaluate(() => localStorage.getItem("sudoku-solved"));
+      await page.locator("[data-more]").filter({ visible: true }).click();
+      await expect(page.getByRole("dialog", { name: "Options", exact: true })).toBeVisible();
+      if (solved) {
+        await expect(page.locator("#opt-restart")).toHaveCount(0);
+        await expect(page.getByRole("combobox", { name: /Appearance/ })).toBeVisible();
+        await page.getByRole("button", { name: "Done", exact: true }).click();
+        await expect(page.locator(".sv-panel")).toBeVisible();
+        expect(await page.evaluate(() => localStorage.getItem("sudoku-solved"))).toBe(saved);
+      } else {
+        await expect(
+          page.getByRole("button", { name: "Restart puzzle", exact: true })
+        ).toBeVisible();
+        await page.getByRole("button", { name: "Restart puzzle", exact: true }).click();
+        await expect(page.getByRole("alertdialog", { name: "Restart this puzzle?" })).toBeVisible();
+      }
+    });
+  for (const previousYear of [false, true])
+    test(`Resume fit ${previousYear ? "previous-year" : "Dec 28"} at ${width}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: width === 390 ? 844 : 800 });
+      const label = await prepareResume(page, previousYear);
+      const button = page.locator(".sv-next");
+      await expect(button).toHaveAccessibleName(label);
+      await expect(button.locator(".resume-prefix")).toHaveText("Resume");
+      expect(await button.locator(".resume-prefix").textContent()).toBe("Resume ");
+      await expect(button.locator(".resume-detail")).toHaveText(label.slice(7));
+      const fit = await button.evaluate((el) => {
+        const prefix = el.querySelector(".resume-prefix"),
+          detail = el.querySelector(".resume-detail"),
+          label = el.querySelector(".resume-label"),
+          icon = el.querySelector("svg");
+        const box = el.getBoundingClientRect();
+        return {
+          button: el.clientWidth,
+          scroll: el.scrollWidth,
+          prefix: prefix.getBoundingClientRect().width,
+          prefixScroll: prefix.scrollWidth,
+          prefixClient: prefix.clientWidth,
+          icon: icon.getBoundingClientRect().width,
+          left: icon.getBoundingClientRect().left - box.left,
+          right: box.right - detail.getBoundingClientRect().right,
+          clipped: detail.scrollWidth > detail.clientWidth,
+          font: getComputedStyle(label).fontSize,
+          ellipsis: getComputedStyle(detail).textOverflow,
+          prefixOverflow: getComputedStyle(prefix).textOverflow,
+        };
+      });
+      expect(fit.scroll).toBeLessThanOrEqual(fit.button);
+      expect(fit.prefix).toBeGreaterThan(35);
+      expect(fit.prefixScroll).toBeLessThanOrEqual(fit.prefixClient);
+      expect(fit.icon).toBe(width === 390 ? 17 : 18);
+      expect(fit.left).toBeGreaterThanOrEqual(0);
+      expect(fit.right).toBeGreaterThanOrEqual(0);
+      expect(fit.ellipsis).toBe("ellipsis");
+      expect(fit.prefixOverflow).not.toBe("ellipsis");
+      if (fit.clipped) expect(fit.font).toBe("14px");
+      await button.click();
+      await expect(page.locator(".dbtn")).toHaveAttribute("aria-label", /December 28, Medium/);
+    });
+}
+test("reduced-motion Journal outline and tint share rounded corners", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const p = await prepareDecision(page, { state: "today-button" });
+  await finishDecision(page, p);
+  await page.locator(".sv-journal").click();
+  const day = page.locator(`.day[data-d="${PAST}"]:visible`);
+  await expect(day).toHaveClass(/solve-highlight/);
+  await expect(day).toHaveCSS("outline-width", "2px");
+  await expect(day).toHaveCSS("border-radius", "10px");
+  expect(await day.evaluate((el) => getComputedStyle(el, "::after").borderRadius)).toBe("10px");
+});

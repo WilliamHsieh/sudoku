@@ -25,6 +25,12 @@ function dateLabel(date) {
   const d = parseDay(date);
   return `${MONTHS3[d.getMonth()]} ${d.getDate()}`;
 }
+/** Compact Resume date; only dates outside the current year need a year.
+ * @param {string} date @param {Date} now */
+export function resumeDateLabel(date, now) {
+  const year = parseDay(date).getFullYear();
+  return `${dateLabel(date)}${year === now.getFullYear() ? "" : `, ${year}`}`;
+}
 /** Snapshot the comparison before this solve; the completed record is already saved.
  * @param {{date: string | null, difficulty: string | null, time: number, solved: Record<string, Record<string, {completed?: boolean, time?: number}>>, progress: Parameters<typeof unfinishedList>[0], puzzles: Record<string, Record<string, string>>, now?: Date}} input
  */
@@ -73,7 +79,7 @@ export function solvedModel({
       ? `Today: ${DIFF_LABEL[target.difficulty]}`
       : sameDay
         ? `Next: ${DIFF_LABEL[sameDay.difficulty]}`
-        : `Resume ${dateLabel(target.dateStr)} · ${DIFF_LABEL[target.difficulty]}`;
+        : `Resume ${resumeDateLabel(target.dateStr, now)} · ${DIFF_LABEL[target.difficulty]}`;
   const comparison =
     delta == null
       ? ""
@@ -90,6 +96,7 @@ export function solvedModel({
     dayLabel: backdated ? dateLabel(date) : "today",
     target,
     label,
+    resumeDetail: label.startsWith("Resume ") ? label.slice(7) : "",
     resume: !!target && !sameDay && dated && !backdated,
     announcement: `Solved in ${spokenTime(time)}.${newBest ? " New best." : ""}${comparison ? ` ${comparison}.` : ""}${streak ? ` ${streak}-day streak.` : ""}`,
   };

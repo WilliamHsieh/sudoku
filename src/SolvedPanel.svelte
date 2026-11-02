@@ -12,19 +12,27 @@
   let scoreRow = $state(/** @type {HTMLDListElement | undefined} */ (undefined));
   let wideFacts = $state(false);
   let nextLabel = $state(/** @type {HTMLSpanElement | undefined} */ (undefined));
-  // Long Resume labels keep their full copy across platform font fallbacks.
+  // Measure the full label at 16px, then step to 14px before truncation.
   $effect(() => {
     model.label;
     if (!nextLabel) return;
     const label = nextLabel;
-    label.style.fontSize = "";
-    label.style.letterSpacing = "";
-    const frame = requestAnimationFrame(() => {
-      if (label.scrollWidth <= label.clientWidth) return;
-      label.style.letterSpacing = "-0.25px";
-      if (label.scrollWidth > label.clientWidth) label.style.fontSize = "14px";
-    });
-    return () => cancelAnimationFrame(frame);
+    let stopped = false;
+    function fitLabel() {
+      if (stopped) return;
+      label.style.fontSize = "";
+      const detail = label.querySelector(".resume-detail") ?? label;
+      if (detail.scrollWidth > detail.clientWidth) label.style.fontSize = "14px";
+    }
+    const frame = requestAnimationFrame(fitLabel);
+    const observer = new ResizeObserver(fitLabel);
+    if (label.parentElement) observer.observe(label.parentElement);
+    document.fonts.ready.then(fitLabel);
+    return () => {
+      stopped = true;
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
   });
   onMount(() => {
     // Preserve the system font and 14px labels. Some desktop fallbacks need
@@ -108,9 +116,18 @@
       </dl>
     {/if}
     <div class="sv-actions">
-      <button class="sv-next" class:long={model.label.length > 14} onclick={onnext}
+      <button
+        class="sv-next"
+        class:long={model.label.length > 14}
+        aria-label={model.label}
+        onclick={onnext}
         ><Icon name={model.target ? (model.resume ? "history" : "play") : "calendar-days"} /><span
-          bind:this={nextLabel}>{model.label}</span
+          bind:this={nextLabel}
+          class:resume-label={model.resume}
+          >{#if model.resume}<span class="resume-prefix">Resume{" "}</span><span
+              class="resume-detail"
+              title={model.resumeDetail}>{model.resumeDetail}</span
+            >{:else}{model.label}{/if}</span
         >{#if model.label.length <= 14}<kbd aria-hidden="true">Enter</kbd>{/if}</button
       >
       {#if model.target}<button class="sv-journal" onclick={onjournal}
@@ -249,6 +266,23 @@
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .sv-next > :global(svg),
+  .resume-prefix {
+    flex-shrink: 0;
+  }
+  .sv-next > .resume-label {
+    display: flex;
+    text-overflow: clip;
+  }
+  .resume-prefix {
+    white-space: pre;
+  }
+  .resume-detail {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .sv-next:hover {
     background: var(--blue-d);

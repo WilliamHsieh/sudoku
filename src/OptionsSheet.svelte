@@ -5,8 +5,8 @@
   import { OPT_TAP_SUB, OPT_TAP_TITLE } from "./keypad-copy.js";
   import { themePreference, setThemePreference } from "./theme.js";
 
-  /** @type {{ onclosed?: () => void, onrestart: () => void, viewport?: HTMLElement }} */
-  let { onclosed, onrestart, viewport } = $props();
+  /** @type {{ onclosed?: () => void, onrestart: () => void, viewport?: HTMLElement, canRestart?: boolean }} */
+  let { onclosed, onrestart, viewport, canRestart = true } = $props();
 
   let scrimEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   let optsEl = $state(/** @type {HTMLDialogElement | undefined} */ (undefined));
@@ -258,7 +258,7 @@
           returnSheet();
         }
         if (!optsEl.open) optsEl.showModal();
-        if (!confirmExit) focusEl(where === "restart" ? restartRow : cueRow);
+        if (!confirmExit) focusEl(where === "restart" ? (restartRow ?? cueRow) : cueRow);
       } else if (modal === "confirm") {
         if (!confirmEl.open) confirmEl.showModal();
         focusEl(cancelBtn);
@@ -393,20 +393,22 @@
         </span>
         <span class="switch" aria-hidden="true"><span class="knob"></span></span>
       </button>
-      <button
-        type="button"
-        class="row row-danger"
-        id="opt-restart"
-        aria-haspopup="dialog"
-        bind:this={restartRow}
-        onclick={() => playUi.openConfirm()}
-      >
-        <svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
-          <path d="M3 3v5h5"></path>
-        </svg>
-        <span class="tx"><b>Restart puzzle</b></span>
-      </button>
+      {#if canRestart}
+        <button
+          type="button"
+          class="row row-danger"
+          id="opt-restart"
+          aria-haspopup="dialog"
+          bind:this={restartRow}
+          onclick={() => playUi.openConfirm()}
+        >
+          <svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+            <path d="M3 3v5h5"></path>
+          </svg>
+          <span class="tx"><b>Restart puzzle</b></span>
+        </button>
+      {/if}
     </div>
     <div class="appearance-row">
       <label class="tx" for="opt-theme">

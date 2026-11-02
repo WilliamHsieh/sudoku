@@ -2318,6 +2318,7 @@
   .mobile .day.solve-highlight,
   .dgrid .day.solve-highlight {
     animation: solved-day 1200ms var(--ease-out) both;
+    border-radius: 10px;
   }
   @keyframes solved-day {
     from {

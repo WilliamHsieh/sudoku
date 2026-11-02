@@ -9,12 +9,20 @@ export const blanks = [...puzzleData[DATE].easy].flatMap((c, i) => (c === "0" ? 
 /** Seed real dated progress so UI and evidence use production data paths. */
 export async function prepareSolved(
   page,
-  { autofill = false, freeze = true, lastToday = false, resumeDate = "2026-05-10" } = {}
+  {
+    autofill = false,
+    freeze = true,
+    lastToday = false,
+    resumeDate = "2026-05-10",
+    date = DATE,
+  } = {}
 ) {
-  let state = newGame(puzzleData[DATE].easy, { notesMode: "auto" });
-  for (const i of blanks) state = setAnswer(state, i, Number(solution[i])).state;
+  const answer = solve(puzzleData[date].easy);
+  const editable = [...puzzleData[date].easy].flatMap((c, i) => (c === "0" ? [i] : []));
+  let state = newGame(puzzleData[date].easy, { notesMode: "auto" });
+  for (const i of editable) state = setAnswer(state, i, Number(answer[i])).state;
   const remaining = [];
-  for (const i of [...blanks].reverse()) {
+  for (const i of [...editable].reverse()) {
     const next = clearCell(state, i).state;
     if (!autofill && remaining.length) break;
     if (singleCandidates(next).length === remaining.length + 1) {
@@ -24,12 +32,12 @@ export async function prepareSolved(
   }
   remaining.sort((a, b) => a - b);
   const progress = {
-    [DATE]: {
+    [date]: {
       easy: {
         snapshot: toSnapshot(state),
         elapsed: 402,
-        filled: blanks.length - remaining.length,
-        empty: blanks.length,
+        filled: editable.length - remaining.length,
+        empty: editable.length,
         updatedAt: 100,
       },
     },
@@ -41,11 +49,22 @@ export async function prepareSolved(
     ])
   );
   if (lastToday) {
-    solved[DATE] = {
+    solved[date] = {
       medium: { completed: true, time: 500, timestamp: 100 },
       hard: { completed: true, time: 600, timestamp: 100 },
     };
-    progress[resumeDate] = { medium: { elapsed: 100, filled: 1, empty: 50, updatedAt: 90 } };
+    const unfinished = puzzleData[resumeDate].medium;
+    const first = unfinished.indexOf("0");
+    const saved = setAnswer(newGame(unfinished), first, Number(solve(unfinished)[first])).state;
+    progress[resumeDate] = {
+      medium: {
+        snapshot: toSnapshot(saved),
+        elapsed: 100,
+        filled: 1,
+        empty: [...unfinished].filter((d) => d === "0").length,
+        updatedAt: 90,
+      },
+    };
   }
   await page.addInitScript(
     ({ progress, solved }) => {
