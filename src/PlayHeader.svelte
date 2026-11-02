@@ -69,19 +69,19 @@
           <NotesMode desktop />
         </div>
       {/if}
-      {#if !game.solved}<button
-          transition:fade={{ duration: playUi.reduced ? 0 : 160 }}
-          class="more"
-          type="button"
-          data-more
-          aria-label="More"
-          title="More options"
-          aria-haspopup="dialog"
-          disabled={playUi.paused}
-          onclick={() => playUi.openOptions()}
-        >
-          <Icon name="ellipsis" />
-        </button>{/if}
+      <button
+        transition:fade={{ duration: playUi.reduced ? 0 : 160 }}
+        class="more"
+        type="button"
+        data-more
+        aria-label="More"
+        title="More options"
+        aria-haspopup="dialog"
+        disabled={playUi.paused}
+        onclick={() => playUi.openOptions()}
+      >
+        <Icon name="ellipsis" />
+      </button>
     {/if}
     <button
       class="tp pc"

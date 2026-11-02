@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { prepareSolved, finishSolved, blanks } from "./solved-fixture.js";
+import { prepareSolved, finishSolved, blanks, solution } from "./solved-fixture.js";
 const sizes = [
   [390, 844],
   [768, 1024],
@@ -24,7 +24,7 @@ for (const [width, height] of sizes) {
       "aria-label",
       "1 of 3 solved today"
     );
-    await expect(page.locator(".game-controls, #keypad, .auto-slot, .more")).toHaveCount(0);
+    await expect(page.locator(".game-controls, #keypad, .auto-slot")).toHaveCount(0);
     await expect(page.locator("#time-control")).toHaveAttribute("aria-disabled", "true");
     await expect(page.locator("#time-control")).not.toHaveAttribute("aria-pressed");
     await expect(page.locator("#time-control")).not.toHaveAttribute("title");
@@ -212,3 +212,109 @@ test("longest actual Resume label fits the 236px primary without wrapping", asyn
   expect(measured.whiteSpace).toBe("nowrap");
   expect(measured.scroll).toBeLessThanOrEqual(measured.client);
 });
+
+// Observe rendered feedback, including CSS animations and Web Animations.
+async function observePlacement(page) {
+  await page.evaluate(() => {
+    window.penFeedback = [];
+    window.penObserver?.disconnect();
+    const inspect = () => {
+      for (const digit of document.querySelectorAll(".pen-box:not(.given)")) {
+        for (const animation of digit.getAnimations()) {
+          const frames = animation.effect.getKeyframes();
+          if (frames.some((frame) => frame.transform === "scale(0.86)")) {
+            window.penFeedback.push({
+              cell: Number(digit.closest(".cell").dataset.i),
+              duration: animation.effect.getTiming().duration,
+              frames: frames.map((frame) => frame.transform),
+            });
+          }
+        }
+      }
+    };
+    window.penObserver = new MutationObserver(inspect);
+    window.penObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+    });
+    const sample = () => {
+      inspect();
+      window.penFrame = requestAnimationFrame(sample);
+    };
+    cancelAnimationFrame(window.penFrame);
+    sample();
+  });
+}
+
+for (const width of [390, 1280]) {
+  test(`correcting the final wrong digit plays placement feedback before solving at ${width}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 800 });
+    await prepareSolved(page);
+    const last = blanks.at(-1);
+    await page.locator(`.cell[data-i="${last}"]`).click();
+    await page.keyboard.press(String((Number(solution[last]) % 9) + 1));
+    await page.waitForTimeout(200);
+    await observePlacement(page);
+    await page.keyboard.press(solution[last]);
+    await expect(page.locator("#sv-h")).toBeFocused();
+    const feedback = await page.evaluate(() => window.penFeedback);
+    expect(feedback.length).toBeGreaterThan(0);
+    expect([...new Set(feedback.map((frame) => frame.cell))]).toEqual([last]);
+    expect(feedback[0].duration).toBe(160);
+    expect(feedback[0].frames).toEqual(["scale(0.86)", "scale(1)"]);
+  });
+
+  test(`loading saved answers and returning from Journal never plays placement feedback at ${width}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 800 });
+    // Observe remounts and a fresh load independently.
+    await prepareSolved(page);
+    await page.locator(".dbtn").click();
+    await expect(page.locator(".journal")).toBeVisible();
+    await observePlacement(page);
+    await page.getByRole("button", { name: "Back to game", exact: true }).click();
+    await expect(page.locator(".board > .cell")).toHaveCount(81);
+    await page.waitForTimeout(250);
+    expect(await page.evaluate(() => window.penFeedback)).toEqual([]);
+    await page.reload();
+    await observePlacement(page);
+    await page.getByRole("button", { name: "Play", exact: true }).click();
+    await expect(page.locator(".board > .cell")).toHaveCount(81);
+    await page.waitForTimeout(250);
+    expect(await page.evaluate(() => window.penFeedback)).toEqual([]);
+  });
+}
+
+for (const theme of ["light", "dark"]) {
+  test(`desktop More keeps its position and Appearance works after solving in ${theme}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.emulateMedia({ colorScheme: theme });
+    await prepareSolved(page);
+    const more = page.locator(".header [data-more]");
+    const before = await more.boundingBox();
+    await finishSolved(page);
+    await expect(page.locator("#sv-h")).toBeFocused();
+    await expect(more).toBeVisible();
+    await expect(more).toBeEnabled();
+    const after = await more.boundingBox();
+    expect(after).toEqual(before);
+    await more.click();
+    const appearance = page.getByRole("combobox", { name: /Appearance/ });
+    await expect(appearance).toBeVisible();
+    await appearance.selectOption(theme === "light" ? "dark" : "light");
+    await expect(page.locator("html")).toHaveAttribute(
+      "data-theme",
+      theme === "light" ? "dark" : "light"
+    );
+    await page.keyboard.press("Escape");
+    await expect(more).toBeFocused();
+    await expect(page.locator(".sv-panel")).toBeVisible();
+  });
+}

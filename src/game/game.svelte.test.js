@@ -3,6 +3,7 @@ import { get } from "svelte/store";
 import { createGame, DEMO_PUZZLE } from "./game.svelte.js";
 import { done, puzzleProgress, timer, timerRunning } from "../store.js";
 import { maskDigits } from "./board.js";
+import { toSnapshot } from "./snapshot.js";
 import { createPlay } from "../play/session.svelte.js";
 
 /** @type {ReturnType<typeof createGame>} */
@@ -44,6 +45,29 @@ describe("createGame", () => {
     expect(g.value(0)).toBe(0);
     g.clearAnswer(0);
     expect(g.canUndo).toBe(true); // no extra step
+  });
+
+  it("emits placement feedback for digit commits and corrections, never history or restore", () => {
+    expect(g.placement).toBe(null);
+    g.fill(0, 4);
+    expect(g.placement).toEqual([0]);
+    const first = g.placement;
+    g.fill(0, 4); // no-op
+    expect(g.placement).toBe(first);
+    g.fill(0, 2); // correction keeps the existing digit component
+    expect(g.placement).toEqual([0]);
+    expect(g.placement).not.toBe(first);
+    const correction = g.placement;
+    g.undo();
+    g.redo();
+    expect(g.placement).toBe(correction); // no new feedback event
+    const snapshot = toSnapshot(g.state);
+    g.load(DEMO_PUZZLE, { snapshot });
+    expect(g.placement).toBe(null);
+    expect(g.value(0)).toBe(2);
+    g.fill(0, 4);
+    g.clearAnswer(0);
+    expect(g.placement).toBe(null);
   });
 
   it("does not overwrite a given", () => {

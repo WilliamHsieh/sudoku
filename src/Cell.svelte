@@ -1,4 +1,5 @@
 <script>
+  import { onDestroy, untrack } from "svelte";
   import { autofill, autofillDelay } from "./autofill.svelte.js";
   import PenBox from "./PenBox.svelte";
   import PencilBox from "./PencilBox.svelte";
@@ -31,6 +32,25 @@
   const blocking = $derived(padUi.blocking.includes(cell_id));
   const blocked = $derived(padUi.blocked.includes(cell_id));
   const undoTarget = $derived(padUi.undoTargets.includes(cell_id));
+
+  /** @type {HTMLDivElement} */
+  let element;
+  // A remounted board starts at the current event, so saved answers stay still.
+  const initialPlacement = untrack(() => game.placement);
+  /** @type {Animation | undefined} */
+  let placementAnimation;
+  onDestroy(() => placementAnimation?.cancel());
+  $effect(() => {
+    const placement = game.placement;
+    if (placement === initialPlacement || !placement?.includes(cell_id)) return;
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const digit = element.querySelector(".pen-box");
+    placementAnimation?.cancel();
+    placementAnimation = digit?.animate([{ transform: "scale(0.86)" }, { transform: "scale(1)" }], {
+      duration: 160,
+      easing: "cubic-bezier(.22,.8,.24,1)",
+    });
+  });
 
   function handleRightClick() {
     if (game.solved) return;
@@ -78,6 +98,7 @@
 
 <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 <div
+  bind:this={element}
   class="cell"
   class:given
   class:af-filled={autofill.placed.some(({ i }) => i === cell_id)}
