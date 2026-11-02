@@ -3,6 +3,8 @@
 import { get } from "svelte/store";
 import {
   newGame,
+  singleCandidates,
+  fillSingles as fillSinglesAction,
   setAnswer,
   toggleCandidate,
   erase,
@@ -154,6 +156,18 @@ export function createGame() {
     get blockers() {
       return lastBlockers;
     },
+    get singles() {
+      return singleCandidates(state);
+    },
+
+    fillSingles() {
+      prepareMutation();
+      const result = fillSinglesAction(history.present);
+      apply(result);
+      if (!result.changed && state.notesMode === "auto") activity();
+      return result;
+    },
+
     get notesMode() {
       return state.notesMode;
     },
@@ -243,9 +257,8 @@ export function createGame() {
     },
 
     /**
-     * Double-tap fill. A lone shown candidate wins, even when a different
-     * digit is focused. Otherwise a focused digit is entered. Uses shown
-     * Manual notes or Auto candidates, including overrides.
+     * Double-tap fill. In Auto only, a lone shown candidate (including
+     * overrides) wins. Otherwise the focused digit is used in every mode.
      * @param {number} i @param {number} [highlighted]
      */
     fillLone(i, highlighted = 0) {

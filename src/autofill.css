@@ -1,0 +1,322 @@
+/* Single-candidate fill: approved direction C metrics and motion. */
+:root {
+  --af-stagger: 45ms; /* gap between cells, reading order */
+  --af-stagger-cap: 360ms; /* whole pass never staggers longer than this */
+  --af-in: 220ms; /* answer digit: scale .6 -> 1, opacity 0 -> 1 */
+  --af-tint: 1200ms; /* cell tint: in 80ms, hold to 500ms, fade 700ms */
+}
+/* Cell tint lives on ::after so it never fights the cell's own background (given / selected / peer). */
+.cell.af-filled::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: var(--cue-fill);
+  box-shadow: inset 0 0 0 2px var(--cue-line);
+  opacity: 0;
+  animation: af-tint var(--af-tint) linear var(--af-delay, 0ms) both;
+}
+.cell.af-filled .pen-box {
+  z-index: 1;
+  color: var(--cue-ink);
+  animation:
+    af-in var(--af-in) var(--ease-out) var(--af-delay, 0ms) both,
+    af-ink var(--af-tint) linear var(--af-delay, 0ms) both;
+}
+@keyframes af-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes af-tint {
+  0% {
+    opacity: 0;
+  }
+  6.6% {
+    opacity: 1;
+  }
+  41.6% {
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.22, 0.8, 0.24, 1);
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes af-ink {
+  0%,
+  41.6% {
+    color: var(--cue-ink);
+    animation-timing-function: cubic-bezier(0.22, 0.8, 0.24, 1);
+  }
+  100% {
+    color: var(--answer-ink);
+  }
+}
+/* Skipped (two singles in one unit need the same digit): conflict tint, same timing, no digit. */
+.cell.af-skipped::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: var(--conflict-bg);
+  box-shadow: inset 0 0 0 2px var(--conflict);
+  opacity: 0;
+  animation: af-tint var(--af-tint) linear var(--af-delay, 0ms) both;
+}
+/* Undo of a fill: master's undo ring language, on every restored cell. */
+.cell.af-undone::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 2px var(--undo-ring);
+  animation: af-tint 900ms linear both;
+}
+/* Reduced motion: everything lands at once; a static tint for 1.2s, then a plain opacity fade. */
+@keyframes af-tint-rm {
+  0%,
+  83% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes af-ink-rm {
+  0%,
+  83% {
+    color: var(--cue-ink);
+  }
+  100% {
+    color: var(--answer-ink);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cell.af-filled::after,
+  .cell.af-skipped::after {
+    animation: af-tint-rm var(--af-tint) linear both;
+  }
+  .cell.af-filled .pen-box {
+    animation: af-ink-rm var(--af-tint) linear both;
+  }
+}
+
+/* ---------- C: hint-line chip (shares master's update-notice capsule) ---------- */
+.af-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--ui-font);
+  font-weight: 500;
+  font-size: 12px;
+  line-height: normal;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.18s var(--ease-out),
+    visibility 0s 0.18s;
+}
+.af-chip.active {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.18s var(--ease-out) 0.18s;
+}
+.af-chip .af-msg {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+.af-chip .af-ic {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  fill: none;
+  stroke: var(--ink2);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  margin-inline-start: -1px;
+}
+.af-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: none;
+  box-sizing: border-box;
+  margin: 0 0 0 2px;
+  padding: 0 11px;
+  border: 1px solid var(--hair);
+  border-radius: 999px;
+  background: var(--page);
+  color: var(--blue);
+  font: inherit;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.af-btn::after {
+  content: "";
+  position: absolute;
+  left: -1px;
+  right: -1px;
+}
+.af-btn:active {
+  color: var(--blue-d);
+  background: var(--sel);
+}
+.af-btn:focus {
+  outline: none;
+}
+.af-btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+/* narrow: same slot + metrics as master's inline update notice (row stays 14px) */
+.hint-line .af-chip.inline {
+  grid-area: 1/1;
+  justify-self: center;
+}
+.af-chip.inline .af-btn {
+  height: 20px;
+  margin-block: -3px;
+}
+.af-chip.inline .af-btn::after {
+  top: -9px;
+  bottom: -17px;
+  left: -12px;
+  right: -12px;
+} /* 20 + 9 + 17 = 44; top stops at the keypad's bottom edge */
+.hint-line.af-active .normal-hint {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s var(--ease-out);
+}
+/* desktop panel: a full-width secondary button above the hint text. Always present (disabled at 0)
+   so the panel never shifts when the count changes. */
+.af-desk {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 40px;
+  box-sizing: border-box;
+  margin: 0 0 12px;
+  padding: 0 8px 0 11px;
+  border: 1px solid var(--hair);
+  border-radius: 10px;
+  background: var(--board-bg);
+  color: var(--blue);
+  font: 600 13px/1 var(--ui-font);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  text-align: left;
+}
+.af-desk .af-ic {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.af-desk .af-lbl {
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.af-desk .af-kbd {
+  margin-left: auto;
+}
+@media (hover: hover) {
+  .af-desk:not(:disabled):hover {
+    background: var(--neutral-2);
+  }
+}
+.af-desk:active {
+  background: var(--sel);
+}
+.af-desk:focus {
+  outline: none;
+}
+.af-desk:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.af-desk:disabled {
+  color: var(--ui-soft);
+  cursor: default;
+  background: var(--page);
+}
+.af-desk:disabled .af-kbd {
+  opacity: 0.6;
+}
+.af-desk kbd.af-kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 18px;
+  box-sizing: border-box;
+  padding: 0 5px;
+  border-radius: 5px;
+  background: var(--neutral);
+  color: var(--ink2);
+  box-shadow: inset 0 -1px 0 var(--hair);
+  font: 600 11px/1 var(--ui-font);
+}
+@media (prefers-reduced-motion: reduce) {
+  .af-chip {
+    transition: none;
+  }
+}
+
+/* toast: master's .toast, reused */
+.af-toast {
+  animation: af-toast 1800ms linear both;
+}
+@keyframes af-toast {
+  0% {
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.af-filled.af-reduced::after,
+.af-skipped.af-reduced::after {
+  animation: af-tint-rm var(--af-tint) linear both;
+}
+.af-filled.af-reduced .pen-box {
+  animation: af-ink-rm var(--af-tint) linear both;
+}
+.af-chip.reduced {
+  transition: none;
+}

@@ -113,8 +113,8 @@ export function scheduleHide(d) {
   }, HIDE_MS);
 }
 
-/** @param {string} message @param {boolean} [sticky] */
-export function showToast(message, sticky = false) {
+/** @param {string} message @param {boolean} [sticky] @param {number} [duration] */
+export function showToast(message, sticky = false, duration = TOAST_MS) {
   padUi.toast = message;
   clearTimeout(toastTimer);
   toastTimer = 0;
@@ -122,7 +122,7 @@ export function showToast(message, sticky = false) {
   toastTimer = setTimeout(() => {
     toastTimer = 0;
     padUi.toast = "";
-  }, TOAST_MS);
+  }, duration);
 }
 
 export function clearToast() {

@@ -2,6 +2,13 @@
   /* global __SUDOKU_BUILD__ */
   import { installAutoUpdate, createUpdateAction, reloadForUpdate } from "./auto-update-browser.js";
   import { paintBoard, discardPaint } from "./paint-actions.js";
+  import "./autofill.css";
+  import {
+    animateAutofill,
+    clearAutofill,
+    resetAutofill,
+    syncAutofill,
+  } from "./autofill.svelte.js";
   import Api from "./Api.svelte";
   import UpdateNotice from "./UpdateNotice.svelte";
   import Cell from "./Cell.svelte";
@@ -23,6 +30,7 @@
   import { digitFromCode } from "./game/key-gesture.js";
   import {
     clearToast,
+    showToast,
     eraseCell,
     lockDigit,
     lockTap,
@@ -40,13 +48,16 @@
   import { PAUSE_ON_WINDOW_BLUR } from "./play/background-policy.js";
   import PausedCover from "./PausedCover.svelte";
   import OptionsSheet from "./OptionsSheet.svelte";
-  import { flushSync, onMount, tick } from "svelte";
+  import { flushSync, onMount, tick, untrack } from "svelte";
   import { longDate } from "./journal/format.js";
 
   game.setOnActivity(() => playUi.noteActivity());
   game.setOnLoad(() => {
     playUi.resetForLoad();
     resetKeypad();
+    resetAutofill();
+    deferSolved = false;
+    clearTimeout(solvedDelay);
   });
   playUi.bindLones(() => {
     if (game.notesMode !== "auto") return [];
@@ -165,6 +176,69 @@
   let journalViewport = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   let wrapEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   let ringEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
+  let deferSolved = $state(false);
+  let solvedDelay = /** @type {ReturnType<typeof setTimeout> | undefined} */ (undefined);
+  const singlesCount = $derived(game.singles.length);
+
+  function fillAvailable() {
+    return (
+      game.notesMode === "auto" &&
+      !showCalendar &&
+      !playUi.paused &&
+      !playUi.modal &&
+      !$done &&
+      !document.querySelector("dialog[open], [popover]:popover-open:not([inert])")
+    );
+  }
+
+  function fillSingles() {
+    if (!fillAvailable()) return;
+    clearToast();
+    flushSync(clearAutofill);
+    clearTimeout(solvedDelay);
+    deferSolved = true;
+    const result = game.fillSingles();
+    animateAutofill(result, game.state.answers, playUi.reduced);
+    const n = result.placed.length;
+    let message = `Filled ${n} cells.`;
+    if (result.skipped.length)
+      message = `Filled ${n} cells · ${result.skipped.length} skipped, they need the same digit.`;
+    else if (!n) message = "No cells with a single candidate.";
+    else if (n <= 4)
+      message +=
+        " " +
+        result.placed.map(({ i, d }) => `r${Math.floor(i / 9) + 1}c${(i % 9) + 1} ${d}`).join(", ");
+    padUi.announcement = message;
+    padUi.commitId++;
+    if (!n && !result.skipped.length) showToast("No single candidates right now", false, 1800);
+    const lastDelay = playUi.reduced ? 0 : Math.min(360, Math.max(0, n - 1) * 45);
+    if (game.solved)
+      solvedDelay = setTimeout(() => {
+        deferSolved = false;
+      }, lastDelay + 520);
+    else deferSolved = false;
+  }
+
+  /** Only the board, keypad and body reserve plain Tab in Auto mode. */
+  function tryAutofill(e) {
+    if (e.key !== "Tab" || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey || !fillAvailable())
+      return false;
+    const active = document.activeElement;
+    if (
+      active !== document.body &&
+      !(active instanceof Element && active.closest(".board, #keypad"))
+    )
+      return false;
+    e.preventDefault();
+    fillSingles();
+    return true;
+  }
+
+  $effect(() => {
+    const answers = game.state.answers;
+    untrack(() => syncAutofill(answers));
+  });
+
   function handleKeydown(e) {
     const cmd = e.ctrlKey || e.metaKey;
     // Only these chords are undo/redo. Ctrl/Alt/Meta+digit follows master and
@@ -279,7 +353,7 @@
       if ($done) game.dismiss();
       return;
     }
-    if (tryShiftLock(e) || tryLockedInput(e)) return;
+    if (tryAutofill(e) || tryShiftLock(e) || tryLockedInput(e)) return;
     handleKeydown(e);
   }
 
@@ -367,6 +441,14 @@
   // discovered version waits for both the hold and the 600ms reveal to finish.
   let noticeRevealed = $state(false);
   const noticeActive = $derived(updateNotice && (noticeRevealed || playUi.resumePhase === "idle"));
+  const fillChip = $derived(
+    isNarrow &&
+      game.notesMode === "auto" &&
+      singlesCount > 0 &&
+      !noticeActive &&
+      !padUi.locked &&
+      !playUi.paused
+  );
   $effect(() => {
     if (noticeActive) noticeRevealed = true;
   });
@@ -524,6 +606,8 @@
           });
     return () => {
       stopUpdates();
+      clearTimeout(solvedDelay);
+      resetAutofill();
       updateAction.stop();
       window.removeEventListener("pointerdown", releaseViewFocus, true);
       mq.removeEventListener("change", onNarrow);
@@ -694,7 +778,13 @@
           {/if}
           <div class="undo-ring" bind:this={ringEl} aria-hidden="true"></div>
           {#if padUi.toast}
-            <p class="toast" role="status">{padUi.toast}</p>
+            <p
+              class="toast"
+              class:af-toast={padUi.toast === "No single candidates right now"}
+              role="status"
+            >
+              {padUi.toast}
+            </p>
           {/if}
         </div>
       </div>
@@ -719,12 +809,39 @@
             <div class="keypad-scale"><Keypad desktop={!isNarrow} /></div>
           </div>
         </div>
+        {#if !isNarrow && game.notesMode === "auto"}
+          <button
+            type="button"
+            class="af-desk"
+            onmousedown={(event) => event.preventDefault()}
+            aria-keyshortcuts="Tab"
+            disabled={singlesCount === 0 || playUi.paused || !!playUi.modal || $done}
+            onclick={fillSingles}
+          >
+            <svg class="af-ic" viewBox="0 0 24 24" aria-hidden="true"
+              ><path
+                d="M12 3v17a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1H3"
+              /><path d="m16 19 2 2 4-4" /></svg
+            >
+            <span class="af-lbl"
+              >{singlesCount
+                ? `Fill ${singlesCount} single candidates`
+                : "No single candidates"}</span
+            >
+            <kbd class="af-kbd" aria-hidden="true">Tab</kbd>
+          </button>
+        {/if}
         <div
           class="hint-line"
           class:notice-active={isNarrow && noticeActive}
+          class:af-active={fillChip}
           class:reduced={playUi.reduced}
         >
-          <p class="pad-hint normal-hint" aria-live="polite" aria-hidden={isNarrow && noticeActive}>
+          <p
+            class="pad-hint normal-hint"
+            aria-live="polite"
+            aria-hidden={isNarrow && (noticeActive || fillChip)}
+          >
             {#if hint.kind === "plain"}
               {hint.text}
             {:else}
@@ -732,6 +849,29 @@
               {hint.rest}
             {/if}
           </p>
+          {#if isNarrow && game.notesMode === "auto"}
+            <div
+              class="af-chip inline"
+              class:active={fillChip}
+              class:reduced={playUi.reduced}
+              aria-hidden={!fillChip}
+              inert={!fillChip}
+            >
+              <svg class="af-ic" viewBox="0 0 24 24" aria-hidden="true"
+                ><path
+                  d="M12 3v17a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1H3"
+                /><path d="m16 19 2 2 4-4" /></svg
+              >
+              <span class="af-msg">{singlesCount} cells have one candidate</span>
+              <button
+                type="button"
+                class="af-btn"
+                onmousedown={(event) => event.preventDefault()}
+                aria-label={`Fill ${singlesCount} cells that have one candidate`}
+                onclick={fillSingles}>Fill</button
+              >
+            </div>
+          {/if}
           {#if isNarrow}
             <UpdateNotice
               active={noticeActive}
@@ -776,6 +916,10 @@
                 <dd>Fill locked digit as answer</dd>
               </div>
               <div>
+                <dt><kbd>Tab</kbd></dt>
+                <dd>Fill every cell with one candidate</dd>
+              </div>
+              <div>
                 <dt><kbd>⌫ / Del / 0</kbd></dt>
                 <dd>Erase answer or notes</dd>
               </div>
@@ -803,10 +947,11 @@
       onrestart={() => {
         game.restart();
         resetKeypad();
+        resetAutofill();
       }}
     />
 
-    {#if $done}
+    {#if $done && !deferSolved}
       <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
       <div class="success-message" onclick={handleSuccessBackdrop}>
         <div class="success-card">
