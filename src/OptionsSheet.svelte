@@ -5,8 +5,8 @@
   import { OPT_TAP_SUB, OPT_TAP_TITLE } from "./keypad-copy.js";
   import { themePreference, setThemePreference } from "./theme.js";
 
-  /** @type {{ onclosed?: () => void, onrestart: () => void, viewport?: HTMLElement }} */
-  let { onclosed, onrestart, viewport } = $props();
+  /** @type {{ onclosed?: () => void, onrestart: () => void, oncustom?: () => void, viewport?: HTMLElement }} */
+  let { onclosed, onrestart, oncustom, viewport } = $props();
 
   let scrimEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   let optsEl = $state(/** @type {HTMLDialogElement | undefined} */ (undefined));
@@ -323,6 +323,12 @@
     beginConfirmExit("restart");
   }
 
+  function openCustomPuzzle() {
+    closeOpts();
+    playUi.closeModal();
+    oncustom?.();
+  }
+
   const scrimOn = $derived(playUi.modal === "options" || playUi.modal === "confirm");
 </script>
 
@@ -407,6 +413,16 @@
         </svg>
         <span class="tx"><b>Restart puzzle</b></span>
       </button>
+      {#if oncustom}
+        <button type="button" class="row" id="opt-custom" onclick={openCustomPuzzle}>
+          <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"
+            ><rect x="3" y="3" width="18" height="18" rx="2" /><path
+              d="M3 9h18M3 15h18M9 3v18M15 3v18"
+            /></svg
+          >
+          <span class="tx"><b>Custom puzzle</b><small>Enter a puzzle or paste a link</small></span>
+        </button>
+      {/if}
     </div>
     <div class="appearance-row">
       <label class="tx" for="opt-theme">

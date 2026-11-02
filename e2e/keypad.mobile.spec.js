@@ -517,7 +517,7 @@ test("legacy tap-to-fill is off by default, then a tap fills and a second tap cl
 
   await page.reload();
   if ((await page.locator(".board > .cell").count()) === 0) {
-    await page.getByRole("button", { name: /Play|Back to game/ }).click();
+    await page.getByRole("button", { name: /^(?:Play|Back to game|Start puzzle)$/ }).click();
   }
   await expect(page.locator(".board > .cell")).toHaveCount(81);
   await expect(page.locator(".pad-hint")).toHaveText("Tap = answer · Swipe up = candidate");
@@ -594,7 +594,7 @@ test("the first-run coach shows once", async ({ page }) => {
   });
   await page.goto(`./?q=${DEMO_PUZZLE}`);
   if ((await page.locator(".board > .cell").count()) === 0) {
-    await page.getByRole("button", { name: /Play|Back to game/ }).click();
+    await page.getByRole("button", { name: /^(?:Play|Back to game|Start puzzle)$/ }).click();
   }
   await expect(page.locator(".board > .cell")).toHaveCount(81);
   const coach = page.locator(".coach");
@@ -609,7 +609,7 @@ test("the first-run coach shows once", async ({ page }) => {
   await expect(coach).toHaveCount(0);
   await page.reload();
   if ((await page.locator(".board > .cell").count()) === 0) {
-    await page.getByRole("button", { name: /Play|Back to game/ }).click();
+    await page.getByRole("button", { name: /^(?:Play|Back to game|Start puzzle)$/ }).click();
   }
   await expect(page.locator(".board > .cell")).toHaveCount(81);
   await expect(page.locator(".coach")).toHaveCount(0);

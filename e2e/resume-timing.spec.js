@@ -9,7 +9,7 @@ for (const busyMs of [250, 650]) {
   }, testInfo) => {
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await page.goto(`./?q=${DEMO_PUZZLE}`);
-    await page.getByRole("button", { name: "Play", exact: true }).click();
+    await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).click();
     await page.evaluate(() => {
       Object.defineProperty(document, "hidden", { configurable: true, value: true });
       document.dispatchEvent(new Event("visibilitychange"));
@@ -84,7 +84,7 @@ async function startAutoReturn(page) {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto(`./?q=${DEMO_PUZZLE}`);
-  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).click();
   await visibility(page, true);
   await page.waitForTimeout(1_100);
   await visibility(page, false);
@@ -174,7 +174,7 @@ for (const awayMs of [500, 999]) {
     // This pins the 999ms boundary even when the test runner is busy.
     await page.clock.setFixedTime(hiddenAt);
     await page.goto(`./?q=${DEMO_PUZZLE}`);
-    await page.getByRole("button", { name: "Play", exact: true }).click();
+    await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).click();
     await visibility(page, true);
     await page.waitForTimeout(awayMs);
     await page.clock.setFixedTime(new Date(hiddenAt.getTime() + awayMs));
