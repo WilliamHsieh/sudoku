@@ -545,6 +545,7 @@
 
   function focusAfterNotice() {
     if (showCalendar) focusId("time-control");
+    else if (game.solved) focusId("sv-h");
     else focusMore();
   }
 
@@ -982,7 +983,7 @@
                   >
                 </div>
               {/if}
-              {#if isNarrow}
+              {#if isNarrow && !game.solved}
                 <UpdateNotice
                   active={noticeActive}
                   inline
@@ -1069,7 +1070,8 @@
 <div class="update-live sr-only" aria-live="polite" aria-atomic="true">
   {noticeActive ? (updating ? "Updating…" : UPDATE_COPY) : ""}
 </div>
-{#if !isNarrow || showCalendar}
+<!-- App updates outlive the game controls, including their inert/fade interval. -->
+{#if !isNarrow || showCalendar || game.solved}
   <UpdateNotice
     active={noticeActive}
     reduced={playUi.reduced}
