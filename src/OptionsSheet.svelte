@@ -3,6 +3,7 @@
   import { createSheetExit } from "./sheet-exit.svelte.js";
   import { playUi } from "./play/session.svelte.js";
   import { OPT_TAP_SUB, OPT_TAP_TITLE } from "./keypad-copy.js";
+  import { themePreference, setThemePreference } from "./theme.js";
 
   /** @type {{ onclosed?: () => void, onrestart: () => void, viewport?: HTMLElement }} */
   let { onclosed, onrestart, viewport } = $props();
@@ -407,6 +408,21 @@
         <span class="tx"><b>Restart puzzle</b></span>
       </button>
     </div>
+    <div class="appearance-row">
+      <label class="tx" for="opt-theme">
+        <b>Appearance</b>
+        <small>Choose a theme for this device</small>
+      </label>
+      <select
+        id="opt-theme"
+        value={$themePreference}
+        onchange={(event) => setThemePreference(event.currentTarget.value)}
+      >
+        <option value="system">System</option>
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+      </select>
+    </div>
     <button type="button" class="btn btn-primary btn-done" id="opts-done" onclick={onDone}
       >Done</button
     >
@@ -504,6 +520,54 @@
     box-shadow: inset 0 1px 0 var(--hair);
   }
 
+  .appearance-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 4px 2px;
+  }
+
+  .appearance-row label {
+    min-width: 0;
+  }
+
+  .appearance-row b {
+    display: block;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  .appearance-row small {
+    display: block;
+    margin-top: 3px;
+    color: var(--ui-soft);
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  select {
+    flex: none;
+    max-width: 42%;
+    min-height: 38px;
+    padding: 0 8px;
+    border: 1px solid var(--key-line);
+    border-radius: 8px;
+    background: var(--key-bg);
+    color: var(--ui-ink);
+    font: inherit;
+    font-size: 14px;
+  }
+
+  select:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  .opts.pointer-input select:focus-visible {
+    outline: none;
+  }
+
   .tx {
     flex: 1;
     min-width: 0;
@@ -590,6 +654,7 @@
   }
 
   .row[aria-checked="true"] .knob {
+    background: var(--switch-knob-on);
     transform: translateX(16px);
   }
 

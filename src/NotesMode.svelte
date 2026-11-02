@@ -374,8 +374,8 @@
   }
   @media (hover: hover) {
     .dhbtn:hover:not(:disabled) {
-      background: #fff;
-      border-color: rgb(28 26 22 / 0.22);
+      background: var(--key-pressed);
+      border-color: var(--key-line);
     }
   }
   .notes-menu {

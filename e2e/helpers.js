@@ -1,10 +1,10 @@
 import { expect } from "@playwright/test";
 
-export const SELECTED_BG = "rgb(211, 224, 248)";
-export const GIVEN_BG = "rgb(229, 228, 224)";
-export const SAME_DIGIT_GIVEN_BG = "rgb(241, 211, 119)";
-export const CONFLICT_BG = "rgb(251, 226, 224)";
-export const CONFLICT = "rgb(192, 47, 47)";
+export const SELECTED_BG = "rgb(48, 68, 94)";
+export const GIVEN_BG = "rgb(48, 54, 63)";
+export const SAME_DIGIT_GIVEN_BG = "rgb(76, 69, 49)";
+export const CONFLICT_BG = "rgb(75, 48, 57)";
+export const CONFLICT = "rgb(230, 168, 181)";
 
 export const cell = (page, i) => page.locator(".board > .cell").nth(i);
 export const pencil = (page, i, d) =>
@@ -570,8 +570,8 @@ export async function expectShiftAgreement(page, want, opts = {}) {
   const hit = active[0];
   expect(hit.cursor).toBe("crosshair");
   expect(hit.weight).toBe("400");
-  if (hit.match) expect(hit.color).toBe("rgb(122, 75, 8)");
-  else expect(hit.color).toBe("rgb(28, 26, 22)");
+  if (hit.match) expect(hit.color).toBe("rgb(44, 37, 23)");
+  else expect(hit.color).toBe("rgb(237, 241, 246)");
   expect(hit.radius).toBe("3.5px");
   expect(hit.shadow).toContain("1.5px");
   if (hit.match) expect(hit.bg).not.toBe("rgba(0, 0, 0, 0)");

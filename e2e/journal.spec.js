@@ -18,7 +18,7 @@ test.describe("desktop journal", () => {
     await expect(latest).toHaveClass(/is-latest/);
     await expect(latest).toHaveClass(/sel/);
     await page.mouse.move(0, 0);
-    await expect(latest).toHaveCSS("background-color", "rgb(211, 224, 248)");
+    await expect(latest).toHaveCSS("background-color", "rgb(48, 68, 94)");
     const defaultPaint = await latest.evaluate((el) => {
       const before = getComputedStyle(el, "::before");
       const after = getComputedStyle(el, "::after");
@@ -36,7 +36,7 @@ test.describe("desktop journal", () => {
       defaultPaint.beforeColor === "transparent";
     expect(defaultInkDropped).toBeTruthy();
     expect(defaultPaint.afterW).toBe("3px");
-    expect(defaultPaint.afterColor).toBe("rgb(42, 86, 198)");
+    expect(defaultPaint.afterColor).toBe("rgb(155, 188, 226)");
     expect(defaultPaint.inset).toBe("1px");
 
     await page.locator('.dgrid .day[data-d="2026-10-15"]').click();
@@ -44,7 +44,7 @@ test.describe("desktop journal", () => {
     await expect(sel).toHaveCount(1);
     await expect(sel).toHaveAttribute("data-d", "2026-10-15");
     await page.mouse.move(0, 0);
-    await expect(sel).toHaveCSS("background-color", "rgb(211, 224, 248)");
+    await expect(sel).toHaveCSS("background-color", "rgb(48, 68, 94)");
     const paint = await sel.evaluate((el) => {
       const after = getComputedStyle(el, "::after");
       return {
@@ -54,7 +54,7 @@ test.describe("desktop journal", () => {
       };
     });
     expect(paint.afterW).toBe("3px");
-    expect(paint.afterColor).toBe("rgb(42, 86, 198)");
+    expect(paint.afterColor).toBe("rgb(155, 188, 226)");
     expect(paint.inset).toBe("1px");
     const latestWhileOther = await latest.evaluate((el) => {
       const before = getComputedStyle(el, "::before");
@@ -68,13 +68,13 @@ test.describe("desktop journal", () => {
     });
     expect(latestWhileOther.sel).toBe(false);
     expect(latestWhileOther.before).toBe("2px");
-    expect(latestWhileOther.beforeColor).toBe("rgb(28, 26, 22)");
+    expect(latestWhileOther.beforeColor).toBe("rgb(237, 241, 246)");
     expect(latestWhileOther.after === "0px" || latestWhileOther.after === "").toBeTruthy();
 
     await latest.click();
     await expect(latest).toHaveClass(/sel/);
     await page.mouse.move(0, 0);
-    await expect(latest).toHaveCSS("background-color", "rgb(211, 224, 248)");
+    await expect(latest).toHaveCSS("background-color", "rgb(48, 68, 94)");
     const latestSel = await latest.evaluate((el) => {
       const before = getComputedStyle(el, "::before");
       const after = getComputedStyle(el, "::after");
@@ -91,7 +91,7 @@ test.describe("desktop journal", () => {
       latestSel.beforeColor === "transparent";
     expect(dropped).toBeTruthy();
     expect(latestSel.afterW).toBe("3px");
-    expect(latestSel.afterColor).toBe("rgb(42, 86, 198)");
+    expect(latestSel.afterColor).toBe("rgb(155, 188, 226)");
   });
 
   test("unfinished card lists other days only, with no Resume", async ({ page }) => {
@@ -132,7 +132,7 @@ test.describe("mobile journal selected", () => {
     const sel = page.locator(".mobile .day.sel");
     await expect(sel).toHaveCount(1);
     await expect(sel).toHaveAttribute("data-d", "2026-10-15");
-    await expect(sel).toHaveCSS("background-color", "rgb(211, 224, 248)");
+    await expect(sel).toHaveCSS("background-color", "rgb(48, 68, 94)");
     const paint = await sel.evaluate((el) => {
       const cs = getComputedStyle(el);
       const after = getComputedStyle(el, "::after");

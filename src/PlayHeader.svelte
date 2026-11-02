@@ -396,7 +396,7 @@
       background: var(--neutral);
     }
     .tp:hover .face {
-      box-shadow: inset 0 0 0 1px rgb(28 26 22 / 0.22);
+      box-shadow: inset 0 0 0 1px var(--key-line);
     }
     .tp:hover .well {
       background: var(--neutral);

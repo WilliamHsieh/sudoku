@@ -10,6 +10,7 @@ export default defineConfig({
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: {
     baseURL: `http://localhost:${PORT}/sudoku/`,
+    colorScheme: "dark",
     trace: "retain-on-failure",
   },
   projects: [
@@ -26,7 +27,7 @@ export default defineConfig({
     {
       name: "webkit",
       testMatch:
-        /(?:board-lines|options-(input-)?focus|sheet-exit|background-(?:cover|blur-policy)|keypad-layout\.mobile)\.spec\.js/,
+        /(?:board-lines|theme|options-(input-)?focus|sheet-exit|background-(?:cover|blur-policy)|keypad-layout\.mobile)\.spec\.js/,
       teardown: "paint-timing",
       use: { browserName: "webkit" },
     },

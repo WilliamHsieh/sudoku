@@ -7,6 +7,7 @@ const { mount, strip } = vi.hoisted(() => ({
 vi.mock("svelte", () => ({ mount }));
 vi.mock("./App.svelte", () => ({ default: () => {} }));
 vi.mock("./favicon.js", () => ({ watchWeekdayFavicon: vi.fn() }));
+vi.mock("./theme.js", () => ({ installTheme: vi.fn(() => () => {}) }));
 vi.mock("./auto-update-browser.js", () => ({
   stripUpdateParam: strip,
 }));

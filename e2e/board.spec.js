@@ -8,6 +8,7 @@ import {
   SELECTED_BG,
   GIVEN_BG,
   SAME_DIGIT_GIVEN_BG,
+  CONFLICT_BG,
   cell,
   pencil,
   pen,
@@ -103,7 +104,7 @@ test("desktop board pixels match master at 1280x800 in every play state", async 
   await cell(page, 0).click();
   await page.keyboard.press("5"); // conflict with the given 5
   await expect(cell(page, 0).locator(".conflict")).toHaveCount(1);
-  await expect(cell(page, 1)).toHaveCSS("background-color", SAME_DIGIT_GIVEN_BG);
+  await expect(cell(page, 1)).toHaveCSS("background-color", CONFLICT_BG);
   await check();
 });
 
@@ -131,7 +132,7 @@ test("Shift, chips and aim never move the 81 cell rects at 1280", async ({ page 
 
 test("starts with no selection; givens are shaded", async ({ page }) => {
   await expect(cell(page, 1)).toHaveCSS("background-color", GIVEN_BG);
-  await expect(cell(page, 0)).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await expect(cell(page, 0)).toHaveCSS("background-color", "rgb(34, 38, 44)");
   await expectValue(page, 1, 5);
   await expectValue(page, 0, 0);
 });
@@ -141,7 +142,7 @@ test("click selects a cell; the Journal brand clears the selection", async ({ pa
   await expect(cell(page, 0)).toHaveCSS("background-color", SELECTED_BG);
   await cell(page, 10).click();
   await expect(cell(page, 10)).toHaveCSS("background-color", SELECTED_BG);
-  await expect(cell(page, 0)).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await expect(cell(page, 0)).toHaveCSS("background-color", "rgb(34, 38, 44)");
 
   await clearSelection(page);
   await expect(cell(page, 10)).not.toHaveCSS("background-color", SELECTED_BG);

@@ -72,7 +72,7 @@ async function pauseRingOn(page) {
       return (
         style.outlineStyle === "solid" &&
         parseFloat(style.outlineWidth) >= 2 &&
-        (color === "rgb(42,86,198)" || color === "#2a56c6")
+        (color === "rgb(155,188,226)" || color === "#9bbce2")
       );
     });
   });
@@ -303,11 +303,11 @@ export function registerPr6Tests(opts = {}) {
       })
     );
     for (const look of looks) {
-      expect(look.bg).toBe("rgb(214, 243, 223)");
-      expect(look.color).toBe("rgb(22, 101, 52)");
+      expect(look.bg).toBe("rgb(41, 62, 52)");
+      expect(look.color).toBe("rgb(155, 205, 175)");
       expect(look.weight).toBe("600");
       expect(look.shadow).toBe(
-        "rgb(34, 197, 94) 0px 0px 0px 1px, rgba(34, 197, 94, 0.28) 0px 0px 0px 3px"
+        "rgb(155, 205, 175) 0px 0px 0px 1px, rgba(155, 205, 175, 0.18) 0px 0px 0px 3px"
       );
     }
     expectGapsAtLeast(await measureChipLineGaps(page, ".pencil-box.cue"), 1);
@@ -371,9 +371,9 @@ export function registerPr6Tests(opts = {}) {
       };
     });
     expect(look.animation).toBe("none");
-    expect(look.bg).toBe("rgb(214, 243, 223)");
-    expect(look.color).toBe("rgb(22, 101, 52)");
-    expect(look.shadow).toBe("rgb(34, 197, 94) 0px 0px 0px 1px");
+    expect(look.bg).toBe("rgb(41, 62, 52)");
+    expect(look.color).toBe("rgb(155, 205, 175)");
+    expect(look.shadow).toBe("rgb(155, 205, 175) 0px 0px 0px 1px");
 
     await page.clock.runFor(60_000);
     await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "hold");

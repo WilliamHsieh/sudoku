@@ -20,7 +20,8 @@ async function expectContinuousLines(page, testInfo, label) {
       outer: parseFloat(style.borderLeftWidth) * scale,
       box: parseFloat(getComputedStyle(cells[2]).borderRightWidth) * scale,
       radius: parseFloat(style.borderTopLeftRadius) * scale,
-      color: style.getPropertyValue("--line-box").trim(),
+      boxColor: style.getPropertyValue("--line-box").trim(),
+      outerColor: style.getPropertyValue("--line-outer").trim(),
       dpr: devicePixelRatio,
     };
   });
@@ -30,19 +31,25 @@ async function expectContinuousLines(page, testInfo, label) {
   const image = decode(png);
   const { board: b, cells, outer, box, radius, dpr } = geometry;
   const strips = [
-    [b.x, b.y + radius, b.x + outer, b.bottom - radius],
-    [b.right - outer, b.y + radius, b.right, b.bottom - radius],
-    [b.x + radius, b.y, b.right - radius, b.y + outer],
-    [b.x + radius, b.bottom - outer, b.right - radius, b.bottom],
+    [b.x, b.y + radius, b.x + outer, b.bottom - radius, geometry.outerColor],
+    [b.right - outer, b.y + radius, b.right, b.bottom - radius, geometry.outerColor],
+    [b.x + radius, b.y, b.right - radius, b.y + outer, geometry.outerColor],
+    [b.x + radius, b.bottom - outer, b.right - radius, b.bottom, geometry.outerColor],
     ...[2, 5].flatMap((i) => [
-      [cells[i].right - box, b.y + outer, cells[i].right, b.bottom - outer],
-      [b.x + outer, cells[i * 9].bottom - box, b.right - outer, cells[i * 9].bottom],
+      [cells[i].right - box, b.y + outer, cells[i].right, b.bottom - outer, geometry.boxColor],
+      [
+        b.x + outer,
+        cells[i * 9].bottom - box,
+        b.right - outer,
+        cells[i * 9].bottom,
+        geometry.boxColor,
+      ],
     ]),
   ];
-  const color = geometry.color.match(/[\da-f]{2}/gi).map((v) => parseInt(v, 16));
   const gaps = [];
   let samples = 0;
-  for (const [left, top, right, bottom] of strips) {
+  for (const [left, top, right, bottom, hex] of strips) {
+    const color = hex.match(/[\da-f]{2}/gi).map((v) => parseInt(v, 16));
     // Check the solid core. Rasterizers may snap/antialias the outer physical
     // pixel differently at fractional zoom; a thin-line notch reaches the core.
     for (let y = Math.ceil(top * dpr + 1); y < Math.floor(bottom * dpr - 1); y++) {

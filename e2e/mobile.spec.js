@@ -24,7 +24,7 @@ import {
 } from "./helpers.js";
 import { touchDriver } from "./touch.js";
 
-const SELECTED_BG = "rgb(211, 224, 248)";
+const SELECTED_BG = "rgb(48, 68, 94)";
 const key = (page, d) => page.locator(`.key[data-d="${d}"]`);
 // 0.5px absorbs subpixel rounding; header fit is strict: gap >= 8, scrollWidth <= clientWidth.
 const EPS = 0.5;
