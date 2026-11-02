@@ -17,6 +17,8 @@ export async function prepareSolved(
     date = DATE,
   } = {}
 ) {
+  // Isolate the fixture from later daily-puzzle additions.
+  await page.clock.setFixedTime(new Date(`${date}T12:00:00`));
   const answer = solve(puzzleData[date].easy);
   const editable = [...puzzleData[date].easy].flatMap((c, i) => (c === "0" ? [i] : []));
   let state = newGame(puzzleData[date].easy, { notesMode: "auto" });

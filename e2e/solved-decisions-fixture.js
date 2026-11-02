@@ -10,6 +10,8 @@ export async function prepareDecision(
   page,
   { state = "normal", custom = false, allToday = false, appearance = "system" } = {}
 ) {
+  // Keep Today and the expected streak stable when master adds another day.
+  await page.clock.setFixedTime(new Date(`${TODAY}T12:00:00`));
   const date = state === "dropped-facts" || state === "today-button" ? PAST : TODAY;
   const puzzle = puzzleData[date].easy;
   const solution = solve(puzzle);
