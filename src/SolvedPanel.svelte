@@ -1,6 +1,7 @@
 <script>
   import { onMount } from "svelte";
   import Icon from "./journal/Icon.svelte";
+  import Marks from "./journal/Marks.svelte";
   import DiffLabel from "./journal/DiffLabel.svelte";
   import { formatTime } from "./store.js";
   import { spokenTime } from "./solved.js";
@@ -43,6 +44,7 @@
         >
       {/if}
     </h2>
+    {#if model.newBest}<div class="sv-best">New best</div>{/if}
     <div class="sv-time" aria-label={`Time ${formatTime(model.time)}`}>
       {formatTime(model.time)}
     </div>
@@ -70,21 +72,7 @@
         <div>
           <dt>{model.dayLabel}</dt>
           <dd aria-label={`${model.count} of 3 solved ${model.dayLabel}`}>
-            <svg class="marks" width="39" height="11" aria-hidden="true"
-              >{#each model.kinds as kind, i (i)}<rect
-                  x={i * 14 + 0.75}
-                  y=".75"
-                  width="9.5"
-                  height="9.5"
-                  rx="2"
-                  fill={kind === "solved"
-                    ? "var(--sv-mark)"
-                    : kind === "progress"
-                      ? "var(--same-digit)"
-                      : "none"}
-                  stroke={kind === "solved" ? "none" : "var(--sv-empty)"}
-                />{/each}</svg
-            >{model.count}/3
+            <Marks kinds={model.kinds} size={11} gap={3} />{model.count}/3
           </dd>
         </div>
       </dl>
@@ -122,15 +110,22 @@
     outline: none;
   }
   .separator {
-    color: var(--sv-separator);
+    color: var(--sv-sep);
   }
   .difficulty {
+    --diff-bar-on: var(--sv-bar-on);
+    --diff-bar-off: var(--sv-bar-off);
     color: var(--ui-soft);
     font-weight: 500;
   }
   .difficulty :global(.diff) {
     font-weight: 500;
     gap: 7px;
+  }
+  .sv-best {
+    margin-top: 6px;
+    font: 600 15px/1.3 var(--ui-font);
+    color: var(--cue-ink);
   }
   .sv-time {
     margin-top: 6px;
@@ -273,6 +268,10 @@
       font-size: 14px;
       --ic: 17px;
     }
+    .sv-best {
+      font-size: 14px;
+      margin-top: 10px;
+    }
     .sv-time {
       font-size: 100px;
       line-height: 0.92;
@@ -317,8 +316,8 @@
     kbd {
       display: inline;
       font: 600 12px/1 var(--ui-font);
-      border: 1px solid rgb(255 255 255 / 0.55);
-      background: rgb(255 255 255 / 0.12);
+      border: 1px solid var(--sv-kbd-line);
+      background: var(--sv-kbd-bg);
       border-radius: 5px;
       padding: 3px 5px;
     }

@@ -134,7 +134,7 @@
   let hasPlayed = $state(false);
   let frozenElapsed = $state(0);
   let viewMotion = $state(false);
-  /** @type {{date: string} | null} */
+  /** @type {{date: string, highlight?: boolean} | null} */
   let journalEntry = $state(null);
   const freshTarget = $derived(unfinishedList($puzzleProgress, $solvedPuzzles)[0] ?? null);
   let isNarrow = $state(typeof window !== "undefined" && window.matchMedia(NARROW_MQ).matches);
@@ -252,8 +252,7 @@
     handleLoadPuzzle();
   }
   async function solvedJournal() {
-    // TODO(solved-design): Q5 — open Journal without scrolling to the solved day.
-    await openJournal(false);
+    await openJournal(true, true);
   }
   let solvedDelay = /** @type {ReturnType<typeof setTimeout> | undefined} */ (undefined);
   const singlesCount = $derived(game.singles.length);
@@ -460,10 +459,10 @@
     game.select(-1);
   }
 
-  async function openJournal(scrollToDay = true) {
+  async function openJournal(scrollToDay = true, highlight = false) {
     game.flushProgress();
     frozenElapsed = get(timer);
-    journalEntry = scrollToDay && game.dateStr ? { date: game.dateStr } : null;
+    journalEntry = scrollToDay && game.dateStr ? { date: game.dateStr, highlight } : null;
     viewMotion = true;
     showCalendar = true;
     resumeStatus = `Journal${game.dateStr ? ", " + longDate(game.dateStr) : ""}. Game paused at ${formatTime(frozenElapsed)}.`;

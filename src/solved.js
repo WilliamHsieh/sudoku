@@ -1,5 +1,11 @@
 import { formatDay, latestPuzzleDay, firstUnsolvedPuzzle } from "./game/daily.js";
-import { averages, streakFrom, puzzleState, unfinishedList } from "./journal/stats.js";
+import {
+  averages,
+  personalBests,
+  streakFrom,
+  puzzleState,
+  unfinishedList,
+} from "./journal/stats.js";
 import { DIFFS, DIFF_LABEL, MONTHS3, parseDay } from "./journal/format.js";
 
 /** @param {number} seconds */
@@ -41,6 +47,8 @@ export function solvedModel({
     ])
   );
   const average = dated ? averages(prior)[difficulty] : null;
+  const previousBest = dated ? personalBests(prior)[difficulty]?.time : undefined;
+  const newBest = previousBest != null && time < previousBest;
   const delta = average == null ? null : Math.round(time - average);
   const latest = latestPuzzleDay(puzzles, formatDay(now));
   const streak = dated && latest ? streakFrom(puzzles, solved, latest) : 0;
@@ -58,25 +66,21 @@ export function solvedModel({
         puzzle: puzzles[unfinished.date][unfinished.diff],
       }
     : todayTarget;
-  // TODO(solved-design): Q3 — back-dated/custom primary targets await William's decision.
   const target = !dated || backdated ? todayTarget : (sameDay ?? resume);
-  const label = !dated
-    ? "Today's puzzle"
-    : backdated
-      ? `Today's puzzle${target ? `: ${DIFF_LABEL[target.difficulty]}` : ""}`
+  const label = !target
+    ? "Journal"
+    : !dated || backdated
+      ? `Today: ${DIFF_LABEL[target.difficulty]}`
       : sameDay
         ? `Next: ${DIFF_LABEL[sameDay.difficulty]}`
-        : target
-          ? `Resume ${dateLabel(target.dateStr)} · ${DIFF_LABEL[target.difficulty]}`
-          : "Journal";
-  // TODO(solved-design): Q1 — drop a missing average and a zero streak; keep remaining columns equal.
-  // TODO(solved-design): Q2 — slower values use +m:ss in ink; omit the personal-best slot.
+        : `Resume ${dateLabel(target.dateStr)} · ${DIFF_LABEL[target.difficulty]}`;
   const comparison =
     delta == null
       ? ""
       : `${spokenTime(delta)} ${delta > 0 ? "slower" : "faster"} than your ${DIFF_LABEL[difficulty]} average`;
   return {
     dated,
+    newBest,
     difficulty,
     time,
     delta,
@@ -87,6 +91,6 @@ export function solvedModel({
     target,
     label,
     resume: !!target && !sameDay && dated && !backdated,
-    announcement: `Solved in ${spokenTime(time)}.${comparison ? ` ${comparison}.` : ""}${streak ? ` ${streak}-day streak.` : ""}`,
+    announcement: `Solved in ${spokenTime(time)}.${newBest ? " New best." : ""}${comparison ? ` ${comparison}.` : ""}${streak ? ` ${streak}-day streak.` : ""}`,
   };
 }

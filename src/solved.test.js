@@ -37,7 +37,21 @@ describe("solved result data", () => {
     expect(m.delta).toBe(131);
     expect(m.announcement).toContain("2 minutes 11 seconds slower than your Easy average");
   });
-  it("does not add a personal best slot", () => expect(model()).not.toHaveProperty("personalBest"));
+  it("does not show New best without an earlier best", () => expect(model().newBest).toBe(false));
+  it("shows New best only for a strictly faster record at this difficulty", () => {
+    const solved = { ...base.solved, "2026-10-31": { easy: entry(490) } };
+    expect(model({ solved }).newBest).toBe(true);
+    expect(model({ solved, time: 490 }).newBest).toBe(false);
+    expect(model({ solved, time: 500 }).newBest).toBe(false);
+  });
+  it.each([null, "2026-10-29"])(
+    "past/custom falls back to Journal when today is complete: %s",
+    (date) => {
+      expect(
+        model({ date, solved: { [day]: { easy: entry(), medium: entry(), hard: entry() } } })
+      ).toMatchObject({ label: "Journal", target: null });
+    }
+  );
   it("counts consecutive puzzle days", () => {
     const solved = Object.fromEntries(Object.keys(puzzles).map((d) => [d, { easy: entry() }]));
     expect(model({ solved }).streak).toBe(4);
@@ -81,7 +95,7 @@ describe("solved result data", () => {
     ).toMatchObject({
       dayLabel: "Oct 29",
       count: 1,
-      label: "Today's puzzle: Easy",
+      label: "Today: Easy",
       target: { dateStr: day },
     });
   });
@@ -91,7 +105,7 @@ describe("solved result data", () => {
       delta: null,
       streak: 0,
       kinds: [],
-      label: "Today's puzzle",
+      label: "Today: Medium",
     });
   });
   it("omits missing clauses in announcements", () =>

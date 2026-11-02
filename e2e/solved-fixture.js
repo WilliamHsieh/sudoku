@@ -35,9 +35,9 @@ export async function prepareSolved(
     },
   };
   const solved = Object.fromEntries(
-    ["2026-10-29", "2026-10-30", "2026-10-31"].map((d) => [
+    ["2026-10-29", "2026-10-30", "2026-10-31"].map((d, i) => [
       d,
-      { easy: { completed: true, time: 490, timestamp: 100 } },
+      { easy: { completed: true, time: [300, 580, 590][i], timestamp: 100 } },
     ])
   );
   if (lastToday) {
