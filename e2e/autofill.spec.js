@@ -8,11 +8,93 @@ async function bodyFocus(page) {
   await page.evaluate(() => document.activeElement?.blur());
 }
 
+// Resolve aliases through CSS, as dark tokens can point to other tokens.
+async function expectToken(page, selector, property, token, pseudo = null) {
+  const colors = await page
+    .locator(selector)
+    .first()
+    .evaluate(
+      (el, { property, token, pseudo }) => {
+        const probe = document.createElement("span");
+        probe.style.color = `var(${token})`;
+        document.body.append(probe);
+        const expected = getComputedStyle(probe).color;
+        probe.remove();
+        return { actual: getComputedStyle(el, pseudo)[property], expected };
+      },
+      { property, token, pseudo }
+    );
+  expect(colors.actual).toBe(colors.expected);
+}
+
+async function expectLegible(page, selector, background) {
+  const colors = await page.locator(selector).evaluate(
+    (el, background) => ({
+      foreground: getComputedStyle(el).color,
+      background: getComputedStyle(document.querySelector(background)).backgroundColor,
+    }),
+    background
+  );
+  const luminance = (color) => {
+    const rgb = color
+      .match(/[\d.]+/g)
+      .slice(0, 3)
+      .map(Number)
+      .map((n) => {
+        const s = n / 255;
+        return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+      });
+    return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+  };
+  const a = luminance(colors.foreground),
+    b = luminance(colors.background);
+  expect((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)).toBeGreaterThanOrEqual(4.5);
+}
+
 for (const width of [390, 1280]) {
   test.describe(`${width}px`, () => {
     test.use({ viewport: { width, height: 900 } });
     test.beforeEach(async ({ page }) => {
       await openBoard(page);
+    });
+
+    test("dark fill controls, shortcut and toast use shared theme tokens and readable text", async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme: "dark" });
+      await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+      await expect(page.locator(".board")).toHaveCSS("background-color", "rgb(34, 38, 44)");
+      if (width === 390) {
+        await expectToken(page, ".af-chip", "color", "--ink");
+        await expectToken(page, ".af-ic", "stroke", "--ink2");
+        await expectToken(page, ".af-btn", "color", "--blue");
+        await expectToken(page, ".af-btn", "backgroundColor", "--page");
+        await expectToken(page, ".af-btn", "borderTopColor", "--hair");
+        await expectLegible(page, ".af-msg", "body");
+        await expectLegible(page, ".af-btn", ".af-btn");
+      } else {
+        await expectToken(page, ".af-desk", "color", "--blue");
+        await expectToken(page, ".af-desk", "backgroundColor", "--board-bg");
+        await expectToken(page, ".af-desk", "borderTopColor", "--hair");
+        await expectToken(page, ".af-kbd", "color", "--ink2");
+        await expectToken(page, ".af-kbd", "backgroundColor", "--neutral");
+        await expectLegible(page, ".af-desk", ".af-desk");
+        await expectLegible(page, ".af-kbd", ".af-kbd");
+      }
+      await bodyFocus(page);
+      await page.keyboard.press("Tab");
+      await page.keyboard.press("Tab");
+      if (width === 1280) {
+        await expect(page.locator(".af-desk")).toBeDisabled();
+        await expectToken(page, ".af-desk", "color", "--ui-soft");
+        await expectToken(page, ".af-desk", "backgroundColor", "--page");
+        await expectLegible(page, ".af-desk", ".af-desk");
+      }
+      await page.keyboard.press("Tab");
+      await expect(page.locator(".toast")).toBeVisible();
+      await expectToken(page, ".toast", "color", "--on-accent");
+      await expectToken(page, ".toast", "backgroundColor", "--primary");
+      await expectLegible(page, ".toast", ".toast");
     });
 
     test("Auto controls, lock, pause, and other note modes", async ({ page }) => {
@@ -182,6 +264,7 @@ for (const width of [390, 1280]) {
     });
 
     test("conflicting singles are tinted, announced, and left empty", async ({ page }) => {
+      await page.emulateMedia({ colorScheme: "dark" });
       await openBoard(page, `./?q=${"0".repeat(81)}`);
       for (const i of [0, 1]) {
         await cell(page, i).click();
@@ -197,6 +280,8 @@ for (const width of [390, 1280]) {
         "Filled 0 cells · 2 skipped, they need the same digit."
       );
       await expect(page.locator(".af-skipped")).toHaveCount(2);
+      await expectToken(page, ".af-skipped", "backgroundColor", "--conflict-bg", "::after");
+      await expect(page.locator(".af-skipped").first()).toHaveCSS("--conflict", "#e6a8b5");
       await expect(cell(page, 0)).toHaveAttribute("data-value", "");
       await expect(cell(page, 1)).toHaveAttribute("data-value", "");
       await page.keyboard.press("Tab");

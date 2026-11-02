@@ -1,6 +1,6 @@
 import { test as base, expect } from "@playwright/test";
 import { upgradeServer } from "./upgrade-server.js";
-import { cell, expectValue, DEMO_PUZZLE, solve } from "./helpers.js";
+import { cell, expectValue, DEMO_PUZZLE, solve, switchNotesMode } from "./helpers.js";
 
 const test = base.extend({
   // eslint-disable-next-line no-empty-pattern
@@ -555,43 +555,62 @@ test("ordinary and persisted pageshow have exact version request counts without 
   expect(attempts(deployment)).toHaveLength(0);
 });
 
-test("animation frames never paint hint and notice ink together on entrance or exit", async ({
-  page,
-  deployment,
-}) => {
-  await page.emulateMedia({ reducedMotion: "no-preference" });
-  await open(page, deployment);
-  const start = () =>
-    page.evaluate(() => {
-      window.swapSamples = [];
-      const sample = () => {
-        window.swapSamples.push({
-          hint: Number(getComputedStyle(document.querySelector(".normal-hint")).opacity),
-          notice: Number(getComputedStyle(document.querySelector(".update-notice")).opacity),
-        });
-        window.swapFrame = requestAnimationFrame(sample);
-      };
-      sample();
+for (const mode of ["Auto", "Tidy"]) {
+  test(`animation frames never paint ${mode === "Auto" ? "chip" : "hint"} and notice ink together on entrance or exit`, async ({
+    page,
+    deployment,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await open(page, deployment);
+    if (mode === "Tidy") await switchNotesMode(page, "Tidy");
+    const restored = page.locator(mode === "Auto" ? ".af-chip" : ".normal-hint");
+    if (mode === "Auto") await expect(restored).toContainText("4 cells have one candidate");
+    else await expect(page.locator(".af-chip")).toHaveCount(0);
+    await expect(restored).toHaveCSS("opacity", "1");
+    const start = () =>
+      page.evaluate(() => {
+        window.swapSamples = [];
+        const sample = () => {
+          const chip = document.querySelector(".af-chip");
+          window.swapSamples.push({
+            hint: Number(getComputedStyle(document.querySelector(".normal-hint")).opacity),
+            chip: chip ? Number(getComputedStyle(chip).opacity) : 0,
+            notice: Number(getComputedStyle(document.querySelector(".update-notice")).opacity),
+          });
+          window.swapFrame = requestAnimationFrame(sample);
+        };
+        sample();
+      });
+    const stop = () =>
+      page.evaluate(() => {
+        cancelAnimationFrame(window.swapFrame);
+        return window.swapSamples;
+      });
+    await start();
+    await publish(page, deployment);
+    const entrance = await stop();
+    await start();
+    await notice(page).getByRole("button", { name: "Dismiss", exact: true }).click();
+    await expect(restored).toHaveCSS("opacity", "1");
+    const exit = await stop();
+    for (const frames of [entrance, exit]) {
+      expect(frames.length).toBeGreaterThan(5);
+      expect(
+        frames.every((frame) => (frame.hint === 0 && frame.chip === 0) || frame.notice === 0)
+      ).toBe(true);
+    }
+    expect(entrance.at(-1)).toEqual({ hint: 0, chip: 0, notice: 1 });
+    expect(exit.at(-1)).toEqual({
+      hint: mode === "Auto" ? 0 : 1,
+      chip: mode === "Auto" ? 1 : 0,
+      notice: 0,
     });
-  const stop = () =>
-    page.evaluate(() => {
-      cancelAnimationFrame(window.swapFrame);
-      return window.swapSamples;
-    });
-  await start();
-  await publish(page, deployment);
-  const entrance = await stop();
-  await start();
-  await notice(page).getByRole("button", { name: "Dismiss", exact: true }).click();
-  await expect(page.locator(".normal-hint")).toHaveCSS("opacity", "1");
-  const exit = await stop();
-  for (const frames of [entrance, exit]) {
-    expect(frames.length).toBeGreaterThan(5);
-    expect(frames.every((frame) => frame.hint === 0 || frame.notice === 0)).toBe(true);
-  }
-  expect(entrance.at(-1)).toEqual({ hint: 0, notice: 1 });
-  expect(exit.at(-1)).toEqual({ hint: 1, notice: 0 });
-});
+    await expect(page.locator(".normal-hint")).toHaveAttribute(
+      "aria-hidden",
+      mode === "Auto" ? "true" : "false"
+    );
+  });
+}
 
 for (const width of [390, 1280]) {
   for (const view of ["Play", "Journal"]) {

@@ -267,7 +267,7 @@
 .af-desk:disabled {
   color: var(--ui-soft);
   cursor: default;
-  background: none;
+  background: var(--page);
 }
 .af-desk:disabled .af-kbd {
   opacity: 0.6;
