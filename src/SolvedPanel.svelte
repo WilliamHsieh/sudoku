@@ -11,6 +11,7 @@
   let announcement = $state("");
   let scoreRow = $state(/** @type {HTMLDListElement | undefined} */ (undefined));
   let wideFacts = $state(false);
+  const RESUME_PREFIX = "Resume ";
   let nextLabel = $state(/** @type {HTMLSpanElement | undefined} */ (undefined));
   // Measure the full label at 16px, then step to 14px before truncation.
   $effect(() => {
@@ -124,7 +125,7 @@
         ><Icon name={model.target ? (model.resume ? "history" : "play") : "calendar-days"} /><span
           bind:this={nextLabel}
           class:resume-label={model.resume}
-          >{#if model.resume}<span class="resume-prefix">Resume{" "}</span><span
+          >{#if model.resume}<span class="resume-prefix">{RESUME_PREFIX}</span><span
               class="resume-detail"
               title={model.resumeDetail}>{model.resumeDetail}</span
             >{:else}{model.label}{/if}</span
