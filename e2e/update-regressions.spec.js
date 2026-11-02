@@ -22,7 +22,7 @@ async function open(page, deployment, query = `?q=${DEMO_PUZZLE}`) {
     localStorage.setItem("sudoku-cue", "0");
   });
   await page.goto(deployment.url + query);
-  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).click();
   await expect(cell(page, 0)).toBeVisible();
   await page.evaluate(() => {
     window.documentIdentity = {};
@@ -129,8 +129,10 @@ for (const mode of ["Manual", "Auto"]) {
       });
       await notice(page).getByRole("button", { name: "Update", exact: true }).tap();
       await expect(build(page)).toHaveAttribute("content", "new");
-      await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible();
-      await page.getByRole("button", { name: "Play", exact: true }).tap();
+      await expect(
+        page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true })
+      ).toBeVisible();
+      await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).tap();
       await expect(cell(page, answer)).toBeVisible();
       const after = await state(page);
       expect(after.cells).toEqual(before.cells);
@@ -146,7 +148,9 @@ for (const mode of ["Manual", "Auto"]) {
       expect(attempts(deployment)).toHaveLength(1);
       // An ordinary later reload also uses the normal start screen.
       await page.reload();
-      await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true })
+      ).toBeVisible();
     });
   }
 }
@@ -166,8 +170,10 @@ test("Update from Journal opens the start screen; Play resumes the daily autosav
   await publish(page, deployment);
   await notice(page).getByRole("button", { name: "Update", exact: true }).tap();
   await expect(build(page)).toHaveAttribute("content", "new");
-  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Play", exact: true }).tap();
+  await expect(
+    page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true })
+  ).toBeVisible();
+  await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).tap();
   await expectValue(page, answer, 1);
   const after = await state(page);
   expect(after.cells).toEqual(before.cells);
@@ -212,10 +218,12 @@ for (const failure of ["aborted", "failed"]) {
     }
     await page.unrouteAll({ behavior: "wait" });
     await page.reload();
-    await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true })
+    ).toBeVisible();
     await expect(page.locator(".play")).not.toBeVisible();
     expect(await page.evaluate(() => Object.keys(sessionStorage))).toEqual([]);
-    await page.getByRole("button", { name: "Play", exact: true }).tap();
+    await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).tap();
     await expectValue(page, first, 1);
     if (failure === "aborted") await expectValue(page, second, 2);
     expect((await state(page)).cells).toEqual(newest.cells);
@@ -264,8 +272,10 @@ test("moves made during a slow Update survive the eventual navigation", async ({
   await page.keyboard.press("2");
   await tap;
   await expect(build(page)).toHaveAttribute("content", "new");
-  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Play", exact: true }).tap();
+  await expect(
+    page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true })
+  ).toBeVisible();
+  await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).tap();
   await expectValue(page, first, 1);
   await expectValue(page, second, 2);
   expect(newest.snapshot.answers[second]).toBe("2");
@@ -299,7 +309,9 @@ test("Update after finishing today's Easy stays on the normal start screen", asy
   await publish(page, deployment);
   await notice(page).getByRole("button", { name: "Update", exact: true }).tap();
   await expect(build(page)).toHaveAttribute("content", "new");
-  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true })
+  ).toBeVisible();
   await expect(page.locator(".play")).not.toBeVisible();
   expect(await page.evaluate(() => localStorage.getItem("sudoku-solved"))).toBe(solved);
   expect(await page.evaluate(() => Object.keys(sessionStorage))).toEqual([]);
@@ -321,7 +333,9 @@ test("Update writes no return marker to either storage area", async ({ page, dep
   await publish(page, deployment);
   await notice(page).getByRole("button", { name: "Update", exact: true }).tap();
   await expect(build(page)).toHaveAttribute("content", "new");
-  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true })
+  ).toBeVisible();
   expect(writes.filter(([area, key]) => area === "session" || /update/i.test(key))).toEqual([]);
   expect(await page.evaluate(() => Object.keys(sessionStorage))).toEqual([]);
   expect(
@@ -329,7 +343,7 @@ test("Update writes no return marker to either storage area", async ({ page, dep
   ).toEqual([]);
 });
 
-test("share-link Update keeps master behaviour without saving the board", async ({
+test("share-link Update confirms the original givens without saving answers", async ({
   page,
   deployment,
 }) => {
@@ -340,7 +354,7 @@ test("share-link Update keeps master behaviour without saving the board", async 
   await publish(page, deployment);
   await notice(page).getByRole("button", { name: "Update", exact: true }).tap();
   await expect(build(page)).toHaveAttribute("content", "new");
-  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).click();
   await expectValue(page, 0, 0);
   expect(new URL(page.url()).searchParams.get("q")).toBe(DEMO_PUZZLE);
   expect(await page.evaluate(() => localStorage.getItem("sudoku-progress"))).toBeNull();
@@ -376,7 +390,9 @@ for (const edited of [false, true]) {
       window.documentIdentity = {};
     });
     await page.goto(`${deployment.url}?q=${DEMO_PUZZLE}`);
-    await page.getByRole("button", { name: "Play", exact: true }).dispatchEvent("click");
+    await page
+      .getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true })
+      .dispatchEvent("click");
     if (edited) {
       await cell(page, 0).dispatchEvent("click");
       await page.keyboard.press("4");
@@ -496,7 +512,7 @@ test("cold launch keeps the newer shell when the server offers an older deployme
   deployment.launchNew();
   const url = `${deployment.url}?q=${DEMO_PUZZLE}&keep=yes#board`;
   await page.goto(url);
-  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).click();
   await expect(build(page)).toHaveAttribute("content", "new");
   await expect(page.locator(".board > .cell")).toHaveCount(81);
   expect(navigations).toEqual([url]);

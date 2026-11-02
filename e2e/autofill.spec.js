@@ -8,6 +8,17 @@ async function bodyFocus(page) {
   await page.evaluate(() => document.activeElement?.blur());
 }
 
+// Safari may skip buttons during native Tab navigation. Keep these tests
+// inside the page instead of focusing browser chrome and pausing the game.
+async function keepTabInPage(page) {
+  await page.evaluate(() => {
+    const input = document.createElement("input");
+    input.setAttribute("aria-label", "Native Tab target");
+    input.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px";
+    document.body.append(input);
+  });
+}
+
 // Resolve aliases through CSS, as dark tokens can point to other tokens.
 async function expectToken(page, selector, property, token, pseudo = null) {
   const colors = await page
@@ -111,6 +122,7 @@ for (const width of [390, 1280]) {
       if (width === 390) await expect(page.locator(".af-chip.active")).toHaveCount(0);
       else await expect(control).toBeDisabled();
       await page.keyboard.press("p");
+      await keepTabInPage(page);
       for (const mode of ["Tidy", "Manual"]) {
         await switchNotesMode(page, mode);
         await expect(page.locator(".af-chip, .af-desk")).toHaveCount(0);
@@ -157,18 +169,26 @@ for (const width of [390, 1280]) {
 
     test("Shift+Tab, text controls, and the options dialog retain native Tab", async ({ page }) => {
       const before = await values(page);
+      await keepTabInPage(page);
       await bodyFocus(page);
       await page.keyboard.press("Shift+Tab");
       expect(await values(page)).toEqual(before);
+      const leftPage = await page.evaluate(() => !document.hasFocus());
       await page.evaluate(() => {
         const input = document.createElement("input");
         input.id = "tab-text";
-        const next = document.createElement("button");
+        input.style.cssText = "position:fixed;top:0;left:0;width:80px";
+        const next = document.createElement("input");
         next.id = "after-tab-text";
-        next.textContent = "Next text control";
+        next.style.cssText = "position:fixed;top:0;left:90px;width:80px";
+        next.setAttribute("aria-label", "Next text control");
         document.body.prepend(input, next);
         input.focus();
       });
+      // Reverse Tab can focus Safari's chrome. Finish its normal auto-resume
+      // focus restoration before testing native traversal between the inputs.
+      if (leftPage) await expect(page.locator("#time-control")).toBeFocused();
+      await page.locator("#tab-text").focus();
       await page.keyboard.press("Tab");
       await expect(page.locator("#after-tab-text")).toBeFocused();
       expect(await values(page)).toEqual(before);
@@ -265,7 +285,8 @@ for (const width of [390, 1280]) {
 
     test("conflicting singles are tinted, announced, and left empty", async ({ page }) => {
       await page.emulateMedia({ colorScheme: "dark" });
-      await openBoard(page, `./?q=${"0".repeat(81)}`);
+      // A distant given keeps the import valid without constraining cells 0 and 1.
+      await openBoard(page, `./?q=${"0".repeat(80)}1`);
       for (const i of [0, 1]) {
         await cell(page, i).click();
         for (const d of [1, 2, 4, 5, 6, 7, 8, 9]) {

@@ -61,6 +61,7 @@ export async function prepareDecision(
   );
   const customPuzzle = solution.slice(0, last) + "0" + solution.slice(last + 1);
   await page.goto(custom ? `./?q=${customPuzzle}&freeze&elapsed=402` : "./?freeze");
+  if (custom) await page.getByRole("button", { name: "Start puzzle", exact: true }).click();
   if (!(await page.locator(".board > .cell").count()))
     await page.getByRole("button", { name: "Play", exact: true }).click();
   await expect(page.locator(".board > .cell")).toHaveCount(81);

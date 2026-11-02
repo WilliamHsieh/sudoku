@@ -296,3 +296,23 @@ test("reduced-motion Journal outline and tint share rounded corners", async ({ p
   await expect(day).toHaveCSS("border-radius", "10px");
   expect(await day.evaluate((el) => getComputedStyle(el, "::after").borderRadius)).toBe("10px");
 });
+
+for (const width of [390, 1280])
+  test(`solved custom puzzle keeps its undated panel and More editor entry at ${width}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 800 });
+    const p = await prepareDecision(page, { custom: true });
+    await finishDecision(page, p);
+    await expect(page.locator(".sv-panel dl")).toHaveCount(0);
+    await expect(page.locator(".sv-best")).toHaveCount(0);
+    await expect(page.locator(".sv-next")).toContainText("Today: Medium");
+    await page.locator("[data-more]").filter({ visible: true }).click();
+    await expect(page.locator("#opt-restart")).toHaveCount(0);
+    await expect(page.locator("#opt-custom")).toBeVisible();
+    await page.locator("#opt-custom").click();
+    await expect(page.locator(".input-cell")).toHaveCount(81);
+    await expect(page.locator("dialog[open]")).toHaveCount(0);
+    await page.getByRole("button", { name: "Back to daily puzzles" }).click();
+    await expect(page.locator(".journal")).toBeVisible();
+  });

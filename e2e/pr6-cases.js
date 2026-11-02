@@ -26,7 +26,7 @@ async function openPlay(page) {
   await freezeTimers(page, T0);
   await page.goto(`./?q=${DEMO_PUZZLE}`);
   if ((await page.locator(".board > .cell").count()) === 0) {
-    await page.getByRole("button", { name: "Play", exact: true }).click();
+    await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).click();
   }
   await expect(page.locator(".board > .cell")).toHaveCount(81);
   await page
@@ -321,7 +321,7 @@ export function registerPr6Tests(opts = {}) {
     digits[blank] = "0";
     await page.goto(`./?q=${digits.join("")}&cueMs=700`);
     if ((await page.locator(".board > .cell").count()) === 0) {
-      await page.getByRole("button", { name: "Play", exact: true }).click();
+      await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).click();
     }
     await cell(page, blank).click();
     await page.keyboard.press(digit);
@@ -354,7 +354,7 @@ export function registerPr6Tests(opts = {}) {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.reload();
     if ((await page.locator(".board > .cell").count()) === 0) {
-      await page.getByRole("button", { name: "Play", exact: true }).click();
+      await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).click();
     }
     await expect(page.locator(".board > .cell")).toHaveCount(81);
 
@@ -691,7 +691,7 @@ export function registerPr6Tests(opts = {}) {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.reload();
     if ((await page.locator(".board > .cell").count()) === 0) {
-      await page.getByRole("button", { name: /Play|Back to game/ }).click();
+      await page.getByRole("button", { name: /^(?:Play|Back to game|Start puzzle)$/ }).click();
     }
     await expect(page.locator(".board > .cell")).toHaveCount(81);
     await page.clock.runFor(2_000);
@@ -793,7 +793,7 @@ export function registerPr6Tests(opts = {}) {
     digits[blank] = "0";
     await page.goto(`./?q=${digits.join("")}`);
     if ((await page.locator(".board > .cell").count()) === 0) {
-      await page.getByRole("button", { name: /Play|Back to game/ }).click();
+      await page.getByRole("button", { name: /^(?:Play|Back to game|Start puzzle)$/ }).click();
     }
     await cell(page, blank).click();
     await page.keyboard.press(digit);
@@ -825,7 +825,7 @@ export function registerPr6Tests(opts = {}) {
     await page.clock.runFor(250 + 600);
     await expect(page.locator(".paused-cover")).toHaveCount(0);
     await expect(page.locator("#resume-status")).toHaveText("");
-    await page.getByRole("button", { name: /Play|Back to game/ }).click();
+    await page.getByRole("button", { name: /^(?:Play|Back to game|Start puzzle)$/ }).click();
     await expect(page.locator(".board > .cell")).toHaveCount(81);
     await expect(page.locator(".paused-cover")).toHaveCount(0);
     await expect(page.locator("#time-control")).toHaveAttribute("aria-pressed", "false");
@@ -874,7 +874,7 @@ export function registerPr6Tests(opts = {}) {
   test("the cue idle restarts when the reveal ends", async ({ page }) => {
     await page.goto("./?q=" + DEMO_PUZZLE + "&cueMs=3000");
     if ((await page.locator(".board > .cell").count()) === 0) {
-      await page.getByRole("button", { name: /Play|Back to game/ }).click();
+      await page.getByRole("button", { name: /^(?:Play|Back to game|Start puzzle)$/ }).click();
     }
     await expect(page.locator(".board > .cell")).toHaveCount(81);
     await page.clock.runFor(2_000);

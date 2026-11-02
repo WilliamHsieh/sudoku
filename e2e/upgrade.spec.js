@@ -20,7 +20,7 @@ async function open(page, deployment) {
     localStorage.setItem("sudoku-cue", "0");
   });
   await page.goto(`${deployment.url}?q=${DEMO_PUZZLE}`);
-  await page.getByRole("button", { name: "Play", exact: true }).tap();
+  await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).tap();
   await expect(cell(page, 0)).toBeVisible();
   await cell(page, 0).tap();
   await page.keyboard.press("4");
@@ -68,7 +68,7 @@ test("a three-second version request never blocks the board", async ({ page, dep
   });
   await page.addInitScript(() => localStorage.setItem("sudoku-keypad-coach", "1"));
   await page.goto(`${deployment.url}?q=${DEMO_PUZZLE}`);
-  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).click();
   await expect(cell(page, 0)).toBeVisible();
   // Measure inside the document, excluding test-runner and interaction latency.
   expect(await page.evaluate(() => window.uiMounted - window.versionStarted)).toBeLessThan(500);
@@ -226,7 +226,7 @@ test("a missing module still offers Reload Sudoku and recovers on the next launc
   deployment.fault("");
   await retry.click();
   await expect(build(page)).toHaveAttribute("content", "new");
-  await page.getByRole("button", { name: "Play", exact: true }).tap();
+  await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).tap();
   await expect(cell(page, 0)).toBeVisible();
   await expectValue(page, 0, 0);
 });

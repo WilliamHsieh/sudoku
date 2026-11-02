@@ -13,7 +13,7 @@ export const pencil = (page, i, d) =>
     .nth(d - 1);
 export const pen = (page, i) => cell(page, i).locator(".pen-box");
 
-/** Demo puzzle shipped on master (Play on desktop; `?q=` on mobile). */
+/** Demo puzzle opened through the share-link preview and Start confirmation. */
 export const DEMO_PUZZLE =
   "050900000800040307000280190538607940020301000109804623907400000045000209000030070";
 
@@ -25,7 +25,7 @@ export async function openBoard(page, path = "./") {
   await page.goto(dest);
   const board = page.locator(".board > .cell");
   if ((await board.count()) === 0) {
-    await page.getByRole("button", { name: "Play", exact: true }).click();
+    await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).click();
   }
   await expect(board).toHaveCount(81);
   await page

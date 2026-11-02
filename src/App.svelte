@@ -13,11 +13,13 @@
   import SolvedPanel from "./SolvedPanel.svelte";
   import { solvedModel } from "./solved.js";
   import "./solved.css";
-  import Api from "./Api.svelte";
   import UpdateNotice from "./UpdateNotice.svelte";
   import Cell from "./Cell.svelte";
   import PlayHeader from "./PlayHeader.svelte";
   import Journal from "./Journal.svelte";
+  import CustomPuzzleEditor from "./custom/CustomPuzzleEditor.svelte";
+  import CustomDraftHeader from "./custom/CustomDraftHeader.svelte";
+  import { parsePuzzleInput } from "./custom/puzzle-input.js";
   import Tools from "./Tools.svelte";
   import Keypad from "./Keypad.svelte";
   import { fitKeypad } from "./fit-keypad.js";
@@ -131,6 +133,24 @@
   const NARROW_MQ = "(max-width: 599px)";
 
   let showCalendar = $state(true);
+  const customParams = new URLSearchParams(window.location.search);
+  const incomingPuzzle = customParams.has("q");
+  let customOpen = $state(incomingPuzzle);
+  let customReady = $state(false);
+  let customPreview = $state(false);
+  let customRaw = $state("0".repeat(81));
+  let customIncoming = $state(
+    /** @type {string | null} */ (incomingPuzzle ? window.location.href : null)
+  );
+  function startCustomPuzzle() {
+    if (!customReady) return;
+    const parsed = parsePuzzleInput(customRaw);
+    if (!parsed.ok) return;
+    game.load(parsed.puzzle);
+    customOpen = false;
+    customPreview = false;
+    handleLoadPuzzle();
+  }
   let hasPlayed = $state(false);
   let frozenElapsed = $state(0);
   let viewMotion = $state(false);
@@ -401,6 +421,7 @@
   }
 
   function handleGlobalKeydown(e) {
+    if (customOpen && showCalendar) return;
     if (playUi.modal) return;
     // Every game binding below is off once complete: digits (including modified
     // digits), arrows, Backspace/Delete/0, undo/redo (Ctrl/Cmd Z, Shift Z, Ctrl Y),
@@ -470,12 +491,29 @@
     if (isNarrow || !journalEntry) focusId("time-control");
   }
 
-  function hasQueryPuzzle() {
-    return /^[0-9]{81}$/.test(new URLSearchParams(window.location.search).get("q") ?? "");
+  async function openCustomPuzzle() {
+    customOpen = true;
+    await openJournal();
+    resumeStatus = "Custom puzzle. Enter the given numbers or paste a puzzle.";
+    const cell = document.querySelector(".custom-editor .input-cell[tabindex='0']");
+    if (cell instanceof HTMLElement) cell.focus({ preventScroll: true });
+  }
+
+  async function closeCustomPuzzle() {
+    if (customPreview) {
+      customPreview = false;
+      return;
+    }
+    customOpen = false;
+    await tick();
+    const entry = [...document.querySelectorAll(".custom-entry")].find(
+      (node) => node instanceof HTMLElement && node.getClientRects().length > 0
+    );
+    if (entry instanceof HTMLElement) entry.focus({ preventScroll: true });
   }
 
   function playFromJournal() {
-    if (!hasPlayed && !hasQueryPuzzle()) {
+    if (!hasPlayed) {
       const list = unfinishedList(get(puzzleProgress), get(solvedPuzzles));
       const recent = list[0];
       const puzzle = recent ? puzzleData[recent.date]?.[recent.diff] : null;
@@ -778,36 +816,50 @@
 <div class="top-strip" aria-hidden="true"></div>
 
 <main
-  class:on-journal={showCalendar}
+  class:on-journal={showCalendar && !customOpen}
   class:background-hiding={backgroundCover && playUi.paused && playUi.resumePhase !== "reveal"}
 >
   <p id="resume-status" class="sr-only" aria-live="polite">{resumeStatus}</p>
-  <Api />
-  <PlayHeader
-    journal={showCalendar}
-    narrow={isNarrow}
-    {hasPlayed}
-    {frozenElapsed}
-    {freshTarget}
-    ondate={() => openJournal()}
-    ontime={onPauseClick}
-    onbrand={removeFocus}
-  />
+  {#if customOpen && showCalendar}
+    <CustomDraftHeader preview={customPreview} onback={closeCustomPuzzle} />
+  {:else}
+    <PlayHeader
+      journal={showCalendar}
+      narrow={isNarrow}
+      {hasPlayed}
+      {frozenElapsed}
+      {freshTarget}
+      ondate={() => openJournal()}
+      ontime={onPauseClick}
+      onbrand={removeFocus}
+    />
+  {/if}
 
   {#if showCalendar}
     <div
       bind:this={journalViewport}
       class="journal-view"
+      class:custom-editor-host={customOpen}
       class:enter-journal={viewMotion && !playUi.reduced}
     >
-      <Journal
-        viewport={journalViewport}
-        openOn={journalEntry}
-        current={hasPlayed
-          ? { date: game.dateStr, diff: game.difficulty, elapsed: frozenElapsed }
-          : null}
-        onback={backToGame}
-      />
+      <CustomPuzzleEditor
+        onstart={startCustomPuzzle}
+        bind:open={customOpen}
+        bind:canStart={customReady}
+        bind:preview={customPreview}
+        bind:raw={customRaw}
+        bind:incoming={customIncoming}
+      >
+        <Journal
+          viewport={journalViewport}
+          oncustom={openCustomPuzzle}
+          openOn={journalEntry}
+          current={hasPlayed
+            ? { date: game.dateStr, diff: game.difficulty, elapsed: frozenElapsed }
+            : null}
+          onback={backToGame}
+        />
+      </CustomPuzzleEditor>
     </div>
   {:else}
     <div
@@ -1057,6 +1109,7 @@
     <OptionsSheet
       canRestart={!game.solved}
       viewport={playViewport}
+      oncustom={openCustomPuzzle}
       onclosed={focusMore}
       onrestart={() => {
         if (game.solved) return;
@@ -1560,6 +1613,10 @@
   }
   .enter-journal {
     animation: enter-journal 260ms var(--ease-out) both;
+  }
+  .journal-view.custom-editor-host {
+    flex-direction: column;
+    overflow-y: auto;
   }
   .enter-play {
     animation: enter-play 260ms var(--ease-out) both;

@@ -7,6 +7,11 @@ A daily Sudoku where pencil marks get as much care as answers.
 Appearance follows your system by default. During a puzzle, open **More → Appearance** to choose
 **System**, **Light**, or **Dark**. Your choice is saved on this device.
 
+Open **Custom puzzle** from the home screen or **More → Custom puzzle** while playing.
+Enter givens on the board, paste 81 digits (`0` for blanks), or paste a puzzle link.
+**Copy puzzle** offers an 81-digit copy dialog and link sharing. Shared links open a preview;
+press **Start puzzle** to play.
+
 https://github.com/user-attachments/assets/710dc796-4721-42ac-8d1d-6b18db8ff009
 
 ## Development
