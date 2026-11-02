@@ -13,6 +13,7 @@ import { toSnapshot } from "../game/snapshot.js";
 
 const SOLVED_KEY = "sudoku-solved";
 const PROGRESS_KEY = "sudoku-progress";
+const REPLAY_KEY = "sudoku-replay-progress";
 
 function readJson(key, fallback) {
   if (typeof window === "undefined") return fallback;
@@ -49,6 +50,7 @@ function createSolvedPuzzles() {
         return next;
       });
       puzzleProgress.clear(dateStr, difficulty);
+      replayProgress.clear(dateStr, difficulty);
     },
     isSolved: (dateStr, difficulty) => {
       let cur = {};
@@ -58,8 +60,8 @@ function createSolvedPuzzles() {
   };
 }
 
-function createPuzzleProgress() {
-  const initial = readJson(PROGRESS_KEY, {});
+function createPuzzleProgress(key = PROGRESS_KEY) {
+  const initial = readJson(key, {});
   const { subscribe, set, update } = writable(initial);
 
   return {
@@ -75,7 +77,7 @@ function createPuzzleProgress() {
       update((prog) => {
         const next = { ...prog, [dateStr]: { ...(prog[dateStr] || {}) } };
         next[dateStr][difficulty] = { ...entry, updatedAt: Date.now() };
-        writeJson(PROGRESS_KEY, next);
+        writeJson(key, next);
         return next;
       });
     },
@@ -87,7 +89,7 @@ function createPuzzleProgress() {
         const next = { ...prog };
         if (Object.keys(day).length) next[dateStr] = day;
         else delete next[dateStr];
-        writeJson(PROGRESS_KEY, next);
+        writeJson(key, next);
         return next;
       });
     },
@@ -96,6 +98,8 @@ function createPuzzleProgress() {
 
 export const solvedPuzzles = createSolvedPuzzles();
 export const puzzleProgress = createPuzzleProgress();
+// Never participates in Journal stats or ordinary Resume. A new Replay starts fresh.
+export const replayProgress = createPuzzleProgress(REPLAY_KEY);
 
 /**
  * How many of the empty cells have answers.

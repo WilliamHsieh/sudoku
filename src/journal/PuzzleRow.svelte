@@ -32,7 +32,12 @@
         {/if}
       </div>
     </div>
-    <span class="tm num"><Icon name="check" />{fmtTime(st.time)}</span>
+    <button
+      class="tm num solved-open"
+      type="button"
+      aria-label={`View solved ${diff} puzzle, ${formatTime(st.time)}`}
+      onclick={onplay}><Icon name="check" />{fmtTime(st.time)}</button
+    >
   {:else if st.kind === "progress"}
     <div>
       <DiffLabel {diff} />
@@ -103,6 +108,23 @@
     align-items: center;
     gap: 6px;
     --ic: 16px;
+  }
+  .solved-open {
+    border: 0;
+    background: transparent;
+    color: var(--ui-ink);
+    font-family: inherit;
+    cursor: pointer;
+    min-height: 44px;
+    border-radius: 9px;
+    padding: 0 8px;
+  }
+  .solved-open:hover {
+    background: var(--sv-quiet-hover);
+  }
+  .solved-open:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
   }
   .bar {
     height: 4px;

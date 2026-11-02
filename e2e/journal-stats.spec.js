@@ -5,8 +5,14 @@ import { puzzleData } from "../src/puzzles.js";
 // here without changing that project's scope or adding platform-specific paths.
 const test = base.extend({
   journalEngine: ["chromium", { option: true }],
-  page: async ({ playwright, baseURL, journalEngine }, use) => {
-    const browser = await playwright[journalEngine].launch();
+  page: async ({ playwright, baseURL, journalEngine }, use, testInfo) => {
+    // A project can supply a local browser binary. Use the selected engine's
+    // options so a Chromium path never reaches this fixture's WebKit launch.
+    const project = testInfo.config.projects.find((p) => p.use.browserName === journalEngine);
+    const browser = await playwright[journalEngine].launch({
+      ...project?.use.launchOptions,
+      executablePath: project?.use.launchOptions?.executablePath,
+    });
     try {
       await use(await browser.newPage({ baseURL }));
     } finally {

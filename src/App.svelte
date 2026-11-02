@@ -10,6 +10,8 @@
     resetAutofill,
     syncAutofill,
   } from "./autofill.svelte.js";
+  import JournalSolved from "./JournalSolved.svelte";
+  import ReplayConfirm from "./ReplayConfirm.svelte";
   import SolvedPanel from "./SolvedPanel.svelte";
   import { solvedModel } from "./solved.js";
   import "./solved.css";
@@ -202,6 +204,18 @@
   let journalViewport = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   let wrapEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   let ringEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
+  let replayConfirm = $state(false);
+  async function cancelReplay() {
+    replayConfirm = false;
+    await tick();
+    document.getElementById("sv-replay")?.focus({ preventScroll: true });
+  }
+  function confirmReplay() {
+    replayConfirm = false;
+    game.startReplay();
+    handleLoadPuzzle();
+    void tick().then(() => focusId("time-control"));
+  }
   let solvedScreen = $state(false);
   let autoFinishing = false;
   let controlsGone = $state(false);
@@ -237,6 +251,7 @@
       solved: get(solvedPuzzles),
       progress: get(puzzleProgress),
       puzzles: puzzleData,
+      previousRecord: game.previousRecord,
     });
     solvedScreen = true;
   }
@@ -244,6 +259,11 @@
     if (!$done) {
       solvedScreen = false;
       controlsGone = false;
+      return;
+    }
+    if (game.journalView) {
+      solvedScreen = true;
+      controlsGone = true;
       return;
     }
     if (autoFinishing) return;
@@ -422,13 +442,14 @@
 
   function handleGlobalKeydown(e) {
     if (customOpen && showCalendar) return;
-    if (playUi.modal) return;
+    if (playUi.modal || replayConfirm) return;
     // Every game binding below is off once complete: digits (including modified
     // digits), arrows, Backspace/Delete/0, undo/redo (Ctrl/Cmd Z, Shift Z, Ctrl Y),
     // Tab autofill, Shift digit lock, Space/Enter locked input, Escape and P.
     if (game.solved && !showCalendar) {
       if (
         solvedScreen &&
+        !game.journalView &&
         e.key === "Enter" &&
         (document.activeElement === document.body || document.activeElement?.id === "sv-h")
       ) {
@@ -536,6 +557,13 @@
 
   /** Shared by C, P, and Resume for the current puzzle. Never reload history. */
   function backToGame(fromSheet = false) {
+    if (
+      game.dateStr &&
+      game.difficulty &&
+      get(solvedPuzzles)[game.dateStr]?.[game.difficulty]?.completed
+    ) {
+      game.load(game.state.givens.join(""), { dateStr: game.dateStr, difficulty: game.difficulty });
+    }
     playUi.start();
     playUi.resume();
     if (!playUi.paused) {
@@ -824,6 +852,7 @@
     <CustomDraftHeader preview={customPreview} onback={closeCustomPuzzle} />
   {:else}
     <PlayHeader
+      inert={replayConfirm}
       journal={showCalendar}
       narrow={isNarrow}
       {hasPlayed}
@@ -863,6 +892,7 @@
     </div>
   {:else}
     <div
+      inert={replayConfirm}
       use:fitKeypad
       bind:this={playViewport}
       class="play"
@@ -899,7 +929,7 @@
               <Cell cell_id={id} desktop={!isNarrow} />
             {/each}
           </div>
-          {#if solvedScreen && !playUi.reduced}
+          {#if solvedScreen && !game.journalView && !playUi.reduced}
             <div
               class="sv-ring"
               aria-hidden="true"
@@ -939,7 +969,11 @@
         </div>
       </div>
       <div class="mobile-chrome" class:sv-chrome={solvedScreen}>
-        {#if solvedScreen && resultModel}<SolvedPanel
+        {#if game.journalView}<JournalSolved
+            onjournal={solvedJournal}
+            onreplay={() => (replayConfirm = true)}
+          />
+        {:else if solvedScreen && resultModel}<SolvedPanel
             model={resultModel}
             reduced={playUi.reduced}
             onnext={nextSolved}
@@ -1135,6 +1169,12 @@
     ondismiss={dismissUpdate}
   />
 {/if}
+
+{#if replayConfirm}<ReplayConfirm
+    time={get(timer)}
+    oncancel={cancelReplay}
+    onconfirm={confirmReplay}
+  />{/if}
 
 <style>
   .sr-only {

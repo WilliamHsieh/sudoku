@@ -1,5 +1,5 @@
 <script>
-  /** @typedef {'circle-check' | 'check' | 'play' | 'chevron-left' | 'chevron-right' | 'calendar-days' | 'grid-3x3' | 'flame' | 'trophy' | 'x' | 'history' | 'info' | 'arrow-left' | 'ellipsis'} IconName */
+  /** @typedef {'rotate-ccw' | 'circle-check' | 'check' | 'play' | 'chevron-left' | 'chevron-right' | 'calendar-days' | 'grid-3x3' | 'flame' | 'trophy' | 'x' | 'history' | 'info' | 'arrow-left' | 'ellipsis'} IconName */
 
   /** @type {{ name: IconName }} */
   let { name } = $props();
@@ -48,6 +48,9 @@
   {:else if name === "x"}
     <path d="M18 6 6 18"></path>
     <path d="m6 6 12 12"></path>
+  {:else if name === "rotate-ccw"}
+    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+    <path d="M3 3v5h5" />
   {:else if name === "history"}
     <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
     <path d="M3 3v5h5"></path>

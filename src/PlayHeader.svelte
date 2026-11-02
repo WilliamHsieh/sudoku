@@ -9,11 +9,20 @@
   import Timer from "./Timer.svelte";
   import NotesMode from "./NotesMode.svelte";
 
-  /** @type {{journal: boolean, narrow: boolean, hasPlayed: boolean, frozenElapsed: number,
+  /** @type {{inert?: boolean, journal: boolean, narrow: boolean, hasPlayed: boolean, frozenElapsed: number,
    * freshTarget: {date: string, diff: string, elapsed: number} | null,
    * ondate: () => void, ontime: () => void, onbrand: () => void}} */
-  let { journal, narrow, hasPlayed, frozenElapsed, freshTarget, ondate, ontime, onbrand } =
-    $props();
+  let {
+    inert = false,
+    journal,
+    narrow,
+    hasPlayed,
+    frozenElapsed,
+    freshTarget,
+    ondate,
+    ontime,
+    onbrand,
+  } = $props();
   const fresh = $derived(journal && !hasPlayed);
   const name = $derived(
     journal ? (fresh ? "Play" : "Back to game") : playUi.paused ? "Resume" : "Pause"
@@ -33,6 +42,7 @@
 </script>
 
 <header
+  {inert}
   class="header"
   class:on-journal={journal}
   class:reduced={playUi.reduced}
@@ -93,7 +103,9 @@
       id="time-control"
       type="button"
       class:is-paused={showPlay}
-      aria-label={game.solved && !journal ? `Solved in ${formatTime($timer)}` : name}
+      aria-label={game.solved && !journal
+        ? `Solved in ${formatTime($timer)}${game.journalView && game.dateStr ? " on " + longDate(game.dateStr).split(", ").slice(1).join(", ") : ""}`
+        : name}
       aria-disabled={game.solved && !journal ? "true" : undefined}
       aria-pressed={journal || game.solved ? undefined : playUi.paused}
       aria-describedby={fresh ? "header-time fresh-target" : "header-time"}

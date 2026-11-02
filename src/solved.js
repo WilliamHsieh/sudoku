@@ -32,7 +32,7 @@ export function resumeDateLabel(date, now) {
   return `${dateLabel(date)}${year === now.getFullYear() ? "" : `, ${year}`}`;
 }
 /** Snapshot the comparison before this solve; the completed record is already saved.
- * @param {{date: string | null, difficulty: string | null, time: number, solved: Record<string, Record<string, {completed?: boolean, time?: number}>>, progress: Parameters<typeof unfinishedList>[0], puzzles: Record<string, Record<string, string>>, now?: Date}} input
+ * @param {{date: string | null, difficulty: string | null, time: number, solved: Record<string, Record<string, {completed?: boolean, time?: number}>>, progress: Parameters<typeof unfinishedList>[0], puzzles: Record<string, Record<string, string>>, now?: Date, previousRecord?: {completed?: boolean, time?: number} | null}} input
  */
 export function solvedModel({
   date,
@@ -42,6 +42,7 @@ export function solvedModel({
   progress,
   puzzles,
   now = new Date(),
+  previousRecord = null,
 }) {
   const dated = !!(date && difficulty && puzzles[date]?.[difficulty]);
   const prior = Object.fromEntries(
@@ -52,6 +53,7 @@ export function solvedModel({
       ),
     ])
   );
+  if (dated && previousRecord) prior[date] = { ...prior[date], [difficulty]: previousRecord };
   const average = dated ? averages(prior)[difficulty] : null;
   const previousBest = dated ? personalBests(prior)[difficulty]?.time : undefined;
   const newBest = previousBest != null && time < previousBest;

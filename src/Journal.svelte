@@ -379,7 +379,7 @@
     if (!puzzle) return;
     const st = puzzleState(get(solvedPuzzles), get(puzzleProgress), date, diff);
     const play = () => {
-      if (current?.date === date && current.diff === diff && onback) {
+      if (st.kind !== "solved" && current?.date === date && current.diff === diff && onback) {
         onback(fromSheet);
         return;
       }
