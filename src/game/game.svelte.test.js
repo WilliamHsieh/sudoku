@@ -506,3 +506,21 @@ it.each(["enter", "fill", "fillLone"])("Tidy cleans and undoes peer notes throug
   g.clearAnswer(0);
   expect(g.hasNote(1, 3)).toBe(false);
 });
+
+describe("single-candidate pass", () => {
+  it("commits once, restores all cells with Undo, and replays with Redo", () => {
+    const before = g.state;
+    const activity = [];
+    g.setOnActivity(() => activity.push(1));
+    const result = g.fillSingles();
+    expect(result.placed).toHaveLength(4);
+    expect(activity).toHaveLength(1);
+    const after = g.state;
+    g.undo();
+    expect(g.state).toBe(before);
+    expect(g.canUndo).toBe(false);
+    g.redo();
+    expect(g.state).toBe(after);
+    expect(g.singles).toHaveLength(2);
+  });
+});

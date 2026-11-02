@@ -1,4 +1,5 @@
 <script>
+  import { autofill } from "./autofill.svelte.js";
   import PenBox from "./PenBox.svelte";
   import PencilBox from "./PencilBox.svelte";
   import { game } from "./game/game.svelte.js";
@@ -76,6 +77,18 @@
 <div
   class="cell"
   class:given
+  class:af-filled={autofill.placed.some(({ i }) => i === cell_id)}
+  class:af-skipped={autofill.skipped.includes(cell_id)}
+  class:af-undone={autofill.undone.includes(cell_id)}
+  class:af-reduced={autofill.reduced}
+  style:--af-delay={`${
+    autofill.reduced
+      ? 0
+      : Math.max(
+          0,
+          autofill.placed.findIndex(({ i }) => i === cell_id)
+        ) * Math.min(45, 360 / Math.max(1, autofill.placed.length - 1))
+  }ms`}
   class:selected
   class:same
   class:conflict

@@ -280,3 +280,47 @@ export function fill(state, i, highlighted = 0) {
   const d = fillDigit(state, i, highlighted);
   return d ? setAnswer(state, i, d) : unchanged(state);
 }
+
+/** Shown single candidates in reading order. Auto mode only.
+ * @param {GameState} state @returns {{i: number, d: number}[]}
+ */
+export function singleCandidates(state) {
+  if (state.notesMode !== "auto") return [];
+  const singles = [];
+  for (let i = 0; i < 81; i++) {
+    const mask = candidates(state, i);
+    if (popcount(mask) === 1) singles.push({ i, d: maskDigits(mask)[0] });
+  }
+  return singles;
+}
+
+/** One snapshot pass. All same-digit singles sharing a unit are skipped.
+ * Peer notes are tidied even when they belong to the other note mode.
+ * @param {GameState} state
+ * @returns {ActionResult & {placed: {i: number, d: number}[], skipped: number[]}}
+ */
+export function fillSingles(state) {
+  const singles = singleCandidates(state);
+  const skipped = singles
+    .filter(({ i, d }) => singles.some((other) => other.d === d && PEERS[i].includes(other.i)))
+    .map(({ i }) => i);
+  const placed = singles.filter(({ i }) => !skipped.includes(i));
+  if (!placed.length) return { ...unchanged(state), placed, skipped };
+  const answers = state.answers.slice();
+  const manualNotes = state.manualNotes.slice();
+  const autoAdded = state.autoAdded.slice();
+  for (const { i, d } of placed) {
+    answers[i] = d;
+    for (const peer of PEERS[i]) {
+      manualNotes[peer] &= ~bit(d);
+      autoAdded[peer] &= ~bit(d);
+    }
+  }
+  return {
+    state: { ...state, answers, manualNotes, autoAdded },
+    changed: true,
+    blockers: [],
+    placed,
+    skipped,
+  };
+}
