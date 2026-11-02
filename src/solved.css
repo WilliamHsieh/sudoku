@@ -1,0 +1,53 @@
+:root {
+  --sv-ring-rgb: 34 197 94;
+  --sv-separator: #8a857c;
+  --sv-flame: #b93d0a;
+  --sv-mark: #1c1a16;
+  --sv-empty: #a2a09b;
+}
+:root[data-theme="dark"] {
+  /* TODO(solved-design): Interim dark colours; final dark design awaits approval. */
+  --sv-ring-rgb: 74 222 128;
+  --sv-separator: #aaa69e;
+  --sv-flame: #fb923c;
+  --sv-mark: #eeeae2;
+  --sv-empty: #8f969f;
+}
+@property --sv-r {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+.sv-ring {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  border-radius: var(--board-radius);
+  background: radial-gradient(
+    circle at var(--sv-x) var(--sv-y),
+    transparent calc(var(--sv-r) - 120px),
+    rgb(var(--sv-ring-rgb) / 0.2) calc(var(--sv-r) - 36px),
+    rgb(var(--sv-ring-rgb) / 0.3) calc(var(--sv-r) - 6px),
+    transparent var(--sv-r)
+  );
+  animation: sv-spread 900ms var(--ease-out) both;
+}
+@keyframes sv-spread {
+  0% {
+    --sv-r: 0px;
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    --sv-r: var(--sv-rmax);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sv-ring {
+    display: none;
+  }
+}

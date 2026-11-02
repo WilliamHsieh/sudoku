@@ -205,7 +205,7 @@ for (const width of [390, 1280]) {
       await expect(page.locator(".toast")).toHaveCount(0);
     });
 
-    test("solved modal waits for the last stagger plus 520ms", async ({ page }) => {
+    test("solved panel waits for the last stagger plus 520ms", async ({ page }) => {
       const solution = solve(DEMO_PUZZLE);
       const puzzle = "0" + solution.slice(1, 40) + "0" + solution.slice(41);
       await openBoard(page, `./?q=${puzzle}`);
@@ -214,11 +214,11 @@ for (const width of [390, 1280]) {
       await page.clock.pauseAt(new Date(Date.now() + 1000));
       await page.keyboard.press("Tab");
       await expect(page.locator(".af-filled")).toHaveCount(2);
-      await expect(page.locator(".success-message")).toHaveCount(0);
+      await expect(page.locator(".sv-panel")).toHaveCount(0);
       await page.clock.runFor(564);
-      await expect(page.locator(".success-message")).toHaveCount(0);
+      await expect(page.locator(".sv-panel")).toHaveCount(0);
       await page.clock.runFor(2);
-      await expect(page.locator(".success-message")).toBeVisible();
+      await expect(page.locator(".sv-panel")).toHaveCount(1);
     });
 
     test("reduced motion has no scale and no stagger", async ({ page }) => {

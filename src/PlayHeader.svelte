@@ -2,7 +2,7 @@
   import { fade } from "svelte/transition";
   import { game } from "./game/game.svelte.js";
   import { playUi } from "./play/session.svelte.js";
-  import { formatTime } from "./store.js";
+  import { formatTime, timer } from "./store.js";
   import { DIFF_LABEL, longDate, shortDate } from "./journal/format.js";
   import DiffLabel from "./journal/DiffLabel.svelte";
   import Icon from "./journal/Icon.svelte";
@@ -64,35 +64,38 @@
   </div>
   <div class="right">
     {#if !journal}
-      {#if !narrow}
+      {#if !narrow && !game.solved}
         <div class="auto-slot" transition:fade={{ duration: playUi.reduced ? 0 : 160 }}>
           <NotesMode desktop />
         </div>
       {/if}
-      <button
-        transition:fade={{ duration: playUi.reduced ? 0 : 160 }}
-        class="more"
-        type="button"
-        data-more
-        aria-label="More"
-        title="More options"
-        aria-haspopup="dialog"
-        disabled={playUi.paused}
-        onclick={() => playUi.openOptions()}
-      >
-        <Icon name="ellipsis" />
-      </button>
+      {#if !game.solved}<button
+          transition:fade={{ duration: playUi.reduced ? 0 : 160 }}
+          class="more"
+          type="button"
+          data-more
+          aria-label="More"
+          title="More options"
+          aria-haspopup="dialog"
+          disabled={playUi.paused}
+          onclick={() => playUi.openOptions()}
+        >
+          <Icon name="ellipsis" />
+        </button>{/if}
     {/if}
     <button
       class="tp pc"
       id="time-control"
       type="button"
       class:is-paused={showPlay}
-      aria-label={name}
-      aria-pressed={journal ? undefined : playUi.paused}
+      aria-label={game.solved && !journal ? `Solved in ${formatTime($timer)}` : name}
+      aria-disabled={game.solved && !journal ? "true" : undefined}
+      aria-pressed={journal || game.solved ? undefined : playUi.paused}
       aria-describedby={fresh ? "header-time fresh-target" : "header-time"}
-      title={`${name} (P)`}
-      onclick={ontime}
+      title={game.solved && !journal ? undefined : `${name} (P)`}
+      onclick={() => {
+        if (!game.solved || journal) ontime();
+      }}
     >
       <span class="face">
         <span class="ts" id="header-time">
@@ -102,29 +105,31 @@
                 ? formatTime(freshTarget.elapsed)
                 : "Play"
               : formatTime(frozenElapsed)}
-          {:else}<Timer />{/if}
+          {:else if game.solved}<span class="time" data-time>{formatTime($timer)}</span
+            >{:else}<Timer />{/if}
         </span>
-        <span class="well"
-          ><span class="gm" class:is-play={showPlay} aria-hidden="true">
-            <span class="g gp"
-              ><svg viewBox="0 0 24 24"
-                ><rect x="14" y="3" width="5" height="18" rx="1" /><rect
-                  x="5"
-                  y="3"
-                  width="5"
-                  height="18"
-                  rx="1"
-                /></svg
-              ></span
-            >
-            <span class="g gy"
-              ><svg viewBox="0 0 24 24"
-                ><path
-                  d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"
-                /></svg
-              ></span
-            >
-          </span></span
+        <span class="well">
+          {#if game.solved && !journal}<span class="solved-check"><Icon name="check" /></span
+            >{:else}<span class="gm" class:is-play={showPlay} aria-hidden="true">
+              <span class="g gp"
+                ><svg viewBox="0 0 24 24"
+                  ><rect x="14" y="3" width="5" height="18" rx="1" /><rect
+                    x="5"
+                    y="3"
+                    width="5"
+                    height="18"
+                    rx="1"
+                  /></svg
+                ></span
+              >
+              <span class="g gy"
+                ><svg viewBox="0 0 24 24"
+                  ><path
+                    d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"
+                  /></svg
+                ></span
+              >
+            </span>{/if}</span
         >
       </span>
     </button>
@@ -454,5 +459,10 @@
     .g {
       transition: none;
     }
+  }
+  .solved-check {
+    display: flex;
+    color: var(--cue-ink);
+    --ic: 16px;
   }
 </style>

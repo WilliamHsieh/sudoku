@@ -57,4 +57,20 @@
       display: none;
     }
   }
+  :where(.pen-box:not(.given)) {
+    animation: pen-place 160ms var(--ease-out);
+  }
+  @keyframes pen-place {
+    from {
+      transform: scale(0.86);
+    }
+    to {
+      transform: scale(1);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :where(.pen-box:not(.given)) {
+      animation: none;
+    }
+  }
 </style>

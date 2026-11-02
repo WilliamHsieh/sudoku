@@ -1,5 +1,5 @@
 <script>
-  import { autofill } from "./autofill.svelte.js";
+  import { autofill, autofillDelay } from "./autofill.svelte.js";
   import PenBox from "./PenBox.svelte";
   import PencilBox from "./PencilBox.svelte";
   import { game } from "./game/game.svelte.js";
@@ -33,6 +33,7 @@
   const undoTarget = $derived(padUi.undoTargets.includes(cell_id));
 
   function handleRightClick() {
+    if (game.solved) return;
     // Right-click and Erase operate on the same selected editable cell.
     if (game.selected == cell_id && !game.given(cell_id)) {
       if (desktop) eraseCell(cell_id);
@@ -46,6 +47,7 @@
   }
 
   function handleClick(e) {
+    if (game.solved) return;
     if (performance.now() - touchAt < 700) return;
     if (padUi.locked) {
       lockTap(cell_id);
@@ -61,6 +63,7 @@
 
   /** Touch: select on pointerdown (no 300ms delay) and detect double-tap fill. */
   function handlePointerDown(e) {
+    if (game.solved) return;
     if (e.pointerType === "mouse" || (e.button !== undefined && e.button > 0)) return;
     touchAt = performance.now();
     e.preventDefault();
@@ -81,14 +84,11 @@
   class:af-skipped={autofill.skipped.includes(cell_id)}
   class:af-undone={autofill.undone.includes(cell_id)}
   class:af-reduced={autofill.reduced}
-  style:--af-delay={`${
+  style:--af-delay={`${autofillDelay(
+    autofill.placed.findIndex(({ i }) => i === cell_id),
+    autofill.placed.length,
     autofill.reduced
-      ? 0
-      : Math.max(
-          0,
-          autofill.placed.findIndex(({ i }) => i === cell_id)
-        ) * Math.min(45, 360 / Math.max(1, autofill.placed.length - 1))
-  }ms`}
+  )}ms`}
   class:selected
   class:same
   class:conflict
