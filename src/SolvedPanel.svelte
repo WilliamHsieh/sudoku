@@ -206,7 +206,7 @@
   .sv-next {
     height: 48px;
     background: var(--blue);
-    color: #fff;
+    color: var(--on-accent);
     padding: 0 8px;
   }
   .sv-next > span {
