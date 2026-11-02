@@ -36,12 +36,12 @@ const shiftAim = $derived(shiftInput.down && shiftInput.over && shiftInput.mouse
 
 /** Live derived target. Click re-reads this at event time. */
 export function getShiftHover() {
-  return shiftTarget;
+  return game.solved ? null : shiftTarget;
 }
 
 /** Board-wide crosshair while Shift is held over the board (mouse only). */
 export function isShiftAim() {
-  return shiftAim;
+  return !game.solved && shiftAim;
 }
 
 /**

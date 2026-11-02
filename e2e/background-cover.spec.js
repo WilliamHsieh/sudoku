@@ -372,7 +372,8 @@ for (const signal of ["blur", "visibilitychange", "pagehide", "freeze"]) {
         await openBoard(page, `./?q=0${solution.slice(1)}`);
         await cell(page, 0).click();
         await page.keyboard.press(solution[0]);
-        await expect(page.locator(".success-card")).toBeVisible();
+        await page.clock.runFor(900);
+        await expect(page.locator(".sv-panel")).toBeVisible();
       }
       await page.evaluate((signal) => {
         if (signal === "visibilitychange") {
@@ -389,9 +390,14 @@ for (const signal of ["blur", "visibilitychange", "pagehide", "freeze"]) {
         // Enter Play before the return signal to expose a latent pause created
         // in the calendar even though no cover could mount there.
         await page.locator("#time-control").click();
-      } else await expect(page.locator(".success-card")).toBeVisible();
+      } else {
+        await page.clock.runFor(900);
+        await expect(page.locator(".sv-panel")).toBeVisible();
+      }
       await expect(page.locator(".paused-cover")).toHaveCount(0);
-      await expect(page.locator("#time-control")).toHaveAttribute("aria-pressed", "false");
+      if (view === "finished puzzle")
+        await expect(page.locator("#time-control")).not.toHaveAttribute("aria-pressed");
+      else await expect(page.locator("#time-control")).toHaveAttribute("aria-pressed", "false");
       // #58 announces entry to Play. Return signals must preserve that status.
       const status = await page.locator("#resume-status").textContent();
       await page.evaluate(() => {

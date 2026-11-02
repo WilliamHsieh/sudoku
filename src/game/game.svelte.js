@@ -50,6 +50,10 @@ export const DEMO_PUZZLE =
 export function createGame() {
   let history = $state(createHistory(newGame(DEMO_PUZZLE, { notesMode: "auto" })));
   let selected = $state(-1);
+  let lastPlaced = $state(-1);
+  /** Cells changed by a player digit commit; never restored history or loaded data.
+   * @type {number[] | null} */
+  let placement = $state(null);
   /** @type {{ dateStr: string | null, difficulty: string | null }} */
   let meta = $state({ dateStr: null, difficulty: null });
   let marked = $state(false);
@@ -93,11 +97,17 @@ export function createGame() {
     return { cells, first };
   }
 
-  /** @param {import('./game.js').ActionResult} result */
-  function apply(result) {
+  /** @param {import('./game.js').ActionResult} result @param {boolean} [feedback] */
+  function apply(result, feedback = true) {
+    if (isSolved(history.present)) return { state, changed: false, blockers: [] };
     prepareMutation();
     lastBlockers = result.blockers;
     if (!result.changed) return result;
+    const placed = result.state.answers.flatMap((d, i) =>
+      d && d !== history.present.answers[i] ? [i] : []
+    );
+    if (placed.length) lastPlaced = placed[placed.length - 1];
+    placement = feedback && placed.length ? placed : null;
     history = commit(history, result);
     syncSolved();
     persistProgress();
@@ -135,6 +145,12 @@ export function createGame() {
     get state() {
       return state;
     },
+    get placement() {
+      return placement;
+    },
+    get lastPlaced() {
+      return lastPlaced;
+    },
     get selected() {
       return selected;
     },
@@ -148,10 +164,10 @@ export function createGame() {
       return isSolved(state);
     },
     get canUndo() {
-      return canUndo(history);
+      return !isSolved(history.present) && canUndo(history);
     },
     get canRedo() {
-      return canRedo(history);
+      return !isSolved(history.present) && canRedo(history);
     },
     get blockers() {
       return lastBlockers;
@@ -163,7 +179,7 @@ export function createGame() {
     fillSingles() {
       prepareMutation();
       const result = fillSinglesAction(history.present);
-      apply(result);
+      apply(result, false);
       if (!result.changed && state.notesMode === "auto") activity();
       return result;
     },
@@ -180,6 +196,7 @@ export function createGame() {
 
     /** Draft updates never write history or saved progress. @param {import('./game.js').GameState | null} next */
     previewStroke(next) {
+      if (isSolved(history.present) && next) return;
       draft = next;
     },
 
@@ -235,12 +252,14 @@ export function createGame() {
 
     /** Selection does not restart the cue. @param {number} i */
     select(i) {
+      if (isSolved(history.present) && i !== -1) return;
       prepareMutation();
       selected = i;
     },
 
     /** @param {import('./game.js').NotesMode} mode */
     setNotesMode(mode) {
+      if (isSolved(history.present)) return;
       prepareMutation();
       const prev = history.present;
       const next = changeNotesMode(prev, mode);
@@ -304,6 +323,7 @@ export function createGame() {
      * @param {{ merge?: boolean }} [opts]
      */
     toggleNote(i, d, opts = {}) {
+      if (isSolved(history.present)) return { state, changed: false, blockers: [] };
       const result = toggleCandidate(history.present, i, d);
       prepareMutation();
       lastBlockers = result.blockers;
@@ -342,6 +362,7 @@ export function createGame() {
     },
 
     undo() {
+      if (isSolved(history.present)) return;
       prepareMutation();
       if (!canUndo(history)) return;
       history = undoHistory(history);
@@ -351,6 +372,7 @@ export function createGame() {
       activity();
     },
     redo() {
+      if (isSolved(history.present)) return;
       prepareMutation();
       if (!canRedo(history)) return;
       history = redoHistory(history);
@@ -389,6 +411,8 @@ export function createGame() {
         history = createHistory(newGame(puzzle, { notesMode: "auto" }));
       }
       selected = -1;
+      lastPlaced = -1;
+      placement = null;
       meta = { dateStr: info.dateStr ?? null, difficulty: info.difficulty ?? null };
       marked = false;
       lastBlockers = [];
@@ -405,11 +429,6 @@ export function createGame() {
     /** Write current in-progress puzzle to `sudoku-progress`. */
     flushProgress() {
       persistProgress();
-    },
-
-    dismiss() {
-      done.set(false);
-      timerRunning.set(false);
     },
   };
 }

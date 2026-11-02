@@ -63,7 +63,7 @@ test("the timer counts seconds while playing and restarts on a new puzzle", asyn
   await expect(page.locator("#header-time .time")).toHaveText("0:02");
 });
 
-test("solving a journal puzzle shows the success card and stores it in localStorage", async ({
+test("solving a journal puzzle shows the in-place result and stores it in localStorage", async ({
   page,
 }) => {
   await loadFromJournal(page, DATE, "easy");
@@ -76,7 +76,8 @@ test("solving a journal puzzle shows the success card and stores it in localStor
     await cell(page, i).click();
     await page.keyboard.press(solution[i]);
   }
-  await expect(page.locator(".success-card")).toContainText("Puzzle Complete!");
+  await page.clock.runFor(180);
+  await expect(page.locator(".sv-panel")).toContainText("Solved");
 
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("sudoku-solved")));
   expect(Object.keys(stored)).toEqual([DATE]);
@@ -86,7 +87,7 @@ test("solving a journal puzzle shows the success card and stores it in localStor
   await page.clock.runFor(5_000);
   await expect(page.locator("#header-time .time")).toHaveText("1:05");
   await page.keyboard.press("Escape");
-  await expect(page.locator(".success-card")).toHaveCount(0);
+  await expect(page.locator(".sv-panel")).toBeVisible();
 
   await page.reload();
   await expect(day(page, DATE)).toHaveAttribute("aria-label", /Easy solved/);

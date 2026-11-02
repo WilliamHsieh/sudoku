@@ -1,0 +1,67 @@
+/* Final light/dark values from solved-screen spec §15; Marks uses the Journal component (§20). */
+:root {
+  --sv-ring-a: rgb(34 197 94 / 0.2);
+  --sv-ring-b: rgb(34 197 94 / 0.3);
+  --sv-sep: #8a857c;
+  --sv-flame: #b93d0a;
+  --sv-mark-on: var(--ink);
+  --sv-mark-off: #a2a09b;
+  --sv-bar-on: #1c1a16;
+  --sv-bar-off: #c9c7c1;
+  --sv-kbd-line: rgb(255 255 255 / 0.55);
+  --sv-kbd-bg: rgb(255 255 255 / 0.12);
+  --sv-scrim: rgb(28 26 22 / 0.3);
+  --sv-shadow: 0 18px 48px rgb(28 26 22 / 0.22);
+  --sv-quiet-hover: var(--neutral-hover);
+}
+:root[data-theme="dark"] {
+  --sv-ring-a: rgb(74 222 128 / 0.12);
+  --sv-ring-b: rgb(74 222 128 / 0.22);
+  --sv-sep: var(--line-box);
+  --sv-flame: var(--amber);
+  --sv-mark-off: var(--line-box);
+  --sv-bar-on: var(--ui-ink);
+  --sv-bar-off: var(--dot-idle);
+  --sv-kbd-line: rgb(25 40 58 / 0.5);
+  --sv-kbd-bg: rgb(25 40 58 / 0.1);
+  --sv-scrim: var(--overlay);
+  --sv-shadow: var(--shadow-dialog);
+}
+@property --sv-r {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+.sv-ring {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  border-radius: var(--board-radius);
+  background: radial-gradient(
+    circle at var(--sv-x) var(--sv-y),
+    transparent calc(var(--sv-r) - 120px),
+    var(--sv-ring-a) calc(var(--sv-r) - 36px),
+    var(--sv-ring-b) calc(var(--sv-r) - 6px),
+    transparent var(--sv-r)
+  );
+  animation: sv-spread 900ms var(--ease-out) both;
+}
+@keyframes sv-spread {
+  0% {
+    --sv-r: 0px;
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    --sv-r: var(--sv-rmax);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sv-ring {
+    display: none;
+  }
+}
