@@ -9,6 +9,8 @@
   let { model, reduced, onnext, onjournal } = $props();
   let heading = $state(/** @type {HTMLHeadingElement | undefined} */ (undefined));
   let announcement = $state("");
+  let scoreRow = $state(/** @type {HTMLDListElement | undefined} */ (undefined));
+  let wideFacts = $state(false);
   let nextLabel = $state(/** @type {HTMLSpanElement | undefined} */ (undefined));
   // Long Resume labels keep their full copy across platform font fallbacks.
   $effect(() => {
@@ -25,9 +27,37 @@
     return () => cancelAnimationFrame(frame);
   });
   onMount(() => {
+    // Preserve the system font and 14px labels. Some desktop fallbacks need
+    // tighter tracking as their intrinsic content alone nearly fills 236px.
+    const canvas = document.createElement("canvas").getContext("2d");
+    function fitFacts() {
+      if (!scoreRow || !canvas) return;
+      const facts = [...scoreRow.children];
+      const needed =
+        facts.reduce((sum, fact) => {
+          const label = fact.querySelector("dt");
+          const value = fact.querySelector("dd");
+          if (!label || !value) return sum;
+          canvas.font = getComputedStyle(label).font;
+          return (
+            sum +
+            Math.max(
+              canvas.measureText(label.textContent ?? "").width,
+              value.getBoundingClientRect().width
+            )
+          );
+        }, 0) +
+        Math.max(0, facts.length - 1) * 9;
+      wideFacts = needed > scoreRow.clientWidth;
+    }
+    const observer = new ResizeObserver(fitFacts);
+    if (scoreRow) observer.observe(scoreRow);
+    document.fonts.ready.then(fitFacts);
+
     const focus = setTimeout(() => heading?.focus({ preventScroll: true }), reduced ? 200 : 700);
     const live = setTimeout(() => (announcement = model.announcement), 700);
     return () => {
+      observer.disconnect();
       clearTimeout(focus);
       clearTimeout(live);
     };
@@ -49,7 +79,7 @@
       {formatTime(model.time)}
     </div>
     {#if model.dated}
-      <dl>
+      <dl bind:this={scoreRow} class:wide-facts={wideFacts}>
         {#if model.delta != null}
           <div>
             <dt>vs average</dt>
@@ -150,7 +180,17 @@
     padding: 0 8px;
   }
   dl > div + div {
-    border-left: 1px solid var(--hair);
+    border-left: 1px solid transparent;
+    position: relative;
+  }
+  dl > div + div::before {
+    content: "";
+    position: absolute;
+    left: -1px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--hair);
   }
   dt {
     order: 2;
@@ -285,6 +325,31 @@
     dl > div {
       padding: 0 3px;
       gap: 5px;
+    }
+    dl > div:nth-child(3)::before {
+      left: -2.05px;
+    }
+    dl > div:nth-child(3) dd {
+      translate: 1.05px 0;
+    }
+    dl.wide-facts {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(max-content, 1fr);
+      column-gap: 9px;
+    }
+    dl.wide-facts > div {
+      padding: 0;
+      border: 0;
+    }
+    dl.wide-facts > div + div::before {
+      left: -5px;
+    }
+    dl.wide-facts dt {
+      letter-spacing: -0.9px;
+    }
+    dl.wide-facts > div:nth-child(3) dd {
+      translate: none;
     }
     dt {
       font-size: 14px;

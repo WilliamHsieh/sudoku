@@ -141,3 +141,75 @@ for (const custom of [false, true])
         await expect(page.locator("dialog[open]")).toHaveCount(0);
       }
     });
+
+for (const width of [390, 1280]) {
+  for (const state of ["normal", "new-best", "today-button", "first-ever"])
+    test(`score content clears dividers at ${width}: ${state}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: width === 390 ? 844 : 800 });
+      const p = await prepareDecision(page, { state });
+      await finishDecision(page, p);
+      await page
+        .locator(".sv-panel")
+        .evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
+      const layout = await page.locator(".sv-panel dl").evaluate((row) => {
+        const facts = [...row.children];
+        const dividers = facts.slice(1).map((fact) => {
+          const style = getComputedStyle(fact, "::before");
+          const left =
+            fact.getBoundingClientRect().left +
+            parseFloat(getComputedStyle(fact).borderLeftWidth) +
+            parseFloat(style.left);
+          return { left, right: left + parseFloat(style.width) };
+        });
+        const clearance = facts.flatMap((fact, i) =>
+          [...fact.querySelectorAll("dt, dd")].map((content) => {
+            const box = content.getBoundingClientRect();
+            return {
+              label: content.textContent,
+              left: i ? box.left - dividers[i - 1].right : null,
+              right: i < dividers.length ? dividers[i].left - box.right : null,
+            };
+          })
+        );
+        return {
+          contentRight: Math.max(
+            ...facts.flatMap((fact) =>
+              [...fact.querySelectorAll("dt, dd")].map((el) => el.getBoundingClientRect().right)
+            )
+          ),
+          clearance,
+          right: row.getBoundingClientRect().right,
+          group: row.parentElement.getBoundingClientRect().right,
+          panel: row.closest(".sv-panel").getBoundingClientRect().width,
+          labelSize: getComputedStyle(facts[0].querySelector("dt")).fontSize,
+          facts: facts.length,
+        };
+      });
+      for (const box of layout.clearance) {
+        if (box.left != null) expect(box.left, `${box.label}: left`).toBeGreaterThanOrEqual(4);
+        if (box.right != null) expect(box.right, `${box.label}: right`).toBeGreaterThanOrEqual(4);
+      }
+      expect(layout.right).toBeLessThanOrEqual(layout.group);
+      expect(layout.contentRight).toBeLessThanOrEqual(layout.group);
+      expect(layout.facts).toBe(state === "first-ever" ? 2 : 3);
+      if (width === 1280) {
+        expect(layout.panel).toBe(236);
+        expect(layout.labelSize).toBe("14px");
+      }
+    });
+}
+for (const focus of ["heading", "body"])
+  test(`Journal primary Enter opens solved day from ${focus}`, async ({ page }) => {
+    const p = await prepareDecision(page, { state: "journal-primary" });
+    await finishDecision(page, p);
+    await expect(page.locator(".sv-next")).toContainText("Journal");
+    await expect(page.locator(".sv-next kbd")).toBeVisible();
+    await expect(page.locator(".sv-panel dd").last()).toContainText("3/3");
+    if (focus === "body") await page.evaluate(() => document.activeElement.blur());
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".journal")).toBeVisible();
+    const day = page.locator(`.day[data-d="${p.date}"]:visible`);
+    await expect(day).toHaveClass(/sel/);
+    await expect(day).toBeInViewport({ ratio: 1 });
+    await expect(day).toHaveClass(/solve-highlight/);
+  });
