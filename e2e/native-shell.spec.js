@@ -1,5 +1,6 @@
 // Short phones shrink the keypad before the board; below the minimum layout, the body can scroll.
 import { test, expect } from "@playwright/test";
+import { test as fixedPuzzleTest } from "./fixed-puzzles.js";
 
 const VIEWS = [
   { width: 390, height: 844 },
@@ -504,30 +505,32 @@ test.describe("native shell", () => {
     }
   });
 
-  test("journal last row and legend scroll fully into view, including a 6-row month", async ({
-    page,
-  }) => {
-    for (const vp of VIEWS) {
-      await page.setViewportSize(vp);
-      await page.goto("./?freeze");
-      await expectMonthReachable(page, "October");
-      const prev = page.locator("button[aria-label='Previous month']").locator("visible=true");
-      await prev.click();
-      await expect(visibleTitle(page)).toContainText("September");
-      await prev.click();
-      await expect(visibleTitle(page)).toContainText("August");
-      await expectMonthReachable(page, "August");
-      const rows = await page.evaluate(() => {
-        const grid = [...document.querySelectorAll(".mgrid, .dgrid")].find(
-          (el) => el.getClientRects().length > 0
-        );
-        const days = [...grid.querySelectorAll(".day")];
-        const tops = new Set(days.map((el) => Math.round(el.getBoundingClientRect().top)));
-        return tops.size;
-      });
-      expect(rows, `${vp.width}x${vp.height} August rows`).toBe(6);
+  fixedPuzzleTest(
+    "journal last row and legend scroll fully into view, including a 6-row month",
+    async ({ page }) => {
+      await page.clock.install({ time: new Date("2026-10-21T12:00:00") });
+      for (const vp of VIEWS) {
+        await page.setViewportSize(vp);
+        await page.goto("./?freeze");
+        await expectMonthReachable(page, "October");
+        const prev = page.locator("button[aria-label='Previous month']").locator("visible=true");
+        await prev.click();
+        await expect(visibleTitle(page)).toContainText("September");
+        await prev.click();
+        await expect(visibleTitle(page)).toContainText("August");
+        await expectMonthReachable(page, "August");
+        const rows = await page.evaluate(() => {
+          const grid = [...document.querySelectorAll(".mgrid, .dgrid")].find(
+            (el) => el.getClientRects().length > 0
+          );
+          const days = [...grid.querySelectorAll(".day")];
+          const tops = new Set(days.map((el) => Math.round(el.getBoundingClientRect().top)));
+          return tops.size;
+        });
+        expect(rows, `${vp.width}x${vp.height} August rows`).toBe(6);
+      }
     }
-  });
+  );
 });
 
 const SHORT_WIDE = [
