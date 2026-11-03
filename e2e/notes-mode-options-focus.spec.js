@@ -173,6 +173,10 @@ for (const [width, height] of [
       await trigger(page).click();
       await page.keyboard.press("Tab");
       await expect(trigger(page)).toHaveAttribute("aria-expanded", "false");
+      if (width === 1280) {
+        await expect(page.locator("#hint-trigger")).toBeFocused();
+        await page.keyboard.press("Tab");
+      }
       await expect(page.locator("[data-more]").filter({ visible: true })).toBeFocused();
       await trigger(page).click();
       await page.mouse.click(2, height - 2);

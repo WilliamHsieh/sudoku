@@ -210,23 +210,28 @@ export function headerCases(mobile) {
   });
 
   if (!mobile)
-    test("desktop Notes, More and C keep their order and pause state", async ({ page }) => {
+    test("desktop Notes, Hint, More and C keep their order and pause state", async ({ page }) => {
       await openBoard(page);
       const notes = page.locator("#notes-mode-desktop");
+      const hint = page.locator("#hint-trigger");
       const more = page.locator(".header .more");
       const n = await box(notes);
+      const h = await box(hint);
       const m = await box(more);
       const c = await box(pill(page));
-      expect(m.x - n.x - n.w).toBe(2);
+      expect(h.x - n.x - n.w).toBe(2);
+      expect(m.x - h.x - h.w).toBe(0);
       expect(c.x - m.x - m.w).toBe(10);
       await pill(page).click();
       await expect(notes).toBeDisabled();
+      await expect(hint).toBeDisabled();
       await expect(more).toBeDisabled();
       await page.locator(".dbtn").click();
       await page.clock.runFor(260);
       await expect(notes).toHaveCount(0);
       await pill(page).click();
       await expect(notes).toBeEnabled();
+      await expect(hint).toBeEnabled();
       await expect(more).toBeEnabled();
     });
 
