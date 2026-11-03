@@ -60,6 +60,8 @@ export const padUi = $state({
   gesture: null,
   /** @type {KeyHold | null} */
   hold: null,
+  /** @type {{ d: number, cell: number, locked: boolean, engaged: boolean, painting: boolean } | null} */
+  spaceHold: null,
   /** First-run coach over the keypad. */
   coach: false,
   /** Digit whose glyph is hidden while it flies. 0 = none. */

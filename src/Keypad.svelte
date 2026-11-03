@@ -660,17 +660,21 @@
     aria-label="Number keypad"
     data-shown={highlight}
     data-locked={padUi.locked || 0}
+    data-held={padUi.spaceHold?.engaged ? padUi.spaceHold.d : 0}
     oncontextmenu={(e) => e.preventDefault()}
   >
     {#each DIGITS as d (d)}
+      {@const spaceHolding = padUi.spaceHold?.d === d && padUi.spaceHold.engaged}
       <button
         type="button"
         class="key"
-        class:pressed={padUi.gesture?.d === d}
+        class:pressed={padUi.gesture?.d === d || spaceHolding}
         class:shown={padUi.locked !== d &&
           highlight === d &&
+          !spaceHolding &&
           !(padUi.gesture?.d === d && padUi.gesture.holding)}
-        class:holding={padUi.gesture?.d === d && padUi.gesture.holding && padUi.locked !== d}
+        class:holding={(spaceHolding || (padUi.gesture?.d === d && padUi.gesture.holding)) &&
+          padUi.locked !== d}
         class:armed={padUi.gesture?.d === d && padUi.gesture.armed}
         class:arm-lock={padUi.gesture?.d === d && padUi.gesture.armLock}
         class:locked={padUi.locked === d}

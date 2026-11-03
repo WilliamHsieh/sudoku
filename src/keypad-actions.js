@@ -10,6 +10,7 @@ import {
   finishPaint,
   discardPaint,
   clearPaintMarks,
+  endSpaceHold,
 } from "./paint-actions.js";
 import { game } from "./game/game.svelte.js";
 import { padUi } from "./pad-ui.svelte.js";
@@ -183,6 +184,7 @@ export function toggleDigitLock(d) {
 
 /** Puzzle change, restart, reload: unlocked and nothing shown. */
 export function resetKeypad() {
+  endSpaceHold(true);
   padUi.locked = 0;
   padUi.shown = 0;
   lastKey = NO_KEY;
