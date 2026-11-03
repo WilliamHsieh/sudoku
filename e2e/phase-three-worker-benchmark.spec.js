@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import { createHash } from "node:crypto";
 import corpus from "../src/hints/fixtures/phase-three-corpus.json" with { type: "json" };
+import medusaExample from "../src/hints/fixtures/phase-three-medusa-explanation.json" with { type: "json" };
 import { newGame, computedCandidates } from "../src/game/game.js";
 import { findHint } from "../src/hints/engine.js";
 import { hintSnapshot, hintStateKey } from "../src/hints/hint.js";
@@ -13,13 +14,16 @@ const caseIds = [
   "upstream-example:XY_CHAIN",
   "upstream-example:AIC",
   "upstream-example:DEATH_BLOSSOM",
+  "trace:wiki:067:20",
+  "upstream-example:ALIGNED_PAIR_EXCLUSION",
   ...corpus.workerMisses,
 ];
+const fixtures = [...corpus.fixtures, medusaExample.fixture];
 
 test("actual bundled cold Worker latency and independent proofs", async ({ page }, info) => {
   test.setTimeout(240000);
   const cases = caseIds.map((id) => {
-    const fixture = corpus.fixtures.find((fixture) => fixture.id === id);
+    const fixture = fixtures.find((fixture) => fixture.id === id);
     if (!fixture) throw new Error(`Missing benchmark fixture: ${id}`);
     validateCorpusFixture(fixture);
     const state = newGame(fixture.puzzle, { notesMode: "auto" });
@@ -38,7 +42,7 @@ test("actual bundled cold Worker latency and independent proofs", async ({ page 
       techniqueId: hint?.techniqueId ?? null,
     };
   });
-  expect(cases.filter((row) => row.expected === "found")).toHaveLength(3);
+  expect(cases.filter((row) => row.expected === "found")).toHaveLength(5);
   expect(cases.filter((row) => row.expected === "miss")).toHaveLength(3);
   const host = {
     node: process.version,
@@ -211,7 +215,7 @@ test("actual bundled cold Worker latency and independent proofs", async ({ page 
       .update(await fs.readFile(new URL(`../src/hints/${name}`, import.meta.url)))
       .digest("hex");
   for (const proof of report.proofs) {
-    const fixture = corpus.fixtures.find((fixture) => fixture.id === proof.fixture);
+    const fixture = fixtures.find((fixture) => fixture.id === proof.fixture);
     assertOracleStep([...fixture.values].map(Number), fixture.masks, proof.step);
   }
   report.independentOracle = {
@@ -225,6 +229,6 @@ test("actual bundled cold Worker latency and independent proofs", async ({ page 
   });
   console.log("Phase-three actual Worker timings", JSON.stringify(report.pooled));
   expect(report.errors).toEqual([]);
-  expect(report.samples).toHaveLength(600);
+  expect(report.samples).toHaveLength(800);
   for (const row of report.pooled) expect(row.elapsedMs.p99).toBeLessThan(3000);
 });

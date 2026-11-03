@@ -71,8 +71,33 @@ describe("clean-room bounded ALS patterns", () => {
       expect(hint?.eliminations).toEqual(fixture.effects);
       expect(hint?.premiseCells.length).toBeGreaterThanOrEqual(fixture.minPremises);
       expect(hint?.placements).toEqual([]);
-      expect(hint?.reason).toMatch(/[候選主幹交集]/);
+      expect(hint?.reason).toContain("候選");
       expect(verifyStep(values(), masks, hint)).toBe(true);
+    });
+
+    it(`${fixture.id}: teaches observations, concrete cases, and the target conflict separately`, () => {
+      const hint = detectALS(values(), fixture.setup(), fixture.id, visible(fixture.effects));
+      const teaching = hint.teaching;
+      expect(teaching.observeTitle).toBeTruthy();
+      expect(teaching.reasonTitle).toBeTruthy();
+      expect(teaching.observe.length).toBeGreaterThanOrEqual(2);
+      expect(teaching.observe.length).toBeLessThanOrEqual(5);
+      expect(teaching.reasoning.length).toBeGreaterThanOrEqual(2);
+      expect(teaching.conclusion).toHaveLength(2);
+      expect(hint.reason).toBe(
+        [...teaching.observe, ...teaching.reasoning, ...teaching.conclusion].join("\n\n")
+      );
+      expect(hint.reason).not.toMatch(/近鎖定|鎖定|受限|RCC|主幹|花瓣|位置類別|null|undefined/);
+      for (const cell of hint.premiseCells)
+        expect(teaching.observe.join(" ")).toContain(
+          `r${Math.floor(cell / 9) + 1}c${(cell % 9) + 1}`
+        );
+      for (const { cell, digit } of hint.eliminations) {
+        expect(teaching.conclusion.join(" ")).toContain(
+          `r${Math.floor(cell / 9) + 1}c${(cell % 9) + 1}`
+        );
+        expect(teaching.conclusion.join(" ")).toContain(`填 ${digit}`);
+      }
     });
 
     it(`${fixture.id}: rejects a mutated premise, rather than guessing from the solution`, () => {
@@ -131,7 +156,10 @@ describe("clean-room bounded ALS patterns", () => {
     ];
     const hint = detectALS(values(), masks, "als-xz", visible(expected));
     expect(hint?.eliminations).toEqual(expected);
-    expect(hint?.reason).toContain("兩組各用其中一數");
+    expect(hint?.teaching.reasoning[1]).toContain("如果第一組使用 1");
+    expect(hint?.teaching.reasoning[1]).toContain("只剩 3、4，剛好 2 種數");
+    expect(hint?.teaching.reasoning[2]).toContain("如果第一組使用 3");
+    expect(hint?.teaching.reasoning[2]).toContain("只剩 1、4，剛好 2 種數");
     expect(verifyStep(values(), masks, hint)).toBe(true);
   });
 
@@ -164,6 +192,14 @@ describe("clean-room bounded ALS patterns", () => {
     const hint = detectALS(values(), masks, "sue-de-coq", visible(expected));
     expect(hint?.eliminations).toEqual(expected);
     expect(verifyStep(values(), masks, hint)).toBe(true);
+    expect(hint.teaching.observe.join(" ")).toContain(
+      "交集中的 1、2 也出現在前一組，3、4 也出現在後一組"
+    );
+    expect(hint.teaching.reasoning[3]).toContain("共 3 格只能用 1、2、5");
+    expect(hint.teaching.reasoning[3]).toContain("把 3、4、5 每個數都用上");
+    expect(hint.teaching.conclusion[0]).toContain("r1c4、r1c5 之中至少有一格必須填 5");
+    expect(hint.teaching.conclusion[0]).toContain("r2c1、r2c2 之中至少有一格必須填 5");
+    expect(hint.reason).not.toContain("5 只出現在交集");
     masks[1] |= bit(5);
     expect(detectALS(values(), masks, "sue-de-coq", visible(expected))).toBeNull();
   });
@@ -183,6 +219,59 @@ describe("clean-room bounded ALS patterns", () => {
     const hint = detectALS(values(), masks, "sue-de-coq", visible(expected));
     expect(hint?.eliminations).toEqual(expected);
     expect(hint?.premiseCells).toEqual(expect.arrayContaining([0, 1, 2, 3, 9]));
+    expect(hint.teaching.observe[3]).toContain("剩下的 5 只出現在交集，不在這兩組裡");
+    expect(hint.teaching.reasoning[2]).toContain("再加上 5 各一個");
+    expect(hint.teaching.reasoning[3]).toContain("5 必須出現在交集裡");
+    expect(verifyStep(values(), masks, hint)).toBe(true);
+  });
+
+  it("explains both ALS-XZ cases and names the actual row/column conflicts at the target", () => {
+    const fixture = fixtures[0];
+    const { teaching } = detectALS(values(), fixture.setup(), fixture.id, visible(fixture.effects));
+    expect(teaching.observe[2]).toContain("r1c1、r4c1");
+    expect(teaching.observe[2]).toContain("第 1 直行");
+    expect(teaching.reasoning[0]).toContain("如果第一組 r1c1、r1c4 使用 1");
+    expect(teaching.reasoning[0]).toContain("只剩 3、4，剛好 2 種數");
+    expect(teaching.reasoning[1]).toContain("完全沒有使用 1");
+    expect(teaching.reasoning[1]).toContain("只剩 2、3，剛好 2 種數");
+    expect(teaching.conclusion[1]).toContain("r1c3 和 r1c4 同在第 1 橫列");
+    expect(teaching.conclusion[1]).toContain("和 r4c3 同在第 3 直行");
+    expect(teaching.conclusion[1]).toContain("若填 3，就會讓上述位置全部失去 3");
+  });
+
+  it("explains the complete ALS-XY-Wing cause-and-effect sequence, not just a final implication", () => {
+    const fixture = fixtures[1];
+    const { teaching } = detectALS(values(), fixture.setup(), fixture.id, visible(fixture.effects));
+    expect(teaching.observe[3]).toContain("第 1 橫列");
+    expect(teaching.observe[4]).toContain("第 1 直行");
+    expect(teaching.reasoning[0]).toContain("如果第一組 r1c4、r1c5 已經有 3");
+    expect(teaching.reasoning[1]).toContain("只剩 1、4，剛好 2 種數");
+    expect(teaching.reasoning[1]).toContain("中間組的 r1c1 不能填 1");
+    expect(teaching.reasoning[2]).toContain("r1c1 只剩 2，因此必須填 2");
+    expect(teaching.reasoning[2]).toContain("第三組的 r4c1 不能填 2");
+    expect(teaching.reasoning[3]).toContain("只剩 3、5，剛好 2 種數");
+  });
+
+  it("gives each Death Blossom option its own paragraph and preserves overlapping groups", () => {
+    const fixture = fixtures[2];
+    const { teaching } = detectALS(values(), fixture.setup(), fixture.id, visible(fixture.effects));
+    expect(teaching.observe[0]).toBe("r7c6 只有 3、6、9，最後一定填其中一個。");
+    expect(teaching.reasoning).toHaveLength(3);
+    expect(teaching.reasoning[0]).toContain("如果 r7c6 填 3");
+    expect(teaching.reasoning[0]).toContain("只剩 2、5、6、9，剛好 4 種數");
+    expect(teaching.reasoning[1]).toContain("如果 r7c6 填 6");
+    expect(teaching.reasoning[1]).toContain("r8c4 只剩 5，因此必須填 5");
+    expect(teaching.reasoning[2]).toContain("如果 r7c6 填 9");
+    expect(teaching.reasoning[2]).toContain("只剩 2、5、6，剛好 3 種數");
+    expect(teaching.conclusion[0]).toBe("因此，r8c4 必須填 5。");
+    expect(teaching.conclusion[1]).toContain("r8c2 也在第 8 橫列，再填 5 就會重複");
+  });
+
+  it("describes an empty remaining set naturally in a one-cell double-linked case", () => {
+    const masks = model({ 0: [1, 2], 3: [1, 3], 4: [2, 3] });
+    const hint = detectALS(values(), masks, "als-xz", visible([{ cell: 5, digit: 3 }]));
+    expect(hint.teaching.reasoning[0]).toContain("這一格就沒有數字可以填了");
+    expect(hint.reason).not.toContain("只剩 ，");
     expect(verifyStep(values(), masks, hint)).toBe(true);
   });
 

@@ -120,21 +120,30 @@ export function findHint(state) {
     ...step.eliminations.map((p) => `${coordinate(p.cell)} 刪除 ${p.digit}`),
   ].join("；");
   const name = names[/** @type {keyof typeof names} */ (step.techniqueId)] || step.techniqueId;
+  const teaching = step.teaching;
+  const modelDescription =
+    state.notesMode === "auto"
+      ? "以目前盤面與 Auto 候選數推理；已刪除的候選數會視為你的判斷。"
+      : "以目前盤面及已驗證的刪除推理；未寫下的筆記不視為排除。";
   return {
     techniqueId: step.techniqueId,
     name,
     stages: [
       {
-        title: `觀察 ${premiseCells.map(coordinate).join("、")}`,
-        description: [
-          state.notesMode === "auto"
-            ? "以目前盤面與 Auto 候選數推理；已刪除的候選數會視為你的判斷。"
-            : "以目前盤面及已驗證的刪除推理；未寫下的筆記不視為排除。",
-        ],
+        title: teaching?.observeTitle ?? `觀察 ${premiseCells.map(coordinate).join("、")}`,
+        description: [...(teaching?.observe ?? []), modelDescription],
         coordinates: premiseCells,
       },
-      { title: name, description: [step.reason], coordinates: premiseCells },
-      { title: "這一步可以確定的結果", description: [effect], coordinates: targets },
+      {
+        title: teaching?.reasonTitle ?? name,
+        description: teaching?.reasoning ?? [step.reason],
+        coordinates: premiseCells,
+      },
+      {
+        title: "這一步可以確定的結果",
+        description: teaching?.conclusion ?? [effect],
+        coordinates: targets,
+      },
     ],
     observeCells: premiseCells,
     premiseCells,

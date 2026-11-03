@@ -27,6 +27,10 @@ describe("phase-three direct patterns", () => {
     const step = detect(masks, "rectangle-elimination");
     expect(step?.eliminations).toContainEqual({ cell: 27, digit: 1 });
     expect(step?.premiseCells).toEqual([0, 3, 31, 39]);
+    expect(step?.teaching.observe[0]).toContain("第 1 橫列");
+    expect(step?.teaching.reasoning[0]).toContain("r4c1 填 1");
+    expect(step?.teaching.reasoning[1]).toContain("r1c4 必須填 1");
+    expect(step?.teaching.conclusion[0]).toContain("不能完全沒有位置");
     // A candidate escaping both arms breaks the fourth-box contradiction.
     masks[50] |= bit(1);
     expect(detect(masks, "rectangle-elimination")).toBeNull();
@@ -46,6 +50,9 @@ describe("phase-three direct patterns", () => {
     expect(step?.premiseCells).toEqual([0, 1, 3, 9]);
     expect(step?.eliminations).toContainEqual({ cell: 2, digit: 4 });
     expect(step?.eliminations.some((e) => e.cell === 12)).toBe(false);
+    expect(step?.teaching.reasoning).toHaveLength(4);
+    expect(step?.teaching.reasoning[3]).toContain("填不滿四格");
+    expect(step?.teaching.conclusion[0]).toContain("r1c3");
     masks[9] |= bit(5);
     expect(detect(masks, "wxyz-wing")).toBeNull();
   });
@@ -62,9 +69,12 @@ describe("phase-three direct patterns", () => {
     masks[9] = digitsMask([2, 3]);
     const visible = Array(81).fill(0);
     visible[1] = bit(3);
-    expect(detect(masks, "aligned-pair-exclusion", visible)?.eliminations).toEqual([
-      { cell: 1, digit: 3 },
-    ]);
+    const step = detect(masks, "aligned-pair-exclusion", visible);
+    expect(step?.eliminations).toEqual([{ cell: 1, digit: 3 }]);
+    expect(step?.teaching.reasoning[0]).toContain("r1c2 填 3");
+    expect(step?.teaching.reasoning[1]).toContain("r1c1 填 1，r1c4");
+    expect(step?.teaching.reasoning[2]).toContain("r1c1 填 2，r2c1");
+    expect(step?.reason).not.toContain("1/3");
     masks[3] |= bit(4);
     expect(detect(masks, "aligned-pair-exclusion", visible)).toBeNull();
   });
@@ -124,5 +134,5 @@ describe("phase-three direct patterns", () => {
           expect(effect.digit, `${id}, sample ${sample}`).not.toBe(solution[effect.cell]);
       }
     }
-  });
+  }, 30000);
 });

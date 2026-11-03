@@ -1,5 +1,6 @@
 import { expect } from "@playwright/test";
 import corpus from "../src/hints/fixtures/phase-three-corpus.json" with { type: "json" };
+import medusaExample from "../src/hints/fixtures/phase-three-medusa-explanation.json" with { type: "json" };
 import { legalMasks } from "../src/hints/proof-verifier.js";
 import { maskDigits } from "../src/game/board.js";
 import { cell, openBoard } from "./helpers.js";
@@ -26,6 +27,18 @@ export const phaseThreeCases = [
     id: "aligned-pair-exclusion",
     width: 1280,
   },
+  {
+    fixture: "ALIGNED_PAIR_EXCLUSION",
+    technique: "Aligned Pair Exclusion",
+    id: "aligned-pair-exclusion",
+    width: 390,
+  },
+  {
+    fixture: "trace:wiki:067:20",
+    technique: "3D Medusa",
+    id: "3d-medusa",
+    width: 390,
+  },
 ];
 
 /** Genuine progressed values become a custom board. Reproduce its archived
@@ -33,7 +46,9 @@ export const phaseThreeCases = [
  * a fixture hint provider, a Worker replacement, or a precomputed answer.
  */
 export async function openPhaseThreeCase(page, example) {
-  const fixture = corpus.fixtures.find((f) => f.id === `upstream-example:${example.fixture}`);
+  const fixture = [...corpus.fixtures, medusaExample.fixture].find(
+    (f) => f.id === example.fixture || f.id === `upstream-example:${example.fixture}`
+  );
   if (!fixture) throw new Error(`Missing phase-three example ${example.fixture}`);
   await page.setViewportSize({ width: example.width, height: 844 });
   await openBoard(page, `./?q=${fixture.values}`);

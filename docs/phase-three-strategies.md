@@ -6,6 +6,28 @@ uses a solved grid or a uniqueness assumption to choose a deduction. A separate
 semantic verifier still proves each effect against all completions of the input
 candidate model before a hint is displayed.
 
+## Player-facing explanations
+
+Each advanced step has three separate teaching stages. The observation first
+names the actual cells, candidates and house constraints on the board. The
+reasoning then walks through concrete alternatives in short numbered paragraphs,
+including why each forced choice follows from the previous one. The conclusion
+connects those choices to the actual target cells before the effect is shown.
+
+Chains use explicit if/then steps instead of unexplained link symbols. Grouped
+nodes mean that one of the listed cells contains the digit, never every cell.
+Medusa traces the relevant candidate choices without claiming that the board
+displays two colours. ALS explanations introduce the number of cells and available
+digits before explaining why removing a digit forces the others to appear. Pair
+exclusion lists every remaining partner choice and its specific contradiction.
+Long proofs remain complete in the scrollable explanation region; the next,
+apply and undo controls stay outside it.
+
+This teaching metadata does not authorize an effect. The independent semantic
+verifier, candidate model, highlighting premises and apply/undo pipeline are
+unchanged. Regression checks compare all detector decisions, premise cells and
+effects against the initial implementation, separately from wording.
+
 ## Exact supported scope
 
 - **Rectangle Elimination:** a row/column conjugate pair, a perpendicular wing,
