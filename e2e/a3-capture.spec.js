@@ -1,5 +1,7 @@
 import { test, expect } from "@playwright/test";
 
+test.use({ video: "on" });
+
 const PUZZLE = "530070000600195000098000060800060003400803001700020006060000280000419005000080079";
 for (const device of [
   { name: "desktop-1280x900", viewport: { width: 1280, height: 900 }, mobile: false },
@@ -12,7 +14,6 @@ for (const device of [
       hasTouch: device.mobile,
       deviceScaleFactor: 1,
       colorScheme: "light",
-      video: { mode: "on", size: device.viewport },
     });
     test("A3 real interaction recording", async ({ page }) => {
       test.setTimeout(60000);
@@ -43,7 +44,9 @@ for (const device of [
       await expect(page.getByRole("button", { name: "Start puzzle", exact: true })).toBeEnabled();
       await hold();
       await page.getByRole("button", { name: "Share puzzle", exact: true }).click();
-      await expect(page.getByRole("textbox", { name: "Puzzle string (81 digits)" })).toHaveValue(PUZZLE);
+      await expect(page.getByRole("textbox", { name: "Puzzle string (81 digits)" })).toHaveValue(
+        PUZZLE
+      );
       await hold();
       await page.getByRole("button", { name: "Close copy dialog" }).click();
       await hold();
