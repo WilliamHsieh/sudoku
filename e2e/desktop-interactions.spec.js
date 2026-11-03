@@ -5,6 +5,48 @@ test.beforeEach(async ({ page }) => {
   await openBoard(page);
 });
 
+test("digits highlight without an editable selection and keep locked digits", async ({ page }) => {
+  for (const d of [4, 7, 2]) {
+    await page.keyboard.press(`Digit${d}`);
+    await expect(page.locator("#keypad")).toHaveAttribute("data-shown", String(d));
+    await expect(page.locator(".cell.selected")).toHaveCount(0);
+  }
+  await cell(page, 1).click(); // Given 5: a number key must not change its answer.
+  await page.keyboard.press("Digit4");
+  await expect(page.locator("#keypad")).toHaveAttribute("data-shown", "4");
+  await expect(cell(page, 1)).toHaveClass(/selected/);
+  await expectValue(page, 1, 5);
+  await expect(page.locator("#undo")).toBeDisabled();
+  await page.keyboard.press("Shift+Digit2");
+  await page.keyboard.press("Digit7");
+  await expect(page.locator("#keypad")).toHaveAttribute("data-shown", "2");
+  await expect(page.locator("#keypad")).toHaveAttribute("data-locked", "2");
+});
+
+test("right-click toggles keypad locks and keeps Space usable without a selection", async ({
+  page,
+}) => {
+  await page.locator('.key[data-d="4"]').click({ button: "right" });
+  await expect(page.locator("#keypad")).toHaveAttribute("data-locked", "4");
+  await expect(page.locator(".cell.selected")).toHaveCount(0);
+  await page.keyboard.down("Space");
+  await expect(page.locator("#keypad")).toHaveAttribute("data-held", "4");
+  await page.keyboard.up("Space");
+  await page.locator('.key[data-d="2"]').click({ button: "right" });
+  await expect(page.locator("#keypad")).toHaveAttribute("data-locked", "2");
+  await page.locator('.key[data-d="2"]').click({ button: "right" });
+  await expect(page.locator("#keypad")).toHaveAttribute("data-locked", "0");
+  await expect(page.locator("#keypad")).toHaveAttribute("data-shown", "2");
+  await expect(page.locator("#undo")).toBeDisabled();
+
+  await cell(page, 0).click();
+  await page.locator('.key[data-d="4"]').click({ button: "right" });
+  await expect(cell(page, 0)).toHaveClass(/selected/);
+  await expectValue(page, 0, 0);
+  await page.keyboard.press("Enter");
+  await expectValue(page, 0, 4);
+});
+
 test("desktop exposes the same number and editing controls as mobile", async ({ page }) => {
   await expect(page.locator("#keypad")).toBeVisible();
   await expect(page.locator(".tools")).toBeVisible();

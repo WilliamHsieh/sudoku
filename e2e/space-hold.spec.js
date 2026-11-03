@@ -10,7 +10,9 @@ test("Space holds a shown digit across clicks and drags, committing one undo on 
   await page.locator('.key[data-d="5"]').click();
   await freezeTimers(page);
   await page.keyboard.down("Space");
-  await page.clock.runFor(250);
+  await page.clock.runFor(99);
+  await expect(page.locator("#keypad")).toHaveAttribute("data-held", "0");
+  await page.clock.runFor(1);
   await expect(page.locator('.key[data-d="5"]')).toHaveClass(/holding/);
   await expect(page.locator('.key[data-d="5"] .label:not(.bottom)')).toBeEmpty();
   await expect(page.locator(".normal-hint")).toHaveText(

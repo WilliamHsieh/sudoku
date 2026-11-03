@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { FLY_MS, RETURN_MS, EASE_OUT, rubberBand, nextArmed, shouldLift } from "./game/pad.js";
   import { HOLD_MS, classifyPress, classifyRelease, nextLockArmed } from "./game/key-gesture.js";
-  import { finishPaint, discardPaint } from "./paint-actions.js";
+  import { finishPaint, discardPaint, endSpaceHold } from "./paint-actions.js";
   import { game } from "./game/game.svelte.js";
   import { padUi } from "./pad-ui.svelte.js";
   import { playUi } from "./play/session.svelte.js";
@@ -526,7 +526,7 @@
   /** @param {PointerEvent} e */
   function onKeyPointerDown(e) {
     if (playUi.paused || game.solved) return;
-    if (e.button !== undefined && e.button > 0) return;
+    if (e.button !== undefined && e.button > 0 && !(desktop && e.button === 2)) return;
     e.preventDefault();
     pointerGuard = performance.now() + 700;
     const key = /** @type {HTMLButtonElement} */ (e.currentTarget);
@@ -535,11 +535,9 @@
     if (
       desktop &&
       e.pointerType === "mouse" &&
-      e.shiftKey &&
-      !e.ctrlKey &&
-      !e.metaKey &&
-      !e.altKey
+      (e.button === 2 || (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey))
     ) {
+      endSpaceHold(true);
       toggleDigitLock(Number(key.dataset.d));
       return;
     }
@@ -686,7 +684,7 @@
         aria-pressed={padUi.locked === d}
         aria-label={keyLabel(d)}
         title={desktop
-          ? `Shift + click to ${padUi.locked === d ? "unlock" : "lock"} ${d}`
+          ? `Right-click or Shift + click to ${padUi.locked === d ? "unlock" : "lock"} ${d}`
           : undefined}
         onpointerdown={onKeyPointerDown}
         onclick={(e) => onKeyClick(e, d)}
