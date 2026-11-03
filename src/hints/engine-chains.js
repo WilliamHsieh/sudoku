@@ -1,5 +1,5 @@
-// Clean-room bounded patterns. Geometry and complete trusted candidate masks are
-// inputs; player pencil marks must never be passed as the candidate model.
+// Clean-room bounded patterns. Deductions are relative to the supplied candidate
+// model: player-owned Auto candidates or board-certified Tidy candidates.
 import { PEERS, bit, maskDigits, popcount, rowOf, colOf, boxOf } from "../game/board.js";
 
 export const CHAIN_TECHNIQUES = Object.freeze([
@@ -28,7 +28,7 @@ const effects = (masks, targets, digits) =>
     digits.filter((digit) => masks[cell] & bit(digit)).map((digit) => ({ cell, digit }))
   );
 
-function wings(masks, xyz) {
+function wings(masks, xyz, effectMasks) {
   const id = xyz ? "xyz-wing" : "xy-wing";
   for (const p of cells) {
     if (popcount(masks[p]) !== (xyz ? 3 : 2)) continue;
@@ -48,7 +48,7 @@ function wings(masks, xyz) {
         const targets = cells.filter(
           (c) => c !== p && c !== a && c !== b && sees(c, a) && sees(c, b) && (!xyz || sees(c, p))
         );
-        const out = effects(masks, targets, [d]);
+        const out = effects(effectMasks, targets, [d]);
         if (out.length)
           return result(
             id,
@@ -63,7 +63,7 @@ function wings(masks, xyz) {
   return null;
 }
 
-function wWing(masks) {
+function wWing(masks, effectMasks) {
   const pairs = cells.filter((c) => popcount(masks[c]) === 2);
   for (let i = 0; i < pairs.length; i++)
     for (let j = i + 1; j < pairs.length; j++) {
@@ -78,7 +78,7 @@ function wWing(masks) {
           if (!((sees(a, u) && sees(b, v)) || (sees(a, v) && sees(b, u)))) continue;
           const other = maskDigits(masks[a] & ~bit(d))[0];
           const out = effects(
-            masks,
+            effectMasks,
             cells.filter((c) => c !== a && c !== b && sees(c, a) && sees(c, b)),
             [other]
           );
@@ -96,7 +96,7 @@ function wWing(masks) {
 
 // Canonical single/double elimination, not arbitrary remote-pair chains. See definition:
 // https://www.sudokuwiki.org/Print_Chute_Remote_Pairs
-function chuteRemotePair(values, masks) {
+function chuteRemotePair(values, masks, effectMasks) {
   const pairs = cells.filter((c) => popcount(masks[c]) === 2);
   for (const lineOf of [rowOf, colOf]) {
     for (let i = 0; i < pairs.length; i++)
@@ -126,7 +126,7 @@ function chuteRemotePair(values, masks) {
         // least one endpoint is y, and a common peer cannot be y.
         const removed = excluded.map((d) => ds.find((other) => other !== d));
         const out = effects(
-          masks,
+          effectMasks,
           cells.filter(
             (c) =>
               c !== a &&
@@ -159,7 +159,7 @@ function chuteRemotePair(values, masks) {
   return null;
 }
 
-function colouring(masks) {
+function colouring(masks, effectMasks) {
   for (let d = 1; d <= 9; d++) {
     const adjacency = Array.from({ length: 81 }, () => new Set());
     for (const unit of units) {
@@ -202,17 +202,19 @@ function colouring(masks) {
         .join("、");
       for (let shade = 0; shade < 2; shade++)
         if (conflicts[shade]) {
+          const out = effects(effectMasks, groups[shade], [d]);
+          if (!out.length) continue;
           return result(
             "simple-colouring",
             queue,
-            effects(masks, groups[shade], [d]),
+            out,
             `數字 ${d} 的強連結（各單位只剩兩個位置）為 ${links}。沿連結交替標色，同色的 ${labels(groups[shade])} 中有兩格互相可見，不能同時為真，因此這一色的所有候選 ${d} 都可刪除。`
           );
         }
       const targets = cells.filter(
         (c) => !color.has(c) && groups.every((g) => g.some((n) => sees(c, n)))
       );
-      const out = effects(masks, targets, [d]);
+      const out = effects(effectMasks, targets, [d]);
       if (out.length)
         return result(
           "simple-colouring",
@@ -225,8 +227,11 @@ function colouring(masks) {
   return null;
 }
 
-/** Find one exact pattern. Inputs must contain complete trusted candidates. */
-export function detectChain(values, masks, techniqueId) {
+/** Find one exact pattern. Inputs must contain a complete candidate model.
+ * @param {number[]} values @param {number[]} masks @param {string} techniqueId
+ * @param {number[]} [effectMasks] candidates currently visible to the player
+ */
+export function detectChain(values, masks, techniqueId, effectMasks = masks) {
   if (
     !Array.isArray(values) ||
     values.length !== 81 ||
@@ -234,17 +239,18 @@ export function detectChain(values, masks, techniqueId) {
     masks.length !== 81
   )
     throw new TypeError("Expected 81 values and candidate masks");
+  effectMasks = masks.map((mask, cell) => mask & effectMasks[cell]);
   switch (techniqueId) {
     case "xy-wing":
-      return wings(masks, false);
+      return wings(masks, false, effectMasks);
     case "xyz-wing":
-      return wings(masks, true);
+      return wings(masks, true, effectMasks);
     case "w-wing":
-      return wWing(masks);
+      return wWing(masks, effectMasks);
     case "chute-remote-pair":
-      return chuteRemotePair(values, masks);
+      return chuteRemotePair(values, masks, effectMasks);
     case "simple-colouring":
-      return colouring(masks);
+      return colouring(masks, effectMasks);
     default:
       return null;
   }
