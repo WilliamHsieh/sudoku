@@ -660,23 +660,27 @@
     aria-label="Number keypad"
     data-shown={highlight}
     data-locked={padUi.locked || 0}
+    data-held={padUi.spaceHold?.engaged ? padUi.spaceHold.d : 0}
     oncontextmenu={(e) => e.preventDefault()}
   >
     {#each DIGITS as d (d)}
+      {@const spaceHolding = padUi.spaceHold?.d === d && padUi.spaceHold.engaged}
       <button
         type="button"
         class="key"
-        class:pressed={padUi.gesture?.d === d}
+        class:pressed={padUi.gesture?.d === d || spaceHolding}
         class:shown={padUi.locked !== d &&
           highlight === d &&
+          !spaceHolding &&
           !(padUi.gesture?.d === d && padUi.gesture.holding)}
-        class:holding={padUi.gesture?.d === d && padUi.gesture.holding && padUi.locked !== d}
+        class:holding={(spaceHolding || (padUi.gesture?.d === d && padUi.gesture.holding)) &&
+          padUi.locked !== d}
         class:armed={padUi.gesture?.d === d && padUi.gesture.armed}
         class:arm-lock={padUi.gesture?.d === d && padUi.gesture.armLock}
         class:locked={padUi.locked === d}
         class:remove={padUi.gesture?.d === d && padUi.gesture.remove}
         class:illegal={padUi.gesture?.d === d && padUi.gesture.illegal}
-        class:show-label={padUi.gesture?.d === d && padUi.gesture.showLabel}
+        class:show-label={spaceHolding || (padUi.gesture?.d === d && padUi.gesture.showLabel)}
         class:lifted={!!concealed[d]}
         data-d={d}
         aria-pressed={padUi.locked === d}
@@ -689,7 +693,9 @@
         onlostpointercapture={onLostCapture}
       >
         <span class="digit">{d}</span>
-        <span class="label">{padUi.gesture?.d === d ? padUi.gesture.label : ""}</span>
+        <span class="label"
+          >{spaceHolding ? LABEL_HOLD : padUi.gesture?.d === d ? padUi.gesture.label : ""}</span
+        >
         <span class="label bottom">{padUi.gesture?.d === d ? padUi.gesture.bottom : ""}</span>
         <svg class="lock" viewBox="0 0 24 24" aria-hidden="true">
           <rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect>

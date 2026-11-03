@@ -1,7 +1,7 @@
 <script>
   /* global __SUDOKU_BUILD__ */
   import { installAutoUpdate, createUpdateAction, reloadForUpdate } from "./auto-update-browser.js";
-  import { paintBoard, discardPaint } from "./paint-actions.js";
+  import { paintBoard, discardPaint, beginSpaceHold, endSpaceHold } from "./paint-actions.js";
   import "./autofill.css";
   import {
     animateAutofill,
@@ -477,13 +477,20 @@
 
   /** Desktop Enter fills the locked answer; phone keeps its original note toggle. */
   function tryLockedInput(e) {
-    if (!padUi.locked || (e.key !== " " && e.key !== "Enter")) return false;
+    if (e.key !== " " && e.key !== "Enter") return false;
     if (
       e.target instanceof Element &&
       e.target.closest("button, a, input, textarea, select, summary")
     ) {
       return false;
     }
+    if (!isNarrow && e.key === " ") {
+      if (e.ctrlKey || e.metaKey || e.altKey || (e.repeat && !padUi.spaceHold)) return false;
+      if (!beginSpaceHold()) return false;
+      e.preventDefault();
+      return true;
+    }
+    if (!padUi.locked) return false;
     e.preventDefault();
     if (game.selected >= 0) {
       if (e.key === "Enter" && !isNarrow) game.fill(game.selected, padUi.locked);
@@ -493,6 +500,7 @@
   }
 
   function handleGlobalKeydown(e) {
+    if (e.key !== " " && e.key !== "Escape") endSpaceHold(true);
     if (customOpen && showCalendar) return;
     if (playUi.modal) return;
     // Every game binding below is off once complete: digits (including modified
@@ -533,6 +541,11 @@
     if (showCalendar && !isNarrow) return;
     if (e.key === "Escape") {
       if (showCalendar) return;
+      if (padUi.spaceHold) {
+        e.preventDefault();
+        endSpaceHold(true);
+        return;
+      }
       if (discardPaint()) {
         e.preventDefault();
         return;
@@ -560,6 +573,7 @@
   }
 
   async function openJournal(scrollToDay = true, highlight = false) {
+    endSpaceHold(true);
     game.flushProgress();
     frozenElapsed = get(timer);
     journalEntry = scrollToDay && game.dateStr ? { date: game.dateStr, highlight } : null;
@@ -690,6 +704,7 @@
     const mq = window.matchMedia(NARROW_MQ);
     isNarrow = mq.matches;
     const onNarrow = () => {
+      endSpaceHold(true);
       const hadNoticeFocus = noticeHadFocus;
       isNarrow = mq.matches;
       if (hadNoticeFocus) void tick().then(focusAfterNotice);
@@ -852,6 +867,7 @@
 
   $effect(() => {
     if (playUi.paused || playUi.modal) {
+      endSpaceHold(true);
       discardPaint();
       unlockKeepShown();
       clearToast();
@@ -885,6 +901,12 @@
 
 <svelte:window
   onkeydown={handleGlobalKeydown}
+  onkeyup={(event) => {
+    if (event.key === " " && padUi.spaceHold) {
+      event.preventDefault();
+      endSpaceHold();
+    }
+  }}
   onfocusin={(event) => {
     noticeHadFocus = event.target instanceof Element && !!event.target.closest(".update-notice");
   }}
@@ -1161,7 +1183,9 @@
                   </div>
                   <div>
                     <dt><kbd>Space</kbd></dt>
-                    <dd>Toggle note in selected cell</dd>
+                    <dd>
+                      Tap to toggle locked note; hold highlighted digit to click or drag candidates
+                    </dd>
                   </div>
                   <div>
                     <dt><kbd>Enter</kbd></dt>
