@@ -23,6 +23,7 @@
   let importError = $state("");
   let reading = $state(false);
   let copyOpen = $state(false);
+  let keyboardFocus = $state(false);
   let boardEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   let past = $state(/** @type {string[]} */ ([]));
   let future = $state(/** @type {string[]} */ ([]));
@@ -187,6 +188,13 @@
   }
 </script>
 
+<svelte:window
+  onkeydown={(event) => {
+    if (event.key === "Tab") keyboardFocus = true;
+  }}
+  onpointerdown={() => (keyboardFocus = false)}
+/>
+
 {#if !open}
   {#if children}{@render children()}{/if}
 {:else}
@@ -340,7 +348,7 @@
                 <p>Copy the starting numbers from your puzzle. Leave the empty squares blank.</p>
               </div>
             {:else}
-              <div class="string-input">
+              <div class="string-input" class:keyboard-focus={keyboardFocus}>
                 <label for="puzzle-string">Puzzle link or 81 digits</label>
                 <textarea
                   id="puzzle-string"
@@ -1270,9 +1278,9 @@
     .quiet textarea:focus {
       outline: 0;
     }
-    .quiet .string-input:focus-within {
-      outline: 2px solid var(--primary);
-      outline-offset: 2px;
+    .quiet .string-input.keyboard-focus:focus-within {
+      border-color: var(--focus);
+      box-shadow: 0 0 0 1px var(--focus);
     }
     .quiet .string-meta {
       grid-column: 1;
