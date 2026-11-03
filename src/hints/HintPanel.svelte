@@ -16,7 +16,7 @@
   };
   const message = $derived(messages[session.status]);
   const complete = $derived(
-    !session.undoAvailable
+    !session.didApply
       ? "這一步的結果已經在盤面上，請繼續解題。"
       : session.hint?.placements.length
         ? session.hint.placements

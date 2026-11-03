@@ -21,7 +21,9 @@
         width={bw.toFixed(2)}
         height={bh.toFixed(2)}
         rx="1"
-        fill={i < level ? "var(--ui-ink)" : "var(--dot-idle)"}
+        fill={i < level
+          ? "var(--diff-bar-on, var(--ui-ink))"
+          : "var(--diff-bar-off, var(--dot-idle))"}
       ></rect>
     {/each}
   </svg>

@@ -51,3 +51,8 @@ export function resetAutofill() {
   lastPass = new WeakMap();
   previous = [];
 }
+
+/** Shared by cell feedback and the solved transition. @param {number} index @param {number} count @param {boolean} reduced */
+export function autofillDelay(index, count, reduced) {
+  return reduced ? 0 : Math.max(0, index) * Math.min(45, 360 / Math.max(1, count - 1));
+}

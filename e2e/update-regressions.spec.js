@@ -302,8 +302,8 @@ test("Update after finishing today's Easy stays on the normal start screen", asy
     await cell(page, index).click();
     await page.keyboard.press(solution[index]);
   }
-  await expect(page.getByRole("heading", { name: "Puzzle Complete!" })).toBeVisible();
-  await page.locator(".success-close").click();
+  await expect(page.getByRole("heading", { name: "Solved" })).toBeVisible();
+
   const solved = await page.evaluate(() => localStorage.getItem("sudoku-solved"));
   expect(JSON.parse(solved)["2026-10-23"].easy.completed).toBe(true);
   await publish(page, deployment);

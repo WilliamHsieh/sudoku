@@ -39,14 +39,33 @@
   import { SLIDE_EASE, SLIDE_MS, slideOffsets } from "./journal/slide.js";
   import { isAway, isTodayShortcut, latestAnnouncement, monthsToLatest } from "./journal/home.js";
 
-  /** @type {{openOn?: {date: string} | null, current?: {date: string | null, diff: string | null, elapsed: number} | null, onback?: (fromSheet?: boolean) => void, oncustom?: () => void, viewport?: HTMLElement}} */
+  /** @type {{openOn?: {date: string, highlight?: boolean} | null, current?: {date: string | null, diff: string | null, elapsed: number} | null, onback?: (fromSheet?: boolean) => void, oncustom?: () => void, viewport?: HTMLElement}} */
   let { openOn = null, current = null, onback, oncustom, viewport } = $props();
   // Entry is consumed once. Browsing must not track later prop changes.
   const entry = untrack(() => openOn);
+  let highlightedDay = $state(/** @type {string | null} */ (null));
   onMount(() => {
-    if (!entry || isMobile()) return;
-    const cell = deskVp?.querySelector(`button.day[data-d="${entry.date}"]`);
-    if (cell instanceof HTMLElement) cell.focus({ preventScroll: true });
+    if (!entry) return;
+    let alive = true;
+    let timer;
+    void tick().then(() => {
+      if (!alive) return;
+      const cell = (isMobile() ? mobVp : deskVp)?.querySelector(
+        `button.day[data-d="${entry.date}"]`
+      );
+      if (!(cell instanceof HTMLElement)) return;
+      if (entry.highlight) {
+        cell.scrollIntoView({ block: "nearest", inline: "nearest" });
+        highlightedDay = entry.date;
+        if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches)
+          timer = setTimeout(() => (highlightedDay = null), 1200);
+      }
+      if (!isMobile()) cell.focus({ preventScroll: true });
+    });
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
   });
 
   const today = formatDay(new Date());
@@ -647,6 +666,7 @@
             {:else}
               <button
                 class="day"
+                class:solve-highlight={cell.date === highlightedDay}
                 class:is-latest={cell.date === latest}
                 class:sel={selection === cell.date}
                 type="button"
@@ -843,6 +863,7 @@
             {:else}
               <button
                 class="day"
+                class:solve-highlight={cell.date === highlightedDay}
                 class:is-latest={cell.date === latest}
                 class:sel={selection === cell.date || (!selection && cell.date === latest)}
                 type="button"
@@ -2310,6 +2331,30 @@
     .scrim,
     .sheet {
       animation: none;
+    }
+  }
+  .mobile .day.solve-highlight,
+  .dgrid .day.solve-highlight {
+    animation: solved-day 1200ms var(--ease-out) both;
+    border-radius: 10px;
+  }
+  @keyframes solved-day {
+    from {
+      background-color: var(--cue-fill);
+    }
+    to {
+      background-color: var(--sel);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .dgrid .day.solve-highlight::after {
+      border: 2px solid var(--cue-ink);
+    }
+    .mobile .day.solve-highlight,
+    .dgrid .day.solve-highlight {
+      animation: none;
+      outline: 2px solid var(--cue-ink);
+      outline-offset: -2px;
     }
   }
 </style>

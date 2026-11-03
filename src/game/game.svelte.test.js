@@ -3,6 +3,7 @@ import { get } from "svelte/store";
 import { createGame, DEMO_PUZZLE } from "./game.svelte.js";
 import { done, puzzleProgress, timer, timerRunning } from "../store.js";
 import { maskDigits } from "./board.js";
+import { toSnapshot } from "./snapshot.js";
 import { createPlay } from "../play/session.svelte.js";
 
 /** @type {ReturnType<typeof createGame>} */
@@ -44,6 +45,29 @@ describe("createGame", () => {
     expect(g.value(0)).toBe(0);
     g.clearAnswer(0);
     expect(g.canUndo).toBe(true); // no extra step
+  });
+
+  it("emits placement feedback for digit commits and corrections, never history or restore", () => {
+    expect(g.placement).toBe(null);
+    g.fill(0, 4);
+    expect(g.placement).toEqual([0]);
+    const first = g.placement;
+    g.fill(0, 4); // no-op
+    expect(g.placement).toBe(first);
+    g.fill(0, 2); // correction keeps the existing digit component
+    expect(g.placement).toEqual([0]);
+    expect(g.placement).not.toBe(first);
+    const correction = g.placement;
+    g.undo();
+    g.redo();
+    expect(g.placement).toBe(correction); // no new feedback event
+    const snapshot = toSnapshot(g.state);
+    g.load(DEMO_PUZZLE, { snapshot });
+    expect(g.placement).toBe(null);
+    expect(g.value(0)).toBe(2);
+    g.fill(0, 4);
+    g.clearAnswer(0);
+    expect(g.placement).toBe(null);
   });
 
   it("does not overwrite a given", () => {
@@ -523,4 +547,51 @@ describe("single-candidate pass", () => {
     expect(g.state).toBe(after);
     expect(g.singles).toHaveLength(2);
   });
+});
+
+it("locks every core edit and history action after solving", () => {
+  const solution =
+    "123456789456789123789123456234567891567891234891234567345678912678912345912345678";
+  g.load("0" + solution.slice(1));
+  g.fill(0, 1);
+  const finished = g.state;
+  expect(g.solved).toBe(true);
+  expect(g.lastPlaced).toBe(0);
+  for (const action of [
+    () => g.fill(0, 2),
+    () => g.enter(0, 1),
+    () => g.erase(0),
+    () => g.clear(0),
+    () => g.clearAnswer(0),
+    () => g.toggleNote(0, 1),
+    () => g.setNotesMode("manual"),
+    () => g.undo(),
+    () => g.redo(),
+    () => g.select(1),
+  ])
+    action();
+  expect(g.state).toBe(finished);
+  expect(g.canUndo).toBe(false);
+  expect(g.canRedo).toBe(false);
+  expect(g.notesMode).toBe("auto");
+});
+
+it("saves zero-second elimination-only hints and their undo/redo ledger changes", async () => {
+  const { findHint } = await import("../hints/engine.js");
+  const { applyHint, hintStateKey } = await import("../hints/hint.js");
+  const { registerVerifiedHint } = await import("../hints/certificates.js");
+  const puzzle =
+    "519876342642000897378924165164537928295481673783692451937040006806009704401760009";
+  puzzleProgress.set({});
+  g.load(puzzle, { dateStr: "2026-11-03", difficulty: "hard" });
+  timer.set(0);
+  const hint = findHint(g.state);
+  registerVerifiedHint(hint, hintStateKey(g.state));
+  g.commitStroke(applyHint(g.state, hint));
+  const saved = () => get(puzzleProgress)["2026-11-03"].hard.snapshot;
+  expect(saved().trustedEliminations.removed[77]).toBeTruthy();
+  g.undo();
+  expect(saved().trustedEliminations).toBeUndefined();
+  g.redo();
+  expect(saved().trustedEliminations.removed[77]).toBeTruthy();
 });

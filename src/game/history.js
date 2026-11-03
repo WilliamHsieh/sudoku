@@ -73,7 +73,8 @@ export function changedCells(a, b) {
       a.answers[i] !== b.answers[i] ||
       a.manualNotes[i] !== b.manualNotes[i] ||
       a.autoAdded[i] !== b.autoAdded[i] ||
-      a.autoRemoved[i] !== b.autoRemoved[i]
+      a.autoRemoved[i] !== b.autoRemoved[i] ||
+      (a.trustedEliminations?.removed[i] ?? 0) !== (b.trustedEliminations?.removed[i] ?? 0)
     ) {
       out.push(i);
     }

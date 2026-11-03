@@ -11,6 +11,7 @@ export function createHintSession({ game, provider = null }) {
   let controller = /** @type {AbortController | null} */ (null);
   let applied = /** @type {import('../game/game.js').GameState | null} */ (null);
   let undoAvailable = $state(false);
+  let didApply = $state(false);
   function cancel() {
     generation++;
     controller?.abort();
@@ -21,6 +22,7 @@ export function createHintSession({ game, provider = null }) {
     status = "closed";
     applied = null;
     undoAvailable = false;
+    didApply = false;
   }
   async function open() {
     cancel();
@@ -28,6 +30,7 @@ export function createHintSession({ game, provider = null }) {
     stage = 0;
     applied = null;
     undoAvailable = false;
+    didApply = false;
     if (!provider) {
       status = "unavailable";
       return;
@@ -57,6 +60,7 @@ export function createHintSession({ game, provider = null }) {
     } else if (status === "applied" && state !== applied) {
       applied = null;
       undoAvailable = false;
+      didApply = false;
       status = "stale";
     }
   }
@@ -78,7 +82,8 @@ export function createHintSession({ game, provider = null }) {
       const next = applyHint(before, hint);
       if (next !== before) game.commitStroke(next);
       applied = game.state;
-      undoAvailable = next !== before;
+      didApply = next !== before;
+      undoAvailable = didApply && game.canUndo;
       status = "applied";
     } catch {
       status = "error";
@@ -92,6 +97,7 @@ export function createHintSession({ game, provider = null }) {
     game.undo();
     applied = null;
     undoAvailable = false;
+    didApply = false;
     close();
   }
   /** @param {number} cell */
@@ -135,6 +141,9 @@ export function createHintSession({ game, provider = null }) {
     },
     get isOpen() {
       return status !== "closed";
+    },
+    get didApply() {
+      return didApply;
     },
     get undoAvailable() {
       return undoAvailable;

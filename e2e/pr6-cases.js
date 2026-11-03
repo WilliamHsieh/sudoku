@@ -325,7 +325,8 @@ export function registerPr6Tests(opts = {}) {
     }
     await cell(page, blank).click();
     await page.keyboard.press(digit);
-    await expect(page.locator(".success-card")).toBeVisible();
+    await page.clock.runFor(900);
+    await expect(page.locator(".sv-panel")).toBeVisible();
     await page.clock.runFor(2_000);
     await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "idle");
     await expect(page.locator(".pencil-box.cue")).toHaveCount(0);
@@ -796,17 +797,20 @@ export function registerPr6Tests(opts = {}) {
     }
     await cell(page, blank).click();
     await page.keyboard.press(digit);
-    await expect(page.locator(".success-card")).toBeVisible();
+    await page.clock.runFor(900);
+    await expect(page.locator(".sv-panel")).toBeVisible();
     await page.clock.runFor(1_000);
     const shown = await page.locator("#header-time .time").innerText();
     await setTabHidden(page, true);
     await page.clock.runFor(2_000);
     await expect(page.locator(".paused-cover")).toHaveCount(0);
-    await expect(page.locator(".success-card")).toBeVisible();
+    await page.clock.runFor(900);
+    await expect(page.locator(".sv-panel")).toBeVisible();
     await setTabHidden(page, false);
     await page.clock.runFor(250 + 600);
     await expect(page.locator(".paused-cover")).toHaveCount(0);
-    await expect(page.locator(".success-card")).toBeVisible();
+    await page.clock.runFor(900);
+    await expect(page.locator(".sv-panel")).toBeVisible();
     await expect(page.locator("#resume-status")).toHaveText("");
     await expect(page.locator("#header-time .time")).toHaveText(shown);
   });

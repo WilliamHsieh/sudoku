@@ -525,7 +525,7 @@
 
   /** @param {PointerEvent} e */
   function onKeyPointerDown(e) {
-    if (playUi.paused) return;
+    if (playUi.paused || game.solved) return;
     if (e.button !== undefined && e.button > 0) return;
     e.preventDefault();
     pointerGuard = performance.now() + 700;
@@ -553,6 +553,7 @@
 
   /** @param {MouseEvent} e @param {number} d */
   function onKeyClick(e, d) {
+    if (game.solved) return;
     if (e.detail !== 0) return;
     if (performance.now() < pointerGuard) return;
     activateKey(d);

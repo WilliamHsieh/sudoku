@@ -1,12 +1,14 @@
 <script>
-  /** @typedef {'check' | 'play' | 'chevron-left' | 'chevron-right' | 'calendar-days' | 'grid-3x3' | 'flame' | 'trophy' | 'x' | 'history' | 'info' | 'arrow-left' | 'ellipsis'} IconName */
+  /** @typedef {'circle-check' | 'check' | 'play' | 'chevron-left' | 'chevron-right' | 'calendar-days' | 'grid-3x3' | 'flame' | 'trophy' | 'x' | 'history' | 'info' | 'arrow-left' | 'ellipsis'} IconName */
 
   /** @type {{ name: IconName }} */
   let { name } = $props();
 </script>
 
 <svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-  {#if name === "check"}
+  {#if name === "circle-check"}
+    <circle cx="12" cy="12" r="10" /><path d="m9 12 2 2 4-4" />
+  {:else if name === "check"}
     <path d="M20 6 9 17l-5-5"></path>
   {:else if name === "play"}
     <path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"

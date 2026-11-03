@@ -1,3 +1,5 @@
+import { isVerifiedHint } from "./certificates.js";
+import { bit } from "../game/board.js";
 import { isCell, isDigit } from "../game/board.js";
 import { hasCandidate, isLegal, setAnswer, toggleCandidate, valueAt } from "../game/game.js";
 
@@ -17,6 +19,7 @@ import { hasCandidate, isLegal, setAnswer, toggleCandidate, valueAt } from "../g
  * @property {Candidate[]} placements
  * @property {Candidate[]} eliminations
  * @property {number[]} candidateMasks
+ * @property {{version:1,valuesKey:string,removed:number[],step:import("./proof-verifier.js").Step}} [proof]
  * @property {string} effect
  */
 /** @typedef {(state: import('../game/game.js').GameState, options: {signal: AbortSignal}) => Promise<Hint | null>} HintProvider */
@@ -32,6 +35,7 @@ export function hintStateKey(state) {
     state.manualNotes,
     state.autoAdded,
     state.autoRemoved,
+    state.trustedEliminations,
   ]);
 }
 
@@ -47,11 +51,19 @@ export function hintSnapshot(state) {
     manualNotes: [...state.manualNotes],
     autoAdded: [...state.autoAdded],
     autoRemoved: [...state.autoRemoved],
+    ...(state.trustedEliminations
+      ? {
+          trustedEliminations: {
+            ...state.trustedEliminations,
+            removed: [...state.trustedEliminations.removed],
+          },
+        }
+      : {}),
   };
 }
 
-/** Apply one displayed step as a single immutable history entry. This updates player notes;
- * a future solver must independently maintain/rederive its certified logical eliminations.
+/** Apply one displayed step as a single immutable history entry. Engine receipts
+ * additionally update the independent ledger even when player notes are empty.
  * @param {import('../game/game.js').GameState} state
  * @param {Hint} hint
  */
@@ -76,5 +88,20 @@ export function applyHint(state, hint) {
   }
   for (const { cell, digit } of hint.eliminations)
     if (hasCandidate(next, cell, digit)) next = toggleCandidate(next, cell, digit).state;
+  if (hint.proof && isVerifiedHint(hint, hintStateKey(state))) {
+    const removed = hint.proof.removed.slice();
+    for (const { cell, digit } of hint.eliminations) removed[cell] |= bit(digit);
+    for (const { cell } of hint.placements) removed[cell] = 0;
+    next = {
+      ...next,
+      trustedEliminations: {
+        version: 1,
+        valuesKey: next.givens.map((v, i) => v || next.answers[i]).join(""),
+        removed,
+      },
+    };
+  } else if (hint.proof) {
+    throw new Error("Hint proof has no verified receipt");
+  }
   return next;
 }

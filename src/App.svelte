@@ -5,10 +5,14 @@
   import "./autofill.css";
   import {
     animateAutofill,
+    autofillDelay,
     clearAutofill,
     resetAutofill,
     syncAutofill,
   } from "./autofill.svelte.js";
+  import SolvedPanel from "./SolvedPanel.svelte";
+  import { solvedModel } from "./solved.js";
+  import "./solved.css";
   import UpdateNotice from "./UpdateNotice.svelte";
   import Cell from "./Cell.svelte";
   import PlayHeader from "./PlayHeader.svelte";
@@ -52,13 +56,14 @@
   import OptionsSheet from "./OptionsSheet.svelte";
   import HintPanel from "./hints/HintPanel.svelte";
   import { createHintSession } from "./hints/session.svelte.js";
+  import { hintFrameFor } from "./hints/layout.js";
   import { flushSync, onMount, tick, untrack } from "svelte";
   import { longDate } from "./journal/format.js";
 
   /** @type {{hintProvider?: import('./hints/hint.js').HintProvider | null}} */
   let { hintProvider = null } = $props();
-  // The source is bound once at mount. Production has no solver yet; capture
-  // fixtures inject a source without shipping a fake hint in the game.
+  // Bind once at mount. Production injects the proof-checked Worker; isolated
+  // previews can still supply fixtures without including them in the bundle.
   const hints = createHintSession({ game, provider: untrack(() => hintProvider) });
   /** @type {{mode: 'docked'|'side', left: number, top: number, width: number, maxHeight: number} | null} */
   let hintFrame = $state(null);
@@ -71,16 +76,7 @@
     const chrome = controls.getBoundingClientRect();
     // Preserve the current board and controls layout. The hint temporarily
     // occupies the existing controls area, on both wide and stacked layouts.
-    const side = innerWidth >= 900 && chrome.left >= rect.right;
-    const left = side ? rect.right + 24 : chrome.left;
-    const top = side ? rect.top : rect.bottom + 12;
-    const next = {
-      mode: /** @type {'side'|'docked'} */ (side ? "side" : "docked"),
-      left,
-      top,
-      width: side ? Math.min(340, innerWidth - 16 - left) : chrome.width,
-      maxHeight: innerHeight - top - 16,
-    };
+    const next = hintFrameFor(rect, chrome, { width: innerWidth, height: innerHeight });
     if (JSON.stringify(next) !== JSON.stringify(hintFrame)) hintFrame = next;
   }
 
@@ -137,7 +133,8 @@
     playUi.resetForLoad();
     resetKeypad();
     resetAutofill();
-    deferSolved = false;
+    solvedScreen = false;
+    autoFinishing = false;
     clearTimeout(solvedDelay);
   });
   playUi.bindLones(() => {
@@ -175,6 +172,7 @@
   }
 
   function onPauseClick() {
+    if (game.solved && !showCalendar) return;
     if (showCalendar) {
       playFromJournal();
       return;
@@ -227,7 +225,7 @@
   let hasPlayed = $state(false);
   let frozenElapsed = $state(0);
   let viewMotion = $state(false);
-  /** @type {{date: string} | null} */
+  /** @type {{date: string, highlight?: boolean} | null} */
   let journalEntry = $state(null);
   const freshTarget = $derived(unfinishedList($puzzleProgress, $solvedPuzzles)[0] ?? null);
   let isNarrow = $state(typeof window !== "undefined" && window.matchMedia(NARROW_MQ).matches);
@@ -275,7 +273,78 @@
   let journalViewport = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   let wrapEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   let ringEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
-  let deferSolved = $state(false);
+  let solvedScreen = $state(false);
+  let autoFinishing = false;
+  let controlsGone = $state(false);
+  let solveOrigin = $state(80);
+  let boardSize = $state(650);
+  let spread = $state({ x: 0, y: 0, radius: 0 });
+  let resultModel = $state(/** @type {ReturnType<typeof solvedModel> | null} */ (null));
+  $effect(() => {
+    const element = wrapEl;
+    if (!element) return;
+    const observer = new ResizeObserver(() => (boardSize = element.getBoundingClientRect().width));
+    observer.observe(element);
+    return () => observer.disconnect();
+  });
+  function showSolved() {
+    const rect = wrapEl?.getBoundingClientRect();
+    boardSize = rect?.width ?? 650;
+    const cell = wrapEl?.querySelector(`[data-i="${solveOrigin}"]`)?.getBoundingClientRect();
+    const x = cell && rect ? cell.x + cell.width / 2 - rect.x : boardSize / 2;
+    const y = cell && rect ? cell.y + cell.height / 2 - rect.y : boardSize / 2;
+    spread = {
+      x,
+      y,
+      radius: Math.hypot(Math.max(x, boardSize - x), Math.max(y, boardSize - y)) + 130,
+    };
+    game.select(-1);
+    resetKeypad();
+    releaseShiftHover();
+    resultModel = solvedModel({
+      date: game.dateStr,
+      difficulty: game.difficulty,
+      time: get(timer),
+      solved: get(solvedPuzzles),
+      progress: get(puzzleProgress),
+      puzzles: puzzleData,
+    });
+    solvedScreen = true;
+  }
+  $effect(() => {
+    if (!$done) {
+      solvedScreen = false;
+      controlsGone = false;
+      return;
+    }
+    if (autoFinishing) return;
+    solveOrigin = untrack(() => game.lastPlaced);
+    solvedDelay = setTimeout(showSolved, 180);
+    return () => clearTimeout(solvedDelay);
+  });
+  $effect(() => {
+    if (!solvedScreen) return;
+    const id = setTimeout(() => (controlsGone = true), playUi.reduced ? 120 : 260);
+    return () => clearTimeout(id);
+  });
+  function nextSolved() {
+    const target = resultModel?.target;
+    if (!target) {
+      void solvedJournal();
+      return;
+    }
+    const saved = get(puzzleProgress)[target.dateStr]?.[target.difficulty];
+    game.load(target.puzzle, {
+      dateStr: target.dateStr,
+      difficulty: target.difficulty,
+      snapshot: saved?.snapshot,
+      elapsed: saved?.elapsed,
+    });
+    handleLoadPuzzle();
+  }
+  async function solvedJournal() {
+    await openJournal(true, true);
+  }
   let solvedDelay = /** @type {ReturnType<typeof setTimeout> | undefined} */ (undefined);
   const singlesCount = $derived(game.singles.length);
 
@@ -295,7 +364,7 @@
     clearToast();
     flushSync(clearAutofill);
     clearTimeout(solvedDelay);
-    deferSolved = true;
+    autoFinishing = true;
     const result = game.fillSingles();
     animateAutofill(result, game.state.answers, playUi.reduced);
     const n = result.placed.length;
@@ -310,12 +379,13 @@
     padUi.announcement = message;
     padUi.commitId++;
     if (!n && !result.skipped.length) showToast("No single candidates right now", false, 1800);
-    const lastDelay = playUi.reduced ? 0 : Math.min(360, Math.max(0, n - 1) * 45);
+    const lastDelay = autofillDelay(n - 1, n, playUi.reduced);
     if (game.solved)
       solvedDelay = setTimeout(() => {
-        deferSolved = false;
+        solveOrigin = result.placed.at(-1)?.i ?? 80;
+        showSolved();
       }, lastDelay + 520);
-    else deferSolved = false;
+    else autoFinishing = false;
   }
 
   /** Only the board, keypad and body reserve plain Tab in Auto mode. */
@@ -424,6 +494,20 @@
   function handleGlobalKeydown(e) {
     if (customOpen && showCalendar) return;
     if (playUi.modal) return;
+    // Every game binding below is off once complete: digits (including modified
+    // digits), arrows, Backspace/Delete/0, undo/redo (Ctrl/Cmd Z, Shift Z, Ctrl Y),
+    // Tab autofill, Shift digit lock, Space/Enter locked input, Escape and P.
+    if (game.solved && !showCalendar) {
+      if (
+        solvedScreen &&
+        e.key === "Enter" &&
+        (document.activeElement === document.body || document.activeElement?.id === "sv-h")
+      ) {
+        e.preventDefault();
+        nextSolved();
+      }
+      return;
+    }
     if (
       !isNarrow &&
       e.target instanceof Element &&
@@ -457,7 +541,6 @@
         unlockKeepShown();
         return;
       }
-      if ($done) game.dismiss();
       return;
     }
     if (tryAutofill(e) || tryShiftLock(e) || tryLockedInput(e)) return;
@@ -475,16 +558,10 @@
     game.select(-1);
   }
 
-  function handleSuccessBackdrop(event) {
-    if (event.target === event.currentTarget) {
-      game.dismiss();
-    }
-  }
-
-  async function openJournal() {
+  async function openJournal(scrollToDay = true, highlight = false) {
     game.flushProgress();
     frozenElapsed = get(timer);
-    journalEntry = game.dateStr ? { date: game.dateStr } : null;
+    journalEntry = scrollToDay && game.dateStr ? { date: game.dateStr, highlight } : null;
     viewMotion = true;
     showCalendar = true;
     resumeStatus = `Journal${game.dateStr ? ", " + longDate(game.dateStr) : ""}. Game paused at ${formatTime(frozenElapsed)}.`;
@@ -584,6 +661,7 @@
 
   function focusAfterNotice() {
     if (showCalendar) focusId("time-control");
+    else if (game.solved) focusId("sv-h");
     else focusMore();
   }
 
@@ -657,6 +735,8 @@
     let hiddenAt = /** @type {number | null} */ (null);
     const isHidden = () => document.hidden || document.visibilityState === "hidden";
     const onAway = () => {
+      hints.close();
+      hintFrame = null;
       if (showCalendar || game.solved) {
         // Clear #58's view/entry announcement without pausing these views.
         resumeStatus = "";
@@ -736,6 +816,7 @@
       window.removeEventListener("pointerdown", releaseViewFocus, true);
       mq.removeEventListener("change", onNarrow);
       reduceMq.removeEventListener("change", onReduce);
+      hints.close();
       document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("blur", onWindowBlur);
       window.removeEventListener("focus", onReturn);
@@ -829,7 +910,7 @@
       {hasPlayed}
       {frozenElapsed}
       {freshTarget}
-      ondate={openJournal}
+      ondate={() => openJournal()}
       ontime={onPauseClick}
       onbrand={removeFocus}
       onhint={openHint}
@@ -868,6 +949,8 @@
       use:fitKeypad
       bind:this={playViewport}
       class="play"
+      class:solved-screen={solvedScreen}
+      style:--sv-board-size={`${boardSize}px`}
       class:enter-play={viewMotion && !playUi.reduced}
       style:--resume-ms={`${RESUME_REVEAL_MS}ms`}
       style:--resume-ease={RESUME_EASE}
@@ -891,13 +974,23 @@
             class:quiet={padUi.quiet}
             class:shift-aim={isShiftAim()}
             aria-hidden={playUi.paused ? "true" : undefined}
-            inert={playUi.paused}
+            inert={playUi.paused || game.solved}
             data-cue-phase={playUi.phase}
+            data-notes-mode={game.notesMode}
           >
             {#each CELL_IDS as id (id)}
               <Cell cell_id={id} desktop={!isNarrow} hint={hints.evidence(id)} />
             {/each}
           </div>
+          {#if solvedScreen && !playUi.reduced}
+            <div
+              class="sv-ring"
+              aria-hidden="true"
+              style:--sv-x={`${spread.x}px`}
+              style:--sv-y={`${spread.y}px`}
+              style:--sv-rmax={`${spread.radius}px`}
+            ></div>
+          {/if}
           {#if showCover}
             <PausedCover
               showKey={!isNarrow}
@@ -928,181 +1021,191 @@
           {/if}
         </div>
       </div>
-      <div class="mobile-chrome" class:hint-replaced={hints.isOpen} inert={hints.isOpen}>
-        {#if !isNarrow}
-          <p class="controls-label">
-            Numbers
-            <span>
-              {#if padUi.locked}
-                Digit {padUi.locked} locked
-              {:else if game.selected >= 0}
-                Row {Math.floor(game.selected / 9) + 1} · Column {(game.selected % 9) + 1}
-              {:else}
-                Select a cell to get started
-              {/if}
-            </span>
-          </p>
-        {/if}
-        <div class="chrome-dim" class:dim={playUi.paused} inert={playUi.paused}>
-          <Tools desktop={!isNarrow} />
-          <div class="keypad-slot">
-            <div class="keypad-scale"><Keypad desktop={!isNarrow} /></div>
-          </div>
-        </div>
-        {#if !isNarrow && game.notesMode === "auto"}
-          <button
-            type="button"
-            class="af-desk"
-            onmousedown={(event) => event.preventDefault()}
-            aria-keyshortcuts="Tab"
-            disabled={singlesCount === 0 || playUi.paused || !!playUi.modal || $done}
-            onclick={fillSingles}
+      <div
+        class="mobile-chrome"
+        class:sv-chrome={solvedScreen}
+        class:hint-replaced={hints.isOpen}
+        inert={hints.isOpen}
+      >
+        {#if solvedScreen && resultModel}<SolvedPanel
+            model={resultModel}
+            reduced={playUi.reduced}
+            onnext={nextSolved}
+            onjournal={solvedJournal}
+          />{/if}
+        {#if !controlsGone}
+          <div
+            class="game-controls"
+            class:sv-leaving={solvedScreen}
+            class:reduced={playUi.reduced}
+            inert={game.solved}
           >
-            <svg class="af-ic" viewBox="0 0 24 24" aria-hidden="true"
-              ><path
-                d="M12 3v17a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1H3"
-              /><path d="m16 19 2 2 4-4" /></svg
-            >
-            <span class="af-lbl"
-              >{singlesCount
-                ? `Fill ${singlesCount} single candidates`
-                : "No single candidates"}</span
-            >
-            <kbd class="af-kbd" aria-hidden="true">Tab</kbd>
-          </button>
-        {/if}
-        <div
-          class="hint-line"
-          class:notice-active={isNarrow && noticeActive}
-          class:af-active={fillChip}
-          class:reduced={playUi.reduced}
-        >
-          <p
-            class="pad-hint normal-hint"
-            aria-live="polite"
-            aria-hidden={isNarrow && (noticeActive || fillChip)}
-          >
-            {#if hint.kind === "plain"}
-              {hint.text}
-            {:else}
-              <b>{hint.lead}</b>
-              {hint.rest}
+            {#if !isNarrow}
+              <p class="controls-label">
+                Numbers
+                <span>
+                  {#if padUi.locked}
+                    Digit {padUi.locked} locked
+                  {:else if game.selected >= 0}
+                    Row {Math.floor(game.selected / 9) + 1} · Column {(game.selected % 9) + 1}
+                  {:else}
+                    Select a cell to get started
+                  {/if}
+                </span>
+              </p>
             {/if}
-          </p>
-          {#if isNarrow && game.notesMode === "auto"}
-            <div
-              class="af-chip inline"
-              class:active={fillChip}
-              class:reduced={playUi.reduced}
-              aria-hidden={!fillChip}
-              inert={!fillChip}
-            >
-              <svg class="af-ic" viewBox="0 0 24 24" aria-hidden="true"
-                ><path
-                  d="M12 3v17a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1H3"
-                /><path d="m16 19 2 2 4-4" /></svg
-              >
-              <span class="af-msg">{singlesCount} cells have one candidate</span>
+            <div class="chrome-dim" class:dim={playUi.paused} inert={playUi.paused}>
+              <Tools desktop={!isNarrow} />
+              <div class="keypad-slot">
+                <div class="keypad-scale"><Keypad desktop={!isNarrow} /></div>
+              </div>
+            </div>
+            {#if !isNarrow && game.notesMode === "auto"}
               <button
                 type="button"
-                class="af-btn"
+                class="af-desk"
                 onmousedown={(event) => event.preventDefault()}
-                aria-label={`Fill ${singlesCount} cells that have one candidate`}
-                onclick={fillSingles}>Fill</button
+                aria-keyshortcuts="Tab"
+                disabled={singlesCount === 0 || playUi.paused || !!playUi.modal || $done}
+                onclick={fillSingles}
               >
+                <svg class="af-ic" viewBox="0 0 24 24" aria-hidden="true"
+                  ><path
+                    d="M12 3v17a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1H3"
+                  /><path d="m16 19 2 2 4-4" /></svg
+                >
+                <span class="af-lbl"
+                  >{singlesCount
+                    ? `Fill ${singlesCount} single candidates`
+                    : "No single candidates"}</span
+                >
+                <kbd class="af-kbd" aria-hidden="true">Tab</kbd>
+              </button>
+            {/if}
+            <div
+              class="hint-line"
+              class:notice-active={isNarrow && noticeActive}
+              class:af-active={fillChip}
+              class:reduced={playUi.reduced}
+            >
+              <p
+                class="pad-hint normal-hint"
+                aria-live="polite"
+                aria-hidden={isNarrow && (noticeActive || fillChip)}
+              >
+                {#if hint.kind === "plain"}
+                  {hint.text}
+                {:else}
+                  <b>{hint.lead}</b>
+                  {hint.rest}
+                {/if}
+              </p>
+              {#if isNarrow && game.notesMode === "auto"}
+                <div
+                  class="af-chip inline"
+                  class:active={fillChip}
+                  class:reduced={playUi.reduced}
+                  aria-hidden={!fillChip}
+                  inert={!fillChip}
+                >
+                  <svg class="af-ic" viewBox="0 0 24 24" aria-hidden="true"
+                    ><path
+                      d="M12 3v17a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1H3"
+                    /><path d="m16 19 2 2 4-4" /></svg
+                  >
+                  <span class="af-msg">{singlesCount} cells have one candidate</span>
+                  <button
+                    type="button"
+                    class="af-btn"
+                    onmousedown={(event) => event.preventDefault()}
+                    aria-label={`Fill ${singlesCount} cells that have one candidate`}
+                    onclick={fillSingles}>Fill</button
+                  >
+                </div>
+              {/if}
+              {#if isNarrow && !game.solved}
+                <UpdateNotice
+                  active={noticeActive}
+                  inline
+                  reduced={playUi.reduced}
+                  {updating}
+                  onupdate={updateNow}
+                  ondismiss={dismissUpdate}
+                />
+              {/if}
             </div>
-          {/if}
-          {#if isNarrow}
-            <UpdateNotice
-              active={noticeActive}
-              inline
-              reduced={playUi.reduced}
-              {updating}
-              onupdate={updateNow}
-              ondismiss={dismissUpdate}
-            />
-          {/if}
-        </div>
-        {#if !isNarrow}
-          <details class="keyboard-help">
-            <summary>Keyboard shortcuts</summary>
-            <p class="keyboard-example">
-              Lock 4, then use the arrow keys to select a cell. Space adds or removes candidate 4;
-              Enter fills 4 as the answer.
-            </p>
-            <dl>
-              <div>
-                <dt><kbd>1–9</kbd></dt>
-                <dd>Fill answer</dd>
-              </div>
-              <div>
-                <dt><kbd>↑ ↓ ← →</kbd></dt>
-                <dd>Move selection</dd>
-              </div>
-              <div>
-                <dt><kbd>Shift + 1–9</kbd></dt>
-                <dd>Lock digit</dd>
-              </div>
-              <div>
-                <dt><kbd>Shift + click</kbd></dt>
-                <dd>Lock digit on keypad</dd>
-              </div>
-              <div>
-                <dt><kbd>Space</kbd></dt>
-                <dd>Toggle note in selected cell</dd>
-              </div>
-              <div>
-                <dt><kbd>Enter</kbd></dt>
-                <dd>Fill locked digit as answer</dd>
-              </div>
-              <div>
-                <dt><kbd>Tab</kbd></dt>
-                <dd>Fill every cell with one candidate</dd>
-              </div>
-              <div>
-                <dt><kbd>⌫ / Del / 0</kbd></dt>
-                <dd>Erase answer or notes</dd>
-              </div>
-              <div>
-                <dt><kbd>Ctrl / ⌘ Z</kbd></dt>
-                <dd>Undo · add Shift to redo</dd>
-              </div>
-              <div>
-                <dt><kbd>Esc</kbd></dt>
-                <dd>Cancel stroke / unlock</dd>
-              </div>
-              <div>
-                <dt><kbd>P</kbd></dt>
-                <dd>Pause / resume</dd>
-              </div>
-            </dl>
-          </details>
+            {#if !isNarrow}
+              <details class="keyboard-help">
+                <summary>Keyboard shortcuts</summary>
+                <p class="keyboard-example">
+                  Lock 4, then use the arrow keys to select a cell. Space adds or removes candidate
+                  4; Enter fills 4 as the answer.
+                </p>
+                <dl>
+                  <div>
+                    <dt><kbd>1–9</kbd></dt>
+                    <dd>Fill answer</dd>
+                  </div>
+                  <div>
+                    <dt><kbd>↑ ↓ ← →</kbd></dt>
+                    <dd>Move selection</dd>
+                  </div>
+                  <div>
+                    <dt><kbd>Shift + 1–9</kbd></dt>
+                    <dd>Lock digit</dd>
+                  </div>
+                  <div>
+                    <dt><kbd>Shift + click</kbd></dt>
+                    <dd>Lock digit on keypad</dd>
+                  </div>
+                  <div>
+                    <dt><kbd>Space</kbd></dt>
+                    <dd>Toggle note in selected cell</dd>
+                  </div>
+                  <div>
+                    <dt><kbd>Enter</kbd></dt>
+                    <dd>Fill locked digit as answer</dd>
+                  </div>
+                  <div>
+                    <dt><kbd>Tab</kbd></dt>
+                    <dd>Fill every cell with one candidate</dd>
+                  </div>
+                  <div>
+                    <dt><kbd>⌫ / Del / 0</kbd></dt>
+                    <dd>Erase answer or notes</dd>
+                  </div>
+                  <div>
+                    <dt><kbd>Ctrl / ⌘ Z</kbd></dt>
+                    <dd>Undo · add Shift to redo</dd>
+                  </div>
+                  <div>
+                    <dt><kbd>Esc</kbd></dt>
+                    <dd>Cancel stroke / unlock</dd>
+                  </div>
+                  <div>
+                    <dt><kbd>P</kbd></dt>
+                    <dd>Pause / resume</dd>
+                  </div>
+                </dl>
+              </details>
+            {/if}
+          </div>
         {/if}
       </div>
     </div>
 
     <OptionsSheet
+      canRestart={!game.solved}
       viewport={playViewport}
       oncustom={openCustomPuzzle}
       onclosed={focusMore}
       onrestart={() => {
+        if (game.solved) return;
         game.restart();
         resetKeypad();
         resetAutofill();
       }}
     />
-
-    {#if $done && !deferSolved}
-      <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-      <div class="success-message" onclick={handleSuccessBackdrop}>
-        <div class="success-card">
-          <button class="success-close" onclick={() => game.dismiss()}>&times;</button>
-          <div class="success-icon">🎉</div>
-          <h2>Puzzle Complete!</h2>
-          <p>Congratulations! You've successfully solved the Sudoku puzzle.</p>
-        </div>
-      </div>
-    {/if}
   {/if}
 </main>
 
@@ -1130,7 +1233,8 @@
 <div class="update-live sr-only" aria-live="polite" aria-atomic="true">
   {noticeActive ? (updating ? "Updating…" : UPDATE_COPY) : ""}
 </div>
-{#if !isNarrow || showCalendar}
+<!-- App updates outlive the game controls, including their inert/fade interval. -->
+{#if !isNarrow || showCalendar || game.solved}
   <UpdateNotice
     active={noticeActive}
     reduced={playUi.reduced}
@@ -1422,87 +1526,6 @@
     margin: 0;
   }
 
-  .success-message {
-    position: fixed;
-    inset: 0;
-    background: var(--overlay);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    animation: overlay-in var(--motion) var(--ease-out);
-  }
-
-  .success-card {
-    background: var(--board-bg);
-    color: var(--ui-ink);
-    padding: 48px 32px;
-    border-radius: 16px;
-    text-align: center;
-    max-width: 400px;
-    box-shadow: var(--shadow-dialog);
-    position: relative;
-    animation: pop-in var(--motion) var(--ease-out);
-  }
-
-  @keyframes overlay-in {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-
-  @keyframes pop-in {
-    from {
-      opacity: 0;
-      transform: translateY(8px);
-    }
-    to {
-      opacity: 1;
-      transform: none;
-    }
-  }
-
-  .success-icon {
-    font-size: 4rem;
-    margin-bottom: 16px;
-  }
-
-  .success-card h2 {
-    margin: 0 0 16px;
-    font-size: 1.75rem;
-    font-weight: 700;
-    color: var(--ui-ink);
-  }
-
-  .success-card p {
-    margin: 0;
-    color: var(--ui-soft);
-    font-size: 1.05rem;
-    line-height: 1.6;
-  }
-
-  .success-close {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    background: none;
-    border: none;
-    font-size: 24px;
-    cursor: pointer;
-    color: var(--ui-soft);
-    padding: 4px;
-    border-radius: 4px;
-    line-height: 1;
-  }
-
-  .success-close:hover {
-    background: var(--given-bg);
-    color: var(--ui-ink);
-  }
-
   @media (max-width: 768px) {
     main {
       padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
@@ -1512,11 +1535,6 @@
     .board-wrap {
       max-width: 100%;
       margin-bottom: 24px;
-    }
-
-    .success-card {
-      margin: 16px;
-      padding: 32px 24px;
     }
   }
 
@@ -1676,7 +1694,7 @@
     }
   }
 
-  @media (min-width: 900px) {
+  @media (min-width: 600px) {
     .play {
       flex-direction: row;
       justify-content: center;
@@ -1804,12 +1822,42 @@
     .play.revealing :global(.paused-cover) {
       opacity: 0;
     }
-    .success-message,
-    .success-card,
     .chrome-dim,
     .play.revealing .chrome-dim {
       animation: none;
       transition: none;
+    }
+  }
+  .game-controls {
+    display: flex;
+    flex-direction: column;
+    gap: inherit;
+  }
+  .sv-chrome {
+    position: relative;
+  }
+  .sv-leaving {
+    animation: sv-controls 160ms var(--ease-out) 100ms both;
+  }
+  .sv-leaving.reduced {
+    animation: sv-controls 120ms linear both;
+  }
+  @keyframes sv-controls {
+    to {
+      opacity: 0;
+      visibility: hidden;
+    }
+  }
+  @media (max-width: 599px) {
+    .sv-chrome {
+      display: grid;
+      gap: 0;
+    }
+    .sv-chrome > .game-controls {
+      grid-area: 1/1;
+    }
+    .sv-chrome > :global(.sv-panel) {
+      grid-area: 1/1;
     }
   }
 </style>

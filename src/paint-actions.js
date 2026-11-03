@@ -30,6 +30,7 @@ export function clearPaintMarks() {
 
 /** @param {number} d @param {'lock' | 'hold'} kind */
 export function beginPaint(d, kind) {
+  if (game.solved) return;
   discardPaint();
   clearPaintMarks();
   clearToast();
@@ -129,6 +130,7 @@ export function paintBoard(board) {
   }
   /** @param {PointerEvent} e */
   function down(e) {
+    if (game.solved) return;
     if (e.button > 0) return;
     const hold = padUi.hold;
     const holding = hold && e.pointerId !== hold.pid;

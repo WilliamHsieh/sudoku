@@ -17,6 +17,7 @@ import {
  * @typedef {Object} GameState
  * @property {readonly number[]} givens      81 digits, 0 = not a given
  * @property {readonly number[]} answers     81 digits, 0 = no answer (always 0 on givens)
+ * @property {{version:1,valuesKey:string,removed:number[]} | undefined} [trustedEliminations] certified effects, separate from player notes
  * @property {NotesMode} notesMode           which note set is shown and edited
  * @property {readonly number[]} manualNotes 81 digit masks (Manual mode's notes)
  * @property {readonly number[]} autoAdded   81 digit masks (Auto mode: added to the computed candidates)
@@ -51,6 +52,7 @@ function update(state, i, cell) {
     arr[i] = v;
     next[key] = arr;
   }
+  if (Object.hasOwn(cell, "answers")) delete next.trustedEliminations;
   return { state: next, changed: true, blockers: [] };
 }
 
@@ -74,6 +76,7 @@ export function newGame(puzzle, { notesMode = "manual" } = {}) {
 export function restart(state) {
   return {
     ...state,
+    trustedEliminations: undefined,
     answers: zeros(),
     manualNotes: zeros(),
     autoAdded: zeros(),
@@ -317,7 +320,7 @@ export function fillSingles(state) {
     }
   }
   return {
-    state: { ...state, answers, manualNotes, autoAdded },
+    state: { ...state, answers, manualNotes, autoAdded, trustedEliminations: undefined },
     changed: true,
     blockers: [],
     placed,

@@ -205,3 +205,28 @@ describe("hint UI session", () => {
     expect(hintStateKey({ ...state, notesMode: "auto" })).not.toBe(hintStateKey(state));
   });
 });
+
+it("does not offer an inert undo button when a final hint completes the puzzle", async () => {
+  const complete =
+    "534678912672195348198342567859761423426853791713924856961537284287419635345286179";
+  const { findHint } = await import("./engine.js");
+  const { registerVerifiedHint } = await import("./certificates.js");
+  const game = createGame();
+  game.load("0" + complete.slice(1));
+  const session = createHintSession({
+    game,
+    provider: async (state) => {
+      const hint = findHint(state);
+      registerVerifiedHint(hint, hintStateKey(state));
+      return hint;
+    },
+  });
+  await session.open();
+  session.next();
+  session.next();
+  session.apply();
+  expect(game.solved).toBe(true);
+  expect(session.status).toBe("applied");
+  expect(session.didApply).toBe(true);
+  expect(session.undoAvailable).toBe(false);
+});
