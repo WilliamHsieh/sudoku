@@ -25,7 +25,7 @@
   } = $props();
 
   const visible = $derived(
-    hintMask === undefined ? game.hasNote(cell_id, idx + 1) : !!(hintMask & (1 << (idx + 1)))
+    game.hasNote(cell_id, idx + 1) && (hintMask === undefined || !!(hintMask & (1 << (idx + 1))))
   );
   const isSelected = $derived(game.selected === cell_id);
   const isShiftSlot = $derived.by(() => {
@@ -75,7 +75,7 @@
 <div class="note-slot">
   <div
     class="pencil-box"
-    class:invisible={!visible && !previewAdd && !ghost && !hintExcluded}
+    class:invisible={!visible && !previewAdd && !ghost}
     class:hint-premise={hintPremise}
     class:hint-excluded={hintExcluded}
     class:hint-elimination={hintElimination}

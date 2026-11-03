@@ -85,21 +85,23 @@
           <NotesMode desktop />
         </div>
       {/if}
-      <button
-        class="hint-trigger"
-        id="hint-trigger"
-        type="button"
-        aria-label="Hint"
-        title="提示"
-        aria-controls={hintOpen ? "hint-panel" : undefined}
-        aria-expanded={hintOpen}
-        disabled={playUi.paused}
-        onclick={onhint}
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true"
-          ><path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4Z" /></svg
+      {#if game.notesMode !== "manual"}
+        <button
+          class="hint-trigger"
+          id="hint-trigger"
+          type="button"
+          aria-label="Hint"
+          title="提示"
+          aria-controls={hintOpen ? "hint-panel" : undefined}
+          aria-expanded={hintOpen}
+          disabled={playUi.paused}
+          onclick={onhint}
         >
-      </button>
+          <svg viewBox="0 0 24 24" aria-hidden="true"
+            ><path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4Z" /></svg
+          >
+        </button>
+      {/if}
       <button
         transition:fade={{ duration: playUi.reduced ? 0 : 160 }}
         class="more"

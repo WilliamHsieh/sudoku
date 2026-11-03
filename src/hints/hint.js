@@ -7,7 +7,8 @@ import { hasCandidate, isLegal, setAnswer, toggleCandidate, valueAt } from "../g
 /** @typedef {{title: string, description: string[], coordinates: number[]}} HintStage */
 /**
  * UI data, independent of an engine's HTML, rating or search order.
- * Candidate masks come from the proof, never from incomplete player notes.
+ * Candidate masks come from the proof model. Auto uses player candidates; Tidy
+ * uses board constraints and certified eliminations, never incomplete notes.
  * @typedef {Object} Hint
  * @property {string} techniqueId
  * @property {string} name
@@ -19,7 +20,7 @@ import { hasCandidate, isLegal, setAnswer, toggleCandidate, valueAt } from "../g
  * @property {Candidate[]} placements
  * @property {Candidate[]} eliminations
  * @property {number[]} candidateMasks
- * @property {{version:1,valuesKey:string,removed:number[],step:import("./proof-verifier.js").Step}} [proof]
+ * @property {{version:1,source?:"player"|"board",valuesKey:string,removed:number[],step:import("./proof-verifier.js").Step}} [proof]
  * @property {string} effect
  */
 /** @typedef {(state: import('../game/game.js').GameState, options: {signal: AbortSignal}) => Promise<Hint | null>} HintProvider */
@@ -39,7 +40,7 @@ export function hintStateKey(state) {
   ]);
 }
 
-/** Immutable payload for a future Worker/service adapter. Notes are input context, not logical premises.
+/** Immutable payload for a future Worker/service adapter. Auto notes are logical premises; Tidy notes select visible effects only.
  * @param {import('../game/game.js').GameState} state
  * @returns {import('../game/game.js').GameState}
  */
@@ -63,11 +64,13 @@ export function hintSnapshot(state) {
 }
 
 /** Apply one displayed step as a single immutable history entry. Engine receipts
- * additionally update the independent ledger even when player notes are empty.
+ * additionally update the independent ledger after a visible board change.
  * @param {import('../game/game.js').GameState} state
  * @param {Hint} hint
  */
 export function applyHint(state, hint) {
+  if (hint.proof && !isVerifiedHint(hint, hintStateKey(state)))
+    throw new Error("Hint proof has no verified receipt");
   let next = state;
   const placementCells = new Set();
   for (const { cell, digit } of hint.placements) {
@@ -88,7 +91,12 @@ export function applyHint(state, hint) {
   }
   for (const { cell, digit } of hint.eliminations)
     if (hasCandidate(next, cell, digit)) next = toggleCandidate(next, cell, digit).state;
-  if (hint.proof && isVerifiedHint(hint, hintStateKey(state))) {
+  // A proof receipt alone is not a player-visible move or an undo entry.
+  if (next === state) return state;
+  // Auto effects are proved relative to player-controlled omissions. Its
+  // autoRemoved notes carry progress; they must not become board-certified
+  // exclusions after a switch to Tidy.
+  if (hint.proof && state.notesMode !== "auto" && hint.proof.source !== "player") {
     const removed = hint.proof.removed.slice();
     for (const { cell, digit } of hint.eliminations) removed[cell] |= bit(digit);
     for (const { cell } of hint.placements) removed[cell] = 0;
@@ -100,8 +108,6 @@ export function applyHint(state, hint) {
         removed,
       },
     };
-  } else if (hint.proof) {
-    throw new Error("Hint proof has no verified receipt");
   }
   return next;
 }

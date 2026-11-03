@@ -20,17 +20,16 @@ export function createHintSession({ game, provider = null }) {
   function close() {
     cancel();
     status = "closed";
+    hint = null;
+    stage = 0;
+    key = "";
     applied = null;
     undoAvailable = false;
     didApply = false;
   }
   async function open() {
-    cancel();
-    hint = null;
-    stage = 0;
-    applied = null;
-    undoAvailable = false;
-    didApply = false;
+    close();
+    if (game.notesMode === "manual") return;
     if (!provider) {
       status = "unavailable";
       return;
@@ -42,6 +41,10 @@ export function createHintSession({ game, provider = null }) {
     try {
       const result = await provider(hintSnapshot(game.state), { signal: controller.signal });
       if (request !== generation) return;
+      if (game.state.notesMode === "manual") {
+        close();
+        return;
+      }
       if (key !== hintStateKey(game.state)) {
         status = "stale";
         return;
@@ -54,6 +57,10 @@ export function createHintSession({ game, provider = null }) {
   }
   /** @param {import('../game/game.js').GameState} state */
   function reconcile(state) {
+    if (state.notesMode === "manual") {
+      if (status !== "closed") close();
+      return;
+    }
     if ((status === "ready" || status === "searching") && hintStateKey(state) !== key) {
       cancel();
       status = "stale";
@@ -65,6 +72,10 @@ export function createHintSession({ game, provider = null }) {
     }
   }
   function apply() {
+    if (game.notesMode === "manual") {
+      close();
+      return;
+    }
     if (status !== "ready" || !hint || stage !== 2) return;
     if (key !== hintStateKey(game.state)) {
       cancel();
@@ -102,16 +113,16 @@ export function createHintSession({ game, provider = null }) {
   }
   /** @param {number} cell */
   function evidence(cell) {
-    if (status !== "ready" || !hint) return null;
+    if (game.notesMode === "manual" || status !== "ready" || !hint) return null;
+    // Proof masks describe reasoning, not the player’s pencil marks.
+    const mask = game.notes(cell);
+    const visible = (p) => p.cell === cell && !!(mask & (1 << p.digit));
     const observe = hint.observeCells.includes(cell);
     const premise = stage >= 1 && hint.premiseCells.includes(cell);
     const target = stage === 2 && hint.placements.some((p) => p.cell === cell);
-    const candidates =
-      stage >= 1 ? hint.premiseCandidates.filter((p) => p.cell === cell).map((p) => p.digit) : [];
-    const excluded =
-      stage >= 1 ? hint.excludedCandidates.filter((p) => p.cell === cell).map((p) => p.digit) : [];
-    const eliminations =
-      stage === 2 ? hint.eliminations.filter((p) => p.cell === cell).map((p) => p.digit) : [];
+    const candidates = stage >= 1 ? hint.premiseCandidates.filter(visible).map((p) => p.digit) : [];
+    const excluded = stage >= 1 ? hint.excludedCandidates.filter(visible).map((p) => p.digit) : [];
+    const eliminations = stage === 2 ? hint.eliminations.filter(visible).map((p) => p.digit) : [];
     return observe ||
       premise ||
       target ||
@@ -125,7 +136,7 @@ export function createHintSession({ game, provider = null }) {
           candidates,
           excluded,
           eliminations,
-          mask: hint.candidateMasks[cell],
+          mask,
         }
       : null;
   }

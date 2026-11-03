@@ -88,6 +88,7 @@
   }
 
   function openHint() {
+    if (game.notesMode === "manual") return;
     if (hints.isOpen) {
       void closeHint();
       return;
@@ -104,7 +105,7 @@
     hints.reconcile(game.state);
   });
   $effect(() => {
-    if (showCalendar || playUi.paused || playUi.modal) {
+    if (game.notesMode === "manual" || showCalendar || playUi.paused || playUi.modal) {
       hints.close();
       hintFrame = null;
     }

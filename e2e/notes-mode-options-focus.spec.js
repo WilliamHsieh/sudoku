@@ -104,8 +104,15 @@ for (const [width, height] of [
         await expect(trigger(page)).toBeFocused();
         await expect(page.locator(".notes-menu:popover-open")).toHaveCount(0);
       }
-      // Desktop C, pencil and label stay at exactly the same x in all modes.
-      expect(rects).toEqual([rects[0], rects[0], rects[0]]);
+      // Manual removes the 44px hint button; the timer remains anchored.
+      if (width >= 600) {
+        expect(rects[1]).toEqual(rects[0]);
+        expect(rects[2]).toEqual({
+          ...rects[0],
+          icon: rects[0].icon + 44,
+          label: rects[0].label + 44,
+        });
+      } else expect(rects).toEqual([rects[0], rects[0], rects[0]]);
 
       // Wider platform fallback metrics must not resize the toolbar or clip a label.
       await page.route(/\.(woff2?|ttf)(\?.*)?$/, (route) => route.abort());

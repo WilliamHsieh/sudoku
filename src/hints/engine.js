@@ -7,6 +7,7 @@ import {
   verifyLedger,
   hasCompletion,
 } from "./proof-verifier.js";
+import { candidates } from "../game/game.js";
 import { maskDigits } from "../game/board.js";
 /** Product order is explicit; detector implementation order/rating is not teaching order. */
 export const TECHNIQUES = [
@@ -32,15 +33,15 @@ export const TECHNIQUES = [
   "finned-x-wing",
   "finned-swordfish",
 ];
-/** @param {number[]} values @param {number[]} masks @param {string} [techniqueId] @returns {import('./proof-verifier.js').Step|null} */
-export function findStep(values, masks, techniqueId) {
+/** @param {number[]} values @param {number[]} masks @param {string} [techniqueId] @param {number[]} [effectMasks] @returns {import('./proof-verifier.js').Step|null} */
+export function findStep(values, masks, techniqueId, effectMasks = masks) {
   validateMasks(values, masks);
   const ids = techniqueId ? [techniqueId] : TECHNIQUES;
   for (const id of ids) {
     if (!TECHNIQUES.includes(id)) throw new Error("Unsupported technique");
     const step = PATTERN_TECHNIQUES.includes(id)
-      ? detectPattern(values, masks, id)
-      : detectChain(values, masks, id);
+      ? detectPattern(values, masks, id, effectMasks)
+      : detectChain(values, masks, id, effectMasks);
     if (step) return step;
   }
   return null;
@@ -48,11 +49,18 @@ export function findStep(values, masks, techniqueId) {
 /** @param {import('../game/game.js').GameState} state */
 export function engineCandidates(state) {
   const values = state.givens.map((v, i) => v || state.answers[i]);
+  const legal = legalMasks(values);
+  const visible = values.map((_, cell) => candidates(state, cell));
+  // Auto is a complete candidate workspace: the player explicitly owns its
+  // omissions. Never import those assumptions into Tidy's verified ledger.
+  if (state.notesMode === "auto")
+    return { values, masks: legal.map((mask, cell) => mask & visible[cell]) };
   const ledger = state.trustedEliminations;
-  const masks =
-    ledger && ledger.valuesKey === values.join("")
-      ? verifyLedger(values, ledger.removed)
-      : legalMasks(values);
+  const trusted =
+    ledger && ledger.valuesKey === values.join("") ? verifyLedger(values, ledger.removed) : legal;
+  // Re-adding a certified candidate makes its deduction actionable again.
+  // Missing Tidy notes alone never establish a logical exclusion.
+  const masks = trusted.map((mask, cell) => mask | (legal[cell] & visible[cell]));
   return { values, masks };
 }
 /** @param {number} cell */
@@ -82,9 +90,11 @@ const names = {
 };
 /** @param {import('../game/game.js').GameState} state @returns {import('./hint.js').Hint|null} */
 export function findHint(state) {
+  if (state.notesMode === "manual") return null;
   const { values, masks } = engineCandidates(state);
   if (!hasCompletion(values, masks)) throw new Error("Board has no completion");
-  const step = findStep(values, masks);
+  const visibleMasks = values.map((_, cell) => candidates(state, cell));
+  const step = findStep(values, masks, undefined, visibleMasks);
   if (!step) return null;
   verifyStep(values, masks, step);
   const premiseCells = [...new Set(step.premiseCells)];
@@ -100,7 +110,11 @@ export function findHint(state) {
     stages: [
       {
         title: `觀察 ${premiseCells.map(coordinate).join("、")}`,
-        description: ["先比較這些格子的可信候選數；玩家筆記的漏記不會作為推理依據。"],
+        description: [
+          state.notesMode === "auto"
+            ? "以目前盤面與 Auto 候選數推理；已刪除的候選數會視為你的判斷。"
+            : "以目前盤面及已驗證的刪除推理；未寫下的筆記不視為排除。",
+        ],
         coordinates: premiseCells,
       },
       { title: name, description: [step.reason], coordinates: premiseCells },
@@ -118,6 +132,7 @@ export function findHint(state) {
     effect,
     proof: {
       version: 1,
+      source: state.notesMode === "auto" ? "player" : "board",
       valuesKey: values.join(""),
       removed: legalMasks(values).map((m, i) => m & ~masks[i]),
       step,

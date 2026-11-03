@@ -123,17 +123,22 @@ export function createGame() {
     }
     const elapsed = get(timer);
     const payload = progressPayload(history.present, elapsed);
-    const savedLedger =
-      get(puzzleProgress)[meta.dateStr]?.[meta.difficulty]?.snapshot?.trustedEliminations;
-    // A first-second elimination must persist; undo must also overwrite the saved
-    // ledger with its empty predecessor instead of reviving it after reload.
+    const saved = get(puzzleProgress)[meta.dateStr]?.[meta.difficulty]?.snapshot;
+    const autoProgress =
+      history.present.autoAdded.some(Boolean) || history.present.autoRemoved.some(Boolean);
+    const savedAutoProgress =
+      saved?.autoOverrides.added.some(Boolean) || saved?.autoOverrides.removed.some(Boolean);
+    // First-second Auto and Tidy eliminations must persist. Undo must overwrite
+    // their saved overrides/ledger rather than revive them after reload.
     if (
       !force &&
       payload.filled === 0 &&
       elapsed === 0 &&
       history.present.notesMode === "auto" &&
       !history.present.trustedEliminations &&
-      !savedLedger
+      !saved?.trustedEliminations &&
+      !autoProgress &&
+      !savedAutoProgress
     )
       return;
     puzzleProgress.save(meta.dateStr, meta.difficulty, payload);

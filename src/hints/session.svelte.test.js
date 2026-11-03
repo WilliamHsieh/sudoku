@@ -130,6 +130,7 @@ describe("hint UI session", () => {
     const { game, fixture } = setup();
     const wait = gate();
     /** @type {AbortSignal | undefined} */
+    /** @type {AbortSignal | undefined} */
     let signal;
     const session = createHintSession({
       game,
@@ -179,19 +180,125 @@ describe("hint UI session", () => {
     expect(failure.status).toBe("error");
   });
 
-  it("displays proof candidates separately from incomplete manual notes", async () => {
+  it("preserves incomplete Tidy notes and still applies an unnoted placement", async () => {
     const { game, fixture } = setup("hidden");
-    game.commitStroke(setNotesMode(game.state, "manual"));
+    game.commitStroke(setNotesMode(game.state, "tidy"));
     const before = game.state;
     const session = createHintSession({ game, provider: async () => fixture.hint });
     await session.open();
     session.next();
-    expect(session.evidence(0)?.mask).toBe(1 << 7);
-    expect(session.evidence(11)?.excluded).toEqual([7]);
+    expect(session.evidence(0)?.mask).toBe(0);
+    expect(session.evidence(11)?.excluded).toEqual([]);
     expect(game.state.manualNotes.every((m) => m === 0)).toBe(true);
     session.next();
     session.apply();
     expect(game.value(0)).toBe(7);
+    session.undo();
+    expect(game.state).toBe(before);
+  });
+
+  it("preserves visible Tidy marks even when they differ from the proof candidates", async () => {
+    const { game, fixture } = setup("hidden");
+    game.setNotesMode("tidy");
+    const manualNotes = [...game.state.manualNotes];
+    manualNotes[0] = 1 << 2;
+    manualNotes[11] = 1 << 7;
+    game.commitStroke({ ...game.state, manualNotes });
+    const before = game.state;
+    const session = createHintSession({ game, provider: async () => fixture.hint });
+    await session.open();
+    session.next();
+    expect(session.evidence(0)?.mask).toBe(1 << 2);
+    expect(session.evidence(11)?.excluded).toEqual([7]);
+    expect(session.evidence(20)?.excluded).toEqual([]);
+    session.next();
+    expect(session.evidence(0)?.target).toBe(true);
+    expect(session.evidence(0)?.mask).toBe(1 << 2);
+    session.close();
+    expect(game.state).toBe(before);
+  });
+
+  it("does not invoke a provider or open an unavailable panel in Manual mode", async () => {
+    const { game, fixture } = setup();
+    game.setNotesMode("manual");
+    const provider = vi.fn(fixture.provider);
+    const session = createHintSession({ game, provider });
+    await session.open();
+    expect(provider).not.toHaveBeenCalled();
+    expect(session.isOpen).toBe(false);
+    const unavailable = createHintSession({ game });
+    await unavailable.open();
+    expect(unavailable.isOpen).toBe(false);
+  });
+
+  it("closes and clears an open proof immediately on entering Manual", async () => {
+    const { game, session } = setup();
+    await session.open();
+    session.next();
+    session.next();
+    game.setNotesMode("manual");
+    const before = game.state;
+    // Applying is guarded even before the component's reactive reconciliation.
+    session.apply();
+    session.reconcile(game.state);
+    expect(session.status).toBe("closed");
+    expect(session.hint).toBe(null);
+    expect(session.stage).toBe(0);
+    expect(session.evidence(5)).toBe(null);
+    expect(session.undoAvailable).toBe(false);
+    expect(game.state).toBe(before);
+  });
+
+  it("aborts a pending search on entering Manual and ignores a late result", async () => {
+    const { game, fixture } = setup();
+    const wait = gate();
+    /** @type {AbortSignal | undefined} */
+    let signal;
+    const session = createHintSession({
+      game,
+      provider: async (_state, options) => {
+        signal = options.signal;
+        await wait.promise;
+        return fixture.hint;
+      },
+    });
+    const pending = session.open();
+    game.setNotesMode("manual");
+    session.reconcile(game.state);
+    expect(signal?.aborted).toBe(true);
+    wait.finish();
+    await pending;
+    expect(session.status).toBe("closed");
+    expect(session.hint).toBe(null);
+  });
+
+  it("keeps visible Auto notes instead of resurrecting proof-mask digits", async () => {
+    const { game, fixture } = setup();
+    game.toggleNote(5, 1);
+    const before = game.state;
+    const session = createHintSession({ game, provider: async () => fixture.hint });
+    await session.open();
+    session.next();
+    expect(session.evidence(5)?.mask).toBe(game.notes(5));
+    expect(session.evidence(5)?.candidates).toEqual([]);
+    session.close();
+    expect(game.state).toBe(before);
+  });
+
+  it("does not create a phantom deletion or undo for absent Tidy notes", async () => {
+    const { game, fixture } = setup("pair");
+    game.setNotesMode("tidy");
+    const before = game.state;
+    const session = createHintSession({ game, provider: async () => fixture.hint });
+    await session.open();
+    session.next();
+    session.next();
+    expect(session.evidence(23)?.eliminations).toEqual([]);
+    session.apply();
+    expect(game.state).toBe(before);
+    expect(session.status).toBe("applied");
+    expect(session.didApply).toBe(false);
+    expect(session.undoAvailable).toBe(false);
     session.undo();
     expect(game.state).toBe(before);
   });
@@ -213,6 +320,7 @@ it("does not offer an inert undo button when a final hint completes the puzzle",
   const { registerVerifiedHint } = await import("./certificates.js");
   const game = createGame();
   game.load("0" + complete.slice(1));
+  game.setNotesMode("auto");
   const session = createHintSession({
     game,
     provider: async (state) => {

@@ -1,4 +1,4 @@
-// Clean-room direct Sudoku patterns. Only certified candidate masks may enter here.
+// Clean-room direct Sudoku patterns. Deductions are relative to the supplied candidate model.
 import { ALL_DIGITS, bit, maskDigits, popcount, rowOf, colOf, boxOf } from "../game/board.js";
 
 /** @typedef {{cell:number,digit:number}} Candidate */
@@ -64,12 +64,13 @@ const removals = (masks, cells, digits) =>
   cells.flatMap((cell) => maskDigits(masks[cell] & digits).map((digit) => ({ cell, digit })));
 
 /**
- * Search one exact named pattern, independent of player notes and search order.
- * Assumes a consistent Sudoku and sound masks; returns only effective steps.
+ * Search one exact named pattern. Visibility filters effects, never its logical premises.
+ * Assumes a consistent candidate model; returns only effective steps.
  * @param {readonly number[]} values @param {readonly number[]} masks @param {string} techniqueId
+ * @param {readonly number[]} [effectMasks] candidates currently visible to the player
  * @returns {Pattern|null}
  */
-export function detectPattern(values, masks, techniqueId) {
+export function detectPattern(values, masks, techniqueId, effectMasks = masks) {
   if (!IDS.has(techniqueId)) throw new Error(`Unknown direct pattern: ${techniqueId}`);
   if (
     values.length !== 81 ||
@@ -81,6 +82,7 @@ export function detectPattern(values, masks, techniqueId) {
     )
   )
     throw new Error("Invalid candidate board");
+  effectMasks = masks.map((mask, cell) => mask & effectMasks[cell]);
   const id = techniqueId;
   if (id === "naked-single") {
     const cell = masks.findIndex((m) => popcount(m) === 1);
@@ -136,7 +138,7 @@ export function detectPattern(values, masks, techniqueId) {
           const union = cells.reduce((m, c) => m | masks[c], 0);
           if (popcount(union) !== size) continue;
           const eliminated = removals(
-            masks,
+            effectMasks,
             empty.filter((c) => !cells.includes(c)),
             union
           );
@@ -157,7 +159,7 @@ export function detectPattern(values, masks, techniqueId) {
           const selectedMask = digits.reduce((m, d) => m | bit(d), 0);
           const cells = empty.filter((c) => masks[c] & selectedMask);
           if (cells.length !== size) continue;
-          const eliminated = removals(masks, cells, ALL_DIGITS & ~selectedMask);
+          const eliminated = removals(effectMasks, cells, ALL_DIGITS & ~selectedMask);
           if (eliminated.length)
             return result(
               id,
@@ -183,7 +185,7 @@ export function detectPattern(values, masks, techniqueId) {
         for (const target of targets) {
           if (!cells.every((c) => target.includes(c))) continue;
           const eliminated = removals(
-            masks,
+            effectMasks,
             target.filter((c) => !unit.includes(c)),
             bit(digit)
           );
@@ -206,12 +208,12 @@ export function detectPattern(values, masks, techniqueId) {
         : id === "jellyfish"
           ? 4
           : 0;
-  if (fishSize) return fish(masks, id, fishSize, id.startsWith("finned-"));
+  if (fishSize) return fish(masks, id, fishSize, id.startsWith("finned-"), effectMasks);
   return null;
 }
 
-/** @param {readonly number[]} masks @param {string} id @param {number} n @param {boolean} finned @returns {Pattern|null} */
-function fish(masks, id, n, finned) {
+/** @param {readonly number[]} masks @param {string} id @param {number} n @param {boolean} finned @param {readonly number[]} effectMasks @returns {Pattern|null} */
+function fish(masks, id, n, finned, effectMasks) {
   for (const digit of DIGITS)
     for (const transposed of [false, true]) {
       /** @param {number} base @param {number} cover */
@@ -242,7 +244,7 @@ function fish(masks, id, n, finned) {
           const targets = INDEXES.filter((b) => !bases.includes(b))
             .flatMap((b) => covers.map((c) => cellAt(b, c)))
             .filter((c) => !finned || boxOf(c) === boxOf(fins[0]));
-          const eliminated = removals(masks, targets, bit(digit));
+          const eliminated = removals(effectMasks, targets, bit(digit));
           if (!eliminated.length) continue;
           const reason = finned
             ? `候選數 ${digit} 的魚形本體為 ${coordinates(core)}，鰭為同宮的 ${coordinates(fins)}。若鰭成立，同宮目標不能是 ${digit}；若鰭全部不成立，${n} 個來源線必須占用 ${n} 個覆蓋線，目標仍不能是 ${digit}。`
