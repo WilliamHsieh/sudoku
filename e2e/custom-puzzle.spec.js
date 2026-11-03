@@ -2,6 +2,30 @@ import { test, expect } from "@playwright/test";
 
 const PUZZLE = "530070000600195000098000060800060003400803001700020006060000280000419005000080079";
 
+test.describe("A3 Paste focus", () => {
+  test.use({ viewport: { width: 402, height: 874 }, colorScheme: "light" });
+  test("pointer focus has no frame; keyboard focus retains a blue cue", async ({ page }) => {
+    await page.goto("./");
+    await page.getByRole("button", { name: "Custom puzzle", exact: true }).click();
+    const pasteMode = page.getByRole("button", { name: "Paste puzzle", exact: true });
+    await pasteMode.click();
+    const input = page.getByRole("textbox", { name: "Puzzle link or 81 digits" });
+    const group = page.locator(".string-input");
+    await input.click();
+    await expect(input).toBeFocused();
+    await expect(group).toHaveCSS("outline-style", "none");
+    await expect(group).toHaveCSS("box-shadow", "none");
+    await pasteMode.focus();
+    await page.keyboard.press("Tab");
+    await expect(input).toBeFocused();
+    await expect(group).toHaveCSS("border-color", "rgb(42, 86, 198)");
+    await expect(group).not.toHaveCSS("box-shadow", "none");
+    await input.click();
+    await expect(group).toHaveCSS("box-shadow", "none");
+    await expect(group).toHaveCSS("outline-style", "none");
+  });
+});
+
 for (const viewport of [
   { width: 320, height: 667 },
   { width: 390, height: 844 },
