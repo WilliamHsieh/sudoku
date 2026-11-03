@@ -21,7 +21,10 @@ it("mounts immediately without scheduling startup navigation", async () => {
   vi.stubGlobal("requestAnimationFrame", requestFrame);
   const { default: app } = await import("./main.js");
   expect(app).toEqual({ mounted: true });
-  expect(mount).toHaveBeenCalledWith(expect.any(Function), { target });
+  expect(mount).toHaveBeenCalledWith(expect.any(Function), {
+    target,
+    props: { hintProvider: expect.any(Function) },
+  });
   expect(strip).toHaveBeenCalledOnce();
   expect(requestFrame).not.toHaveBeenCalled();
 });

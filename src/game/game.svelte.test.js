@@ -575,3 +575,23 @@ it("locks every core edit and history action after solving", () => {
   expect(g.canRedo).toBe(false);
   expect(g.notesMode).toBe("auto");
 });
+
+it("saves zero-second elimination-only hints and their undo/redo ledger changes", async () => {
+  const { findHint } = await import("../hints/engine.js");
+  const { applyHint, hintStateKey } = await import("../hints/hint.js");
+  const { registerVerifiedHint } = await import("../hints/certificates.js");
+  const puzzle =
+    "519876342642000897378924165164537928295481673783692451937040006806009704401760009";
+  puzzleProgress.set({});
+  g.load(puzzle, { dateStr: "2026-11-03", difficulty: "hard" });
+  timer.set(0);
+  const hint = findHint(g.state);
+  registerVerifiedHint(hint, hintStateKey(g.state));
+  g.commitStroke(applyHint(g.state, hint));
+  const saved = () => get(puzzleProgress)["2026-11-03"].hard.snapshot;
+  expect(saved().trustedEliminations.removed[77]).toBeTruthy();
+  g.undo();
+  expect(saved().trustedEliminations).toBeUndefined();
+  g.redo();
+  expect(saved().trustedEliminations.removed[77]).toBeTruthy();
+});

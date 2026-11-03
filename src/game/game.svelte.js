@@ -123,7 +123,18 @@ export function createGame() {
     }
     const elapsed = get(timer);
     const payload = progressPayload(history.present, elapsed);
-    if (!force && payload.filled === 0 && elapsed === 0 && history.present.notesMode === "auto")
+    const savedLedger =
+      get(puzzleProgress)[meta.dateStr]?.[meta.difficulty]?.snapshot?.trustedEliminations;
+    // A first-second elimination must persist; undo must also overwrite the saved
+    // ledger with its empty predecessor instead of reviving it after reload.
+    if (
+      !force &&
+      payload.filled === 0 &&
+      elapsed === 0 &&
+      history.present.notesMode === "auto" &&
+      !history.present.trustedEliminations &&
+      !savedLedger
+    )
       return;
     puzzleProgress.save(meta.dateStr, meta.difficulty, payload);
   }

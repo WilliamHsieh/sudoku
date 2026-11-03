@@ -14,8 +14,8 @@
    * -Infinity so a mouse click in the first 700ms of the page is not swallowed. */
   let touchAt = -Infinity;
 
-  /** @type {{ cell_id: number, desktop?: boolean }} */
-  let { cell_id, desktop = false } = $props();
+  /** @type {{ cell_id: number, desktop?: boolean, hint?: ReturnType<ReturnType<typeof import('./hints/session.svelte.js').createHintSession>['evidence']> }} */
+  let { cell_id, desktop = false, hint = null } = $props();
   const NOTE_SLOTS = Array.from({ length: 9 }, (_, i) => i);
   const row = $derived(Math.floor(cell_id / 9));
   const col = $derived(cell_id % 9);
@@ -117,6 +117,9 @@
   class:blocking
   class:blocked
   class:undo-target={undoTarget}
+  class:hint-observe={hint?.observe}
+  class:hint-premise={hint?.premise}
+  class:hint-target={hint?.target}
   class:paint-add={tint && brush === "add"}
   class:paint-remove={tint && brush === "remove"}
   class:paint-committed={tint && padUi.marks?.phase !== "live"}
@@ -141,7 +144,14 @@
   {:else}
     <div class="candidate">
       {#each NOTE_SLOTS as idx (idx)}
-        <PencilBox {cell_id} {idx} />
+        <PencilBox
+          {cell_id}
+          {idx}
+          hintMask={hint?.mask}
+          hintPremise={hint?.candidates.includes(idx + 1)}
+          hintExcluded={hint?.excluded.includes(idx + 1)}
+          hintElimination={hint?.eliminations.includes(idx + 1)}
+        />
       {/each}
     </div>
   {/if}
@@ -204,6 +214,18 @@
   .cell.same.conflict,
   .cell.same.given.conflict {
     background: var(--conflict-bg);
+  }
+  .cell.hint-observe {
+    background: var(--sel-bg);
+  }
+  .cell.hint-premise {
+    box-shadow: inset 0 0 0 2px var(--blue);
+  }
+  .cell.hint-premise :global(.pen-box) {
+    color: var(--blue);
+  }
+  .cell.hint-target {
+    box-shadow: inset 0 0 0 2px var(--conflict);
   }
 
   .candidate {

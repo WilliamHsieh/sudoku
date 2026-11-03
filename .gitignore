@@ -27,3 +27,5 @@ playwright-report
 
 # Visual explorations live on archive branches.
 /prototype/
+# Local UI captures and review artifacts
+.lavish/

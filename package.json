@@ -4,6 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "mock:hint": "node scripts/hint-ui.mjs --open",
+    "mock:hint:capture": "node scripts/hint-ui.mjs",
+    "mock:hint:check": "node scripts/hint-ui.mjs --check",
     "dev": "vite --port 8000 --host",
     "build": "vite build",
     "preview": "vite preview",
