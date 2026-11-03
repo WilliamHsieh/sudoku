@@ -66,11 +66,15 @@ export function fitDraftKeypad(editor, view) {
       }
       // The input can grow for validation messages. Preserve the footer and allow
       // body scrolling below a usable minimum instead of shrinking cells forever.
+      const boardRect = board.getBoundingClientRect();
+      const belowBoard = boardArea.getBoundingClientRect().bottom - boardRect.bottom;
+      const bottomPadding = parseFloat(getComputedStyle(body).paddingBottom) || 0;
       const available =
         body.getBoundingClientRect().bottom -
-        board.getBoundingClientRect().top +
+        boardRect.top +
         body.scrollTop -
-        40;
+        belowBoard -
+        bottomPadding;
       const side = pasteBoardSide(boardArea.clientWidth, available);
       editor.style.removeProperty(properties[0]);
       editor.style.removeProperty(properties[1]);
