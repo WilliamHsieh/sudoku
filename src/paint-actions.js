@@ -18,7 +18,7 @@ import {
   lockTap,
 } from "./keypad-actions.js";
 import { toastBlocked, toastLockedCell } from "./keypad-copy.js";
-import { HOLD_MS, LOCK_TICK_MS } from "./game/key-gesture.js";
+import { SPACE_HOLD_MS, LOCK_TICK_MS } from "./game/key-gesture.js";
 import { TAP_MAX_TRAVEL } from "./game/pad.js";
 
 /** @type {ReturnType<typeof createStroke> | null} */
@@ -51,7 +51,7 @@ export function beginSpaceHold() {
     engaged: false,
     painting: false,
   };
-  spaceTimer = setTimeout(engageSpaceHold, HOLD_MS);
+  spaceTimer = setTimeout(engageSpaceHold, SPACE_HOLD_MS);
   return true;
 }
 

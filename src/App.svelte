@@ -35,6 +35,7 @@
   import { installShiftHover, isShiftAim, releaseShiftHover } from "./shift-hover.svelte.js";
   import { digitFromCode } from "./game/key-gesture.js";
   import {
+    clearHideTimer,
     clearToast,
     showToast,
     eraseCell,
@@ -43,6 +44,8 @@
     placedCount,
     resetKeypad,
     revealCellDigit,
+    setLastKeyPress,
+    showDigit,
     syncHighlightAfterEdit,
     toggleDigitLock,
     unlockKeepShown,
@@ -432,6 +435,22 @@
       return;
     }
 
+    if (
+      !isNarrow &&
+      e.key >= "1" &&
+      e.key <= "9" &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.altKey &&
+      !e.shiftKey &&
+      (game.selected < 0 || !game.editable(game.selected))
+    ) {
+      clearHideTimer();
+      setLastKeyPress({ d: 0, t: -Infinity });
+      showDigit(Number(e.key));
+      e.preventDefault();
+      return;
+    }
     if (game.selected == -1) return;
     const id = game.selected;
 
@@ -1168,7 +1187,7 @@
                 <dl>
                   <div>
                     <dt><kbd>1–9</kbd></dt>
-                    <dd>Fill answer</dd>
+                    <dd>Fill selected editable cell; otherwise highlight digit</dd>
                   </div>
                   <div>
                     <dt><kbd>↑ ↓ ← →</kbd></dt>
@@ -1181,6 +1200,10 @@
                   <div>
                     <dt><kbd>Shift + click</kbd></dt>
                     <dd>Lock digit on keypad</dd>
+                  </div>
+                  <div>
+                    <dt>Right-click</dt>
+                    <dd>Lock or unlock digit on keypad</dd>
                   </div>
                   <div>
                     <dt><kbd>Space</kbd></dt>

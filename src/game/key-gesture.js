@@ -4,6 +4,8 @@
 import { ARM_PX, DISARM_PX, DOUBLE_TAP_MS, TAP_MAX_MS, TAP_MAX_TRAVEL } from "./pad.js";
 
 export const HOLD_MS = 250;
+/** Keyboard holds respond sooner while preserving quick Space taps. */
+export const SPACE_HOLD_MS = 100;
 /** Swipe-down must be steeper than this times the horizontal travel. */
 export const LOCK_RATIO = 0.75;
 export const HIDE_MS = DOUBLE_TAP_MS;

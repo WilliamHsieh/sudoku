@@ -31,7 +31,7 @@ export const DESKTOP_COACH_ROWS = [
     body: "Holds the highlighted digit; click or drag cells to toggle candidates",
   },
   {
-    label: "Shift + click",
+    label: "Right-click / Shift + click",
     body: "Locks a digit; click or drag across cells to toggle candidates",
   },
 ];
@@ -91,7 +91,7 @@ export function hintModel(s) {
       kind: "rich",
       lead: String(s.shown),
       rest: s.desktop
-        ? `· ${count} · Double-click fills · Hold Space to paint · Shift + click locks`
+        ? `· ${count} · Double-click fills · Hold Space to paint · Right-click locks`
         : `· ${count} · Double-tap fills · Swipe down locks`,
     };
   }
