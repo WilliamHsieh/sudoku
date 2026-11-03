@@ -1,0 +1,2283 @@
+{
+  "schema": 1,
+  "startedAt": "2026-11-03T18:00:52.540Z",
+  "completedAt": "2026-11-03T18:01:12.609Z",
+  "scope": "Fresh input arrays + findStep exact technique in one isolated warm Node worker; compute includes input validation, detector and explanation payload. Independent DLX semantic proof is outside timed region. Node request roundtrip is not the production browser Worker budget.",
+  "statistics": "Nearest-rank empirical p50/p95/p99, each call measured individually in milliseconds. These are observed distributions for selected boards, not population or device guarantees. No batching/division. Errors and watchdog timeouts are never misses and never silently dropped.",
+  "input": {
+    "path": "/workspace/scratch/3a77571c1d10/sudoku-phase-three/src/hints/fixtures/phase-three-corpus.json",
+    "fixtures": 24,
+    "distinctOriginalPuzzles": 23
+  },
+  "environment": {
+    "node": "v24.22.1",
+    "platform": "linux",
+    "arch": "x64",
+    "cpu": "AMD EPYC 9V74 80-Core Processor",
+    "logicalCpus": 9
+  },
+  "options": {
+    "samplesPerBoard": 200,
+    "warmups": 5,
+    "maxBoardsPerOutcome": 3,
+    "timeoutMs": 5000
+  },
+  "sourceHashes": {
+    "engine.js": "a8d5e6daae463e3d6a088e5ac41c05629b7dbf3beb32d64a7181be2924143010",
+    "engine-advanced.js": "7b888a902168bfb6bf1dcc44bd5ef17ccc3e1c84440caff215f341452e5db45e",
+    "engine-advanced-patterns.js": "b5c1c90d50f76e691c5da8b606006b1e80f7299d5058d6bc9353a21a32120a27",
+    "engine-advanced-chains.js": "ab81ca25c9ddc27d12abd765c88c1a4d163c3720ea4007a19d1fd47805fbad79",
+    "engine-als.js": "fc086a851608f54bc23c5294f1df3be13ee4a47d19530363890a055ec9b47a8d",
+    "proof-verifier.js": "43fced4c2b4182ee55ed638ab15f40636fd2e10f38b6af7288fbb329e9718be4"
+  },
+  "queries": [
+    {
+      "techniqueId": "wxyz-wing",
+      "discovery": {
+        "probes": 6,
+        "found": 3,
+        "miss": 3,
+        "errors": 0,
+        "timeouts": 0,
+        "rejected": 0
+      },
+      "foundBoards": 3,
+      "missBoards": 3,
+      "coverage": "found-and-miss",
+      "boards": [
+        {
+          "fixture": "upstream-example:WXYZ_WING",
+          "source": "6935b015a5f49958",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.4163450000000921,
+            "p95": 0.5152140000000145,
+            "p99": 0.7470810000000938,
+            "max": 0.9197409999999309
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.5146719999997913,
+            "p95": 0.8328250000000708,
+            "p99": 1.0286239999999225,
+            "max": 1.9075639999999794
+          }
+        },
+        {
+          "fixture": "live-explain-advanced.json:30",
+          "source": "603d50236b28475c",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.435153999999784,
+            "p95": 0.6216929999999365,
+            "p99": 0.8038870000000315,
+            "max": 0.8618440000000192
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.5513679999999113,
+            "p95": 0.8216079999997419,
+            "p99": 1.0619739999999638,
+            "max": 1.3288749999999254
+          }
+        },
+        {
+          "fixture": "upstream-example:LOCKED_TRIPLE",
+          "source": "93794d23217125be",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.3698749999998654,
+            "p95": 0.508303000000069,
+            "p99": 0.5688840000000255,
+            "max": 0.7477530000000456
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.48451699999986886,
+            "p95": 0.7703970000000027,
+            "p99": 1.6554849999999988,
+            "max": 2.260723999999982
+          }
+        },
+        {
+          "fixture": "upstream-example:SASHIMI_X_WING",
+          "source": "f2d7340080ded832",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 2.9973100000001978,
+            "p95": 3.991572000000019,
+            "p99": 5.634038000000032,
+            "max": 9.185800000000086
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 3.1223070000000916,
+            "p95": 4.373756000000071,
+            "p99": 5.830742999999984,
+            "max": 9.371564999999919
+          }
+        },
+        {
+          "fixture": "upstream-example:FINNED_JELLYFISH",
+          "source": "3df781dd9161b96a",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 4.530551999999943,
+            "p95": 5.502371000000039,
+            "p99": 6.0999479999999835,
+            "max": 7.945438000000081
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 4.689239999999927,
+            "p95": 5.953728000000069,
+            "p99": 7.746268999999984,
+            "max": 8.896987000000081
+          }
+        },
+        {
+          "fixture": "upstream-example:SUE_DE_COQ",
+          "source": "3b46d8a716953a86",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 4.334337000000232,
+            "p95": 5.514298000000053,
+            "p99": 6.174879999999916,
+            "max": 6.686678999999913
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 4.513875999999982,
+            "p95": 5.84514999999999,
+            "p99": 6.814119000000119,
+            "max": 11.257454999999993
+          }
+        }
+      ],
+      "pooled": [
+        {
+          "outcome": "found",
+          "distinctOriginalPuzzles": 3,
+          "censored": false,
+          "computeMs": {
+            "n": 600,
+            "p50": 0.38542899999993097,
+            "p95": 0.5349129999999604,
+            "p99": 0.7470810000000938,
+            "max": 0.9197409999999309
+          },
+          "roundTripMs": {
+            "n": 600,
+            "p50": 0.5187679999999091,
+            "p95": 0.804397999999992,
+            "p99": 1.2177080000001297,
+            "max": 2.260723999999982
+          }
+        },
+        {
+          "outcome": "miss",
+          "distinctOriginalPuzzles": 3,
+          "censored": false,
+          "computeMs": {
+            "n": 600,
+            "p50": 3.2631289999999353,
+            "p95": 5.422530000000052,
+            "p99": 6.0999479999999835,
+            "max": 9.185800000000086
+          },
+          "roundTripMs": {
+            "n": 600,
+            "p50": 3.4597089999999753,
+            "p95": 5.667532999999821,
+            "p99": 7.174671999999987,
+            "max": 11.257454999999993
+          }
+        }
+      ]
+    },
+    {
+      "techniqueId": "sue-de-coq",
+      "discovery": {
+        "probes": 6,
+        "found": 3,
+        "miss": 3,
+        "errors": 0,
+        "timeouts": 0,
+        "rejected": 0
+      },
+      "foundBoards": 3,
+      "missBoards": 3,
+      "coverage": "found-and-miss",
+      "boards": [
+        {
+          "fixture": "upstream-example:SUE_DE_COQ",
+          "source": "3b46d8a716953a86",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.04222399999980553,
+            "p95": 0.11613499999975829,
+            "p99": 0.1586179999999331,
+            "max": 0.5500659999997879
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.08536800000001676,
+            "p95": 0.20502699999997276,
+            "p99": 0.47221899999976813,
+            "max": 0.6202210000001287
+          }
+        },
+        {
+          "fixture": "upstream-example:LOCKED_TRIPLE",
+          "source": "93794d23217125be",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.03960000000006403,
+            "p95": 0.11406200000010358,
+            "p99": 0.1406010000000606,
+            "max": 0.22459699999990335
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.08381599999984246,
+            "p95": 0.20342600000003586,
+            "p99": 0.31332000000020344,
+            "max": 4.910761999999977
+          }
+        },
+        {
+          "fixture": "upstream-example:WXYZ_WING",
+          "source": "6935b015a5f49958",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.02803200000016659,
+            "p95": 0.06610900000032416,
+            "p99": 0.11157700000012483,
+            "max": 0.13883799999985058
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.07360100000005332,
+            "p95": 0.17182800000000498,
+            "p99": 0.35302999999976237,
+            "max": 2.551720999999816
+          }
+        },
+        {
+          "fixture": "live-explain-advanced.json:30",
+          "source": "603d50236b28475c",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.15274900000031266,
+            "p95": 0.32631899999978486,
+            "p99": 0.3840770000001612,
+            "max": 0.9167860000002293
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.2027140000000145,
+            "p95": 0.4136509999998452,
+            "p99": 0.45923899999979767,
+            "max": 0.9783090000000811
+          }
+        },
+        {
+          "fixture": "upstream-example:SASHIMI_X_WING",
+          "source": "f2d7340080ded832",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.04199299999982031,
+            "p95": 0.11606399999982386,
+            "p99": 0.1749830000003385,
+            "max": 0.23074600000018108
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.08349599999974089,
+            "p95": 0.22480799999993906,
+            "p99": 0.3564049999999952,
+            "max": 0.5339119999998729
+          }
+        },
+        {
+          "fixture": "upstream-example:FINNED_JELLYFISH",
+          "source": "3df781dd9161b96a",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.06106100000033621,
+            "p95": 0.15414099999998143,
+            "p99": 0.16938399999980902,
+            "max": 0.3522689999999784
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.10150199999998222,
+            "p95": 0.23016599999982645,
+            "p99": 0.5101359999998749,
+            "max": 5.238182999999935
+          }
+        }
+      ],
+      "pooled": [
+        {
+          "outcome": "found",
+          "distinctOriginalPuzzles": 3,
+          "censored": false,
+          "computeMs": {
+            "n": 600,
+            "p50": 0.03923899999972491,
+            "p95": 0.10495799999989686,
+            "p99": 0.1406010000000606,
+            "max": 0.5500659999997879
+          },
+          "roundTripMs": {
+            "n": 600,
+            "p50": 0.08284400000002279,
+            "p95": 0.20006999999986874,
+            "p99": 0.387510999999904,
+            "max": 4.910761999999977
+          }
+        },
+        {
+          "outcome": "miss",
+          "distinctOriginalPuzzles": 3,
+          "censored": false,
+          "computeMs": {
+            "n": 600,
+            "p50": 0.08725100000037855,
+            "p95": 0.2947220000000925,
+            "p99": 0.34877400000004855,
+            "max": 0.9167860000002293
+          },
+          "roundTripMs": {
+            "n": 600,
+            "p50": 0.16405699999995704,
+            "p95": 0.3809519999999793,
+            "p99": 0.45923899999979767,
+            "max": 5.238182999999935
+          }
+        }
+      ]
+    },
+    {
+      "techniqueId": "3d-medusa",
+      "discovery": {
+        "probes": 10,
+        "found": 7,
+        "miss": 3,
+        "errors": 0,
+        "timeouts": 0,
+        "rejected": 0
+      },
+      "foundBoards": 3,
+      "missBoards": 3,
+      "coverage": "found-and-miss",
+      "boards": [
+        {
+          "fixture": "upstream-example:FULL_HOUSE",
+          "source": "f4f0163e11ae38be",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.2579569999998057,
+            "p95": 0.3985379999999168,
+            "p99": 0.5286940000000868,
+            "max": 1.0505870000001778
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.3611120000000483,
+            "p95": 0.5340020000003278,
+            "p99": 0.841193000000203,
+            "max": 1.3074329999999463
+          }
+        },
+        {
+          "fixture": "upstream-example:MEDUSA_3D",
+          "source": "f855bfdd21fe6630",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.13066600000001927,
+            "p95": 0.18798199999991994,
+            "p99": 0.3219330000001719,
+            "max": 0.35995999999977357
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.22475699999995413,
+            "p95": 0.4381079999998292,
+            "p99": 0.9295360000000983,
+            "max": 2.6294379999999364
+          }
+        },
+        {
+          "fixture": "upstream-example:WXYZ_WING",
+          "source": "6935b015a5f49958",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.09681599999976243,
+            "p95": 0.14370599999983824,
+            "p99": 0.17175799999995434,
+            "max": 0.22959399999990637
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.19032599999991362,
+            "p95": 0.31693600000016886,
+            "p99": 0.5266899999996895,
+            "max": 1.0093160000001262
+          }
+        },
+        {
+          "fixture": "live-explain-advanced.json:30",
+          "source": "603d50236b28475c",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.18012999999973545,
+            "p95": 0.28808200000003126,
+            "p99": 0.3912380000001576,
+            "max": 0.42733199999975113
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.26985500000000684,
+            "p95": 0.41846799999984796,
+            "p99": 0.5927659999997559,
+            "max": 4.0220580000000155
+          }
+        },
+        {
+          "fixture": "upstream-example:SUE_DE_COQ",
+          "source": "3b46d8a716953a86",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.1523389999997562,
+            "p95": 0.23336999999992258,
+            "p99": 0.3774670000002516,
+            "max": 0.40556900000001406
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.2426740000000791,
+            "p95": 0.3595100000002276,
+            "p99": 0.4938320000001113,
+            "max": 0.7954079999999522
+          }
+        },
+        {
+          "fixture": "upstream-example:NAKED_SINGLE",
+          "source": "f4f0163e11ae38be",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.3518779999999424,
+            "p95": 0.5430449999998928,
+            "p99": 0.6676830000001246,
+            "max": 1.0041879999998855
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.4561149999999543,
+            "p95": 0.7755590000001575,
+            "p99": 1.8249000000000706,
+            "max": 3.291881999999987
+          }
+        }
+      ],
+      "pooled": [
+        {
+          "outcome": "found",
+          "distinctOriginalPuzzles": 3,
+          "censored": false,
+          "computeMs": {
+            "n": 600,
+            "p50": 0.13787700000011682,
+            "p95": 0.34011099999997896,
+            "p99": 0.457267000000229,
+            "max": 1.0505870000001778
+          },
+          "roundTripMs": {
+            "n": 600,
+            "p50": 0.23953000000028624,
+            "p95": 0.470546000000013,
+            "p99": 0.8664309999999205,
+            "max": 2.6294379999999364
+          }
+        },
+        {
+          "outcome": "miss",
+          "distinctOriginalPuzzles": 3,
+          "censored": false,
+          "computeMs": {
+            "n": 600,
+            "p50": 0.20866300000034244,
+            "p95": 0.48362700000006953,
+            "p99": 0.5693639999999505,
+            "max": 1.0041879999998855
+          },
+          "roundTripMs": {
+            "n": 600,
+            "p50": 0.29573900000013964,
+            "p95": 0.6089540000002671,
+            "p99": 0.8355639999999767,
+            "max": 4.0220580000000155
+          }
+        }
+      ]
+    },
+    {
+      "techniqueId": "xy-chain",
+      "discovery": {
+        "probes": 13,
+        "found": 10,
+        "miss": 3,
+        "errors": 0,
+        "timeouts": 0,
+        "rejected": 0
+      },
+      "foundBoards": 3,
+      "missBoards": 3,
+      "coverage": "found-and-miss",
+      "boards": [
+        {
+          "fixture": "upstream-example:FULL_HOUSE",
+          "source": "f4f0163e11ae38be",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.025016999999934342,
+            "p95": 0.04691099999990911,
+            "p99": 0.09812699999974939,
+            "max": 0.25719699999990553
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.0630340000002434,
+            "p95": 0.1425640000002204,
+            "p99": 0.32231400000000576,
+            "max": 0.40490800000043237
+          }
+        },
+        {
+          "fixture": "upstream-example:XY_CHAIN",
+          "source": "526cf6184792e11f",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.02388599999994767,
+            "p95": 0.03932899999927031,
+            "p99": 0.10103200000003199,
+            "max": 0.2927700000000186
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.06300400000009176,
+            "p95": 0.1528200000002471,
+            "p99": 0.3026439999998729,
+            "max": 0.4731299999998555
+          }
+        },
+        {
+          "fixture": "upstream-example:WXYZ_WING",
+          "source": "6935b015a5f49958",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.03619399999979578,
+            "p95": 0.07696599999962928,
+            "p99": 0.13385100000004968,
+            "max": 0.4645470000000387
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.089654999999766,
+            "p95": 0.2144719999996596,
+            "p99": 0.31825700000035795,
+            "max": 0.5466499999997723
+          }
+        },
+        {
+          "fixture": "upstream-example:NAKED_SINGLE",
+          "source": "f4f0163e11ae38be",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.07844800000020768,
+            "p95": 0.14898399999992762,
+            "p99": 0.22998499999994237,
+            "max": 0.32588899999973364
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.1454980000003161,
+            "p95": 0.28336599999965983,
+            "p99": 0.4208310000003621,
+            "max": 1.143966999999975
+          }
+        },
+        {
+          "fixture": "upstream-example:ALS_XY_CHAIN",
+          "source": "ff0c90cb63fb0223",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 1.1445479999997588,
+            "p95": 1.4722799999999552,
+            "p99": 1.848124000000098,
+            "max": 2.0842689999999493
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 1.233480999999756,
+            "p95": 1.6030569999998079,
+            "p99": 1.9544439999999668,
+            "max": 2.1916000000001077
+          }
+        },
+        {
+          "fixture": "upstream-example:ALS_XZ",
+          "source": "5705fb43efe8f544",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.13184799999999086,
+            "p95": 0.24217399999997724,
+            "p99": 0.34818200000017896,
+            "max": 0.6975870000001123
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.22329499999977998,
+            "p95": 0.40846300000021074,
+            "p99": 0.5261199999999917,
+            "max": 1.2991099999999278
+          }
+        }
+      ],
+      "pooled": [
+        {
+          "outcome": "found",
+          "distinctOriginalPuzzles": 3,
+          "censored": false,
+          "computeMs": {
+            "n": 600,
+            "p50": 0.02730100000007951,
+            "p95": 0.05562400000007983,
+            "p99": 0.1119380000000092,
+            "max": 0.4645470000000387
+          },
+          "roundTripMs": {
+            "n": 600,
+            "p50": 0.06887400000005073,
+            "p95": 0.17006499999979496,
+            "p99": 0.32231400000000576,
+            "max": 0.5466499999997723
+          }
+        },
+        {
+          "outcome": "miss",
+          "distinctOriginalPuzzles": 3,
+          "censored": false,
+          "computeMs": {
+            "n": 600,
+            "p50": 0.13468199999988428,
+            "p95": 1.2947039999999106,
+            "p99": 1.6035980000001473,
+            "max": 2.0842689999999493
+          },
+          "roundTripMs": {
+            "n": 600,
+            "p50": 0.23776700000007622,
+            "p95": 1.4127809999999954,
+            "p99": 1.7070330000001377,
+            "max": 2.1916000000001077
+          }
+        }
+      ]
+    },
+    {
+      "techniqueId": "als-xz",
+      "discovery": {
+        "probes": 15,
+        "found": 12,
+        "miss": 3,
+        "errors": 0,
+        "timeouts": 0,
+        "rejected": 0
+      },
+      "foundBoards": 3,
+      "missBoards": 3,
+      "coverage": "found-and-miss",
+      "boards": [
+        {
+          "fixture": "upstream-example:FULL_HOUSE",
+          "source": "f4f0163e11ae38be",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.2195000000001528,
+            "p95": 0.34485700000004726,
+            "p99": 0.429243999999926,
+            "max": 0.6213630000002013
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.32068100000014965,
+            "p95": 0.5161650000000009,
+            "p99": 0.7081440000001749,
+            "max": 0.7912580000001981
+          }
+        },
+        {
+          "fixture": "upstream-example:ALS_XZ",
+          "source": "5705fb43efe8f544",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.7845680000000357,
+            "p95": 1.152060000000347,
+            "p99": 2.247244000000137,
+            "max": 3.3176110000003973
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.8896950000007564,
+            "p95": 1.3065120000001116,
+            "p99": 2.5287069999994856,
+            "max": 5.686176999999589
+          }
+        },
+        {
+          "fixture": "upstream-example:WXYZ_WING",
+          "source": "6935b015a5f49958",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.10621900000023743,
+            "p95": 0.18824300000051153,
+            "p99": 0.3130200000005061,
+            "max": 0.46179299999948853
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.2136209999998755,
+            "p95": 0.4517779999996492,
+            "p99": 0.5587989999994534,
+            "max": 0.7207820000003267
+          }
+        },
+        {
+          "fixture": "upstream-example:ALS_XY_CHAIN",
+          "source": "ff0c90cb63fb0223",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.9110679999994318,
+            "p95": 1.2968270000001212,
+            "p99": 1.5810440000004746,
+            "max": 2.127363000000514
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 1.0233060000000478,
+            "p95": 1.4833369999996648,
+            "p99": 1.9370279999993727,
+            "max": 3.4664749999992637
+          }
+        },
+        {
+          "fixture": "upstream-example:GROUPED_X_CYCLES",
+          "source": "9b69bb8075f7672c",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.6237970000001951,
+            "p95": 0.9014839999999822,
+            "p99": 1.0346330000002126,
+            "max": 1.6137519999992946
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.7342020000005505,
+            "p95": 1.1317290000006324,
+            "p99": 1.2894360000000233,
+            "max": 1.7318810000006124
+          }
+        },
+        {
+          "fixture": "upstream-example:ALS_XY_WING",
+          "source": "50fe55e2d5b0478c",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.9296059999996942,
+            "p95": 1.2966070000002219,
+            "p99": 1.856777000000875,
+            "max": 2.5923320000001695
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 1.0346529999997074,
+            "p95": 1.488524999999754,
+            "p99": 2.043507999999747,
+            "max": 2.6934739999996964
+          }
+        }
+      ],
+      "pooled": [
+        {
+          "outcome": "found",
+          "distinctOriginalPuzzles": 3,
+          "censored": false,
+          "computeMs": {
+            "n": 600,
+            "p50": 0.22258400000009715,
+            "p95": 1.1043169999993552,
+            "p99": 1.2039679999998043,
+            "max": 3.3176110000003973
+          },
+          "roundTripMs": {
+            "n": 600,
+            "p50": 0.3453190000000177,
+            "p95": 1.216656999999941,
+            "p99": 1.3934920000001512,
+            "max": 5.686176999999589
+          }
+        },
+        {
+          "outcome": "miss",
+          "distinctOriginalPuzzles": 3,
+          "censored": false,
+          "computeMs": {
+            "n": 600,
+            "p50": 0.863166000000092,
+            "p95": 1.280282000000625,
+            "p99": 1.6137519999992946,
+            "max": 2.5923320000001695
+          },
+          "roundTripMs": {
+            "n": 600,
+            "p50": 0.9681339999997363,
+            "p95": 1.4176280000001498,
+            "p99": 1.9370279999993727,
+            "max": 3.4664749999992637
+          }
+        }
+      ]
+    },
+    {
+      "techniqueId": "als-xy-wing",
+      "discovery": {
+        "probes": 17,
+        "found": 14,
+        "miss": 3,
+        "errors": 0,
+        "timeouts": 0,
+        "rejected": 0
+      },
+      "foundBoards": 3,
+      "missBoards": 3,
+      "coverage": "found-and-miss",
+      "boards": [
+        {
+          "fixture": "upstream-example:FULL_HOUSE",
+          "source": "f4f0163e11ae38be",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 1.4406330000001617,
+            "p95": 1.904939000000013,
+            "p99": 2.075966999999764,
+            "max": 2.2621659999995245
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 1.570719000000281,
+            "p95": 2.097878999999921,
+            "p99": 2.396342000000004,
+            "max": 2.596479000000727
+          }
+        },
+        {
+          "fixture": "upstream-example:ALS_XY_WING",
+          "source": "50fe55e2d5b0478c",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 1.065929999999753,
+            "p95": 1.4225759999999354,
+            "p99": 1.677267999999458,
+            "max": 15.744327999999769
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 1.2407330000005459,
+            "p95": 1.6376540000001114,
+            "p99": 1.8504979999997886,
+            "max": 15.985249000000294
+          }
+        },
+        {
+          "fixture": "upstream-example:WXYZ_WING",
+          "source": "6935b015a5f49958",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.5679430000000139,
+            "p95": 0.7442080000000715,
+            "p99": 0.9300059999995938,
+            "max": 1.0854599999993297
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.7029860000002373,
+            "p95": 0.9444780000003448,
+            "p99": 1.123436999999285,
+            "max": 1.3326960000003965
+          }
+        },
+        {
+          "fixture": "upstream-example:ALS_XY_CHAIN",
+          "source": "ff0c90cb63fb0223",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 2.9656629999999495,
+            "p95": 4.362550000000738,
+            "p99": 5.251455000000533,
+            "max": 11.082808999999543
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 3.0903690000004644,
+            "p95": 4.539665000000241,
+            "p99": 6.7857679999997345,
+            "max": 11.376189999999951
+          }
+        },
+        {
+          "fixture": "upstream-example:AIC",
+          "source": "30ddf8956468d911",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 3.1788930000002438,
+            "p95": 4.640306999999666,
+            "p99": 5.388198999999986,
+            "max": 9.847794999999678
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 3.336699999999837,
+            "p95": 4.844248000000334,
+            "p99": 5.535245999999461,
+            "max": 10.012847999999394
+          }
+        },
+        {
+          "fixture": "upstream-example:DEATH_BLOSSOM",
+          "source": "939f42290ec3b371",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 3.0896880000000237,
+            "p95": 4.161067000000003,
+            "p99": 7.031292000000576,
+            "max": 11.661237999999685
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 3.2767499999999927,
+            "p95": 4.452949999999873,
+            "p99": 7.196304000000055,
+            "max": 11.975580000000264
+          }
+        }
+      ],
+      "pooled": [
+        {
+          "outcome": "found",
+          "distinctOriginalPuzzles": 3,
+          "censored": false,
+          "computeMs": {
+            "n": 600,
+            "p50": 1.0782479999998031,
+            "p95": 1.8496570000006614,
+            "p99": 1.9897369999998773,
+            "max": 15.744327999999769
+          },
+          "roundTripMs": {
+            "n": 600,
+            "p50": 1.2407330000005459,
+            "p95": 1.9839380000003075,
+            "p99": 2.173823000000084,
+            "max": 15.985249000000294
+          }
+        },
+        {
+          "outcome": "miss",
+          "distinctOriginalPuzzles": 3,
+          "censored": false,
+          "computeMs": {
+            "n": 600,
+            "p50": 3.0946670000002996,
+            "p95": 4.543400999999903,
+            "p99": 5.4443240000000515,
+            "max": 11.661237999999685
+          },
+          "roundTripMs": {
+            "n": 600,
+            "p50": 3.273414999999659,
+            "p95": 4.725493999999344,
+            "p99": 6.7857679999997345,
+            "max": 11.975580000000264
+          }
+        }
+      ]
+    },
+    {
+      "techniqueId": "death-blossom",
+      "discovery": {
+        "probes": 23,
+        "found": 20,
+        "miss": 3,
+        "errors": 0,
+        "timeouts": 0,
+        "rejected": 0
+      },
+      "foundBoards": 3,
+      "missBoards": 3,
+      "coverage": "found-and-miss",
+      "boards": [
+        {
+          "fixture": "upstream-example:FULL_HOUSE",
+          "source": "f4f0163e11ae38be",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.38497800000004645,
+            "p95": 0.4823340000002645,
+            "p99": 0.6686040000004141,
+            "max": 0.9090249999990192
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.4788490000009915,
+            "p95": 0.7170659999992495,
+            "p99": 1.0345930000003136,
+            "max": 1.33059300000059
+          }
+        },
+        {
+          "fixture": "upstream-example:DEATH_BLOSSOM",
+          "source": "939f42290ec3b371",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 1.1443880000006175,
+            "p95": 1.6015640000005078,
+            "p99": 2.051389999998719,
+            "max": 3.0659429999996064
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 1.2524610000000393,
+            "p95": 1.7400420000012673,
+            "p99": 2.162577000000965,
+            "max": 3.556609999999637
+          }
+        },
+        {
+          "fixture": "upstream-example:WXYZ_WING",
+          "source": "6935b015a5f49958",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.14941499999986263,
+            "p95": 0.22529800000120304,
+            "p99": 0.31364099999882455,
+            "max": 0.992275000000518
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.24310499999955937,
+            "p95": 0.4498650000005,
+            "p99": 0.6584290000009787,
+            "max": 2.3751310000006924
+          }
+        },
+        {
+          "fixture": "upstream-example:ALS_XY_CHAIN",
+          "source": "ff0c90cb63fb0223",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.7373069999994186,
+            "p95": 0.9322899999988294,
+            "p99": 1.1787899999999354,
+            "max": 7.820650999999998
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.8300760000001901,
+            "p95": 1.084368000001632,
+            "p99": 1.4203330000000278,
+            "max": 7.933256000000256
+          }
+        },
+        {
+          "fixture": "upstream-example:AIC_GROUPED",
+          "source": "41f7414b9983fa2d",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 1.485039000001052,
+            "p95": 1.8581500000000233,
+            "p99": 2.2962079999997513,
+            "max": 4.055819999999585
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 1.586911999998847,
+            "p95": 2.0187610000011773,
+            "p99": 2.486522999999579,
+            "max": 4.20289000000048
+          }
+        },
+        {
+          "fixture": "upstream-example:AIC_ALS",
+          "source": "08fb4a5cd07dd22f",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 1.4638880000002246,
+            "p95": 1.8232669999997597,
+            "p99": 2.8049919999994017,
+            "max": 2.950829999999769
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 1.559160000000702,
+            "p95": 2.1107690000008006,
+            "p99": 2.9538339999999152,
+            "max": 3.0663229999991017
+          }
+        }
+      ],
+      "pooled": [
+        {
+          "outcome": "found",
+          "distinctOriginalPuzzles": 3,
+          "censored": false,
+          "computeMs": {
+            "n": 600,
+            "p50": 0.38502799999878334,
+            "p95": 1.271139000000403,
+            "p99": 1.6576889999996638,
+            "max": 3.0659429999996064
+          },
+          "roundTripMs": {
+            "n": 600,
+            "p50": 0.4846479999996518,
+            "p95": 1.4184599999989587,
+            "p99": 1.818250000000262,
+            "max": 3.556609999999637
+          }
+        },
+        {
+          "outcome": "miss",
+          "distinctOriginalPuzzles": 3,
+          "censored": false,
+          "computeMs": {
+            "n": 600,
+            "p50": 1.1390699999992648,
+            "p95": 1.7820250000004307,
+            "p99": 2.5139189999990776,
+            "max": 7.820650999999998
+          },
+          "roundTripMs": {
+            "n": 600,
+            "p50": 1.2519799999990937,
+            "p95": 1.9838980000004085,
+            "p99": 2.6091269999997166,
+            "max": 7.933256000000256
+          }
+        }
+      ]
+    },
+    {
+      "techniqueId": "x-cycles",
+      "discovery": {
+        "probes": 9,
+        "found": 5,
+        "miss": 4,
+        "errors": 0,
+        "timeouts": 0,
+        "rejected": 0
+      },
+      "foundBoards": 3,
+      "missBoards": 3,
+      "coverage": "found-and-miss",
+      "boards": [
+        {
+          "fixture": "upstream-example:LOCKED_TRIPLE",
+          "source": "93794d23217125be",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.6582980000002863,
+            "p95": 0.7460000000010041,
+            "p99": 0.8657289999991917,
+            "max": 0.9828849999994418
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.7519189999984519,
+            "p95": 0.8865209999985382,
+            "p99": 1.247298000000228,
+            "max": 2.805472000000009
+          }
+        },
+        {
+          "fixture": "upstream-example:FULL_HOUSE",
+          "source": "f4f0163e11ae38be",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.0917779999999766,
+            "p95": 0.12359599999945203,
+            "p99": 0.1548030000012659,
+            "max": 0.17288899999948626
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.17289900000105263,
+            "p95": 0.27269000000160304,
+            "p99": 1.3944490000012593,
+            "max": 2.0994019999998272
+          }
+        },
+        {
+          "fixture": "upstream-example:SASHIMI_X_WING",
+          "source": "f2d7340080ded832",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.13429200000064156,
+            "p95": 0.18050100000073144,
+            "p99": 0.2264999999988504,
+            "max": 1.9302779999998165
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.21744700000090234,
+            "p95": 0.47113700000045355,
+            "p99": 2.0688759999993636,
+            "max": 3.3276310000001104
+          }
+        },
+        {
+          "fixture": "live-explain-advanced.json:30",
+          "source": "603d50236b28475c",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.4998200000009092,
+            "p95": 0.6184680000005756,
+            "p99": 0.7925700000014331,
+            "max": 1.0887749999983498
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.5904970000010508,
+            "p95": 0.8330700000005891,
+            "p99": 1.506507000000056,
+            "max": 1.8414450000000215
+          }
+        },
+        {
+          "fixture": "upstream-example:SUE_DE_COQ",
+          "source": "3b46d8a716953a86",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.39705599999979313,
+            "p95": 0.4731709999996383,
+            "p99": 1.2047490000004473,
+            "max": 7.274846999998772
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.47607499999867287,
+            "p95": 0.7575219999998808,
+            "p99": 1.8453000000008615,
+            "max": 7.427685999999085
+          }
+        },
+        {
+          "fixture": "upstream-example:MEDUSA_3D",
+          "source": "f855bfdd21fe6630",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.5830459999997402,
+            "p95": 0.6670319999993808,
+            "p99": 1.1663520000001881,
+            "max": 2.0066530000003695
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.676236000001154,
+            "p95": 0.8673760000001494,
+            "p99": 1.6034070000005158,
+            "max": 2.123819000000367
+          }
+        }
+      ],
+      "pooled": [
+        {
+          "outcome": "found",
+          "distinctOriginalPuzzles": 3,
+          "censored": false,
+          "computeMs": {
+            "n": 600,
+            "p50": 0.13560299999880954,
+            "p95": 0.6963859999996203,
+            "p99": 0.7636460000012448,
+            "max": 1.9302779999998165
+          },
+          "roundTripMs": {
+            "n": 600,
+            "p50": 0.2329600000011851,
+            "p95": 0.8395200000013574,
+            "p99": 1.7582199999997101,
+            "max": 3.3276310000001104
+          }
+        },
+        {
+          "outcome": "miss",
+          "distinctOriginalPuzzles": 3,
+          "censored": false,
+          "computeMs": {
+            "n": 600,
+            "p50": 0.4463709999999992,
+            "p95": 0.6442970000007335,
+            "p99": 1.0887749999983498,
+            "max": 7.274846999998772
+          },
+          "roundTripMs": {
+            "n": 600,
+            "p50": 0.5588790000001609,
+            "p95": 0.8246580000013637,
+            "p99": 1.7244790000004286,
+            "max": 7.427685999999085
+          }
+        }
+      ]
+    },
+    {
+      "techniqueId": "grouped-x-cycles",
+      "discovery": {
+        "probes": 10,
+        "found": 6,
+        "miss": 4,
+        "errors": 0,
+        "timeouts": 0,
+        "rejected": 0
+      },
+      "foundBoards": 3,
+      "missBoards": 3,
+      "coverage": "found-and-miss",
+      "boards": [
+        {
+          "fixture": "upstream-example:FULL_HOUSE",
+          "source": "f4f0163e11ae38be",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.14642000000094413,
+            "p95": 0.18935400000009395,
+            "p99": 0.25441200000022945,
+            "max": 1.1064110000006622
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.22761200000059034,
+            "p95": 0.4267299999992247,
+            "p99": 0.5389090000007855,
+            "max": 1.2538279999989754
+          }
+        },
+        {
+          "fixture": "upstream-example:GROUPED_X_CYCLES",
+          "source": "9b69bb8075f7672c",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.5870909999994183,
+            "p95": 0.6957139999994979,
+            "p99": 0.7537819999997737,
+            "max": 0.7789300000004005
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.6753439999993134,
+            "p95": 0.8275319999993371,
+            "p99": 0.879971000000296,
+            "max": 1.7656210000004648
+          }
+        },
+        {
+          "fixture": "upstream-example:SASHIMI_X_WING",
+          "source": "f2d7340080ded832",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.1839959999997518,
+            "p95": 0.2360850000004575,
+            "p99": 0.3001800000001822,
+            "max": 0.31342099999892525
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.2757739999997284,
+            "p95": 0.3911970000008296,
+            "p99": 0.4568460000009509,
+            "max": 0.5073219999994762
+          }
+        },
+        {
+          "fixture": "live-explain-advanced.json:30",
+          "source": "603d50236b28475c",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 2.355827000001227,
+            "p95": 2.8285259999993286,
+            "p99": 3.10616299999856,
+            "max": 3.1751170000006823
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 2.4616359999999986,
+            "p95": 3.0850719999998546,
+            "p99": 3.263159000000087,
+            "max": 3.534757000001264
+          }
+        },
+        {
+          "fixture": "upstream-example:SUE_DE_COQ",
+          "source": "3b46d8a716953a86",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 1.1102969999992638,
+            "p95": 1.3453099999987899,
+            "p99": 1.5141740000017307,
+            "max": 5.0318740000002435
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 1.2052800000001298,
+            "p95": 1.5276340000000346,
+            "p99": 1.7891359999994165,
+            "max": 5.308831000000282
+          }
+        },
+        {
+          "fixture": "upstream-example:MEDUSA_3D",
+          "source": "f855bfdd21fe6630",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 1.7780500000008033,
+            "p95": 2.090479000000414,
+            "p99": 2.3421570000009524,
+            "max": 3.119884000001548
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 1.8864419999990787,
+            "p95": 2.3479499999994005,
+            "p99": 2.7075450000011188,
+            "max": 4.902125000000524
+          }
+        }
+      ],
+      "pooled": [
+        {
+          "outcome": "found",
+          "distinctOriginalPuzzles": 3,
+          "censored": false,
+          "computeMs": {
+            "n": 600,
+            "p50": 0.18757100000038918,
+            "p95": 0.6363059999985126,
+            "p99": 0.7270110000008572,
+            "max": 1.1064110000006622
+          },
+          "roundTripMs": {
+            "n": 600,
+            "p50": 0.29953000000023167,
+            "p95": 0.7521400000005087,
+            "p99": 0.8439969999999448,
+            "max": 1.7656210000004648
+          }
+        },
+        {
+          "outcome": "miss",
+          "distinctOriginalPuzzles": 3,
+          "censored": false,
+          "computeMs": {
+            "n": 600,
+            "p50": 1.5366770000000542,
+            "p95": 2.4540039999992587,
+            "p99": 3.0139760000001843,
+            "max": 5.0318740000002435
+          },
+          "roundTripMs": {
+            "n": 600,
+            "p50": 1.6710889999994833,
+            "p95": 2.7930730000007316,
+            "p99": 3.236108000000968,
+            "max": 5.308831000000282
+          }
+        }
+      ]
+    },
+    {
+      "techniqueId": "aic",
+      "discovery": {
+        "probes": 23,
+        "found": 20,
+        "miss": 3,
+        "errors": 0,
+        "timeouts": 0,
+        "rejected": 0
+      },
+      "foundBoards": 3,
+      "missBoards": 3,
+      "coverage": "found-and-miss",
+      "boards": [
+        {
+          "fixture": "upstream-example:FULL_HOUSE",
+          "source": "f4f0163e11ae38be",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.25368100000196137,
+            "p95": 0.39021599999978207,
+            "p99": 0.6190589999969234,
+            "max": 2.142907000001287
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.40034100000048056,
+            "p95": 0.6697149999999965,
+            "p99": 0.8044780000018363,
+            "max": 2.263849000000846
+          }
+        },
+        {
+          "fixture": "upstream-example:AIC",
+          "source": "30ddf8956468d911",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.22242399999959162,
+            "p95": 0.353411000000051,
+            "p99": 0.420231000000058,
+            "max": 0.4577769999996235
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.3450780000002851,
+            "p95": 0.5334160000020347,
+            "p99": 0.625530000001163,
+            "max": 0.6541619999989052
+          }
+        },
+        {
+          "fixture": "upstream-example:WXYZ_WING",
+          "source": "6935b015a5f49958",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.41603399999985413,
+            "p95": 0.6147930000006454,
+            "p99": 0.7732710000018415,
+            "max": 1.5861909999985073
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.5555340000009892,
+            "p95": 0.8319790000005014,
+            "p99": 0.9562809999988531,
+            "max": 1.7970079999977315
+          }
+        },
+        {
+          "fixture": "upstream-example:DEATH_BLOSSOM",
+          "source": "939f42290ec3b371",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 11.55565800000113,
+            "p95": 16.797286000000895,
+            "p99": 19.48961000000054,
+            "max": 25.29920999999922
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 11.752895000001445,
+            "p95": 17.165068999998766,
+            "p99": 19.74081699999988,
+            "max": 25.498008999999
+          }
+        },
+        {
+          "fixture": "upstream-example:AIC_GROUPED",
+          "source": "41f7414b9983fa2d",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 16.029805000000124,
+            "p95": 22.436012000001938,
+            "p99": 23.49621400000069,
+            "max": 40.26604899999984
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 16.206011000000217,
+            "p95": 22.717995999999403,
+            "p99": 23.742597999998907,
+            "max": 40.53507399999944
+          }
+        },
+        {
+          "fixture": "upstream-example:AIC_ALS",
+          "source": "08fb4a5cd07dd22f",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 1.4747840000018186,
+            "p95": 2.022566999999981,
+            "p99": 2.060062000000471,
+            "max": 2.0824759999995877
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 1.6186299999990297,
+            "p95": 2.2980900000002293,
+            "p99": 2.4140000000006694,
+            "max": 2.7058519999991404
+          }
+        }
+      ],
+      "pooled": [
+        {
+          "outcome": "found",
+          "distinctOriginalPuzzles": 3,
+          "censored": false,
+          "computeMs": {
+            "n": 600,
+            "p50": 0.3167649999995774,
+            "p95": 0.5809319999989384,
+            "p99": 0.6747829999985697,
+            "max": 2.142907000001287
+          },
+          "roundTripMs": {
+            "n": 600,
+            "p50": 0.41781799999989744,
+            "p95": 0.7574319999985164,
+            "p99": 0.9178580000007059,
+            "max": 2.263849000000846
+          }
+        },
+        {
+          "outcome": "miss",
+          "distinctOriginalPuzzles": 3,
+          "censored": false,
+          "computeMs": {
+            "n": 600,
+            "p50": 11.55565800000113,
+            "p95": 22.248070000001462,
+            "p99": 22.681791000000885,
+            "max": 40.26604899999984
+          },
+          "roundTripMs": {
+            "n": 600,
+            "p50": 11.752895000001445,
+            "p95": 22.541000000001077,
+            "p99": 22.916604000000007,
+            "max": 40.53507399999944
+          }
+        }
+      ]
+    },
+    {
+      "techniqueId": "aligned-pair-exclusion",
+      "discovery": {
+        "probes": 6,
+        "found": 3,
+        "miss": 3,
+        "errors": 0,
+        "timeouts": 0,
+        "rejected": 0
+      },
+      "foundBoards": 3,
+      "missBoards": 3,
+      "coverage": "found-and-miss",
+      "boards": [
+        {
+          "fixture": "upstream-example:ALIGNED_PAIR_EXCLUSION",
+          "source": "564b543d41802714",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 1.6107580000025337,
+            "p95": 2.642445999998017,
+            "p99": 3.1252019999992626,
+            "max": 3.938352000001032
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 1.7372279999981401,
+            "p95": 2.7631340000007185,
+            "p99": 3.239142999998876,
+            "max": 4.344091999999364
+          }
+        },
+        {
+          "fixture": "wiki:095",
+          "source": "ff2bd42e07689c4f",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.15067599999747472,
+            "p95": 0.2813830000013695,
+            "p99": 0.31409200000052806,
+            "max": 0.4214930000016466
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.23328000000037719,
+            "p95": 0.4550440000020899,
+            "p99": 0.5599010000005364,
+            "max": 0.9739120000012917
+          }
+        },
+        {
+          "fixture": "upstream-example:WXYZ_WING",
+          "source": "6935b015a5f49958",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.21982999999818276,
+            "p95": 0.339760999999271,
+            "p99": 0.45467199999984587,
+            "max": 0.5150829999984126
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.3077420000008715,
+            "p95": 0.5348530000010214,
+            "p99": 0.6105459999998857,
+            "max": 0.7952030000014929
+          }
+        },
+        {
+          "fixture": "live-explain-advanced.json:30",
+          "source": "603d50236b28475c",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 1.6361159999978554,
+            "p95": 2.456508000002941,
+            "p99": 2.6552259999989474,
+            "max": 2.8993530000007013
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 1.7667719999990368,
+            "p95": 2.561084999997547,
+            "p99": 2.7990720000016154,
+            "max": 3.1155670000007376
+          }
+        },
+        {
+          "fixture": "upstream-example:SASHIMI_X_WING",
+          "source": "f2d7340080ded832",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.5068309999987832,
+            "p95": 0.6953539999994973,
+            "p99": 1.24781300000177,
+            "max": 1.375054000000091
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.5803010000017821,
+            "p95": 0.8344969999998284,
+            "p99": 1.404207999999926,
+            "max": 2.7756269999990764
+          }
+        },
+        {
+          "fixture": "upstream-example:FINNED_JELLYFISH",
+          "source": "3df781dd9161b96a",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.988273000002664,
+            "p95": 1.3652889999975741,
+            "p99": 1.8825759999999718,
+            "max": 2.176487000000634
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 1.0629159999989497,
+            "p95": 1.4673079999993206,
+            "p99": 1.996777000000293,
+            "max": 2.6632790000003297
+          }
+        }
+      ],
+      "pooled": [
+        {
+          "outcome": "found",
+          "distinctOriginalPuzzles": 3,
+          "censored": false,
+          "computeMs": {
+            "n": 600,
+            "p50": 0.22217299999829265,
+            "p95": 1.9100279999984195,
+            "p99": 2.670869000001403,
+            "max": 3.938352000001032
+          },
+          "roundTripMs": {
+            "n": 600,
+            "p50": 0.33294000000023516,
+            "p95": 2.053133000001253,
+            "p99": 2.8233189999991737,
+            "max": 4.344091999999364
+          }
+        },
+        {
+          "outcome": "miss",
+          "distinctOriginalPuzzles": 3,
+          "censored": false,
+          "computeMs": {
+            "n": 600,
+            "p50": 0.990828000001784,
+            "p95": 1.8234469999988505,
+            "p99": 2.5792619999992894,
+            "max": 2.8993530000007013
+          },
+          "roundTripMs": {
+            "n": 600,
+            "p50": 1.0700460000007297,
+            "p95": 1.9242039999990084,
+            "p99": 2.6909099999975297,
+            "max": 3.1155670000007376
+          }
+        }
+      ]
+    },
+    {
+      "techniqueId": "rectangle-elimination",
+      "discovery": {
+        "probes": 10,
+        "found": 3,
+        "miss": 7,
+        "errors": 0,
+        "timeouts": 0,
+        "rejected": 0
+      },
+      "foundBoards": 3,
+      "missBoards": 3,
+      "coverage": "found-and-miss",
+      "boards": [
+        {
+          "fixture": "upstream-example:LOCKED_TRIPLE",
+          "source": "93794d23217125be",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.09036500000001979,
+            "p95": 0.20494800000233226,
+            "p99": 0.3247169999995094,
+            "max": 0.43417199999748846
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.1311569999998028,
+            "p95": 0.27991000000110944,
+            "p99": 0.39407199999914155,
+            "max": 0.5001009999978123
+          }
+        },
+        {
+          "fixture": "upstream-example:NAKED_QUADRUPLE",
+          "source": "0b040cd7b9bdc109",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.05643500000223867,
+            "p95": 0.11249899999893387,
+            "p99": 0.13768700000218814,
+            "max": 0.25387100000079954
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.09340000000156579,
+            "p95": 0.19605400000000373,
+            "p99": 0.2301049999987299,
+            "max": 0.3146419999975478
+          }
+        },
+        {
+          "fixture": "upstream-example:NAKED_SINGLE",
+          "source": "f4f0163e11ae38be",
+          "outcome": "found",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.032978999999613734,
+            "p95": 0.066569000002346,
+            "p99": 0.12300399999730871,
+            "max": 0.17308000000048196
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.06968499999857158,
+            "p95": 0.14352599999983795,
+            "p99": 0.22886400000061258,
+            "max": 0.5212219999993977
+          }
+        },
+        {
+          "fixture": "live-explain-advanced.json:30",
+          "source": "603d50236b28475c",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.10508800000025076,
+            "p95": 0.20570900000166148,
+            "p99": 0.22998500000176136,
+            "max": 0.23857800000041607
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.1436360000006971,
+            "p95": 0.2678520000008575,
+            "p99": 0.3365750000011758,
+            "max": 0.4516180000027816
+          }
+        },
+        {
+          "fixture": "upstream-example:SASHIMI_X_WING",
+          "source": "f2d7340080ded832",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.12734099999943282,
+            "p95": 0.2760049999997136,
+            "p99": 0.45502400000259513,
+            "max": 1.9213549999985844
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.1741519999995944,
+            "p95": 0.3705759999975271,
+            "p99": 0.6126799999983632,
+            "max": 2.020788999998331
+          }
+        },
+        {
+          "fixture": "upstream-example:FINNED_JELLYFISH",
+          "source": "3df781dd9161b96a",
+          "outcome": "miss",
+          "censored": false,
+          "computeMs": {
+            "n": 200,
+            "p50": 0.14007000000128755,
+            "p95": 0.29227800000080606,
+            "p99": 0.712759999998525,
+            "max": 3.3061129999987315
+          },
+          "roundTripMs": {
+            "n": 200,
+            "p50": 0.1856389999993553,
+            "p95": 0.390586000001349,
+            "p99": 1.0107270000007702,
+            "max": 3.4109709999975166
+          }
+        }
+      ],
+      "pooled": [
+        {
+          "outcome": "found",
+          "distinctOriginalPuzzles": 3,
+          "censored": false,
+          "computeMs": {
+            "n": 600,
+            "p50": 0.057475999998132465,
+            "p95": 0.1470709999994142,
+            "p99": 0.23782699999719625,
+            "max": 0.43417199999748846
+          },
+          "roundTripMs": {
+            "n": 600,
+            "p50": 0.10036000000036438,
+            "p95": 0.22886400000061258,
+            "p99": 0.33438200000091456,
+            "max": 0.5212219999993977
+          }
+        },
+        {
+          "outcome": "miss",
+          "distinctOriginalPuzzles": 3,
+          "censored": false,
+          "computeMs": {
+            "n": 600,
+            "p50": 0.1304259999997157,
+            "p95": 0.2510870000005525,
+            "p99": 0.36160299999755807,
+            "max": 3.3061129999987315
+          },
+          "roundTripMs": {
+            "n": 600,
+            "p50": 0.16860299999825656,
+            "p95": 0.36378599999807193,
+            "p99": 0.6274819999998726,
+            "max": 3.4109709999975166
+          }
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "workerStartups": [13.044844000000012],
+  "independentOracle": {
+    "algorithm": "Algorithm X / dancing links",
+    "originalUniqueFixtures": 21,
+    "distinctVerifiedSteps": 36,
+    "status": "passed"
+  },
+  "sampleCount": 14400,
+  "correctness": {
+    "status": "passed",
+    "scope": "Every phase-three exact-technique detector on every supplied genuine state. Original puzzle uniqueness, placed values, candidate legality and solution retention rechecked independently. Every emitted effect proven by independent Algorithm X counterexample search, not merely compared with one solution. Logical elimination history is not replayed.",
+    "oracle": "Independent Algorithm X / dancing links, maximum 2,000,000 nodes per query. Budget exhaustion is inconclusive and recorded as an error, never accepted as proof.",
+    "fixtures": 2321,
+    "originalPuzzles": 199,
+    "checkedFixtures": 2321,
+    "strategies": [
+      {
+        "techniqueId": "rectangle-elimination",
+        "found": 634,
+        "miss": 1687,
+        "effects": 634,
+        "oracleNodes": 76697,
+        "maxDetectorMs": 1.6576689999999985
+      },
+      {
+        "techniqueId": "x-cycles",
+        "found": 1281,
+        "miss": 1040,
+        "effects": 1571,
+        "oracleNodes": 156217,
+        "maxDetectorMs": 17.162812000000486
+      },
+      {
+        "techniqueId": "xy-chain",
+        "found": 868,
+        "miss": 1453,
+        "effects": 1178,
+        "oracleNodes": 106414,
+        "maxDetectorMs": 3.782047999999918
+      },
+      {
+        "techniqueId": "3d-medusa",
+        "found": 1621,
+        "miss": 700,
+        "effects": 9122,
+        "oracleNodes": 438169,
+        "maxDetectorMs": 2.692941999999988
+      },
+      {
+        "techniqueId": "wxyz-wing",
+        "found": 1227,
+        "miss": 1094,
+        "effects": 1570,
+        "oracleNodes": 140165,
+        "maxDetectorMs": 77.6924899999999
+      },
+      {
+        "techniqueId": "aligned-pair-exclusion",
+        "found": 1456,
+        "miss": 865,
+        "effects": 2519,
+        "oracleNodes": 163998,
+        "maxDetectorMs": 9.562043999998423
+      },
+      {
+        "techniqueId": "grouped-x-cycles",
+        "found": 1179,
+        "miss": 1142,
+        "effects": 1482,
+        "oracleNodes": 145931,
+        "maxDetectorMs": 10.625716000000011
+      },
+      {
+        "techniqueId": "aic",
+        "found": 1642,
+        "miss": 679,
+        "effects": 1937,
+        "oracleNodes": 188845,
+        "maxDetectorMs": 19.514024000000063
+      },
+      {
+        "techniqueId": "als-xz",
+        "found": 1668,
+        "miss": 653,
+        "effects": 2990,
+        "oracleNodes": 211406,
+        "maxDetectorMs": 2.582416999999964
+      },
+      {
+        "techniqueId": "als-xy-wing",
+        "found": 1656,
+        "miss": 665,
+        "effects": 2525,
+        "oracleNodes": 205377,
+        "maxDetectorMs": 9.056549000000814
+      },
+      {
+        "techniqueId": "death-blossom",
+        "found": 1645,
+        "miss": 676,
+        "effects": 2751,
+        "oracleNodes": 215711,
+        "maxDetectorMs": 2.6596629999999095
+      },
+      {
+        "techniqueId": "sue-de-coq",
+        "found": 307,
+        "miss": 2014,
+        "effects": 894,
+        "oracleNodes": 51717,
+        "maxDetectorMs": 2.171840000002703
+      }
+    ],
+    "errors": [],
+    "sourceHashes": {
+      "engine.js": "a8d5e6daae463e3d6a088e5ac41c05629b7dbf3beb32d64a7181be2924143010",
+      "engine-advanced.js": "7b888a902168bfb6bf1dcc44bd5ef17ccc3e1c84440caff215f341452e5db45e",
+      "engine-advanced-patterns.js": "b5c1c90d50f76e691c5da8b606006b1e80f7299d5058d6bc9353a21a32120a27",
+      "engine-advanced-chains.js": "ab81ca25c9ddc27d12abd765c88c1a4d163c3720ea4007a19d1fd47805fbad79",
+      "engine-als.js": "fc086a851608f54bc23c5294f1df3be13ee4a47d19530363890a055ec9b47a8d",
+      "proof-verifier.js": "43fced4c2b4182ee55ed638ab15f40636fd2e10f38b6af7288fbb329e9718be4"
+    },
+    "startedAt": "2026-11-03T18:01:12.757Z",
+    "completedAt": "2026-11-03T18:01:34.661Z"
+  },
+  "browserWorker": {
+    "status": "CI pending",
+    "test": "e2e/phase-three-worker-benchmark.spec.js",
+    "samplesPerBoard": 100,
+    "foundBoards": 3,
+    "missBoards": 3,
+    "watchdogMs": 3000,
+    "artifact": "phase-three-worker-benchmark JSON attachment in Playwright HTML report",
+    "localBlocker": "Installed Chromium cannot create AF_UNIX process-singleton socket in execution sandbox, including permitted escalation. No browser timing numbers are inferred from Node results."
+  }
+}

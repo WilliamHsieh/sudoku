@@ -1,5 +1,6 @@
 import { detectPattern, PATTERN_TECHNIQUES } from "./engine-patterns.js";
 import { detectChain } from "./engine-chains.js";
+import { ADVANCED_TECHNIQUES, detectAdvanced } from "./engine-advanced.js";
 import {
   legalMasks,
   validateMasks,
@@ -32,6 +33,7 @@ export const TECHNIQUES = [
   "jellyfish",
   "finned-x-wing",
   "finned-swordfish",
+  ...ADVANCED_TECHNIQUES,
 ];
 /** @param {number[]} values @param {number[]} masks @param {string} [techniqueId] @param {number[]} [effectMasks] @returns {import('./proof-verifier.js').Step|null} */
 export function findStep(values, masks, techniqueId, effectMasks = masks) {
@@ -41,7 +43,9 @@ export function findStep(values, masks, techniqueId, effectMasks = masks) {
     if (!TECHNIQUES.includes(id)) throw new Error("Unsupported technique");
     const step = PATTERN_TECHNIQUES.includes(id)
       ? detectPattern(values, masks, id, effectMasks)
-      : detectChain(values, masks, id, effectMasks);
+      : ADVANCED_TECHNIQUES.includes(id)
+        ? detectAdvanced(values, masks, id, effectMasks)
+        : detectChain(values, masks, id, effectMasks);
     if (step) return step;
   }
   return null;
@@ -87,6 +91,18 @@ const names = {
   jellyfish: "Jellyfish",
   "finned-x-wing": "Finned X-Wing",
   "finned-swordfish": "Finned Swordfish",
+  "rectangle-elimination": "Rectangle Elimination",
+  "x-cycles": "X-Cycles",
+  "xy-chain": "XY-Chain",
+  "3d-medusa": "3D Medusa",
+  "wxyz-wing": "WXYZ-Wing",
+  "aligned-pair-exclusion": "Aligned Pair Exclusion",
+  "grouped-x-cycles": "Grouped X-Cycles",
+  aic: "交替推理鏈（AIC）",
+  "als-xz": "ALS-XZ",
+  "als-xy-wing": "ALS-XY-Wing",
+  "death-blossom": "Death Blossom",
+  "sue-de-coq": "Sue de Coq",
 };
 /** @param {import('../game/game.js').GameState} state @returns {import('./hint.js').Hint|null} */
 export function findHint(state) {
