@@ -1,3 +1,11 @@
+/** Return the square size while preserving a usable minimum on short screens.
+ * @param {number} width
+ * @param {number} available
+ */
+export function pasteBoardSide(width, available) {
+  return Math.floor(Math.max(200, Math.min(width, available)));
+}
+
 /** @typedef {{mode: string, preview: boolean}} DraftView */
 
 /**
@@ -39,7 +47,7 @@ export function fitDraftKeypad(editor, view) {
   }
 
   function fit() {
-    if (!compact.matches || view.mode !== "board" || view.preview) {
+    if (!compact.matches || view.preview) {
       reset();
       return;
     }
@@ -47,6 +55,34 @@ export function fitDraftKeypad(editor, view) {
     const setup = editor.querySelector(".setup-top");
     const boardArea = editor.querySelector(".board-area");
     const board = editor.querySelector(".input-board");
+    if (view.mode === "paste") {
+      if (
+        !(body instanceof HTMLElement) ||
+        !(boardArea instanceof HTMLElement) ||
+        !(board instanceof HTMLElement)
+      ) {
+        reset();
+        return;
+      }
+      // The input can grow for validation messages. Preserve the footer and allow
+      // body scrolling below a usable minimum instead of shrinking cells forever.
+      const boardRect = board.getBoundingClientRect();
+      const belowBoard = boardArea.getBoundingClientRect().bottom - boardRect.bottom;
+      const bottomPadding = parseFloat(getComputedStyle(body).paddingBottom) || 0;
+      const available =
+        body.getBoundingClientRect().bottom -
+        boardRect.top +
+        body.scrollTop -
+        belowBoard -
+        bottomPadding;
+      const side = pasteBoardSide(boardArea.clientWidth, available);
+      editor.style.removeProperty(properties[0]);
+      editor.style.removeProperty(properties[1]);
+      const value = `${side}px`;
+      if (editor.style.getPropertyValue(properties[2]) !== value)
+        editor.style.setProperty(properties[2], value);
+      return;
+    }
     const panel = editor.querySelector(".keypad-panel");
     const slot = editor.querySelector(".draft-keypad-slot");
     const keypad = editor.querySelector(".input-keypad");

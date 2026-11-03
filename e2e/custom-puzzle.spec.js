@@ -2,6 +2,30 @@ import { test, expect } from "@playwright/test";
 
 const PUZZLE = "530070000600195000098000060800060003400803001700020006060000280000419005000080079";
 
+test.describe("A3 Paste focus", () => {
+  test.use({ viewport: { width: 402, height: 874 }, colorScheme: "light" });
+  test("pointer focus has no frame; keyboard focus retains a blue cue", async ({ page }) => {
+    await page.goto("./");
+    await page.getByRole("button", { name: "Custom puzzle", exact: true }).click();
+    const pasteMode = page.getByRole("button", { name: "Paste puzzle", exact: true });
+    await pasteMode.click();
+    const input = page.getByRole("textbox", { name: "Puzzle link or 81 digits" });
+    const group = page.locator(".string-input");
+    await input.click();
+    await expect(input).toBeFocused();
+    await expect(group).toHaveCSS("outline-style", "none");
+    await expect(group).toHaveCSS("box-shadow", "none");
+    await pasteMode.focus();
+    await page.keyboard.press("Tab");
+    await expect(input).toBeFocused();
+    await expect(group).toHaveCSS("border-color", "rgb(42, 86, 198)");
+    await expect(group).not.toHaveCSS("box-shadow", "none");
+    await input.click();
+    await expect(group).toHaveCSS("box-shadow", "none");
+    await expect(group).toHaveCSS("outline-style", "none");
+  });
+});
+
 for (const viewport of [
   { width: 320, height: 667 },
   { width: 390, height: 844 },
@@ -115,7 +139,7 @@ for (const viewport of [
           value: { writeText: async (value) => (window["customCopied"] = value) },
         });
       });
-      await page.getByRole("button", { name: "Copy puzzle", exact: true }).click();
+      await page.getByRole("button", { name: "Share puzzle", exact: true }).click();
       const digits = `102${"0".repeat(78)}`;
       await expect(page.getByRole("textbox", { name: "Puzzle string (81 digits)" })).toHaveValue(
         digits
@@ -150,7 +174,7 @@ for (const viewport of [
         expect(key.height).toBeGreaterThanOrEqual(44.7);
         expect(pad.y + pad.height).toBeLessThanOrEqual(footer.y);
         expect(footer.y + footer.height).toBeLessThanOrEqual(viewport.height);
-        await expect(page.locator(".action-panel")).toHaveCSS("border-top-width", "0px");
+        await expect(page.locator(".action-panel")).toHaveCSS("border-top-width", "1px");
         expect(
           await page
             .locator(".action-panel")
@@ -158,7 +182,7 @@ for (const viewport of [
         ).toBe("none");
         if (viewport.width === 390) {
           expect(key.height).toBeCloseTo(57.6, 1);
-          expect(pad.width).toBeCloseTo(374 * 0.9, 1);
+          expect(pad.width).toBeCloseTo(342 * 0.9, 1);
         }
       }
       await clear.click();
@@ -257,3 +281,38 @@ test.describe("Custom puzzle validation", () => {
     await expect(page.getByRole("button", { name: "Start puzzle", exact: true })).toBeEnabled();
   });
 });
+
+for (const viewport of [
+  { width: 402, height: 874 },
+  { width: 402, height: 720 },
+  { width: 320, height: 667 },
+]) {
+  test.describe(`A3 compact input at ${viewport.width}x${viewport.height}`, () => {
+    test.use({ viewport, reducedMotion: "reduce" });
+    test("keeps Paste beside the count and removes the redundant heading", async ({ page }) => {
+      await page.goto("./");
+      await page.getByRole("button", { name: "Custom puzzle", exact: true }).click();
+      await expect(page.getByRole("heading", { name: "Starting board", exact: true })).toHaveCount(
+        0
+      );
+      await page.getByRole("button", { name: "Paste puzzle", exact: true }).click();
+      const input = page.getByRole("textbox", { name: "Puzzle link or 81 digits" });
+      await input.fill(PUZZLE);
+      await expect(input).toHaveCSS("font-size", "16px");
+      const paste = await page
+        .getByRole("button", { name: "Paste from clipboard", exact: true })
+        .boundingBox();
+      const meta = await page.locator(".string-meta").boundingBox();
+      expect(paste.height).toBeGreaterThanOrEqual(44);
+      expect(paste.x).toBeGreaterThanOrEqual(meta.x + meta.width - 1);
+      expect(meta.y).toBeGreaterThanOrEqual(paste.y);
+      expect(meta.y + meta.height).toBeLessThanOrEqual(paste.y + paste.height);
+      await expect
+        .poll(() =>
+          page.locator(".editor-body").evaluate((el) => el.scrollHeight - el.clientHeight)
+        )
+        .toBeLessThanOrEqual(1);
+      await expect(page.getByRole("button", { name: "Start puzzle", exact: true })).toBeEnabled();
+    });
+  });
+}
