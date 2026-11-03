@@ -12,6 +12,10 @@ test("Space holds a shown digit across clicks and drags, committing one undo on 
   await page.keyboard.down("Space");
   await page.clock.runFor(250);
   await expect(page.locator('.key[data-d="5"]')).toHaveClass(/holding/);
+  await expect(page.locator('.key[data-d="5"] .label:not(.bottom)')).toBeEmpty();
+  await expect(page.locator(".normal-hint")).toHaveText(
+    "5 held · Click or drag cells to toggle candidates · Release Space to finish"
+  );
   await expect(page.locator(".cell.selected")).toHaveCount(0);
   await expect(cell(page, 73)).toHaveAttribute("data-notes", "");
   await t.down(37);
@@ -29,6 +33,7 @@ test("Space holds a shown digit across clicks and drags, committing one undo on 
   await expect(page.locator("#keypad")).toHaveAttribute("data-held", "0");
   await expect(page.locator("#keypad")).toHaveAttribute("data-locked", "0");
   await expect(page.locator("#keypad")).toHaveAttribute("data-shown", "5");
+  await expect(page.locator(".normal-hint")).not.toContainText("5 held");
   await expect(page.locator(".play .sr-only[aria-live]")).toHaveText("Added 5 to 4 cells");
   await page.keyboard.press("Control+z");
   for (const i of [37, 38, 41, 42]) await expect(cell(page, i)).toHaveAttribute("data-notes", "");

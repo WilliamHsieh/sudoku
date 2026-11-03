@@ -862,6 +862,7 @@
       shown: locked ? 0 : padUi.shown,
       placed: placedCount(shown),
       desktop: !isNarrow,
+      held: padUi.spaceHold?.engaged ? padUi.spaceHold.d : 0,
     });
   });
 

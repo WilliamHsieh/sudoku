@@ -59,10 +59,17 @@ export const ariaEnter = (d) => `Enter ${d}`;
 /**
  * Hint line under the keypad. Legacy mode keeps the master's sentence unless
  * a digit is locked, which always explains the lock.
- * @param {{ legacy: boolean, locked: number, shown: number, placed: number, desktop?: boolean }} s
+ * @param {{ legacy: boolean, locked: number, shown: number, placed: number, desktop?: boolean, held?: number }} s
  * @returns {Hint}
  */
 export function hintModel(s) {
+  if (s.desktop && s.held) {
+    return {
+      kind: "rich",
+      lead: `${s.held} held`,
+      rest: "· Click or drag cells to toggle candidates · Release Space to finish",
+    };
+  }
   if (s.locked) {
     return {
       kind: "rich",

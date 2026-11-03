@@ -680,7 +680,7 @@
         class:locked={padUi.locked === d}
         class:remove={padUi.gesture?.d === d && padUi.gesture.remove}
         class:illegal={padUi.gesture?.d === d && padUi.gesture.illegal}
-        class:show-label={spaceHolding || (padUi.gesture?.d === d && padUi.gesture.showLabel)}
+        class:show-label={padUi.gesture?.d === d && padUi.gesture.showLabel}
         class:lifted={!!concealed[d]}
         data-d={d}
         aria-pressed={padUi.locked === d}
@@ -693,9 +693,7 @@
         onlostpointercapture={onLostCapture}
       >
         <span class="digit">{d}</span>
-        <span class="label"
-          >{spaceHolding ? LABEL_HOLD : padUi.gesture?.d === d ? padUi.gesture.label : ""}</span
-        >
+        <span class="label">{padUi.gesture?.d === d ? padUi.gesture.label : ""}</span>
         <span class="label bottom">{padUi.gesture?.d === d ? padUi.gesture.bottom : ""}</span>
         <svg class="lock" viewBox="0 0 24 24" aria-hidden="true">
           <rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect>
