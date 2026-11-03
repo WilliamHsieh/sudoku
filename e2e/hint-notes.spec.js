@@ -7,6 +7,8 @@ async function chooseMode(page, mode) {
   await modeControl(page).click();
   await page.getByRole("menuitemradio", { name: new RegExp(`^${mode} `) }).click();
   await expect(modeControl(page)).toHaveAccessibleName(`Notes mode: ${mode}`);
+  await expect(modeControl(page)).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator(".notes-menu:popover-open")).toHaveCount(0);
 }
 async function visibleNotes(page) {
   return page.locator(".board > .cell").evaluateAll((cells) =>
