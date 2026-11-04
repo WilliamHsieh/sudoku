@@ -80,8 +80,8 @@ describe("advanced hints teach the board facts before the deduction", () => {
       const step = findStep([...initial.givens], fixture.masks);
       const hint = findHint(state);
       expect(hint.stages[0].title).toBe(step.teaching.observeTitle);
-      expect(hint.stages[0].description.slice(0, -1)).toEqual(step.teaching.observe);
-      expect(hint.stages[0].description.at(-1)).toContain("Auto");
+      expect(hint.stages[0].description).toEqual(step.teaching.observe);
+      expect(hint.stages[0].description.join(" ")).not.toMatch(/Auto|未寫下的筆記/);
       expect(hint.stages[1].title).toBe(step.teaching.reasonTitle);
       expect(hint.stages[1].description).toEqual(step.teaching.reasoning);
       expect(hint.stages[2].description).toEqual(step.teaching.conclusion);

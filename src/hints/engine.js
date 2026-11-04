@@ -1,6 +1,7 @@
 import { detectPattern, PATTERN_TECHNIQUES } from "./engine-patterns.js";
 import { detectChain } from "./engine-chains.js";
 import { ADVANCED_TECHNIQUES, detectAdvanced } from "./engine-advanced.js";
+import { firstObservation } from "./engine-observations.js";
 import {
   legalMasks,
   validateMasks,
@@ -121,17 +122,16 @@ export function findHint(state) {
   ].join("；");
   const name = names[/** @type {keyof typeof names} */ (step.techniqueId)] || step.techniqueId;
   const teaching = step.teaching;
-  const modelDescription =
-    state.notesMode === "auto"
-      ? "以目前盤面與 Auto 候選數推理；已刪除的候選數會視為你的判斷。"
-      : "以目前盤面及已驗證的刪除推理；未寫下的筆記不視為排除。";
+  const observation = teaching
+    ? { title: teaching.observeTitle, description: teaching.observe }
+    : firstObservation(step, values, masks);
   return {
     techniqueId: step.techniqueId,
     name,
     stages: [
       {
-        title: teaching?.observeTitle ?? `觀察 ${premiseCells.map(coordinate).join("、")}`,
-        description: [...(teaching?.observe ?? []), modelDescription],
+        title: observation.title,
+        description: observation.description,
         coordinates: premiseCells,
       },
       {

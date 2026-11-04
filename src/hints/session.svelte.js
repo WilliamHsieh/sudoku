@@ -1,7 +1,7 @@
 import { applyHint, hintSnapshot, hintStateKey } from "./hint.js";
 
-/** @param {{game: ReturnType<typeof import('../game/game.svelte.js').createGame>, provider?: import('./hint.js').HintProvider | null}} options */
-export function createHintSession({ game, provider = null }) {
+/** @param {{game: ReturnType<typeof import('../game/game.svelte.js').createGame>, provider?: import('./hint.js').HintProvider | null, beforeOpen?: () => void}} options */
+export function createHintSession({ game, provider = null, beforeOpen = () => {} }) {
   /** @type {'closed'|'unavailable'|'searching'|'ready'|'empty'|'error'|'stale'|'applied'} */
   let status = $state("closed");
   let stage = $state(0);
@@ -30,6 +30,7 @@ export function createHintSession({ game, provider = null }) {
   async function open() {
     close();
     if (game.notesMode === "manual") return;
+    beforeOpen();
     if (!provider) {
       status = "unavailable";
       return;
@@ -165,6 +166,9 @@ export function createHintSession({ game, provider = null }) {
     apply,
     undo,
     evidence,
+    previous() {
+      if (status === "ready" && stage > 0) stage--;
+    },
     next() {
       if (status === "ready" && stage < 2) stage++;
     },

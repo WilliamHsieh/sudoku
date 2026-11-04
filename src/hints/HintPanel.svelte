@@ -1,8 +1,11 @@
 <script>
   import { tick } from "svelte";
+  import { tokenizeCoordinates } from "./coordinate-text.js";
+  import { createHintStoryGesture } from "./story-navigation.js";
   /** @type {{session: ReturnType<typeof import('./session.svelte.js').createHintSession>, onclose: () => void, oncoordinate: (cell: number) => void, docked: boolean}} */
   let { session, onclose, oncoordinate, docked } = $props();
   let body = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
+  const storyGesture = createHintStoryGesture();
   const step = $derived(session.status === "ready" ? session.hint?.stages[session.stage] : null);
   const messages = {
     unavailable: ["提示功能準備中", "目前尚未開放提示，請先繼續解題。"],
@@ -25,12 +28,58 @@
         : `已刪除 ${session.hint?.eliminations.length ?? 0} 個候選數。請繼續觀察刪除後的盤面。`
   );
   const retry = $derived(["empty", "error", "stale"].includes(session.status));
+  /** @param {PointerEvent} event */
+  function storyPress(event) {
+    const interactive =
+      event.target instanceof Element &&
+      event.target.closest(
+        'button, a, input, textarea, select, summary, [role="button"], [role="link"], [contenteditable]:not([contenteditable="false"])'
+      );
+    return {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      time: event.timeStamp,
+      stage: session.stage,
+      allowed:
+        !!step &&
+        event.isPrimary &&
+        event.button === 0 &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.shiftKey &&
+        !interactive &&
+        window.getSelection()?.isCollapsed !== false,
+    };
+  }
+  /** @param {PointerEvent} event */
+  function finishStoryTap(event) {
+    if (!body) return;
+    const { left, top } = body.getBoundingClientRect();
+    // Leave the scrollbar gutter to native scrolling, not story navigation.
+    const { clientWidth: width, clientHeight: height } = body;
+    const direction = storyGesture.finish({ ...storyPress(event), left, top, width, height });
+    if (direction < 0) session.previous();
+    else if (direction > 0) session.next();
+  }
   $effect(() => {
     session.stage;
     session.status;
+    storyGesture.cancel();
     void tick().then(() => body?.scrollTo(0, 0));
   });
 </script>
+
+{#snippet coordinateText(text)}
+  {#each tokenizeCoordinates(text) as token, index (index)}{#if token.type === "coordinate"}<button
+        type="button"
+        class="hint-reference"
+        data-cell={token.cell}
+        aria-label={`在棋盤上查看 ${token.text}（第 ${Math.floor(token.cell / 9) + 1} 橫列、第 ${(token.cell % 9) + 1} 直行）`}
+        onclick={() => oncoordinate(token.cell)}>{token.text}</button
+      >{:else}{token.text}{/if}{/each}
+{/snippet}
 
 <aside
   id="hint-panel"
@@ -41,7 +90,31 @@
 >
   <div class="hint-head">
     <span>提示{step ? ` · ${["觀察", "推理", "結論"][session.stage]}` : ""}</span>
-    <span class="hint-position">{step ? `${session.stage + 1}/3` : ""}</span>
+    {#if step}
+      <div class="hint-navigation" role="group" aria-label="切換提示步驟">
+        <button
+          type="button"
+          class="hint-stage-arrow"
+          data-action="previous-stage"
+          aria-label="上一個提示"
+          title="上一個提示"
+          disabled={session.stage === 0}
+          onclick={() => session.previous()}>‹</button
+        >
+        <span class="hint-position" aria-live="polite" aria-atomic="true"
+          >{session.stage + 1}/3</span
+        >
+        <button
+          type="button"
+          class="hint-stage-arrow"
+          data-action="next-stage"
+          aria-label="下一個提示"
+          title="下一個提示"
+          disabled={session.stage === 2}
+          onclick={() => session.next()}>›</button
+        >
+      </div>
+    {:else}<span class="hint-position"></span>{/if}
     <button class="hint-close" aria-label="收起提示" onclick={onclose}>×</button>
   </div>
   {#if step}
@@ -49,17 +122,30 @@
       {#each [0, 1, 2] as n (n)}<span class:done={n <= session.stage}></span>{/each}
     </div>
   {/if}
-  <!-- Focus allows keyboard users to scroll this region without editing the board. -->
+  <!-- The native header buttons provide keyboard access; this region keeps native scrolling/selection. -->
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-  <div class="hint-body" bind:this={body} tabindex="0" role="region" aria-label="提示說明">
+  <div
+    class="hint-body"
+    bind:this={body}
+    tabindex="0"
+    role="region"
+    aria-label="提示說明"
+    onpointerdown={(event) => storyGesture.start(storyPress(event))}
+    onpointermove={(event) => storyGesture.move(event.pointerId, event.clientX, event.clientY)}
+    onpointerup={finishStoryTap}
+    onpointercancel={() => storyGesture.cancel()}
+    onpointerleave={() => storyGesture.cancel()}
+    onscroll={() => storyGesture.cancel()}
+  >
     {#if step}
       {#if session.stage === 1}<div class="technique">{session.hint?.name}</div>{/if}
-      <h2>{step.title}</h2>
-      {#each step.description as text, index (index)}<p>{text}</p>{/each}
+      <h2>{@render coordinateText(step.title)}</h2>
+      {#each step.description as text, index (index)}<p>{@render coordinateText(text)}</p>{/each}
       {#if step.coordinates.length}
         <div class="hint-coordinates">
           {#each step.coordinates as cell (cell)}
             <button
+              type="button"
               class="hint-coordinate"
               data-cell={cell}
               aria-label={`查看第 ${Math.floor(cell / 9) + 1} 橫列、第 ${(cell % 9) + 1} 直行`}
@@ -69,10 +155,12 @@
           {/each}
         </div>
       {/if}
-      {#if session.stage === 2}<div class="hint-effect">{session.hint?.effect}</div>{/if}
+      {#if session.stage === 2}
+        <div class="hint-effect">{@render coordinateText(session.hint?.effect ?? "")}</div>
+      {/if}
     {:else}
       <h2 aria-live="polite">{message[0]}</h2>
-      <p>{session.status === "applied" ? complete : message[1]}</p>
+      <p>{@render coordinateText(session.status === "applied" ? complete : message[1])}</p>
     {/if}
   </div>
   <div class="hint-footer">
@@ -143,6 +231,28 @@
   .hint-position {
     text-align: center;
     font-variant-numeric: tabular-nums;
+  }
+  .hint-navigation {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .hint-stage-arrow {
+    width: 44px;
+    height: 44px;
+    border: 0;
+    border-radius: 6px;
+    padding: 0;
+    background: transparent;
+    color: var(--ui-ink);
+    font-size: 24px;
+  }
+  .hint-stage-arrow:hover:not(:disabled) {
+    background: var(--sel-bg);
+  }
+  .hint-stage-arrow:disabled {
+    opacity: 0.35;
+    cursor: default;
   }
   button {
     font: inherit;
@@ -234,6 +344,25 @@
     background: var(--sel-bg);
     color: var(--blue);
     font-size: 12px;
+  }
+  .hint-reference {
+    display: inline-block;
+    min-height: 24px;
+    padding: 0;
+    border: 0;
+    border-radius: 3px;
+    background: transparent;
+    color: inherit;
+    line-height: inherit;
+    vertical-align: baseline;
+    white-space: nowrap;
+    text-decoration: underline;
+    text-decoration-color: var(--blue);
+    text-underline-offset: 0.16em;
+  }
+  .hint-reference:hover,
+  .hint-reference:active {
+    background: var(--sel-bg);
   }
   .hint-effect {
     padding: 10px 12px;

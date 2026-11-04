@@ -78,6 +78,12 @@
   let pointerGuard = 0;
   const highlight = $derived(focusedDigit());
 
+  /** Cancel uncommitted input and remove flying digits before reading a hint. */
+  export function cancelFeedback() {
+    if (gesture) endGesture(true);
+    for (const flight of flights.slice()) flight.settle();
+  }
+
   const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   /** @param {number} d @param {number} delta */

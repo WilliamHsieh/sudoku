@@ -56,15 +56,42 @@
   import OptionsSheet from "./OptionsSheet.svelte";
   import HintPanel from "./hints/HintPanel.svelte";
   import { createHintSession } from "./hints/session.svelte.js";
+  import { createHintFocus } from "./hints/focus.svelte.js";
   import { hintFrameFor } from "./hints/layout.js";
-  import { flushSync, onMount, tick, untrack } from "svelte";
+  import { flushSync, onDestroy, onMount, tick, untrack } from "svelte";
   import { longDate } from "./journal/format.js";
 
   /** @type {{hintProvider?: import('./hints/hint.js').HintProvider | null}} */
   let { hintProvider = null } = $props();
   // Bind once at mount. Production injects the proof-checked Worker; isolated
   // previews can still supply fixtures without including them in the bundle.
-  const hints = createHintSession({ game, provider: untrack(() => hintProvider) });
+  /** @type {{cancelFeedback: () => void} | undefined} */
+  let keypad = $state();
+  const hintFocus = createHintFocus();
+  const hints = createHintSession({
+    game,
+    provider: untrack(() => hintProvider),
+    beforeOpen() {
+      keypad?.cancelFeedback();
+      ring.clearFeedback();
+      resetKeypad();
+      releaseShiftHover();
+      clearAutofill();
+      padUi.blocked = [];
+      padUi.undoTargets = [];
+      hintFocus.clear();
+    },
+  });
+  // Ordinary playing feedback is kept separate from the proof being read.
+  const isolateHint = $derived(
+    hints.status === "searching" || hints.status === "ready" || hints.status === "applied"
+  );
+  onDestroy(() => hintFocus.clear());
+  $effect(() => {
+    void hints.status;
+    void hints.stage;
+    hintFocus.clear();
+  });
   /** @type {{mode: 'docked'|'side', left: number, top: number, width: number, maxHeight: number} | null} */
   let hintFrame = $state(null);
 
@@ -93,10 +120,6 @@
       void closeHint();
       return;
     }
-    discardPaint();
-    unlockKeepShown();
-    clearToast();
-    clearAutofill();
     void hints.open();
     measureHint();
   }
@@ -972,15 +995,23 @@
           <div
             use:paintBoard
             class="board"
-            class:quiet={padUi.quiet}
-            class:shift-aim={isShiftAim()}
+            class:quiet={!isolateHint && padUi.quiet}
+            class:shift-aim={!isolateHint && isShiftAim()}
+            data-hint-isolated={isolateHint ? "true" : undefined}
             aria-hidden={playUi.paused ? "true" : undefined}
             inert={playUi.paused || game.solved}
             data-cue-phase={playUi.phase}
             data-notes-mode={game.notesMode}
           >
             {#each CELL_IDS as id (id)}
-              <Cell cell_id={id} desktop={!isNarrow} hint={hints.evidence(id)} />
+              <Cell
+                cell_id={id}
+                desktop={!isNarrow}
+                hint={hints.evidence(id)}
+                suppressHighlights={isolateHint}
+                hintFocus={hints.isOpen && hintFocus.cell === id ? hintFocus.sequence : 0}
+                reducedMotion={playUi.reduced}
+              />
             {/each}
           </div>
           {#if solvedScreen && !playUi.reduced}
@@ -1058,7 +1089,7 @@
             <div class="chrome-dim" class:dim={playUi.paused} inert={playUi.paused}>
               <Tools desktop={!isNarrow} />
               <div class="keypad-slot">
-                <div class="keypad-scale"><Keypad desktop={!isNarrow} /></div>
+                <div class="keypad-scale"><Keypad bind:this={keypad} desktop={!isNarrow} /></div>
               </div>
             </div>
             {#if !isNarrow && game.notesMode === "auto"}
@@ -1224,7 +1255,7 @@
     <HintPanel
       session={hints}
       onclose={() => void closeHint()}
-      oncoordinate={(cell) => game.select(cell)}
+      oncoordinate={(cell) => hintFocus.flash(cell)}
       docked={hintFrame.mode === "docked"}
     />
   </div>

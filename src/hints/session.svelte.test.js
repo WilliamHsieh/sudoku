@@ -338,3 +338,50 @@ it("does not offer an inert undo button when a final hint completes the puzzle",
   expect(session.didApply).toBe(true);
   expect(session.undoAvailable).toBe(false);
 });
+
+describe("hint reading navigation and presentation preparation", () => {
+  it("moves back within one hint without changing state or going beyond boundaries", async () => {
+    const { game, session } = setup();
+    const before = game.state;
+    session.previous();
+    expect(session.stage).toBe(0);
+    await session.open();
+    session.previous();
+    expect(session.stage).toBe(0);
+    session.next();
+    session.next();
+    session.next();
+    expect(session.stage).toBe(2);
+    session.previous();
+    expect(session.stage).toBe(1);
+    expect(session.evidence(24)).toBe(null);
+    session.previous();
+    expect(session.stage).toBe(0);
+    expect(session.evidence(5)?.premise).toBe(false);
+    expect(game.state).toBe(before);
+    session.close();
+    session.next();
+    expect(session.stage).toBe(0);
+  });
+  it("prepares both initial search and retry before taking the provider snapshot", async () => {
+    const { game, fixture } = setup();
+    const order = [];
+    const session = createHintSession({
+      game,
+      beforeOpen: () => order.push("prepare"),
+      provider: async (...args) => {
+        order.push("search");
+        return fixture.provider(args[0]);
+      },
+    });
+    const before = game.state;
+    await session.open();
+    await session.open();
+    expect(order).toEqual(["prepare", "search", "prepare", "search"]);
+    expect(game.state).toBe(before);
+    game.setNotesMode("manual");
+    await session.open();
+    expect(order).toHaveLength(4);
+    expect(session.status).toBe("closed");
+  });
+});

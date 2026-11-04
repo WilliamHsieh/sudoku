@@ -31,7 +31,7 @@ for (const example of phaseThreeCases) {
       await expect(panel.locator(".hint-position")).toHaveText("1/3");
       await expect(panel.locator("h2")).toHaveText(step.teaching.observeTitle);
       const paragraphs = panel.locator(".hint-body > p");
-      await expect(paragraphs).toHaveCount(step.teaching.observe.length + 1);
+      await expect(paragraphs).toHaveCount(step.teaching.observe.length);
       for (const [index, observation] of step.teaching.observe.entries())
         await expect(paragraphs.nth(index)).toHaveText(observation);
       await info.attach("observation", { body: await page.screenshot(), contentType: "image/png" });
