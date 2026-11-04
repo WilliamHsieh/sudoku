@@ -27,10 +27,13 @@ export function createHintSession({ game, provider = null, beforeOpen = () => {}
     undoAvailable = false;
     didApply = false;
   }
+  const isManual = () => game.notesMode === "manual";
   async function open() {
     close();
     if (game.notesMode === "manual") return;
     beforeOpen();
+    // Settling an already requested history action may change the notes mode.
+    if (isManual()) return;
     if (!provider) {
       status = "unavailable";
       return;

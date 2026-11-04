@@ -11,7 +11,10 @@ async function notes(page) {
     );
 }
 async function tapSide(page, t, side) {
-  const rect = await page.locator("#hint-panel .hint-body").boundingBox();
+  const rect = await page.locator("#hint-panel .hint-body").evaluate((el) => {
+    const rect = el.getBoundingClientRect();
+    return { x: rect.left, y: rect.top, width: el.clientWidth, height: el.clientHeight };
+  });
   const x = side === "left" ? rect.x + 4 : rect.x + rect.width - 4;
   await t.start(x, rect.y + 24);
   await t.end(x, rect.y + 24);

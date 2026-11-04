@@ -13,7 +13,10 @@ async function boardData(page) {
   );
 }
 async function storyTap(page, side) {
-  const rect = await page.locator("#hint-panel .hint-body").boundingBox();
+  const rect = await page.locator("#hint-panel .hint-body").evaluate((el) => {
+    const rect = el.getBoundingClientRect();
+    return { x: rect.left, y: rect.top, width: el.clientWidth, height: el.clientHeight };
+  });
   await page.mouse.click(
     side === "left" ? rect.x + 4 : rect.x + rect.width - 4,
     rect.y + Math.min(30, rect.height / 2)

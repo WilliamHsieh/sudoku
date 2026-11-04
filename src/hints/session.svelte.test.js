@@ -363,6 +363,18 @@ describe("hint reading navigation and presentation preparation", () => {
     session.next();
     expect(session.stage).toBe(0);
   });
+  it("does not search if settling input changes the mode to Manual", async () => {
+    const { game } = setup();
+    const provider = vi.fn();
+    const session = createHintSession({
+      game,
+      provider,
+      beforeOpen: () => game.setNotesMode("manual"),
+    });
+    await session.open();
+    expect(session.status).toBe("closed");
+    expect(provider).not.toHaveBeenCalled();
+  });
   it("prepares both initial search and retry before taking the provider snapshot", async () => {
     const { game, fixture } = setup();
     const order = [];
