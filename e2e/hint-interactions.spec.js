@@ -12,15 +12,27 @@ async function boardData(page) {
     }))
   );
 }
-async function storyTap(page, side) {
-  const rect = await page.locator("#hint-panel .hint-body").evaluate((el) => {
+async function storyTap(page, position) {
+  const point = await page.locator("#hint-panel .hint-body").evaluate((el, position) => {
     const rect = el.getBoundingClientRect();
-    return { x: rect.left, y: rect.top, width: el.clientWidth, height: el.clientHeight };
-  });
-  await page.mouse.click(
-    side === "left" ? rect.x + 4 : rect.x + rect.width - 4,
-    rect.y + Math.min(30, rect.height / 2)
-  );
+    const x =
+      rect.left +
+      (position === "left"
+        ? 4
+        : position === "right"
+          ? el.clientWidth - 4
+          : el.clientWidth * position);
+    // Exercise ordinary reading-area taps, not a coordinate button that would
+    // independently suppress navigation and hide a center-tap regression.
+    for (const offset of [4, 12, 24, el.clientHeight / 2, el.clientHeight - 4]) {
+      const y = rect.top + offset;
+      const hit = document.elementFromPoint(x, y);
+      if (hit?.closest(".hint-body") === el && !hit.closest("button, a")) return { x, y };
+    }
+    return null;
+  }, position);
+  expect(point, `a non-interactive reading-area point at ${position}`).not.toBeNull();
+  await page.mouse.click(point.x, point.y);
 }
 const unrelated =
   ".board > .cell:is(.selected, .same, .conflict, .blocking, .blocked, .undo-target, .paint-add, .paint-remove, .finger-add, .finger-remove, .af-filled, .af-skipped, .af-undone), .board .pencil-box:is(.selected, .matching-number, .aim, .cue, .cue-hold, .ghost, .paint-added, .preview-add, .preview-remove, .hidden-pending), .board .pen-box .conflict";
@@ -44,6 +56,10 @@ for (const width of [390, 1280]) {
     await expect(panel.locator(".hint-body")).not.toContainText(/Auto|Tidy|不會.*筆記|disclaimer/);
     await expect(panel.getByRole("button", { name: "上一個提示", exact: true })).toBeDisabled();
     for (let stage = 0; stage < 3; stage++) {
+      for (const position of [0.25, 0.5, 0.75]) {
+        await storyTap(page, position);
+        await expect(panel.locator(".hint-position")).toHaveText(`${stage + 1}/3`);
+      }
       const ref = panel.locator(".hint-body :is(.hint-reference, .hint-coordinate)").first();
       await expect(ref).toBeVisible();
       const cell = page.locator(`.board > .cell[data-i="${await ref.getAttribute("data-cell")}"]`);
@@ -72,10 +88,19 @@ for (const width of [390, 1280]) {
     expect(await boardData(page)).toEqual(before);
     await storyTap(page, "left");
     await expect(panel.locator(".hint-position")).toHaveText("2/3");
-    await panel.getByRole("button", { name: "上一個提示", exact: true }).click();
+    const previous = panel.getByRole("button", { name: "上一個提示", exact: true });
+    await previous.focus();
+    await page.keyboard.press("Enter");
     await expect(panel.locator(".hint-position")).toHaveText("1/3");
     await storyTap(page, "left");
     await expect(panel.locator(".hint-position")).toHaveText("1/3");
+    await panel.getByRole("button", { name: "下一個提示", exact: true }).focus();
+    await page.keyboard.press("Space");
+    await expect(panel.locator(".hint-position")).toHaveText("2/3");
+    await panel.locator(".hint-body").focus();
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("ArrowRight");
+    await expect(panel.locator(".hint-position")).toHaveText("2/3");
     await panel.getByRole("button", { name: "收起提示" }).click();
     await expect(
       page.locator(

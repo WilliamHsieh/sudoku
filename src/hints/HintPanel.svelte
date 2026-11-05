@@ -156,7 +156,13 @@
         </div>
       {/if}
       {#if session.stage === 2}
-        <div class="hint-effect">{@render coordinateText(session.hint?.effect ?? "")}</div>
+        <div
+          class="hint-effect"
+          class:hint-effect-placement={!!session.hint?.placements.length &&
+            !session.hint?.eliminations.length}
+        >
+          {@render coordinateText(session.hint?.effect ?? "")}
+        </div>
       {/if}
     {:else}
       <h2 aria-live="polite">{message[0]}</h2>
@@ -371,6 +377,10 @@
     border-radius: 8px;
     font-size: 14px;
     margin-top: 12px;
+  }
+  .hint-effect-placement {
+    background: var(--cue-fill);
+    color: var(--cue-ink);
   }
   .docked {
     height: 100%;

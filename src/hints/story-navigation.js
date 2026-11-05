@@ -44,7 +44,18 @@ export function createHintStoryGesture() {
         end.y >= end.top + end.height
       )
         return 0;
-      const direction = end.x < end.left + end.width / 2 ? -1 : 1;
+      // Keep the reading area inert except for a narrow strip at either edge.
+      // The proportional cap preserves that space even in very narrow panels.
+      const edgeWidth = Math.min(48, end.width * 0.2);
+      const directionAt = (x) => {
+        if (x < end.left || x >= end.left + end.width) return 0;
+        if (x < end.left + edgeWidth) return -1;
+        if (x >= end.left + end.width - edgeWidth) return 1;
+        return 0;
+      };
+      const direction = directionAt(end.x);
+      // A small drift from the center into an edge is not an intentional tap.
+      if (!direction || directionAt(start.x) !== direction) return 0;
       return end.stage + direction >= 0 && end.stage + direction <= 2 ? direction : 0;
     },
   };
