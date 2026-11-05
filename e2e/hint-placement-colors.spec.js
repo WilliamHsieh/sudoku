@@ -52,7 +52,7 @@ for (const colorScheme of ["dark", "light"]) {
       await expect(target).toHaveCount(1);
       await panel.locator('[data-action="apply"]').click();
       const placed = page.locator(`.board > .cell[data-i="${targetIndex}"]`);
-      await expect(placed.locator(".pen-box")).toHaveText(/^[1-9]$/);
+      await expect(placed).toHaveAttribute("data-value", /^[1-9]$/);
       await expect(page.locator(".board > .cell.hint-target")).toHaveCount(0);
       await panel.locator('[data-action="undo"]').click();
       await expect(placed).toHaveAttribute("data-value", "");
