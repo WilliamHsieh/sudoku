@@ -242,7 +242,7 @@
     color: var(--blue);
   }
   .cell.hint-target {
-    box-shadow: inset 0 0 0 2px var(--conflict);
+    box-shadow: inset 0 0 0 2px var(--cue-ink);
   }
 
   .cell.hint-focus::before {
