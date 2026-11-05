@@ -1,5 +1,7 @@
 import { detectPattern, PATTERN_TECHNIQUES } from "./engine-patterns.js";
 import { detectChain } from "./engine-chains.js";
+import { ADVANCED_TECHNIQUES, detectAdvanced } from "./engine-advanced.js";
+import { firstObservation } from "./engine-observations.js";
 import {
   legalMasks,
   validateMasks,
@@ -32,6 +34,7 @@ export const TECHNIQUES = [
   "jellyfish",
   "finned-x-wing",
   "finned-swordfish",
+  ...ADVANCED_TECHNIQUES,
 ];
 /** @param {number[]} values @param {number[]} masks @param {string} [techniqueId] @param {number[]} [effectMasks] @returns {import('./proof-verifier.js').Step|null} */
 export function findStep(values, masks, techniqueId, effectMasks = masks) {
@@ -41,7 +44,9 @@ export function findStep(values, masks, techniqueId, effectMasks = masks) {
     if (!TECHNIQUES.includes(id)) throw new Error("Unsupported technique");
     const step = PATTERN_TECHNIQUES.includes(id)
       ? detectPattern(values, masks, id, effectMasks)
-      : detectChain(values, masks, id, effectMasks);
+      : ADVANCED_TECHNIQUES.includes(id)
+        ? detectAdvanced(values, masks, id, effectMasks)
+        : detectChain(values, masks, id, effectMasks);
     if (step) return step;
   }
   return null;
@@ -87,6 +92,18 @@ const names = {
   jellyfish: "Jellyfish",
   "finned-x-wing": "Finned X-Wing",
   "finned-swordfish": "Finned Swordfish",
+  "rectangle-elimination": "Rectangle Elimination",
+  "x-cycles": "X-Cycles",
+  "xy-chain": "XY-Chain",
+  "3d-medusa": "3D Medusa",
+  "wxyz-wing": "WXYZ-Wing",
+  "aligned-pair-exclusion": "Aligned Pair Exclusion",
+  "grouped-x-cycles": "Grouped X-Cycles",
+  aic: "交替推理鏈（AIC）",
+  "als-xz": "ALS-XZ",
+  "als-xy-wing": "ALS-XY-Wing",
+  "death-blossom": "Death Blossom",
+  "sue-de-coq": "Sue de Coq",
 };
 /** @param {import('../game/game.js').GameState} state @returns {import('./hint.js').Hint|null} */
 export function findHint(state) {
@@ -104,21 +121,29 @@ export function findHint(state) {
     ...step.eliminations.map((p) => `${coordinate(p.cell)} 刪除 ${p.digit}`),
   ].join("；");
   const name = names[/** @type {keyof typeof names} */ (step.techniqueId)] || step.techniqueId;
+  const teaching = step.teaching;
+  const observation = teaching
+    ? { title: teaching.observeTitle, description: teaching.observe }
+    : firstObservation(step, values, masks);
   return {
     techniqueId: step.techniqueId,
     name,
     stages: [
       {
-        title: `觀察 ${premiseCells.map(coordinate).join("、")}`,
-        description: [
-          state.notesMode === "auto"
-            ? "以目前盤面與 Auto 候選數推理；已刪除的候選數會視為你的判斷。"
-            : "以目前盤面及已驗證的刪除推理；未寫下的筆記不視為排除。",
-        ],
+        title: observation.title,
+        description: observation.description,
         coordinates: premiseCells,
       },
-      { title: name, description: [step.reason], coordinates: premiseCells },
-      { title: "這一步可以確定的結果", description: [effect], coordinates: targets },
+      {
+        title: teaching?.reasonTitle ?? name,
+        description: teaching?.reasoning ?? [step.reason],
+        coordinates: premiseCells,
+      },
+      {
+        title: "這一步可以確定的結果",
+        description: teaching?.conclusion ?? [effect],
+        coordinates: targets,
+      },
     ],
     observeCells: premiseCells,
     premiseCells,

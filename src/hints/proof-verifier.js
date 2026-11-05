@@ -3,7 +3,8 @@
 // merely agree with one solution. A bounded/inconclusive check fails closed.
 import { ALL_DIGITS, bit, isCell, isDigit, maskDigits, popcount } from "../game/board.js";
 /** @typedef {{cell:number,digit:number}} Effect */
-/** @typedef {{techniqueId:string,premiseCells:number[],placements:Effect[],eliminations:Effect[],reason:string}} Step */
+/** @typedef {{observeTitle:string,observe:string[],reasonTitle:string,reasoning:string[],conclusion:string[]}} Teaching */
+/** @typedef {{techniqueId:string,premiseCells:number[],placements:Effect[],eliminations:Effect[],reason:string,teaching?:Teaching}} Step */
 /** @param {readonly number[]} values */
 export function legalMasks(values) {
   if (values.length !== 81 || values.some((v) => !Number.isInteger(v) || v < 0 || v > 9))

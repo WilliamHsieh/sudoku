@@ -92,22 +92,27 @@ export function createRingController() {
   }
 
   /**
-   * Apply any in-flight undo/redo immediately, drop cosmetic timers, and
-   * release DOM bindings. Safe to call twice.
+   * Finish an in-flight undo/redo once and clear cosmetic feedback.
+   * Keep DOM bindings so later toolbar actions still animate. Safe to repeat.
    */
-  function destroy() {
-    deferred.destroy();
+  function clearFeedback() {
+    // Complete the requested history action once, then remove only its visuals.
+    deferred.flush();
     clearTimers();
     if (ringEl) {
       for (const anim of ringEl.getAnimations()) anim.cancel();
       ringEl.style.opacity = "0";
     }
     wrapEl?.querySelector(".board")?.classList.remove("hl-in", "quiet");
-    wrapEl = null;
-    ringEl = null;
     padUi.quiet = false;
     padUi.undoTargets = [];
     ringEndsAt = -Infinity;
+  }
+
+  function destroy() {
+    clearFeedback();
+    wrapEl = null;
+    ringEl = null;
   }
 
   function box(i) {
@@ -208,6 +213,7 @@ export function createRingController() {
   return {
     bind,
     flush,
+    clearFeedback,
     destroy,
     undo: (options = {}) => travel("undo", options),
     redo: (options = {}) => travel("redo", options),

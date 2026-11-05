@@ -1,10 +1,10 @@
 <script>
   import { game } from "./game/game.svelte.js";
 
-  /** @type {{ cell_id: number }} */
-  let { cell_id } = $props();
+  /** @type {{ cell_id: number, suppressHighlights?: boolean }} */
+  let { cell_id, suppressHighlights = false } = $props();
   const value = $derived(game.value(cell_id));
-  const conflict = $derived(game.inConflict(cell_id));
+  const conflict = $derived(!suppressHighlights && game.inConflict(cell_id));
   const given = $derived(game.given(cell_id));
 </script>
 

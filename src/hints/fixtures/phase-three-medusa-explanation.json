@@ -1,0 +1,27 @@
+{
+  "purpose": "Genuine archived first-hint Medusa state for explanation and narrow-viewport regression.",
+  "provenance": {
+    "sourceRepository": "https://github.com/AImenes/sudokUI",
+    "sourceCommit": "5147ebe0040439bfa06595ab694d1ffdf3d8d2d1",
+    "archive": "sudoku-benchmark-raw-and-methods.zip",
+    "entry": "sudokUI/selection.json and sudokUI/corpus.json",
+    "archiveSha256": "bd3183a5240374650580742f1029590c72d34b20b7ef4b6681b0e3741ffea6b2",
+    "candidateConversion": "Upstream digit-1 bit positions shifted left by one. No detector source code copied.",
+    "validation": "Recheck original uniqueness, all placed values, candidate legality and solution retention using independent Algorithm X. Every new detector effect separately checked by searching for an opposite completion.",
+    "candidateHistory": "Original logical elimination sequence is not replayed. Numeric candidates are independently checked for semantic consistency with an exactly-one-solution original puzzle."
+  },
+  "fixture": {
+    "id": "trace:wiki:067:20",
+    "source": "13d4b886a03746fb",
+    "puzzle": "010000406400602000008000200060504001000060500080907000206070980000000370300400000",
+    "values": "012000406400602000608040200060504001020060500080907603206070980801206370300400162",
+    "masks": [
+      672, 0, 0, 392, 808, 808, 0, 40, 0, 0, 680, 672, 0, 554, 0, 384, 42, 896, 0, 680, 0, 138, 0,
+      554, 0, 42, 640, 640, 0, 648, 0, 268, 0, 384, 516, 0, 642, 0, 664, 266, 0, 266, 0, 528, 384,
+      34, 0, 48, 0, 6, 0, 0, 20, 0, 0, 48, 0, 10, 0, 10, 0, 0, 48, 0, 560, 0, 0, 544, 0, 0, 0, 48,
+      0, 672, 672, 0, 800, 800, 0, 0, 0
+    ],
+    "solution": "912738456435692718678145239763524891129863547584917623246371985891256374357489162",
+    "upstreamExpected": "Unique rectangles and loops"
+  }
+}

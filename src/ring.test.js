@@ -46,3 +46,49 @@ describe("createDeferredAction", () => {
     expect(order).toEqual(["a", "b"]);
   });
 });
+
+describe("ring feedback cleanup for hints", () => {
+  it("finishes a pending undo exactly once, cancels cosmetics, and keeps later redo bound", async () => {
+    vi.useFakeTimers();
+    const { createRingController } = await import("./ring.js");
+    const { game } = await import("./game/game.svelte.js");
+    const { padUi } = await import("./pad-ui.svelte.js");
+    const { setAnswer } = await import("./game/game.js");
+    vi.stubGlobal("window", { matchMedia: () => ({ matches: false }) });
+    game.load("0".repeat(81));
+    game.commitStroke(setAnswer(game.state, 0, 1).state);
+    const cancel = vi.fn();
+    const animate = vi.fn();
+    const remove = vi.fn();
+    const rect = () => ({ left: 0, top: 0, width: 40, height: 40 });
+    const feedback = createRingController();
+    feedback.bind(
+      {
+        querySelector: (selector) =>
+          selector === ".board" ? { classList: { remove } } : { getBoundingClientRect: rect },
+        getBoundingClientRect: rect,
+      },
+      { getAnimations: () => [{ cancel }], animate, style: {} }
+    );
+    feedback.undo();
+    expect(game.value(0)).toBe(1);
+    expect(animate).toHaveBeenCalledTimes(1);
+    feedback.clearFeedback();
+    expect(game.value(0)).toBe(0);
+    expect(cancel).toHaveBeenCalled();
+    expect(padUi.undoTargets).toEqual([]);
+    expect(padUi.quiet).toBe(false);
+    feedback.clearFeedback();
+    vi.runAllTimers();
+    expect(game.value(0)).toBe(0);
+    expect(game.canRedo).toBe(true);
+    feedback.redo();
+    expect(animate).toHaveBeenCalledTimes(2);
+    feedback.clearFeedback();
+    expect(game.value(0)).toBe(1);
+    feedback.destroy();
+    vi.runAllTimers();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+});
