@@ -1,6 +1,6 @@
 /* global createReleaseStore */
-// Bundled with releases.js as a classic worker for Safari. This router's
-// lifecycle never selects an app release; only ACTIVATE changes that pointer.
+// Worker lifecycle never selects an app release. A fully prepared new document
+// (initial install or explicit fresh recovery) and ACTIVATE may select it.
 const scope = /** @type {ServiceWorkerGlobalScope} */ (globalThis);
 const releases = createReleaseStore({ root: scope.registration.scope, caches, fetch });
 let queue = Promise.resolve();
@@ -23,7 +23,11 @@ scope.addEventListener("message", (event) => {
       if (!(await releases.complete(release)))
         throw new Error("Saved puzzles are incomplete. Reconnect and retry.");
       await releases.pin(source.id, release.version);
-      if (!(await releases.active())) await releases.activate(release.version);
+      const active = await releases.active();
+      // This document has already navigated to the newer shell and completed
+      // bootstrap. Persist that choice so recovery cannot return to a broken
+      // older release on the next offline launch. Existing tabs stay pinned.
+      if (!active || release.builtAt > active.builtAt) await releases.activate(release.version);
       return (await releases.asset(release.version, release.bank.path)).json();
     }
     if (type === "STAGE") {

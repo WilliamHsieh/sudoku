@@ -71,7 +71,11 @@ requests bypass the worker cache. Failed staging deletes only its own incomplete
 cache. Ready releases are retained so old and browser-restored tabs can still
 load their assets. Retry repairs missing or corrupt cached entries using the
 saved manifest hashes. It verifies all downloads in a temporary repair cache
-before replacing damaged entries, and preserves valid active content. Offline caches are scoped to this app; game storage is never
+before replacing damaged entries, and preserves valid active content. If a newer
+deployment no longer serves the damaged release, the explicit Reload Sudoku link
+loads and verifies the current release; successful fresh bootstrap makes that
+release available to later offline launches without disturbing existing tabs.
+Offline caches are scoped to this app; game storage is never
 cleared by release installation.
 
 Custom games keep answers, notes, and elapsed time in `sudoku-custom-progress`.

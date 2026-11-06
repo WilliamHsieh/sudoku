@@ -300,3 +300,32 @@ test("verification requests bypass cached release content", async ({ page, deplo
   expect(results.version.version).toBe("old");
   expect(results.version.poisoned).toBeUndefined();
 });
+
+test("explicit fresh recovery becomes the durable offline release", async ({
+  page,
+  context,
+  deployment,
+}) => {
+  await page.goto(deployment.url);
+  await expect(start(page)).toBeVisible();
+  await page.evaluate(async () => {
+    const name = (await caches.keys()).find((key) => key.endsWith("release:old"));
+    const cache = await caches.open(name);
+    for (const request of await cache.keys()) {
+      if (request.url.includes("/banks/")) await cache.delete(request);
+    }
+  });
+  // GitHub Pages need not retain the previous bank after a new deployment.
+  deployment.publish("next");
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Could not prepare puzzles" })).toBeVisible();
+  await page.getByRole("link", { name: "Reload Sudoku" }).click();
+  await expect(start(page)).toBeVisible();
+  await expect(page.locator('meta[name="sudoku-build"]')).toHaveAttribute("content", "next");
+  await context.setOffline(true);
+  await page.reload();
+  await expect(start(page)).toBeVisible();
+  await expect(page.locator('meta[name="sudoku-build"]')).toHaveAttribute("content", "next");
+  await start(page).click();
+  await expect(page.locator(".board > .cell")).toHaveCount(81);
+});
