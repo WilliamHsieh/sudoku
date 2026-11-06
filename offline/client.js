@@ -1,5 +1,5 @@
 let currentBuild;
-export function command(type, extra = {}) {
+export function command(type, extra = {}, onPreparing = () => {}) {
   return new Promise((resolve, reject) => {
     const worker = navigator.serviceWorker.controller;
     if (!worker) return reject(new Error("Offline support is not ready"));
@@ -9,6 +9,10 @@ export function command(type, extra = {}) {
       reject(new Error("Preparing puzzles timed out. Please retry."));
     }, 125_000);
     channel.port1.onmessage = ({ data }) => {
+      if (data.state === "preparing") {
+        onPreparing();
+        return;
+      }
       clearTimeout(timer);
       channel.port1.close();
       if (data.error) reject(new Error(data.error));
@@ -17,7 +21,7 @@ export function command(type, extra = {}) {
     worker.postMessage({ type, ...extra }, [channel.port2]);
   });
 }
-export async function prepareOffline(current, base) {
+export async function prepareOffline(current, base, onPreparing) {
   currentBuild = current;
   if (!navigator.serviceWorker || !globalThis.isSecureContext)
     throw new Error("Offline puzzles need a browser with service worker support.");
@@ -35,6 +39,12 @@ export async function prepareOffline(current, base) {
         changed();
       });
   };
+  // An existing controller can verify the local release immediately. Browser
+  // registration/update checks must not put the network on the warm boot path.
+  if (navigator.serviceWorker.controller) {
+    void register().catch(() => {});
+    return command("PREPARE", { current, notifyPreparing: true }, onPreparing);
+  }
   let timer;
   try {
     await Promise.race([
@@ -49,7 +59,7 @@ export async function prepareOffline(current, base) {
   } finally {
     clearTimeout(timer);
   }
-  return command("PREPARE", { current });
+  return command("PREPARE", { current, notifyPreparing: true }, onPreparing);
 }
 export function stageUpdate(current) {
   return command("STAGE", { current });

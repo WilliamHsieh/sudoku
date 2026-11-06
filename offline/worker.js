@@ -14,12 +14,17 @@ scope.addEventListener("message", (event) => {
     const { type, current, version } = event.data;
     if (type === "PREPARE") {
       let release = await releases.ready(current.version);
+      // Older documents treat their first message as the final reply.
+      const preparing = () => {
+        if (event.data.notifyPreparing) port.postMessage({ state: "preparing" });
+      };
       if (!release) {
+        preparing();
         release = await releases.manifest();
         if (release.version !== current.version || release.builtAt !== current.builtAt)
           throw new Error("The app changed. Reload Sudoku, then retry.");
       }
-      await releases.stage(release);
+      await releases.stage(release, preparing);
       if (!(await releases.complete(release)))
         throw new Error("Saved puzzles are incomplete. Reconnect and retry.");
       await releases.pin(source.id, release.version);
@@ -38,9 +43,32 @@ scope.addEventListener("message", (event) => {
     if (type === "ACTIVATE") return releases.activate(version);
     throw new Error("Unknown offline request");
   };
+  const prepare = async () => {
+    const { current } = event.data;
+    const release = await releases.ready(current.version);
+    const active = await releases.active();
+    // Ready bytes are immutable except for verified repair. Read/verify a local
+    // release without waiting behind another tab's network staging transaction.
+    // New-document activation and repairs still go through the serialized path.
+    if (
+      release &&
+      release.builtAt === current.builtAt &&
+      active &&
+      release.builtAt <= active.builtAt &&
+      (await releases.complete(release))
+    ) {
+      await releases.pin(source.id, release.version);
+      return (await releases.asset(release.version, release.bank.path)).json();
+    }
+    return enqueue();
+  };
   // One staging/activation transaction per origin, including multiple tabs.
-  const pending = queue.then(task);
-  queue = pending.catch(() => {});
+  const enqueue = () => {
+    const pending = queue.then(task);
+    queue = pending.catch(() => {});
+    return pending;
+  };
+  const pending = event.data.type === "PREPARE" ? prepare() : enqueue();
   event.waitUntil(
     pending.then(
       (value) => port.postMessage({ value }),

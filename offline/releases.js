@@ -100,15 +100,17 @@ export function createReleaseStore({ root, caches, fetch, budgetMs = 60_000 }) {
       validateManifest(await (await network("version.json", signal)).json())
     );
   }
-  async function stage(input) {
+  async function stage(input, onPreparing = () => {}) {
     const next = validateManifest(input);
     const existing = await ready(next.version);
     if (existing) {
       if (JSON.stringify(existing) !== JSON.stringify(next))
         throw new Error("Release identity changed");
       if (await complete(existing)) return existing;
+      onPreparing();
       return repair(existing);
     }
+    onPreparing();
     const name = releaseName(next.version);
     const cache = await caches.open(name);
     try {

@@ -47,8 +47,13 @@ Puzzles come from `scraper.py`, which a GitHub Action runs daily at 04:00 UTC (`
 ## Offline releases
 
 Production startup prepares the complete current NYT bank and the offline shell
-before play. A failed download shows Retry. Later launches use the verified local
-release, including offline navigation under `/sudoku/`.
+before play. A failed download shows Retry. Later launches verify every local shell
+and bank entry before mounting the app, without showing a download screen or
+waiting for registration network checks or another tab's background update.
+Preparing appears only when the worker identifies a missing release or damaged
+local data that needs download/repair. The same verified local path supports
+normal browser and installed-app launches, including offline navigation under
+`/sudoku/`. No timer hides preparation and no ready flag replaces byte verification.
 
 The scraper still updates `src/puzzles.js`. The build extracts that data into
 `banks/<sha256>.json`; the app JavaScript does not contain the bank. `version.json`
