@@ -8,35 +8,64 @@
   /**
    * @typedef {Object} Props
    * @property {number} cell_id
+   * @property {boolean} [suppressHighlights]
    * @property {number} idx
+   * @property {number} [hintMask]
+   * @property {boolean} [hintPremise]
+   * @property {boolean} [hintExcluded]
+   * @property {boolean} [hintElimination]
    */
   /** @type {Props} */
-  let { cell_id, idx } = $props();
+  let {
+    cell_id,
+    idx,
+    suppressHighlights = false,
+    hintMask,
+    hintPremise = false,
+    hintExcluded = false,
+    hintElimination = false,
+  } = $props();
 
-  const visible = $derived(game.hasNote(cell_id, idx + 1));
-  const isSelected = $derived(game.selected === cell_id);
+  const visible = $derived(
+    game.hasNote(cell_id, idx + 1) && (hintMask === undefined || !!(hintMask & (1 << (idx + 1))))
+  );
+  const isSelected = $derived(!suppressHighlights && game.selected === cell_id);
   const isShiftSlot = $derived.by(() => {
     const target = getShiftHover();
-    return !!target && target.cell === cell_id && target.slot === idx;
+    return !suppressHighlights && !!target && target.cell === cell_id && target.slot === idx;
   });
   const highlight = $derived(focusedDigit());
-  const added = $derived(padUi.marks?.d === idx + 1 && padUi.marks.add.has(cell_id));
-  const ghost = $derived(!visible && padUi.marks?.d === idx + 1 && padUi.marks.rem.has(cell_id));
-  const fading = $derived(padUi.marks?.phase === "fade");
-  const isMatchingNumber = $derived(highlight !== 0 && idx + 1 === highlight && visible && !ghost);
+  const added = $derived(
+    !suppressHighlights && padUi.marks?.d === idx + 1 && padUi.marks.add.has(cell_id)
+  );
+  const ghost = $derived(
+    !suppressHighlights && !visible && padUi.marks?.d === idx + 1 && padUi.marks.rem.has(cell_id)
+  );
+  const fading = $derived(!suppressHighlights && padUi.marks?.phase === "fade");
+  const isMatchingNumber = $derived(
+    !suppressHighlights && highlight !== 0 && idx + 1 === highlight && visible && !ghost
+  );
   const isOnlyCandidate = $derived(
     game.value(cell_id) === 0 && visible && game.noteCount(cell_id) === 1
   );
   const previewAdd = $derived(
-    padUi.preview?.cell === cell_id && padUi.preview?.d === idx + 1 && padUi.preview?.kind === "add"
+    !suppressHighlights &&
+      padUi.preview?.cell === cell_id &&
+      padUi.preview?.d === idx + 1 &&
+      padUi.preview?.kind === "add"
   );
   const previewRemove = $derived(
-    padUi.preview?.cell === cell_id &&
+    !suppressHighlights &&
+      padUi.preview?.cell === cell_id &&
       padUi.preview?.d === idx + 1 &&
       padUi.preview?.kind === "remove"
   );
-  const hiddenPending = $derived(padUi.pending?.cell === cell_id && padUi.pending?.d === idx + 1);
-  const cued = $derived(!added && !ghost && isOnlyCandidate && playUi.showsCue(cell_id));
+  const hiddenPending = $derived(
+    !suppressHighlights && padUi.pending?.cell === cell_id && padUi.pending?.d === idx + 1
+  );
+  const cued = $derived(
+    !suppressHighlights && !added && !ghost && isOnlyCandidate && playUi.showsCue(cell_id)
+  );
   const cueHold = $derived(cued && playUi.phase === "hold");
 
   function handleClick(e) {
@@ -62,7 +91,11 @@
 <div class="note-slot">
   <div
     class="pencil-box"
+    class:hint-muted={suppressHighlights}
     class:invisible={!visible && !previewAdd && !ghost}
+    class:hint-premise={hintPremise}
+    class:hint-excluded={hintExcluded}
+    class:hint-elimination={hintElimination}
     class:paint-added={added}
     class:paint-blue={added && !fading}
     class:paint-fading={fading && (added || ghost)}
@@ -113,12 +146,12 @@
     color: var(--cand-on-selected);
   }
 
-  .pencil-box:hover {
+  .pencil-box:where(:not(.hint-muted)):hover {
     background: color-mix(in srgb, var(--sel-ring) 12%, transparent);
     color: var(--sel-ring);
   }
 
-  .pencil-box.selected:hover {
+  .pencil-box.selected:where(:not(.hint-muted)):hover {
     background: color-mix(in srgb, var(--sel-ring) 16%, transparent);
     color: var(--sel-ink);
   }
@@ -339,6 +372,16 @@
 
   .pencil-box.hidden-pending {
     opacity: 0 !important;
+  }
+  .pencil-box.hint-premise {
+    background: var(--chip-bg);
+    color: var(--chip-ink);
+  }
+  .pencil-box.hint-excluded,
+  .pencil-box.hint-elimination {
+    color: var(--conflict);
+    text-decoration: line-through;
+    text-decoration-thickness: 2px;
   }
 
   @media (max-width: 599px) {

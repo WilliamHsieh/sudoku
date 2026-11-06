@@ -1,5 +1,6 @@
+import { mergeEntry } from "../persistence.js";
 import { writable } from "svelte/store";
-import { toSnapshot } from "../game/snapshot.js";
+import { fromSnapshot, toSnapshot } from "../game/snapshot.js";
 
 /**
  * Journal progress, stored at `sudoku-progress`.
@@ -15,42 +16,69 @@ const SOLVED_KEY = "sudoku-solved";
 const PROGRESS_KEY = "sudoku-progress";
 const REPLAY_KEY = "sudoku-replay-progress";
 
+// Startup may use an empty view, but mutations must distinguish unreadable
+// storage from an absent key. Never merge stale memory after a failed read.
 function readJson(key, fallback) {
   if (typeof window === "undefined") return fallback;
   try {
     const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
+    const value = raw === null ? {} : JSON.parse(raw);
+    const record = (item) => item && typeof item === "object" && !Array.isArray(item);
+    if (!record(value)) return null;
+    for (const group of Object.values(value)) {
+      if (!record(group)) return null;
+      for (const entry of Object.values(group)) {
+        if (!record(entry)) return null;
+        if ("snapshot" in entry) fromSnapshot(entry.snapshot);
+      }
+    }
+    return value;
   } catch {
-    return fallback;
+    return null;
   }
 }
 
 function writeJson(key, value) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(key, JSON.stringify(value));
+  if (typeof window === "undefined") return true;
+  try {
+    const text = JSON.stringify(value);
+    localStorage.setItem(key, text);
+    return localStorage.getItem(key) === text;
+  } catch {
+    // Ordinary play stays in memory. Strict Update checks the returned result.
+    return false;
+  }
 }
 
 function createSolvedPuzzles() {
-  const initial = readJson(SOLVED_KEY, {});
+  const initial = readJson(SOLVED_KEY, {}) ?? {};
   const { subscribe, set, update } = writable(initial);
 
   return {
     subscribe,
     set,
     update,
-    markSolved: (dateStr, difficulty, completionTime) => {
+    markSolved: (dateStr, difficulty, completionTime, progressStore = puzzleProgress) => {
+      if (!progressStore.isCurrent(dateStr, difficulty)) return false;
+      let saved = false;
       update((solved) => {
-        const next = { ...solved, [dateStr]: { ...(solved[dateStr] || {}) } };
+        const current = readJson(SOLVED_KEY, solved);
+        if (!current) return solved;
+        const next = { ...current, [dateStr]: { ...(current[dateStr] || {}) } };
         next[dateStr][difficulty] = {
           completed: true,
           time: completionTime,
           timestamp: Date.now(),
         };
-        writeJson(SOLVED_KEY, next);
+        if (!writeJson(SOLVED_KEY, next)) return solved;
+        saved = true;
         return next;
       });
-      puzzleProgress.clear(dateStr, difficulty);
-      replayProgress.clear(dateStr, difficulty);
+      if (saved) {
+        puzzleProgress.clear(dateStr, difficulty);
+        replayProgress.clear(dateStr, difficulty);
+      }
+      return saved;
     },
     isSolved: (dateStr, difficulty) => {
       let cur = {};
@@ -61,7 +89,7 @@ function createSolvedPuzzles() {
 }
 
 function createPuzzleProgress(key = PROGRESS_KEY) {
-  const initial = readJson(key, {});
+  const initial = readJson(key, {}) ?? {};
   const { subscribe, set, update } = writable(initial);
 
   return {
@@ -74,31 +102,53 @@ function createPuzzleProgress(key = PROGRESS_KEY) {
      * @param {Omit<ProgressEntry, 'updatedAt'>} entry
      */
     save: (dateStr, difficulty, entry) => {
+      let saved = false;
       update((prog) => {
-        const next = { ...prog, [dateStr]: { ...(prog[dateStr] || {}) } };
-        next[dateStr][difficulty] = { ...entry, updatedAt: Date.now() };
-        writeJson(key, next);
+        const current = readJson(key, prog);
+        if (!current) return prog;
+        const next = mergeEntry(current, prog, dateStr, difficulty, {
+          ...entry,
+          updatedAt: Date.now(),
+        });
+        if (!next) return prog;
+        if (!writeJson(key, next)) return prog;
+        saved = true;
         return next;
       });
+      return saved;
+    },
+    isCurrent: (dateStr, difficulty) => {
+      let prog = {};
+      subscribe((value) => {
+        prog = value;
+      })();
+      const current = readJson(key, prog);
+      return (
+        !!current &&
+        JSON.stringify(current[dateStr]?.[difficulty]) ===
+          JSON.stringify(prog[dateStr]?.[difficulty])
+      );
     },
     clear: (dateStr, difficulty) => {
+      let saved = false;
       update((prog) => {
-        if (!prog[dateStr]?.[difficulty]) return prog;
-        const day = { ...prog[dateStr] };
-        delete day[difficulty];
-        const next = { ...prog };
-        if (Object.keys(day).length) next[dateStr] = day;
-        else delete next[dateStr];
-        writeJson(key, next);
+        const current = readJson(key, prog);
+        if (!current) return prog;
+        const next = mergeEntry(current, prog, dateStr, difficulty, null);
+        if (!next) return prog;
+        if (JSON.stringify(next) !== JSON.stringify(current) && !writeJson(key, next)) return prog;
+        saved = true;
         return next;
       });
+      return saved;
     },
   };
 }
 
 export const solvedPuzzles = createSolvedPuzzles();
 export const puzzleProgress = createPuzzleProgress();
-// Never participates in Journal stats or ordinary Resume. A new Replay starts fresh.
+export const customProgress = createPuzzleProgress("sudoku-custom-progress");
+// Replay snapshots never participate in the solved record or ordinary progress.
 export const replayProgress = createPuzzleProgress(REPLAY_KEY);
 
 /**

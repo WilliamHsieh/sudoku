@@ -11,7 +11,8 @@
 
   /** @type {{inert?: boolean, journal: boolean, narrow: boolean, hasPlayed: boolean, frozenElapsed: number,
    * freshTarget: {date: string, diff: string, elapsed: number} | null,
-   * ondate: () => void, ontime: () => void, onbrand: () => void}} */
+   * ondate: () => void, ontime: () => void, onbrand: () => void,
+   * onhint: () => void, hintOpen: boolean}} */
   let {
     inert = false,
     journal,
@@ -22,6 +23,8 @@
     ondate,
     ontime,
     onbrand,
+    onhint,
+    hintOpen,
   } = $props();
   const fresh = $derived(journal && !hasPlayed);
   const name = $derived(
@@ -83,6 +86,23 @@
         <div class="auto-slot" transition:fade={{ duration: playUi.reduced ? 0 : 160 }}>
           <NotesMode desktop />
         </div>
+      {/if}
+      {#if game.notesMode !== "manual"}
+        <button
+          class="hint-trigger"
+          id="hint-trigger"
+          type="button"
+          aria-label="Hint"
+          title="提示"
+          aria-controls={hintOpen ? "hint-panel" : undefined}
+          aria-expanded={hintOpen}
+          disabled={playUi.paused}
+          onclick={onhint}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true"
+            ><path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4Z" /></svg
+          >
+        </button>
       {/if}
       <button
         transition:fade={{ duration: playUi.reduced ? 0 : 160 }}
@@ -293,6 +313,33 @@
     margin-right: 6px;
     border-radius: 8px;
     --ic: 18px;
+  }
+  .hint-trigger {
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    color: var(--ink2);
+    border-radius: 8px;
+  }
+  .hint-trigger svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linejoin: round;
+  }
+  .hint-trigger:active {
+    background: var(--neutral);
+  }
+  .hint-trigger:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 1px;
+  }
+  .hint-trigger:disabled {
+    cursor: default;
+    opacity: 0.5;
   }
   .more:active {
     background: var(--neutral);

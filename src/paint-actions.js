@@ -8,9 +8,17 @@ import {
   strokeResult,
   strokeAnnouncement,
 } from "./game/paint.js";
-import { flashBlocked, showToast, clearToast } from "./keypad-actions.js";
+import {
+  flashBlocked,
+  showToast,
+  clearToast,
+  clearHideTimer,
+  clearKeypadSelection,
+  focusedDigit,
+  lockTap,
+} from "./keypad-actions.js";
 import { toastBlocked, toastLockedCell } from "./keypad-copy.js";
-import { LOCK_TICK_MS } from "./game/key-gesture.js";
+import { SPACE_HOLD_MS, LOCK_TICK_MS } from "./game/key-gesture.js";
 import { TAP_MAX_TRAVEL } from "./game/pad.js";
 
 /** @type {ReturnType<typeof createStroke> | null} */
@@ -21,6 +29,43 @@ let mode = "lock";
 let timers = [];
 /** @type {(() => void) | null} */
 let releaseContact = null;
+/** @type {ReturnType<typeof setTimeout> | undefined} */
+let spaceTimer;
+
+export function engageSpaceHold() {
+  if (!padUi.spaceHold) return;
+  padUi.spaceHold.engaged = true;
+  clearKeypadSelection();
+}
+
+/** Space temporarily holds the highlighted digit; a quick locked tap still edits selection. */
+export function beginSpaceHold() {
+  if (padUi.spaceHold) return true;
+  const d = focusedDigit();
+  if (!d || padUi.hold || game.solved) return false;
+  clearHideTimer();
+  padUi.spaceHold = {
+    d,
+    cell: game.selected,
+    locked: !!padUi.locked,
+    engaged: false,
+    painting: false,
+  };
+  spaceTimer = setTimeout(engageSpaceHold, SPACE_HOLD_MS);
+  return true;
+}
+
+/** @param {boolean} [cancelled] */
+export function endSpaceHold(cancelled = false) {
+  const hold = padUi.spaceHold;
+  clearTimeout(spaceTimer);
+  padUi.spaceHold = null;
+  if (!hold) return;
+  if (cancelled) discardPaint();
+  else if (hold.painting) finishPaint();
+  else if (!hold.engaged && hold.locked && padUi.locked === hold.d && hold.cell >= 0)
+    lockTap(hold.cell);
+}
 
 export function clearPaintMarks() {
   timers.forEach(clearTimeout);
@@ -133,7 +178,8 @@ export function paintBoard(board) {
     if (game.solved) return;
     if (e.button > 0) return;
     const hold = padUi.hold;
-    const holding = hold && e.pointerId !== hold.pid;
+    const keyboardHold = padUi.spaceHold;
+    const holding = keyboardHold || (hold && e.pointerId !== hold.pid);
     if (!padUi.locked && !holding && !stroke) {
       clickUntil = -Infinity;
       return;
@@ -144,15 +190,21 @@ export function paintBoard(board) {
     clickUntil = performance.now() + 700;
     if (
       pid !== null ||
-      (holding && !hold.painting && (!padUi.gesture?.holding || hold.travel >= TAP_MAX_TRAVEL))
+      (!keyboardHold &&
+        holding &&
+        !hold.painting &&
+        (!padUi.gesture?.holding || hold.travel >= TAP_MAX_TRAVEL))
     ) {
       ignored.add(e.pointerId);
       return;
     }
     const i = hit(e.clientX, e.clientY);
     if (i < 0) return;
-    if (!stroke) beginPaint(holding ? hold.d : padUi.locked, holding ? "hold" : "lock");
-    if (holding) hold.painting = true;
+    if (keyboardHold) engageSpaceHold();
+    if (!stroke)
+      beginPaint(keyboardHold?.d || (holding ? hold.d : padUi.locked), holding ? "hold" : "lock");
+    if (keyboardHold) keyboardHold.painting = true;
+    else if (holding) hold.painting = true;
     pid = e.pointerId;
     board.setPointerCapture(pid);
     track(e.clientX, e.clientY);
@@ -175,7 +227,10 @@ export function paintBoard(board) {
   function cancel(e) {
     if (e.type === "lostpointercapture" && e.target !== board) return;
     if (e.type === "pointercancel") consumed.delete(e.pointerId);
-    if (e.pointerId === pid) discardPaint();
+    if (e.pointerId === pid) {
+      endSpaceHold(true);
+      discardPaint();
+    }
     ignored.delete(e.pointerId);
   }
   /** @param {MouseEvent} e */
@@ -190,10 +245,11 @@ export function paintBoard(board) {
     if (consumed.delete(e.pointerId)) clickUntil = performance.now() + 700;
   };
   const blur = () => {
+    endSpaceHold(true);
     discardPaint();
   };
   const visibility = () => {
-    if (document.hidden) discardPaint();
+    if (document.hidden) blur();
   };
   board.addEventListener("pointerdown", down, true);
   board.addEventListener("pointermove", move);
@@ -206,6 +262,7 @@ export function paintBoard(board) {
   document.addEventListener("visibilitychange", visibility);
   return {
     destroy() {
+      endSpaceHold(true);
       discardPaint();
       releaseContact = null;
       board.removeEventListener("pointerdown", down, true);

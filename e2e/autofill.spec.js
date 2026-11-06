@@ -268,7 +268,15 @@ for (const width of [390, 1280]) {
       const manifest = await response.json();
       manifest.version = "autofill-update";
       manifest.builtAt += 60_000;
-      await page.route("**/version.json?*", (route) => route.fulfill({ json: manifest }));
+      // This is a notice-layout fixture. Release verification and activation
+      // use real service workers in offline.upgrade.spec.js.
+      await page.evaluate((ready) => {
+        const post = ServiceWorker.prototype.postMessage;
+        ServiceWorker.prototype.postMessage = function (message, transfer) {
+          if (message.type === "STAGE") transfer[0].postMessage({ value: ready });
+          else post.call(this, message, transfer);
+        };
+      }, manifest);
       await page.clock.setSystemTime(new Date(Date.now() + 60_000));
       await page.evaluate(() =>
         window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true }))

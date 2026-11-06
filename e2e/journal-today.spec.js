@@ -7,6 +7,7 @@ const SPOKEN = "October 2026, latest puzzles Wed, Oct 21";
 
 /** @param {import('@playwright/test').Page} page @param {boolean} mobile */
 async function watchReturn(page, mobile) {
+  await expect(page.locator(".journal")).toBeVisible();
   await page.evaluate((mobile) => {
     const root = document.querySelector(mobile ? ".mobile .viewport" : ".dcal .viewport");
     const status = document.querySelector('.journal [role="status"]');

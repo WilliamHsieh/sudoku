@@ -14,35 +14,48 @@
    * -Infinity so a mouse click in the first 700ms of the page is not swallowed. */
   let touchAt = -Infinity;
 
-  /** @type {{ cell_id: number, desktop?: boolean }} */
-  let { cell_id, desktop = false } = $props();
+  /** @type {{ cell_id: number, desktop?: boolean, hint?: ReturnType<ReturnType<typeof import('./hints/session.svelte.js').createHintSession>['evidence']>, suppressHighlights?: boolean, hintFocus?: number, reducedMotion?: boolean }} */
+  let {
+    cell_id,
+    desktop = false,
+    hint = null,
+    suppressHighlights = false,
+    hintFocus = 0,
+    reducedMotion = false,
+  } = $props();
   const NOTE_SLOTS = Array.from({ length: 9 }, (_, i) => i);
   const row = $derived(Math.floor(cell_id / 9));
   const col = $derived(cell_id % 9);
 
   const value = $derived(game.value(cell_id));
   const given = $derived(game.given(cell_id));
-  const selected = $derived(game.selected === cell_id);
+  const selected = $derived(!suppressHighlights && game.selected === cell_id);
   const highlight = $derived(focusedDigit());
-  const same = $derived(value !== 0 && highlight === value);
-  const tint = $derived(padUi.marks?.tint.has(cell_id));
+  const same = $derived(!suppressHighlights && value !== 0 && highlight === value);
+  const tint = $derived(!suppressHighlights && padUi.marks?.tint.has(cell_id));
   const brush = $derived(padUi.marks?.brush);
-  const conflict = $derived(game.inConflict(cell_id));
+  const conflict = $derived(!suppressHighlights && game.inConflict(cell_id));
   const notes = $derived(maskDigits(game.notes(cell_id)).join(""));
-  const blocking = $derived(padUi.blocking.includes(cell_id));
-  const blocked = $derived(padUi.blocked.includes(cell_id));
-  const undoTarget = $derived(padUi.undoTargets.includes(cell_id));
+  const blocking = $derived(!suppressHighlights && padUi.blocking.includes(cell_id));
+  const blocked = $derived(!suppressHighlights && padUi.blocked.includes(cell_id));
+  const undoTarget = $derived(!suppressHighlights && padUi.undoTargets.includes(cell_id));
 
   /** @type {HTMLDivElement} */
   let element;
   // A remounted board starts at the current event, so saved answers stay still.
-  const initialPlacement = untrack(() => game.placement);
+  let handledPlacement = untrack(() => game.placement);
   /** @type {Animation | undefined} */
   let placementAnimation;
   onDestroy(() => placementAnimation?.cancel());
   $effect(() => {
     const placement = game.placement;
-    if (placement === initialPlacement || !placement?.includes(cell_id)) return;
+    const changed = placement !== handledPlacement;
+    handledPlacement = placement;
+    if (suppressHighlights) {
+      placementAnimation?.cancel();
+      return;
+    }
+    if (!changed || !placement?.includes(cell_id) || reducedMotion) return;
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const digit = element.querySelector(".pen-box");
     placementAnimation?.cancel();
@@ -101,9 +114,12 @@
   bind:this={element}
   class="cell"
   class:given
-  class:af-filled={autofill.placed.some(({ i }) => i === cell_id)}
-  class:af-skipped={autofill.skipped.includes(cell_id)}
-  class:af-undone={autofill.undone.includes(cell_id)}
+  class:hint-focus={hintFocus > 0}
+  class:hint-focus-alternate={hintFocus > 0 && hintFocus % 2 === 0}
+  class:hint-focus-reduced={reducedMotion}
+  class:af-filled={!suppressHighlights && autofill.placed.some(({ i }) => i === cell_id)}
+  class:af-skipped={!suppressHighlights && autofill.skipped.includes(cell_id)}
+  class:af-undone={!suppressHighlights && autofill.undone.includes(cell_id)}
   class:af-reduced={autofill.reduced}
   style:--af-delay={`${autofillDelay(
     autofill.placed.findIndex(({ i }) => i === cell_id),
@@ -117,12 +133,15 @@
   class:blocking
   class:blocked
   class:undo-target={undoTarget}
+  class:hint-observe={hint?.observe}
+  class:hint-premise={hint?.premise}
+  class:hint-target={hint?.target}
   class:paint-add={tint && brush === "add"}
   class:paint-remove={tint && brush === "remove"}
   class:paint-committed={tint && padUi.marks?.phase !== "live"}
   class:paint-alternate={tint && padUi.commitId % 2 === 0}
-  class:finger-add={padUi.finger === cell_id && brush === "add"}
-  class:finger-remove={padUi.finger === cell_id && brush === "remove"}
+  class:finger-add={!suppressHighlights && padUi.finger === cell_id && brush === "add"}
+  class:finger-remove={!suppressHighlights && padUi.finger === cell_id && brush === "remove"}
   data-r={row}
   data-c={col}
   data-i={cell_id}
@@ -137,11 +156,19 @@
   }}
 >
   {#if value}
-    <PenBox {cell_id} />
+    <PenBox {cell_id} {suppressHighlights} />
   {:else}
     <div class="candidate">
       {#each NOTE_SLOTS as idx (idx)}
-        <PencilBox {cell_id} {idx} />
+        <PencilBox
+          {cell_id}
+          {idx}
+          {suppressHighlights}
+          hintMask={hint?.mask}
+          hintPremise={hint?.candidates.includes(idx + 1)}
+          hintExcluded={hint?.excluded.includes(idx + 1)}
+          hintElimination={hint?.eliminations.includes(idx + 1)}
+        />
       {/each}
     </div>
   {/if}
@@ -204,6 +231,62 @@
   .cell.same.conflict,
   .cell.same.given.conflict {
     background: var(--conflict-bg);
+  }
+  .cell.hint-observe {
+    background: var(--sel-bg);
+  }
+  .cell.hint-premise {
+    box-shadow: inset 0 0 0 2px var(--blue);
+  }
+  .cell.hint-premise :global(.pen-box) {
+    color: var(--blue);
+  }
+  .cell.hint-target {
+    box-shadow: inset 0 0 0 2px var(--cue-ink);
+  }
+
+  .cell.hint-focus::before {
+    content: "";
+    position: absolute;
+    inset: 2px;
+    z-index: 4;
+    border: 3px solid var(--sel-ring);
+    border-radius: 3px;
+    pointer-events: none;
+    animation: hint-focus 900ms ease-in-out both;
+  }
+  .cell.hint-focus.hint-focus-alternate::before {
+    animation-name: hint-focus-alternate;
+  }
+  .cell.hint-focus.hint-focus-reduced::before {
+    animation: none;
+  }
+  @keyframes hint-focus {
+    0%,
+    45%,
+    100% {
+      opacity: 1;
+    }
+    25%,
+    70% {
+      opacity: 0.25;
+    }
+  }
+  @keyframes hint-focus-alternate {
+    0%,
+    45%,
+    100% {
+      opacity: 1;
+    }
+    25%,
+    70% {
+      opacity: 0.25;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cell.hint-focus::before {
+      animation: none;
+    }
   }
 
   .candidate {

@@ -4,6 +4,7 @@ import { digitsMask, maskDigits, parsePuzzle } from "./board.js";
 /**
  * Plain JSON. Note sets are digit strings per cell ('' = none, '139' = 1, 3, 9).
  * @typedef {Object} Snapshot
+ * @property {import("./game.js").GameState["trustedEliminations"]} [trustedEliminations]
  * @property {1} version
  * @property {string} puzzle  the givens, 81 digits
  * @property {string} answers 81 digits, '0' = no answer
@@ -31,6 +32,14 @@ function fromDigitStrings(list, name) {
 export function toSnapshot(state) {
   return {
     version: 1,
+    ...(state.trustedEliminations
+      ? {
+          trustedEliminations: {
+            ...state.trustedEliminations,
+            removed: [...state.trustedEliminations.removed],
+          },
+        }
+      : {}),
     puzzle: state.givens.join(""),
     answers: state.answers.join(""),
     notesMode: state.notesMode,
@@ -63,7 +72,19 @@ export function fromSnapshot(snapshot) {
     mode === "tidy" ? "tidy" : mode === "manual" || mode === false ? "manual" : "auto";
   const o = s.autoOverrides;
   if (!o || typeof o !== "object") throw new Error("snapshot autoOverrides missing");
+  const ledger = s.trustedEliminations;
+  if (
+    ledger &&
+    (ledger.version !== 1 ||
+      typeof ledger.valuesKey !== "string" ||
+      !/^[0-9]{81}$/.test(ledger.valuesKey) ||
+      !Array.isArray(ledger.removed) ||
+      ledger.removed.length !== 81 ||
+      ledger.removed.some((m) => !Number.isInteger(m) || m < 0 || m & ~1022))
+  )
+    throw new Error("Invalid trusted elimination ledger");
   return {
+    ...(ledger ? { trustedEliminations: { ...ledger, removed: [...ledger.removed] } } : {}),
     givens,
     answers,
     notesMode,

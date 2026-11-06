@@ -334,6 +334,7 @@ export function registerPr6Tests(opts = {}) {
 
   test("the r9c3 cue ring stays 1px off the box line", async ({ page }) => {
     await page.goto("./?shot=1&freeze&cueMs=250");
+    await expect(page.locator(".board > .cell")).toHaveCount(81);
     await page.clock.runFor(1_000);
     const six = page.locator('.cell[data-i="74"] .pencil-box.cue');
     await expect(six).toHaveCount(1);

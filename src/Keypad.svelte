@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { FLY_MS, RETURN_MS, EASE_OUT, rubberBand, nextArmed, shouldLift } from "./game/pad.js";
   import { HOLD_MS, classifyPress, classifyRelease, nextLockArmed } from "./game/key-gesture.js";
-  import { finishPaint, discardPaint } from "./paint-actions.js";
+  import { finishPaint, discardPaint, endSpaceHold } from "./paint-actions.js";
   import { game } from "./game/game.svelte.js";
   import { padUi } from "./pad-ui.svelte.js";
   import { playUi } from "./play/session.svelte.js";
@@ -77,6 +77,12 @@
   let concealed = $state(/** @type {Record<number, number>} */ ({}));
   let pointerGuard = 0;
   const highlight = $derived(focusedDigit());
+
+  /** Cancel uncommitted input and remove flying digits before reading a hint. */
+  export function cancelFeedback() {
+    if (gesture) endGesture(true);
+    for (const flight of flights.slice()) flight.settle();
+  }
 
   const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -526,7 +532,7 @@
   /** @param {PointerEvent} e */
   function onKeyPointerDown(e) {
     if (playUi.paused || game.solved) return;
-    if (e.button !== undefined && e.button > 0) return;
+    if (e.button !== undefined && e.button > 0 && !(desktop && e.button === 2)) return;
     e.preventDefault();
     pointerGuard = performance.now() + 700;
     const key = /** @type {HTMLButtonElement} */ (e.currentTarget);
@@ -535,11 +541,9 @@
     if (
       desktop &&
       e.pointerType === "mouse" &&
-      e.shiftKey &&
-      !e.ctrlKey &&
-      !e.metaKey &&
-      !e.altKey
+      (e.button === 2 || (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey))
     ) {
+      endSpaceHold(true);
       toggleDigitLock(Number(key.dataset.d));
       return;
     }
@@ -660,17 +664,21 @@
     aria-label="Number keypad"
     data-shown={highlight}
     data-locked={padUi.locked || 0}
+    data-held={padUi.spaceHold?.engaged ? padUi.spaceHold.d : 0}
     oncontextmenu={(e) => e.preventDefault()}
   >
     {#each DIGITS as d (d)}
+      {@const spaceHolding = padUi.spaceHold?.d === d && padUi.spaceHold.engaged}
       <button
         type="button"
         class="key"
-        class:pressed={padUi.gesture?.d === d}
+        class:pressed={padUi.gesture?.d === d || spaceHolding}
         class:shown={padUi.locked !== d &&
           highlight === d &&
+          !spaceHolding &&
           !(padUi.gesture?.d === d && padUi.gesture.holding)}
-        class:holding={padUi.gesture?.d === d && padUi.gesture.holding && padUi.locked !== d}
+        class:holding={(spaceHolding || (padUi.gesture?.d === d && padUi.gesture.holding)) &&
+          padUi.locked !== d}
         class:armed={padUi.gesture?.d === d && padUi.gesture.armed}
         class:arm-lock={padUi.gesture?.d === d && padUi.gesture.armLock}
         class:locked={padUi.locked === d}
@@ -682,7 +690,7 @@
         aria-pressed={padUi.locked === d}
         aria-label={keyLabel(d)}
         title={desktop
-          ? `Shift + click to ${padUi.locked === d ? "unlock" : "lock"} ${d}`
+          ? `Right-click or Shift + click to ${padUi.locked === d ? "unlock" : "lock"} ${d}`
           : undefined}
         onpointerdown={onKeyPointerDown}
         onclick={(e) => onKeyClick(e, d)}

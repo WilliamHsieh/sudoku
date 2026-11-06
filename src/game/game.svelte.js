@@ -36,7 +36,12 @@ import { bit, popcount } from "./board.js";
 import { solvedState } from "./solved-state.js";
 import { fromSnapshot } from "./snapshot.js";
 import { done, timer, timerRunning, resetTimer, solvedPuzzles } from "../store.js";
-import { puzzleProgress, replayProgress, progressPayload } from "../journal/progress.js";
+import {
+  puzzleProgress,
+  replayProgress,
+  customProgress,
+  progressPayload,
+} from "../journal/progress.js";
 
 /** Demo puzzle shipped on master (the board you get by clicking Play). */
 export const DEMO_PUZZLE =
@@ -44,6 +49,7 @@ export const DEMO_PUZZLE =
 
 /**
  * @typedef {Object} LoadMeta
+ * @property {boolean} [custom]
  * @property {string | null} [dateStr]
  * @property {string | null} [difficulty]
  */
@@ -57,6 +63,7 @@ export function createGame() {
   let placement = $state(null);
   /** @type {{ dateStr: string | null, difficulty: string | null }} */
   let meta = $state({ dateStr: null, difficulty: null });
+  let customKey = "";
   let marked = $state(false);
   let journalView = $state(false);
   let replaying = false;
@@ -119,27 +126,82 @@ export function createGame() {
     return result;
   }
 
-  function persistProgress(force = false) {
-    if (!meta.dateStr || !meta.difficulty) return;
+  function persistProgress(force = false, strict = false) {
+    const store = customKey ? customProgress : replaying ? replayProgress : puzzleProgress;
+    const date = customKey ? "puzzles" : meta.dateStr;
+    const difficulty = customKey || meta.difficulty;
+    if (!date || !difficulty) return;
+    if (!store.isCurrent(date, difficulty)) {
+      if (strict)
+        throw new Error(
+          "Could not verify saved progress. Storage may be unavailable or this puzzle changed in another tab."
+        );
+      return;
+    }
+    if (customKey) {
+      const saved = store.save(date, difficulty, progressPayload(history.present, get(timer)));
+      if (strict && !saved)
+        throw new Error(
+          "Could not verify saved progress. Storage may be unavailable or this puzzle changed in another tab."
+        );
+      return;
+    }
     if (isSolved(history.present)) {
-      puzzleProgress.clear(meta.dateStr, meta.difficulty);
+      if (!marked)
+        marked = solvedPuzzles.markSolved(
+          meta.dateStr,
+          meta.difficulty,
+          get(timer),
+          replaying ? replayProgress : puzzleProgress
+        );
+      if (!marked) {
+        if (strict) throw new Error("Could not save completion. Please retry.");
+        return;
+      }
+      const cleared = store.clear(meta.dateStr, meta.difficulty);
+      if (strict && !cleared) throw new Error("Could not save progress. Please retry.");
       return;
     }
     const elapsed = get(timer);
     const payload = progressPayload(history.present, elapsed);
-    if (!force && payload.filled === 0 && elapsed === 0 && history.present.notesMode === "auto")
+    const saved = get(store)[meta.dateStr]?.[meta.difficulty]?.snapshot;
+    const autoProgress =
+      history.present.autoAdded.some(Boolean) || history.present.autoRemoved.some(Boolean);
+    const savedAutoProgress =
+      saved?.autoOverrides.added.some(Boolean) || saved?.autoOverrides.removed.some(Boolean);
+    // First-second Auto and Tidy eliminations must persist. Undo must overwrite
+    // their saved overrides/ledger rather than revive them after reload.
+    if (
+      !force &&
+      payload.filled === 0 &&
+      elapsed === 0 &&
+      history.present.notesMode === "auto" &&
+      !history.present.trustedEliminations &&
+      !saved?.trustedEliminations &&
+      !autoProgress &&
+      !savedAutoProgress
+    )
       return;
-    (replaying ? replayProgress : puzzleProgress).save(meta.dateStr, meta.difficulty, payload);
+    const written = store.save(meta.dateStr, meta.difficulty, payload);
+    if (strict && !written)
+      throw new Error(
+        "Could not verify saved progress. Storage may be unavailable or this puzzle changed in another tab."
+      );
   }
 
   function syncSolved() {
     if (isSolved(history.present)) {
       done.set(true);
       if (!marked && meta.dateStr && meta.difficulty) {
-        solvedPuzzles.markSolved(meta.dateStr, meta.difficulty, get(timer));
-        marked = true;
+        marked = solvedPuzzles.markSolved(
+          meta.dateStr,
+          meta.difficulty,
+          get(timer),
+          replaying ? replayProgress : puzzleProgress
+        );
       }
-      if (meta.dateStr && meta.difficulty) puzzleProgress.clear(meta.dateStr, meta.difficulty);
+      if (marked && meta.dateStr && meta.difficulty)
+        puzzleProgress.clear(meta.dateStr, meta.difficulty);
     } else {
       done.set(false);
     }
@@ -419,6 +481,7 @@ export function createGame() {
     load(puzzle, info = {}) {
       prepareMutation();
       persistProgress();
+      customKey = info.custom ? puzzle : "";
       const record =
         info.dateStr && info.difficulty
           ? get(solvedPuzzles)[info.dateStr]?.[info.difficulty]
@@ -457,9 +520,11 @@ export function createGame() {
       onLoad();
     },
 
-    /** Write current in-progress puzzle to `sudoku-progress`. */
-    flushProgress() {
-      persistProgress();
+    /** Write current progress; explicit Update must reject a stale save.
+     * @param {boolean} [strict]
+     */
+    flushProgress(strict = false) {
+      persistProgress(false, strict);
     },
   };
 }

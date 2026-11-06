@@ -287,3 +287,24 @@ button:not(.key),
 body.journal-sheet {
   overflow: hidden;
 }
+
+.preparing {
+  max-width: 28rem;
+  margin: 25vh auto;
+  padding: 24px;
+  text-align: center;
+  font-family: var(--ui-font);
+  color: var(--ink);
+}
+.preparing h1 {
+  font-size: 24px;
+}
+.preparing button,
+.preparing a {
+  font: inherit;
+  color: var(--blue);
+}
+.preparing button {
+  padding: 12px 24px;
+  cursor: pointer;
+}

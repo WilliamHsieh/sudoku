@@ -27,7 +27,11 @@ export const DESKTOP_COACH_ROWS = [
   { label: "Double-click", body: "Fills the selected cell" },
   { label: "Drag up", body: "Toggles a candidate in the selected cell" },
   {
-    label: "Shift + click",
+    label: "Hold Space",
+    body: "Holds the highlighted digit; click or drag cells to toggle candidates",
+  },
+  {
+    label: "Right-click / Shift + click",
     body: "Locks a digit; click or drag across cells to toggle candidates",
   },
 ];
@@ -55,10 +59,17 @@ export const ariaEnter = (d) => `Enter ${d}`;
 /**
  * Hint line under the keypad. Legacy mode keeps the master's sentence unless
  * a digit is locked, which always explains the lock.
- * @param {{ legacy: boolean, locked: number, shown: number, placed: number, desktop?: boolean }} s
+ * @param {{ legacy: boolean, locked: number, shown: number, placed: number, desktop?: boolean, held?: number }} s
  * @returns {Hint}
  */
 export function hintModel(s) {
+  if (s.desktop && s.held) {
+    return {
+      kind: "rich",
+      lead: `${s.held} held`,
+      rest: "· Click or drag cells to toggle candidates · Release Space to finish",
+    };
+  }
   if (s.locked) {
     return {
       kind: "rich",
@@ -80,7 +91,7 @@ export function hintModel(s) {
       kind: "rich",
       lead: String(s.shown),
       rest: s.desktop
-        ? `· ${count} · Double-click fills · Shift + click locks`
+        ? `· ${count} · Double-click fills · Hold Space to paint · Right-click locks`
         : `· ${count} · Double-tap fills · Swipe down locks`,
     };
   }

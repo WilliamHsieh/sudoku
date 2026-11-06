@@ -1,7 +1,7 @@
 <script>
   /* global __SUDOKU_BUILD__ */
   import { installAutoUpdate, createUpdateAction, reloadForUpdate } from "./auto-update-browser.js";
-  import { paintBoard, discardPaint } from "./paint-actions.js";
+  import { paintBoard, discardPaint, beginSpaceHold, endSpaceHold } from "./paint-actions.js";
   import "./autofill.css";
   import {
     animateAutofill,
@@ -29,6 +29,7 @@
   import { done, puzzleProgress, solvedPuzzles, timer, formatTime } from "./store";
   import { game } from "./game/game.svelte.js";
   import { firstUnsolvedLatest } from "./game/daily.js";
+  import { customProgress } from "./journal/progress.js";
   import { puzzleData } from "./puzzles.js";
   import { unfinishedList } from "./journal/stats.js";
   import { ring } from "./ring.js";
@@ -37,6 +38,7 @@
   import { installShiftHover, isShiftAim, releaseShiftHover } from "./shift-hover.svelte.js";
   import { digitFromCode } from "./game/key-gesture.js";
   import {
+    clearHideTimer,
     clearToast,
     showToast,
     eraseCell,
@@ -45,6 +47,8 @@
     placedCount,
     resetKeypad,
     revealCellDigit,
+    setLastKeyPress,
+    showDigit,
     syncHighlightAfterEdit,
     toggleDigitLock,
     unlockKeepShown,
@@ -56,8 +60,103 @@
   import { PAUSE_ON_WINDOW_BLUR } from "./play/background-policy.js";
   import PausedCover from "./PausedCover.svelte";
   import OptionsSheet from "./OptionsSheet.svelte";
-  import { flushSync, onMount, tick, untrack } from "svelte";
+  import HintPanel from "./hints/HintPanel.svelte";
+  import { createHintSession } from "./hints/session.svelte.js";
+  import { createHintFocus } from "./hints/focus.svelte.js";
+  import { hintFrameFor } from "./hints/layout.js";
+  import { flushSync, onDestroy, onMount, tick, untrack } from "svelte";
   import { longDate } from "./journal/format.js";
+
+  /** @type {{hintProvider?: import('./hints/hint.js').HintProvider | null}} */
+  let { hintProvider = null } = $props();
+  // Bind once at mount. Production injects the proof-checked Worker; isolated
+  // previews can still supply fixtures without including them in the bundle.
+  /** @type {{cancelFeedback: () => void} | undefined} */
+  let keypad = $state();
+  const hintFocus = createHintFocus();
+  const hints = createHintSession({
+    game,
+    provider: untrack(() => hintProvider),
+    beforeOpen() {
+      keypad?.cancelFeedback();
+      ring.clearFeedback();
+      resetKeypad();
+      releaseShiftHover();
+      clearAutofill();
+      padUi.blocked = [];
+      padUi.undoTargets = [];
+      hintFocus.clear();
+    },
+  });
+  // Ordinary playing feedback is kept separate from the proof being read.
+  const isolateHint = $derived(
+    hints.status === "searching" || hints.status === "ready" || hints.status === "applied"
+  );
+  onDestroy(() => hintFocus.clear());
+  $effect(() => {
+    void hints.status;
+    void hints.stage;
+    hintFocus.clear();
+  });
+  /** @type {{mode: 'docked'|'side', left: number, top: number, width: number, maxHeight: number} | null} */
+  let hintFrame = $state(null);
+
+  function measureHint() {
+    const board = wrapEl?.querySelector(".board");
+    const controls = playViewport?.querySelector(".mobile-chrome");
+    if (!board || !controls || !hints.isOpen) return;
+    const rect = board.getBoundingClientRect();
+    const chrome = controls.getBoundingClientRect();
+    // Preserve the current board and controls layout. The hint temporarily
+    // occupies the existing controls area, on both wide and stacked layouts.
+    const next = hintFrameFor(rect, chrome, { width: innerWidth, height: innerHeight });
+    if (JSON.stringify(next) !== JSON.stringify(hintFrame)) hintFrame = next;
+  }
+
+  async function closeHint() {
+    hints.close();
+    hintFrame = null;
+    await tick();
+    document.getElementById("hint-trigger")?.focus({ preventScroll: true });
+  }
+
+  function openHint() {
+    if (game.notesMode === "manual") return;
+    if (hints.isOpen) {
+      void closeHint();
+      return;
+    }
+    void hints.open();
+    measureHint();
+  }
+
+  $effect(() => {
+    hints.reconcile(game.state);
+  });
+  $effect(() => {
+    if (game.notesMode === "manual" || showCalendar || playUi.paused || playUi.modal) {
+      hints.close();
+      hintFrame = null;
+    }
+  });
+  $effect(() => {
+    if (!wrapEl || !hints.isOpen) return;
+    const observer = new ResizeObserver(measureHint);
+    observer.observe(wrapEl);
+    void Promise.all(
+      document
+        .querySelector(".play")
+        ?.getAnimations()
+        .map((a) => a.finished) ?? []
+    ).then(measureHint, () => {});
+    window.addEventListener("resize", measureHint);
+    window.addEventListener("scroll", measureHint, { passive: true });
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measureHint);
+      window.removeEventListener("scroll", measureHint);
+    };
+  });
 
   game.setOnActivity(() => playUi.noteActivity());
   game.setOnLoad(() => {
@@ -148,7 +247,13 @@
     if (!customReady) return;
     const parsed = parsePuzzleInput(customRaw);
     if (!parsed.ok) return;
-    game.load(parsed.puzzle);
+    const saved = get(customProgress).puzzles?.[parsed.puzzle];
+    game.load(parsed.puzzle, { custom: true, snapshot: saved?.snapshot, elapsed: saved?.elapsed });
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("q") !== parsed.puzzle) {
+      url.searchParams.set("q", parsed.puzzle);
+      history.replaceState(history.state, "", url);
+    }
     customOpen = false;
     customPreview = false;
     handleLoadPuzzle();
@@ -380,6 +485,22 @@
       return;
     }
 
+    if (
+      !isNarrow &&
+      e.key >= "1" &&
+      e.key <= "9" &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.altKey &&
+      !e.shiftKey &&
+      (game.selected < 0 || !game.editable(game.selected))
+    ) {
+      clearHideTimer();
+      setLastKeyPress({ d: 0, t: -Infinity });
+      showDigit(Number(e.key));
+      e.preventDefault();
+      return;
+    }
     if (game.selected == -1) return;
     const id = game.selected;
 
@@ -425,13 +546,20 @@
 
   /** Desktop Enter fills the locked answer; phone keeps its original note toggle. */
   function tryLockedInput(e) {
-    if (!padUi.locked || (e.key !== " " && e.key !== "Enter")) return false;
+    if (e.key !== " " && e.key !== "Enter") return false;
     if (
       e.target instanceof Element &&
       e.target.closest("button, a, input, textarea, select, summary")
     ) {
       return false;
     }
+    if (!isNarrow && e.key === " ") {
+      if (e.ctrlKey || e.metaKey || e.altKey || (e.repeat && !padUi.spaceHold)) return false;
+      if (!beginSpaceHold()) return false;
+      e.preventDefault();
+      return true;
+    }
+    if (!padUi.locked) return false;
     e.preventDefault();
     if (game.selected >= 0) {
       if (e.key === "Enter" && !isNarrow) game.fill(game.selected, padUi.locked);
@@ -441,6 +569,7 @@
   }
 
   function handleGlobalKeydown(e) {
+    if (e.key !== " " && e.key !== "Escape") endSpaceHold(true);
     if (customOpen && showCalendar) return;
     if (playUi.modal || replayConfirm) return;
     // Every game binding below is off once complete: digits (including modified
@@ -464,6 +593,13 @@
       e.target.closest("input, textarea, select, [contenteditable]")
     )
       return;
+    if (hints.isOpen && e.key === "Escape") {
+      e.preventDefault();
+      void closeHint();
+      return;
+    }
+    if (e.target instanceof Element && e.target.closest(".hint-panel")) return;
+    if (hints.isOpen && e.key === "Tab") return;
     const plainP =
       (e.key === "p" || e.key === "P") && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey;
     if (plainP) {
@@ -475,6 +611,11 @@
     if (showCalendar && !isNarrow) return;
     if (e.key === "Escape") {
       if (showCalendar) return;
+      if (padUi.spaceHold) {
+        e.preventDefault();
+        endSpaceHold(true);
+        return;
+      }
       if (discardPaint()) {
         e.preventDefault();
         return;
@@ -502,6 +643,7 @@
   }
 
   async function openJournal(scrollToDay = true, highlight = false) {
+    endSpaceHold(true);
     game.flushProgress();
     frozenElapsed = get(timer);
     journalEntry = scrollToDay && game.dateStr ? { date: game.dateStr, highlight } : null;
@@ -588,6 +730,7 @@
   let updateVersion = "";
   let noticeHadFocus = false;
   let updating = $state(false);
+  let updateError = $state("");
   // Once visible, keep it visible through later resume animations. A newly
   // discovered version waits for both the hold and the 600ms reveal to finish.
   let noticeRevealed = $state(false);
@@ -622,15 +765,19 @@
   }
 
   const updateAction = createUpdateAction({
+    onError: (message) => {
+      updateError = message;
+    },
     setUpdating: (value) => {
       updating = value;
     },
-    flush: () => game.flushProgress(),
+    flush: () => game.flushProgress(true),
     reload: () => reloadForUpdate(updateVersion),
   });
 
   function updateNow() {
     restoreNoticeFocus();
+    updateError = "";
     updateAction.run();
   }
 
@@ -639,6 +786,7 @@
     const mq = window.matchMedia(NARROW_MQ);
     isNarrow = mq.matches;
     const onNarrow = () => {
+      endSpaceHold(true);
       const hadNoticeFocus = noticeHadFocus;
       isNarrow = mq.matches;
       if (hadNoticeFocus) void tick().then(focusAfterNotice);
@@ -685,6 +833,8 @@
     let hiddenAt = /** @type {number | null} */ (null);
     const isHidden = () => document.hidden || document.visibilityState === "hidden";
     const onAway = () => {
+      hints.close();
+      hintFrame = null;
       if (showCalendar || game.solved) {
         // Clear #58's view/entry announcement without pausing these views.
         resumeStatus = "";
@@ -764,6 +914,7 @@
       window.removeEventListener("pointerdown", releaseViewFocus, true);
       mq.removeEventListener("change", onNarrow);
       reduceMq.removeEventListener("change", onReduce);
+      hints.close();
       document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("blur", onWindowBlur);
       window.removeEventListener("focus", onReturn);
@@ -793,11 +944,13 @@
       shown: locked ? 0 : padUi.shown,
       placed: placedCount(shown),
       desktop: !isNarrow,
+      held: padUi.spaceHold?.engaged ? padUi.spaceHold.d : 0,
     });
   });
 
   $effect(() => {
     if (playUi.paused || playUi.modal) {
+      endSpaceHold(true);
       discardPaint();
       unlockKeepShown();
       clearToast();
@@ -831,6 +984,12 @@
 
 <svelte:window
   onkeydown={handleGlobalKeydown}
+  onkeyup={(event) => {
+    if (event.key === " " && padUi.spaceHold) {
+      event.preventDefault();
+      endSpaceHold();
+    }
+  }}
   onfocusin={(event) => {
     noticeHadFocus = event.target instanceof Element && !!event.target.closest(".update-notice");
   }}
@@ -861,6 +1020,8 @@
       ondate={() => openJournal()}
       ontime={onPauseClick}
       onbrand={removeFocus}
+      onhint={openHint}
+      hintOpen={hints.isOpen}
     />
   {/if}
 
@@ -918,15 +1079,23 @@
           <div
             use:paintBoard
             class="board"
-            class:quiet={padUi.quiet}
-            class:shift-aim={isShiftAim()}
+            class:quiet={!isolateHint && padUi.quiet}
+            class:shift-aim={!isolateHint && isShiftAim()}
+            data-hint-isolated={isolateHint ? "true" : undefined}
             aria-hidden={playUi.paused ? "true" : undefined}
             inert={playUi.paused || game.solved}
             data-cue-phase={playUi.phase}
             data-notes-mode={game.notesMode}
           >
             {#each CELL_IDS as id (id)}
-              <Cell cell_id={id} desktop={!isNarrow} />
+              <Cell
+                cell_id={id}
+                desktop={!isNarrow}
+                hint={hints.evidence(id)}
+                suppressHighlights={isolateHint}
+                hintFocus={hints.isOpen && hintFocus.cell === id ? hintFocus.sequence : 0}
+                reducedMotion={playUi.reduced}
+              />
             {/each}
           </div>
           {#if solvedScreen && !game.journalView && !playUi.reduced}
@@ -968,7 +1137,12 @@
           {/if}
         </div>
       </div>
-      <div class="mobile-chrome" class:sv-chrome={solvedScreen}>
+      <div
+        class="mobile-chrome"
+        class:sv-chrome={solvedScreen}
+        class:hint-replaced={hints.isOpen}
+        inert={hints.isOpen}
+      >
         {#if game.journalView}<JournalSolved
             onjournal={solvedJournal}
             onreplay={() => (replayConfirm = true)}
@@ -1003,7 +1177,7 @@
             <div class="chrome-dim" class:dim={playUi.paused} inert={playUi.paused}>
               <Tools desktop={!isNarrow} />
               <div class="keypad-slot">
-                <div class="keypad-scale"><Keypad desktop={!isNarrow} /></div>
+                <div class="keypad-scale"><Keypad bind:this={keypad} desktop={!isNarrow} /></div>
               </div>
             </div>
             {#if !isNarrow && game.notesMode === "auto"}
@@ -1090,7 +1264,7 @@
                 <dl>
                   <div>
                     <dt><kbd>1–9</kbd></dt>
-                    <dd>Fill answer</dd>
+                    <dd>Fill selected editable cell; otherwise highlight digit</dd>
                   </div>
                   <div>
                     <dt><kbd>↑ ↓ ← →</kbd></dt>
@@ -1105,8 +1279,14 @@
                     <dd>Lock digit on keypad</dd>
                   </div>
                   <div>
+                    <dt>Right-click</dt>
+                    <dd>Lock or unlock digit on keypad</dd>
+                  </div>
+                  <div>
                     <dt><kbd>Space</kbd></dt>
-                    <dd>Toggle note in selected cell</dd>
+                    <dd>
+                      Tap to toggle locked note; hold highlighted digit to click or drag candidates
+                    </dd>
                   </div>
                   <div>
                     <dt><kbd>Enter</kbd></dt>
@@ -1155,7 +1335,32 @@
   {/if}
 </main>
 
+<!-- Fixed surfaces live outside the animated play view, whose transform would
+     otherwise turn the view into their positioning container. -->
+{#if hints.isOpen && hintFrame}
+  <div
+    class="hint-surface"
+    class:docked={hintFrame.mode === "docked"}
+    style:left={`${hintFrame.left}px`}
+    style:top={`${hintFrame.top}px`}
+    style:--hint-max-height={`${hintFrame.maxHeight}px`}
+    style:width={`${hintFrame.width}px`}
+  >
+    <HintPanel
+      session={hints}
+      onclose={() => void closeHint()}
+      oncoordinate={(cell) => hintFocus.flash(cell)}
+      docked={hintFrame.mode === "docked"}
+    />
+  </div>
+{/if}
+
 <!-- The polite live region stays mounted so screen readers announce the inserted notice. -->
+{#if updateError}
+  <div class="update-error" role="alert">
+    {updateError} <a href={window.location.href}>Reload Sudoku</a>
+  </div>
+{/if}
 <div class="update-live sr-only" aria-live="polite" aria-atomic="true">
   {noticeActive ? (updating ? "Updating…" : UPDATE_COPY) : ""}
 </div>
@@ -1184,6 +1389,18 @@
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
+  }
+  .update-error {
+    position: fixed;
+    bottom: 76px;
+    left: 16px;
+    right: 16px;
+    z-index: 1200;
+    padding: 12px;
+    background: var(--page);
+    color: var(--ink);
+    text-align: center;
+    border: 1px solid var(--hair);
   }
   .update-live {
     position: fixed;
@@ -1331,6 +1548,18 @@
 
   .mobile-chrome {
     display: none;
+  }
+  .hint-surface {
+    position: fixed;
+    z-index: 10;
+    max-width: calc(100% - 16px);
+  }
+  .hint-surface.docked {
+    bottom: max(8px, env(safe-area-inset-bottom));
+  }
+
+  .hint-replaced {
+    visibility: hidden;
   }
 
   .controls-label {

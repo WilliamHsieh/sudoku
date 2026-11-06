@@ -14,14 +14,17 @@ vi.mock("./auto-update-browser.js", () => ({
 
 afterEach(() => vi.unstubAllGlobals());
 
-it("mounts immediately without scheduling startup navigation", async () => {
-  const target = {};
+it("mounts the development app without scheduling startup navigation", async () => {
+  const target = { replaceChildren: vi.fn() };
   const requestFrame = vi.fn();
   vi.stubGlobal("document", { getElementById: () => target });
   vi.stubGlobal("requestAnimationFrame", requestFrame);
   const { default: app } = await import("./main.js");
   expect(app).toEqual({ mounted: true });
-  expect(mount).toHaveBeenCalledWith(expect.any(Function), { target });
+  expect(mount).toHaveBeenCalledWith(expect.any(Function), {
+    target,
+    props: { hintProvider: expect.any(Function) },
+  });
   expect(strip).toHaveBeenCalledOnce();
   expect(requestFrame).not.toHaveBeenCalled();
 });

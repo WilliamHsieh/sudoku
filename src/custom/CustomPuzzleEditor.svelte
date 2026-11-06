@@ -23,6 +23,7 @@
   let importError = $state("");
   let reading = $state(false);
   let copyOpen = $state(false);
+  let keyboardFocus = $state(false);
   let boardEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   let past = $state(/** @type {string[]} */ ([]));
   let future = $state(/** @type {string[]} */ ([]));
@@ -187,22 +188,31 @@
   }
 </script>
 
+<svelte:window
+  onkeydown={(event) => {
+    if (event.key === "Tab") keyboardFocus = true;
+  }}
+  onpointerdown={() => (keyboardFocus = false)}
+/>
+
 {#if !open}
   {#if children}{@render children()}{/if}
 {:else}
   <section
     use:fitDraftKeypad={{ mode, preview }}
-    class="custom-editor"
+    class="custom-editor quiet"
     class:paste={mode === "paste" && !preview}
     class:preview
     aria-label="Custom sudoku editor"
   >
     <div class="editor-body">
       <section class="board-area" aria-label="Starting board">
-        <div class="board-heading">
-          <h2>{preview ? "Puzzle preview" : "Starting board"}</h2>
-          <span>{81 - count} empty squares</span>
-        </div>
+        {#if preview}
+          <div class="board-heading">
+            <h2>Puzzle preview</h2>
+            <span>{81 - count} empty squares</span>
+          </div>
+        {/if}
         <div class="input-board" role="group" aria-label="Puzzle board" bind:this={boardEl}>
           {#each cells as digit, i (i)}
             <button
@@ -338,7 +348,7 @@
                 <p>Copy the starting numbers from your puzzle. Leave the empty squares blank.</p>
               </div>
             {:else}
-              <div class="string-input">
+              <div class="string-input" class:keyboard-focus={keyboardFocus}>
                 <label for="puzzle-string">Puzzle link or 81 digits</label>
                 <textarea
                   id="puzzle-string"
@@ -363,7 +373,7 @@
                     ><rect x="5" y="5" width="14" height="16" rx="2" /><path
                       d="M9 3h6v4H9zM9 12h6M9 16h4"
                     /></svg
-                  >{reading ? "Pasting…" : "Paste from clipboard"}</button
+                  >{reading ? "Pasting…" : "Paste"}</button
                 >
                 <p class="import-error" id="import-error" role="status">{importError}</p>
               </div>
@@ -403,13 +413,13 @@
       >
       <button
         class="copy-toggle"
-        aria-label="Copy puzzle"
+        aria-label="Share puzzle"
         aria-haspopup="dialog"
         disabled={!ready}
         onclick={() => (copyOpen = !copyOpen)}
         ><svg viewBox="0 0 24 24" aria-hidden="true"
           ><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V4H4v12h4" /></svg
-        ><span>Copy puzzle</span></button
+        ><span>Share puzzle</span></button
       >
     </footer>
     <CopyPuzzleDialog bind:open={copyOpen} puzzle={normalized} />
@@ -1158,6 +1168,170 @@
     }
     .clear-board {
       padding: 0 4px;
+    }
+  }
+
+  /* Selected A: retain the existing tokens and controls, with quiet framing. */
+  .quiet .setup-panel,
+  .quiet .action-panel {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: 8px 0 0;
+  }
+  .quiet .action-panel {
+    border-top: 1px solid var(--hair);
+    padding-top: 20px;
+  }
+  .quiet .input-kicker {
+    display: none;
+  }
+  .quiet .input-modes {
+    border: 0;
+    border-bottom: 1px solid var(--hair);
+    border-radius: 0;
+    padding: 0;
+    gap: 0;
+    background: transparent;
+  }
+  .quiet .input-modes button {
+    min-height: 46px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+  }
+  .quiet .input-modes button.active {
+    border-bottom-color: var(--primary);
+    box-shadow: none;
+    background: transparent;
+    color: var(--ui-ink);
+  }
+  .quiet .manual-copy {
+    margin-top: 20px;
+  }
+  .quiet .manual-copy h3 {
+    font-size: 18px;
+  }
+  .quiet .manual-copy p {
+    font-size: 12px;
+  }
+  .quiet .copy-toggle {
+    border: 1px solid var(--hair);
+    background: var(--board-bg);
+  }
+  @media (max-width: 599px) {
+    .custom-editor {
+      padding-left: 16px;
+      padding-right: 16px;
+    }
+    .quiet .setup-top {
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+    }
+    .quiet .action-panel {
+      padding: 12px 4px 0;
+      border-top: 1px solid var(--hair);
+    }
+    .quiet .input-modes button {
+      font-size: 13px;
+    }
+    .quiet .copy-toggle {
+      border: 0;
+      background: transparent;
+    }
+    .quiet .string-input {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 0;
+      position: relative;
+      background: var(--board-bg);
+      border: 1px solid var(--hair);
+      border-radius: 10px;
+      padding: 0;
+      margin-top: 14px;
+      overflow: hidden;
+    }
+    .quiet .string-input > label {
+      grid-column: 1/3;
+      grid-row: 1;
+      margin: 0;
+      padding: 12px 12px 8px;
+      align-self: center;
+      font-size: 12px;
+    }
+    .quiet textarea {
+      grid-column: 1/3;
+      grid-row: 2;
+      height: 78px;
+      min-height: 78px;
+      padding: 0 12px;
+      font-size: 16px;
+      line-height: 24px;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      resize: none;
+      box-shadow: none;
+    }
+    .quiet textarea:focus {
+      outline: 0;
+    }
+    .quiet .string-input.keyboard-focus:focus-within {
+      border-color: var(--focus);
+      box-shadow: 0 0 0 1px var(--focus);
+    }
+    .quiet .string-meta {
+      grid-column: 1;
+      grid-row: 3;
+      align-self: center;
+      padding: 0 12px;
+      margin: 0;
+      font-size: 10px;
+    }
+    .quiet .paste-clipboard {
+      grid-column: 2;
+      grid-row: 3;
+      width: auto;
+      min-height: 44px;
+      margin: 0;
+      padding: 0 12px;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+      font-size: 12px;
+      gap: 6px;
+    }
+    .quiet .import-error {
+      grid-column: 1/3;
+      grid-row: 4;
+      margin: 0;
+      padding: 0 12px;
+    }
+    .quiet .import-error:not(:empty) {
+      padding-bottom: 10px;
+    }
+    .quiet.paste .input-board {
+      width: var(--draft-board-side, 100%);
+      margin-inline: auto;
+    }
+  }
+  @media (max-width: 359px) {
+    .quiet .tool {
+      padding: 0 6px;
+    }
+    .quiet .tool-divider {
+      margin: 0 2px;
+    }
+    .quiet .editor-tools {
+      gap: 4px;
+    }
+  }
+  @media (max-width: 599px) and (max-height: 600px) {
+    .quiet .history-tools {
+      gap: 0;
     }
   }
 </style>
