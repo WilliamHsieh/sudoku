@@ -144,6 +144,9 @@ test("new shell and complete bank activate together while an old tab keeps its a
     )
   ).toEqual(oldAssets.map(() => true));
   expect(await oldPage.evaluate(() => globalThis.__sudokuPuzzleBank["2099-01-01"])).toBeUndefined();
+  await oldPage.getByRole("button", { name: /Open Journal/ }).click();
+  await expect(oldPage.locator(".journal")).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem("sudoku-custom-progress"))).toBe(saved);
   expect(await page.evaluate(() => globalThis.__sudokuPuzzleBank["2099-01-01"])).toBeTruthy();
   await page.reload();
   await start(page).click();

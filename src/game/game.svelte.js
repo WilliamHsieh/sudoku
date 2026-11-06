@@ -461,9 +461,11 @@ export function createGame() {
       onLoad();
     },
 
-    /** Write current in-progress puzzle to `sudoku-progress`. */
-    flushProgress() {
-      persistProgress(false, true);
+    /** Write current progress; explicit Update must reject a stale save.
+     * @param {boolean} [strict]
+     */
+    flushProgress(strict = false) {
+      persistProgress(false, strict);
     },
   };
 }

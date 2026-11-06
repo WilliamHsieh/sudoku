@@ -27,6 +27,12 @@ test("a verified complete bank supports offline reload and a new page", async ({
   expect(new URL(restarted.url()).searchParams.get("keep")).toBe("yes");
   expect(new URL(restarted.url()).hash).toBe("#board");
   expect(await restarted.evaluate(() => globalThis.__sudokuPuzzleBank)).toEqual(bank);
+  const [worker] = await Promise.all([
+    restarted.waitForEvent("worker"),
+    restarted.locator("#hint-trigger").click(),
+  ]);
+  expect(worker.url()).toContain("engine.worker");
+  await expect(restarted.locator("#hint-panel .hint-position")).toHaveText("1/3");
 });
 
 test("a closed browser restarts offline with the complete release and saved custom game", async ({

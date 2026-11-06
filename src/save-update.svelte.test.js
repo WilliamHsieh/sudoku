@@ -9,5 +9,6 @@ it.each([false, true])("Update must stop if the final %s save loses a cross-tab 
   const game = createGame();
   game.load(DEMO_PUZZLE, custom ? { custom: true } : { dateStr: "2026-10-22", difficulty: "easy" });
   game.enter(0, 4);
-  expect(() => game.flushProgress()).toThrow(/another tab/);
+  expect(() => game.flushProgress()).not.toThrow();
+  expect(() => game.flushProgress(true)).toThrow(/another tab/);
 });

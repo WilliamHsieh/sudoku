@@ -743,7 +743,7 @@
     setUpdating: (value) => {
       updating = value;
     },
-    flush: () => game.flushProgress(),
+    flush: () => game.flushProgress(true),
     reload: () => reloadForUpdate(updateVersion),
   });
 
