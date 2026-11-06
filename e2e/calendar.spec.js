@@ -24,6 +24,7 @@ async function loadFromJournal(page, dateStr, difficulty) {
 test.beforeEach(async ({ page }) => {
   await page.clock.install({ time: NOW });
   await page.goto("./");
+  await expect(page.getByRole("button", { name: /^Play$/ })).toBeVisible();
   await page.clock.pauseAt(new Date(NOW.getTime() + 60_000));
 });
 

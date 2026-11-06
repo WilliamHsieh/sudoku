@@ -14,8 +14,8 @@ vi.mock("./auto-update-browser.js", () => ({
 
 afterEach(() => vi.unstubAllGlobals());
 
-it("mounts immediately without scheduling startup navigation", async () => {
-  const target = {};
+it("mounts the development app without scheduling startup navigation", async () => {
+  const target = { replaceChildren: vi.fn() };
   const requestFrame = vi.fn();
   vi.stubGlobal("document", { getElementById: () => target });
   vi.stubGlobal("requestAnimationFrame", requestFrame);

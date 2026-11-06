@@ -438,6 +438,7 @@ test.describe("native shell", () => {
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("./?shot=1&freeze");
+    await expect(page.locator(".board")).toBeVisible();
     const touch = await page.evaluate(() => {
       const cell = getComputedStyle(document.querySelector(".cell"));
       const key = getComputedStyle(document.querySelector(".key"));

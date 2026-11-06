@@ -10,7 +10,11 @@ export async function upgradeServer(buildDirectory = buildRoot) {
   let oldLaunches = 0;
   let newLaunches = 0;
   let brokenNavigation = false;
+  let bankRequested = false;
   const requests = [];
+  const navigations = [];
+  let gate = Promise.resolve();
+  let bankGate = Promise.resolve();
   const abortedChecks = [];
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, "http://localhost");
@@ -21,6 +25,7 @@ export async function upgradeServer(buildDirectory = buildRoot) {
       return;
     }
     if (relative === "version.json") {
+      await gate;
       if (fault === "offline") {
         req.socket.destroy();
         return;
@@ -37,6 +42,19 @@ export async function upgradeServer(buildDirectory = buildRoot) {
         await new Promise((resolve) => setTimeout(resolve, 3000));
       }
     }
+    if (relative.startsWith("banks/")) {
+      bankRequested = true;
+      await bankGate;
+      if (fault === "bank-delay") await new Promise((resolve) => setTimeout(resolve, 2000));
+      if (fault === "bank-corrupt") {
+        res.writeHead(200).end("corrupt bank");
+        return;
+      }
+      if (fault === "bank-interrupted") {
+        req.socket.destroy();
+        return;
+      }
+    }
     const navigation = relative === "index.html" && !url.searchParams.has("_sudoku_check");
     if (navigation && url.searchParams.has("_sudoku_update") && fault === "missing-asset")
       brokenNavigation = true;
@@ -45,11 +63,13 @@ export async function upgradeServer(buildDirectory = buildRoot) {
       return;
     }
     const selected =
-      navigation && newLaunches-- > 0
-        ? "new"
-        : (fault === "old-html" && relative === "index.html") || (navigation && oldLaunches-- > 0)
-          ? "old"
-          : version;
+      fault === "manifest-change" && bankRequested && relative === "version.json"
+        ? "old"
+        : navigation && newLaunches-- > 0
+          ? "new"
+          : (fault === "old-html" && relative === "index.html") || (navigation && oldLaunches-- > 0)
+            ? "old"
+            : version;
     try {
       let body;
       try {
@@ -82,9 +102,28 @@ export async function upgradeServer(buildDirectory = buildRoot) {
   return {
     url: `http://127.0.0.1:${server.address().port}/sudoku/`,
     requests,
+    navigations,
+    track: (page) =>
+      page.on("request", (request) => {
+        if (request.isNavigationRequest()) navigations.push(request.url());
+      }),
+    holdBank: () => {
+      let release;
+      bankGate = new Promise((resolve) => {
+        release = resolve;
+      });
+      return release;
+    },
+    holdManifest: () => {
+      let release;
+      gate = new Promise((resolve) => {
+        release = resolve;
+      });
+      return release;
+    },
     abortedChecks,
-    publish: () => {
-      version = "new";
+    publish: (next = "new") => {
+      version = next;
     },
     launchOld: () => {
       oldLaunches = 1;
@@ -95,6 +134,7 @@ export async function upgradeServer(buildDirectory = buildRoot) {
     fault: (value) => {
       fault = value;
       brokenNavigation = false;
+      bankRequested = false;
     },
     close: () =>
       new Promise((resolve) => {

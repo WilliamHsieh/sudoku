@@ -11,6 +11,7 @@ async function openSheet(page, kind, settle = true) {
     if (settle) await page.locator("[data-more]").filter({ visible: true }).click();
   } else {
     await page.goto("./");
+    await expect(page.getByRole("button", { name: /Latest puzzles,/ })).toBeVisible();
     if (settle) await page.getByRole("button", { name: /Latest puzzles,/ }).click();
   }
   if (!settle) {

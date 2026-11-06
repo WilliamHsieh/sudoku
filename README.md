@@ -36,10 +36,59 @@ These commands write local artifacts to `.lavish/hint-ui-implemented/`. The prod
 
 Hints are hidden in Manual mode. Auto reasons from the current board and visible Auto candidates, including the player's removals. Those removals are accepted as assumptions, so a mistaken removal can affect a hint. Tidy reasons from the current board and independently certified eliminations; missing pencil marks are not reasoning premises. In both modes an elimination must remove a currently visible candidate. Search skips ineffective pattern instances and keeps looking within the same technique before trying the next one. Placements can still fill an empty cell whose digit was not pencilled in. Closing an effective hint without changing the board may show it again on the next request.
 
-Tidy's trusted eliminations are saved separately from player notes. They are structurally validated on load and independently re-proved before search, follow undo/redo, and reset on manual answer edits. Auto progress stays in its candidate overrides and never promotes player assumptions into Tidy's trusted ledger. Re-adding an eliminated candidate makes that deduction eligible again. Applying an already absent elimination creates no hidden ledger-only move or undo entry. Hint highlights preserve the player's visible notes rather than replacing them with proof candidates. Closing, changing the board, pausing, or hiding the page cancels pending work. This implementation searches on request only; it does not claim background precomputation or offline PWA caching.
+Tidy's trusted eliminations are saved separately from player notes. They are structurally validated on load and independently re-proved before search, follow undo/redo, and reset on manual answer edits. Auto progress stays in its candidate overrides and never promotes player assumptions into Tidy's trusted ledger. Re-adding an eliminated candidate makes that deduction eligible again. Applying an already absent elimination creates no hidden ledger-only move or undo entry. Hint highlights preserve the player's visible notes rather than replacing them with proof candidates. Closing, changing the board, pausing, or hiding the page cancels pending work. The hint engine searches on request only. The offline shell includes its worker so hints remain available without a network connection.
 
 Puzzles come from `scraper.py`, which a GitHub Action runs daily at 04:00 UTC (`uv run python scraper.py` to run it yourself). Every push to `master` deploys to GitHub Pages.
 
 ## License
 
 [MIT](LICENSE). Puzzles come from The New York Times Sudoku page. This project isn't affiliated with The New York Times.
+
+## Offline releases
+
+Production startup prepares the complete current NYT bank and the offline shell
+before play. A failed download shows Retry. Later launches use the verified local
+release, including offline navigation under `/sudoku/`.
+
+The scraper still updates `src/puzzles.js`. The build extracts that data into
+`banks/<sha256>.json`; the app JavaScript does not contain the bank. `version.json`
+keeps the schema-1 HTML and JS/CSS discovery fields for already-open deployed
+clients. Its `release` field contains the complete schema-2 metadata, identifies
+the app build separately, and lists SHA-256 digests for the bank, HTML,
+JavaScript (including the hint worker), CSS, font, and icons. Both contracts come
+from the same build bytes; the new app uses one staged-release updater.
+
+Publish the whole `dist` directory together. A foreground check downloads into a
+separate release cache, verifies every byte, and rereads the network manifest.
+The HTML build identity must also match the manifest. Only then does it write the ready marker and show Update. An unchanged bank is
+verified and reused locally. Explicit Update flushes game state, selects the ready
+release, and reloads. Background checks never activate or reload a game.
+
+The service worker is a stable release router. Its install/activate lifecycle
+claims clients but does not select an app version. Navigation uses the active
+release; client pins preserve resources for old running tabs. Verification
+requests bypass the worker cache. Failed staging deletes only its own incomplete
+cache. Ready releases are retained so old and browser-restored tabs can still
+load their assets. Retry repairs missing or corrupt cached entries using the
+saved manifest hashes. It verifies all downloads in a temporary repair cache
+before replacing damaged entries, and preserves valid active content. If a newer
+deployment no longer serves the damaged release, the explicit Reload Sudoku link
+loads and verifies the current release; successful fresh bootstrap makes that
+release available to later offline launches without disturbing existing tabs.
+Offline caches are scoped to this app; game storage is never
+cleared by release installation.
+
+Custom games keep answers, notes, and elapsed time in `sudoku-custom-progress`.
+Starting a typed custom puzzle adds its givens to the existing URL, so offline
+restart and Update reopen the same puzzle. Other query parameters and fragments
+are preserved. Daily and custom saves compare the stored puzzle entry with this
+document's last known entry. A stale tab can keep playing, but cannot overwrite a
+newer saved game; Update reports the conflict and offers Reload Sudoku. Failed
+storage reads or malformed saved snapshots prevent writes. Ordinary gameplay
+continues in memory; explicit Update stays on the page if its final save fails.
+
+The canonical browser suites cover real service-worker control, failed first
+preparation and retry, offline reload/new page/full browser restart, app-only bank
+reuse, corrupt/interrupted/mismatched staging, atomic shell-and-bank activation,
+and old-tab resource and save safety. `node scripts/offline-evidence.mjs` records a
+paced Chromium walkthrough (set `SUDOKU_OFFLINE_EVIDENCE` to choose its directory).

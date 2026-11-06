@@ -12,6 +12,7 @@ const SPOKEN = "October 2026, latest puzzles Wed, Oct 21";
 // Watch every polite region, so a second announcement source cannot hide behind
 // assertions that only inspect the explicit return status.
 async function watch(page) {
+  await expect(page.locator(".journal")).toBeVisible();
   await page.evaluate(() => {
     const journal = document.querySelector(".journal");
     const previous = new Map();
