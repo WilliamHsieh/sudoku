@@ -33,9 +33,15 @@ import {
   changedCells,
 } from "./history.js";
 import { bit, popcount } from "./board.js";
+import { solvedState } from "./solved-state.js";
 import { fromSnapshot } from "./snapshot.js";
 import { done, timer, timerRunning, resetTimer, solvedPuzzles } from "../store.js";
-import { puzzleProgress, customProgress, progressPayload } from "../journal/progress.js";
+import {
+  puzzleProgress,
+  replayProgress,
+  customProgress,
+  progressPayload,
+} from "../journal/progress.js";
 
 /** Demo puzzle shipped on master (the board you get by clicking Play). */
 export const DEMO_PUZZLE =
@@ -59,6 +65,9 @@ export function createGame() {
   let meta = $state({ dateStr: null, difficulty: null });
   let customKey = "";
   let marked = $state(false);
+  let journalView = $state(false);
+  let replaying = $state(false);
+  let previousRecord = null;
   /** @type {number[]} */
   let lastBlockers = $state([]);
   /** @type {() => void} */
@@ -118,7 +127,7 @@ export function createGame() {
   }
 
   function persistProgress(force = false, strict = false) {
-    const store = customKey ? customProgress : puzzleProgress;
+    const store = customKey ? customProgress : replaying ? replayProgress : puzzleProgress;
     const date = customKey ? "puzzles" : meta.dateStr;
     const difficulty = customKey || meta.difficulty;
     if (!date || !difficulty) return;
@@ -138,18 +147,25 @@ export function createGame() {
       return;
     }
     if (isSolved(history.present)) {
-      if (!marked) marked = solvedPuzzles.markSolved(meta.dateStr, meta.difficulty, get(timer));
+      if (!marked)
+        marked = solvedPuzzles.markSolved(
+          meta.dateStr,
+          meta.difficulty,
+          get(timer),
+          replaying ? replayProgress : puzzleProgress
+        );
       if (!marked) {
         if (strict) throw new Error("Could not save completion. Please retry.");
         return;
       }
-      const cleared = puzzleProgress.clear(meta.dateStr, meta.difficulty);
+      if (replaying) journalView = true;
+      const cleared = store.clear(meta.dateStr, meta.difficulty);
       if (strict && !cleared) throw new Error("Could not save progress. Please retry.");
       return;
     }
     const elapsed = get(timer);
     const payload = progressPayload(history.present, elapsed);
-    const saved = get(puzzleProgress)[meta.dateStr]?.[meta.difficulty]?.snapshot;
+    const saved = get(store)[meta.dateStr]?.[meta.difficulty]?.snapshot;
     const autoProgress =
       history.present.autoAdded.some(Boolean) || history.present.autoRemoved.some(Boolean);
     const savedAutoProgress =
@@ -167,7 +183,7 @@ export function createGame() {
       !savedAutoProgress
     )
       return;
-    const written = puzzleProgress.save(meta.dateStr, meta.difficulty, payload);
+    const written = store.save(meta.dateStr, meta.difficulty, payload);
     if (strict && !written)
       throw new Error(
         "Could not verify saved progress. Storage may be unavailable or this puzzle changed in another tab."
@@ -178,8 +194,14 @@ export function createGame() {
     if (isSolved(history.present)) {
       done.set(true);
       if (!marked && meta.dateStr && meta.difficulty) {
-        marked = solvedPuzzles.markSolved(meta.dateStr, meta.difficulty, get(timer));
+        marked = solvedPuzzles.markSolved(
+          meta.dateStr,
+          meta.difficulty,
+          get(timer),
+          replaying ? replayProgress : puzzleProgress
+        );
       }
+      if (marked && replaying) journalView = true;
       if (marked && meta.dateStr && meta.difficulty)
         puzzleProgress.clear(meta.dateStr, meta.difficulty);
     } else {
@@ -188,6 +210,37 @@ export function createGame() {
   }
 
   return {
+    get journalView() {
+      return journalView;
+    },
+    get previousRecord() {
+      return previousRecord;
+    },
+    get replaying() {
+      return replaying;
+    },
+    /** Only the confirmed S3 action may replace an existing replay. @param {boolean} [startOver] */
+    startReplay(startOver = false) {
+      if (!journalView || !meta.dateStr || !meta.difficulty) return false;
+      if (!replayProgress.isCurrent(meta.dateStr, meta.difficulty)) return false;
+      const saved = get(replayProgress)[meta.dateStr]?.[meta.difficulty];
+      if (saved && !startOver) return false;
+      this.load(state.givens.join(""), { ...meta, replay: true });
+      return true;
+    },
+    resumeReplay() {
+      if (!journalView || !meta.dateStr || !meta.difficulty) return false;
+      if (!replayProgress.isCurrent(meta.dateStr, meta.difficulty)) return false;
+      const saved = get(replayProgress)[meta.dateStr]?.[meta.difficulty];
+      if (!saved?.snapshot) return false;
+      this.load(state.givens.join(""), {
+        ...meta,
+        replay: true,
+        snapshot: saved.snapshot,
+        elapsed: saved.elapsed,
+      });
+      return true;
+    },
     get state() {
       return state;
     },
@@ -430,6 +483,7 @@ export function createGame() {
 
     /** Clear answers, notes and undo/redo. Keeps the puzzle and the notes mode. */
     restart() {
+      if (replaying || journalView) return;
       prepareMutation();
       const next = restartState(state);
       const changed = changedCells(state, next).length > 0;
@@ -446,13 +500,22 @@ export function createGame() {
 
     /**
      * @param {string} puzzle
-     * @param {LoadMeta & { snapshot?: import('./snapshot.js').Snapshot, elapsed?: number }} [info]
+     * @param {LoadMeta & { replay?: boolean, snapshot?: import('./snapshot.js').Snapshot, elapsed?: number }} [info]
      */
     load(puzzle, info = {}) {
       prepareMutation();
       persistProgress();
       customKey = info.custom ? puzzle : "";
-      if (info.snapshot) {
+      const record =
+        info.dateStr && info.difficulty
+          ? get(solvedPuzzles)[info.dateStr]?.[info.difficulty]
+          : null;
+      replaying = !!(info.replay && record?.completed);
+      previousRecord = replaying ? record : null;
+      journalView = !!record?.completed && !replaying;
+      if (journalView) {
+        history = createHistory(solvedState(puzzle));
+      } else if (info.snapshot) {
         history = createHistory(fromSnapshot(info.snapshot));
       } else {
         history = createHistory(newGame(puzzle, { notesMode: "auto" }));
@@ -469,6 +532,13 @@ export function createGame() {
         timerRunning.set(true);
       } else {
         resetTimer();
+      }
+      if (journalView) {
+        marked = true;
+        timer.set(record.time);
+        done.set(true);
+      } else if (replaying && !info.snapshot && meta.dateStr && meta.difficulty) {
+        replayProgress.save(meta.dateStr, meta.difficulty, progressPayload(history.present, 0));
       }
       onLoad();
     },

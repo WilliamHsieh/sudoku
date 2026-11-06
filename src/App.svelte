@@ -10,6 +10,8 @@
     resetAutofill,
     syncAutofill,
   } from "./autofill.svelte.js";
+  import JournalSolved from "./JournalSolved.svelte";
+  import ReplayConfirm from "./ReplayConfirm.svelte";
   import SolvedPanel from "./SolvedPanel.svelte";
   import { solvedModel } from "./solved.js";
   import "./solved.css";
@@ -26,6 +28,7 @@
   import { get } from "svelte/store";
   import { done, puzzleProgress, solvedPuzzles, timer, formatTime } from "./store";
   import { game } from "./game/game.svelte.js";
+  import { replayProgress } from "./journal/progress.js";
   import { firstUnsolvedLatest } from "./game/daily.js";
   import { customProgress } from "./journal/progress.js";
   import { puzzleData } from "./puzzles.js";
@@ -307,6 +310,23 @@
   let journalViewport = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   let wrapEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   let ringEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
+  let replayConfirm = $state(false);
+  async function cancelReplay() {
+    replayConfirm = false;
+    await tick();
+    document.getElementById("sv-replay")?.focus({ preventScroll: true });
+  }
+  function confirmReplay() {
+    replayConfirm = false;
+    game.startReplay(!!$replayProgress[game.dateStr]?.[game.difficulty]);
+    handleLoadPuzzle();
+    void tick().then(() => focusId("time-control"));
+  }
+  function resumeReplay() {
+    if (!game.resumeReplay()) return;
+    handleLoadPuzzle();
+    void tick().then(() => focusId("time-control"));
+  }
   let solvedScreen = $state(false);
   let autoFinishing = false;
   let controlsGone = $state(false);
@@ -342,6 +362,7 @@
       solved: get(solvedPuzzles),
       progress: get(puzzleProgress),
       puzzles: puzzleData,
+      previousRecord: game.previousRecord,
     });
     solvedScreen = true;
   }
@@ -349,6 +370,16 @@
     if (!$done) {
       solvedScreen = false;
       controlsGone = false;
+      return;
+    }
+    if (game.journalView) {
+      untrack(() => {
+        game.select(-1);
+        resetKeypad();
+        releaseShiftHover();
+      });
+      solvedScreen = true;
+      controlsGone = true;
       return;
     }
     if (autoFinishing) return;
@@ -551,13 +582,14 @@
   function handleGlobalKeydown(e) {
     if (e.key !== " " && e.key !== "Escape") endSpaceHold(true);
     if (customOpen && showCalendar) return;
-    if (playUi.modal) return;
+    if (playUi.modal || replayConfirm) return;
     // Every game binding below is off once complete: digits (including modified
     // digits), arrows, Backspace/Delete/0, undo/redo (Ctrl/Cmd Z, Shift Z, Ctrl Y),
     // Tab autofill, Shift digit lock, Space/Enter locked input, Escape and P.
     if (game.solved && !showCalendar) {
       if (
         solvedScreen &&
+        !game.journalView &&
         e.key === "Enter" &&
         (document.activeElement === document.body || document.activeElement?.id === "sv-h")
       ) {
@@ -678,6 +710,13 @@
 
   /** Shared by C, P, and Resume for the current puzzle. Never reload history. */
   function backToGame(fromSheet = false) {
+    if (
+      game.dateStr &&
+      game.difficulty &&
+      get(solvedPuzzles)[game.dateStr]?.[game.difficulty]?.completed
+    ) {
+      game.load(game.state.givens.join(""), { dateStr: game.dateStr, difficulty: game.difficulty });
+    }
     playUi.start();
     playUi.resume();
     if (!playUi.paused) {
@@ -807,6 +846,7 @@
     const onAway = () => {
       hints.close();
       hintFrame = null;
+      if (game.replaying) game.flushProgress();
       if (showCalendar || game.solved) {
         // Clear #58's view/entry announcement without pausing these views.
         resumeStatus = "";
@@ -983,6 +1023,7 @@
     <CustomDraftHeader preview={customPreview} onback={closeCustomPuzzle} />
   {:else}
     <PlayHeader
+      inert={replayConfirm}
       journal={showCalendar}
       narrow={isNarrow}
       {hasPlayed}
@@ -1024,6 +1065,7 @@
     </div>
   {:else}
     <div
+      inert={replayConfirm}
       use:fitKeypad
       bind:this={playViewport}
       class="play"
@@ -1068,7 +1110,7 @@
               />
             {/each}
           </div>
-          {#if solvedScreen && !playUi.reduced}
+          {#if solvedScreen && !game.journalView && !playUi.reduced}
             <div
               class="sv-ring"
               aria-hidden="true"
@@ -1113,7 +1155,12 @@
         class:hint-replaced={hints.isOpen}
         inert={hints.isOpen}
       >
-        {#if solvedScreen && resultModel}<SolvedPanel
+        {#if game.journalView}<JournalSolved
+            onjournal={solvedJournal}
+            onresume={resumeReplay}
+            onreplay={() => (replayConfirm = true)}
+          />
+        {:else if solvedScreen && resultModel}<SolvedPanel
             model={resultModel}
             reduced={playUi.reduced}
             onnext={nextSolved}
@@ -1287,12 +1334,12 @@
     </div>
 
     <OptionsSheet
-      canRestart={!game.solved}
+      canRestart={!game.solved && !game.replaying}
       viewport={playViewport}
       oncustom={openCustomPuzzle}
       onclosed={focusMore}
       onrestart={() => {
-        if (game.solved) return;
+        if (game.solved || game.replaying) return;
         game.restart();
         resetKeypad();
         resetAutofill();
@@ -1340,6 +1387,13 @@
     ondismiss={dismissUpdate}
   />
 {/if}
+
+{#if replayConfirm}<ReplayConfirm
+    time={get(timer)}
+    replayTime={$replayProgress[game.dateStr]?.[game.difficulty]?.elapsed ?? null}
+    oncancel={cancelReplay}
+    onconfirm={confirmReplay}
+  />{/if}
 
 <style>
   .sr-only {

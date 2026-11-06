@@ -8,13 +8,14 @@
    * @type {{
    *   diff: 'easy' | 'medium' | 'hard',
    *   st: import('./stats.js').PuzzleState,
+   *   replay?: import('./stats.js').ProgressState | null,
    *   avg?: number | null,
    *   isPb?: boolean,
    *   inPlay?: number | null,
    *   onplay?: () => void,
    * }}
    */
-  let { diff, st, avg = null, isPb = false, inPlay = null, onplay } = $props();
+  let { diff, st, replay = null, avg = null, isPb = false, inPlay = null, onplay } = $props();
 
   const delta = $derived(st.kind === "solved" && avg != null ? st.time - avg : 0);
 </script>
@@ -31,8 +32,16 @@
           {delta < 0 ? "faster" : "slower"} than average
         {/if}
       </div>
+      {#if replay}<div class="s num replay-line">
+          Replay in progress · {fmtTime(replay.elapsed)} played
+        </div>{/if}
     </div>
-    <span class="tm num"><Icon name="check" />{fmtTime(st.time)}</span>
+    <button
+      class="tm num solved-open"
+      type="button"
+      aria-label={`View solved ${diff} puzzle, ${formatTime(st.time)}`}
+      onclick={onplay}><Icon name="check" />{fmtTime(st.time)}</button
+    >
   {:else if st.kind === "progress"}
     <div>
       <DiffLabel {diff} />
@@ -85,6 +94,10 @@
     font-size: 13px;
     color: var(--ink2);
   }
+  .s.replay-line {
+    color: var(--amber);
+    font-weight: 500;
+  }
   .num {
     font-variant-numeric: tabular-nums;
   }
@@ -103,6 +116,23 @@
     align-items: center;
     gap: 6px;
     --ic: 16px;
+  }
+  .solved-open {
+    border: 0;
+    background: transparent;
+    color: var(--ui-ink);
+    font-family: inherit;
+    cursor: pointer;
+    min-height: 44px;
+    border-radius: 9px;
+    padding: 0 8px;
+  }
+  .solved-open:hover {
+    background: var(--sv-quiet-hover);
+  }
+  .solved-open:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
   }
   .bar {
     height: 4px;

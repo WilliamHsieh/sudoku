@@ -14,6 +14,7 @@ import { fromSnapshot, toSnapshot } from "../game/snapshot.js";
 
 const SOLVED_KEY = "sudoku-solved";
 const PROGRESS_KEY = "sudoku-progress";
+const REPLAY_KEY = "sudoku-replay-progress";
 
 // Startup may use an empty view, but mutations must distinguish unreadable
 // storage from an absent key. Never merge stale memory after a failed read.
@@ -57,8 +58,8 @@ function createSolvedPuzzles() {
     subscribe,
     set,
     update,
-    markSolved: (dateStr, difficulty, completionTime) => {
-      if (!puzzleProgress.isCurrent(dateStr, difficulty)) return false;
+    markSolved: (dateStr, difficulty, completionTime, progressStore = puzzleProgress) => {
+      if (!progressStore.isCurrent(dateStr, difficulty)) return false;
       let saved = false;
       update((solved) => {
         const current = readJson(SOLVED_KEY, solved);
@@ -73,7 +74,10 @@ function createSolvedPuzzles() {
         saved = true;
         return next;
       });
-      if (saved) puzzleProgress.clear(dateStr, difficulty);
+      if (saved) {
+        puzzleProgress.clear(dateStr, difficulty);
+        replayProgress.clear(dateStr, difficulty);
+      }
       return saved;
     },
     isSolved: (dateStr, difficulty) => {
@@ -144,6 +148,8 @@ function createPuzzleProgress(key = PROGRESS_KEY) {
 export const solvedPuzzles = createSolvedPuzzles();
 export const puzzleProgress = createPuzzleProgress();
 export const customProgress = createPuzzleProgress("sudoku-custom-progress");
+// Replay snapshots never participate in the solved record or ordinary progress.
+export const replayProgress = createPuzzleProgress(REPLAY_KEY);
 
 /**
  * How many of the empty cells have answers.

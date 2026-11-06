@@ -33,6 +33,8 @@
   } from "./journal/stats.js";
   import Icon from "./journal/Icon.svelte";
   import CustomPuzzleEntry from "./custom/CustomPuzzleEntry.svelte";
+  import { replayProgress } from "./journal/progress.js";
+  import { replayState } from "./journal/stats.js";
   import Marks from "./journal/Marks.svelte";
   import DiffLabel from "./journal/DiffLabel.svelte";
   import PuzzleRow from "./journal/PuzzleRow.svelte";
@@ -118,7 +120,7 @@
   const progress = $derived($puzzleProgress);
   const md = $derived(monthStats(puzzleData, solved, progress, view, latest));
   const cells = $derived(monthCells(puzzleData, latest, today, view));
-  const unfinished = $derived(unfinishedList(progress, solved));
+  const unfinished = $derived(unfinishedList(progress, solved, $replayProgress));
   const streak = $derived(streakFrom(puzzleData, solved, latest));
   const longest = $derived(longestStreak(puzzleData, solved, latest));
   const bests = $derived(personalBests(solved));
@@ -163,7 +165,11 @@
 
   /** @param {string} date */
   function kinds(date) {
-    return DIFFS.map((d) => puzzleState(solved, progress, date, d).kind);
+    return DIFFS.map((d) =>
+      replayState(solved, $replayProgress, date, d)
+        ? "replaying"
+        : puzzleState(solved, progress, date, d).kind
+    );
   }
 
   function prefersReduced() {
@@ -372,18 +378,30 @@
    * @param {string} date
    * @param {(typeof DIFFS)[number]} diff
    * @param {boolean} [fromSheet]
+   * @param {boolean} [resume]
    */
-  function playPuzzle(date, diff, fromSheet = false) {
+  function playPuzzle(date, diff, fromSheet = false, resume = false) {
     if (fromSheet && (pendingPlay || !sheet || sheetExit.closing)) return;
     const puzzle = puzzleData[date]?.[diff];
     if (!puzzle) return;
     const st = puzzleState(get(solvedPuzzles), get(puzzleProgress), date, diff);
     const play = () => {
-      if (current?.date === date && current.diff === diff && onback) {
+      if (st.kind !== "solved" && current?.date === date && current.diff === diff && onback) {
         onback(fromSheet);
         return;
       }
-      if (st.kind === "progress") {
+      const replay = resume
+        ? replayState(get(solvedPuzzles), get(replayProgress), date, diff)
+        : null;
+      if (replay) {
+        game.load(puzzle, {
+          dateStr: date,
+          difficulty: diff,
+          replay: true,
+          snapshot: replay.snapshot,
+          elapsed: replay.elapsed,
+        });
+      } else if (st.kind === "progress") {
         game.load(puzzle, {
           dateStr: date,
           difficulty: diff,
@@ -673,7 +691,7 @@
                 data-d={cell.date}
                 aria-label="{longDate(cell.date)}{cell.date === latest
                   ? ' (latest)'
-                  : ''}: {dayDesc(solved, progress, cell.date)}"
+                  : ''}: {dayDesc(solved, progress, cell.date, $replayProgress)}"
                 onclick={() => openDay(cell.date)}
               >
                 <span class="n num">{cell.day}</span>
@@ -714,6 +732,7 @@
         <span>E · M · H</span>
         <span><Marks kinds={["solved"]} size={11} gap={0} />Solved</span>
         <span><Marks kinds={["progress"]} size={11} gap={0} />In progress</span>
+        <span><Marks kinds={["replaying"]} size={11} gap={0} />Replaying</span>
         <span><Marks kinds={["none"]} size={11} gap={0} />Not solved</span>
         <span><i class="lg-nop"></i>No puzzle</span>
         <span><i class="lg-lat"></i>Latest</span>
@@ -871,7 +890,7 @@
                 aria-pressed={selection === cell.date || (!selection && cell.date === latest)}
                 aria-label="{longDate(cell.date)}{cell.date === latest
                   ? ' (latest)'
-                  : ''}: {dayDesc(solved, progress, cell.date)}"
+                  : ''}: {dayDesc(solved, progress, cell.date, $replayProgress)}"
                 onclick={() => openDay(cell.date)}
               >
                 <span class="n num">{cell.day}</span>
@@ -905,6 +924,7 @@
         <span>E · M · H</span>
         <span><Marks kinds={["solved"]} size={12} gap={0} />Solved</span>
         <span><Marks kinds={["progress"]} size={12} gap={0} />In progress</span>
+        <span><Marks kinds={["replaying"]} size={11} gap={0} />Replaying</span>
         <span><Marks kinds={["none"]} size={12} gap={0} />Not solved</span>
         <i class="brk" aria-hidden="true"></i>
         <span><i class="lg-nop"></i>No puzzle</span>
@@ -931,6 +951,7 @@
               <PuzzleRow
                 diff={d}
                 st={rowState(latest, d)}
+                replay={replayState(solved, $replayProgress, latest, d)}
                 avg={avgs[d]}
                 isPb={bests[d]?.date === latest}
                 inPlay={current?.date === latest && current?.diff === d ? current.elapsed : null}
@@ -966,6 +987,7 @@
               <PuzzleRow
                 diff={d}
                 st={rowState(sel, d)}
+                replay={replayState(solved, $replayProgress, sel, d)}
                 avg={avgs[d]}
                 isPb={bests[d]?.date === sel}
                 inPlay={current?.date === sel && current?.diff === d ? current.elapsed : null}
@@ -996,7 +1018,7 @@
                 class="ulnk"
                 type="button"
                 data-d={x.date}
-                aria-label="Open {longDate(x.date)}: {DIFF_LABEL[x.diff]}, {x.pct}% filled"
+                aria-label={`Open ${longDate(x.date)}: ${DIFF_LABEL[x.diff]}${x.replay ? " replay" : ""}, ${x.pct}% filled${x.replay ? `. Solved in ${fmtTime(x.solvedTime)}` : ""}`}
                 onclick={() => pickDayFromUnfinished(x.date)}
               >
                 <span>
@@ -1004,7 +1026,9 @@
                     <DiffLabel diff={x.diff} />
                     <span class="ud">{shortDate(x.date)}</span>
                   </span>
-                  <span class="s num">{fmtTime(x.elapsed)} played · {x.pct}% filled</span>
+                  <span class="s num"
+                    >{x.replay ? "Replay · " : ""}{fmtTime(x.elapsed)} played · {x.pct}% filled</span
+                  >
                 </span>
                 <span class="bar"><i style="width:{x.pct}%"></i></span>
                 <Icon name="chevron-right" />
@@ -1063,20 +1087,24 @@
                 class="ub"
                 type="button"
                 data-d={x.date}
-                aria-label="{DIFF_LABEL[x.diff]}, {longDate(x.date)}: {x.pct}% filled"
+                aria-label={x.replay
+                  ? `Open ${longDate(x.date)}: ${DIFF_LABEL[x.diff]} replay, ${x.pct}% filled. Solved in ${fmtTime(x.solvedTime)}`
+                  : `${DIFF_LABEL[x.diff]}, ${longDate(x.date)}: ${x.pct}% filled`}
                 onclick={() => pickDayFromUnfinished(x.date)}
               >
                 <span class="l1">
                   <DiffLabel diff={x.diff} />
                   <span class="ud">{shortDate(x.date)}</span>
                 </span>
-                <span class="s num">{fmtTime(x.elapsed)} played · {x.pct}% filled</span>
+                <span class="s num"
+                  >{x.replay ? "Replay · " : ""}{fmtTime(x.elapsed)} played · {x.pct}% filled</span
+                >
                 <span class="bar"><i style="width:{x.pct}%"></i></span>
               </button>
               <button
                 class="btn btn-primary"
                 type="button"
-                onclick={() => playPuzzle(x.date, x.diff, true)}
+                onclick={() => playPuzzle(x.date, x.diff, true, !!x.replay)}
               >
                 <Icon name="play" />Resume
               </button>
@@ -1111,6 +1139,7 @@
           <PuzzleRow
             diff={d}
             st={rowState(sheetDay, d)}
+            replay={replayState(solved, $replayProgress, sheetDay, d)}
             avg={avgs[d]}
             isPb={bests[d]?.date === sheetDay}
             onplay={() => playPuzzle(sheetDay, d, true)}

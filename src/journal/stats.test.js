@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  dayDesc,
+  replayState,
   longestStreak,
   monthCells,
   monthStats,
@@ -118,4 +120,45 @@ describe("monthCells", () => {
     expect(byDay[19].kind).toBe("future");
     expect(byDay[19].notYet).toBe(false);
   });
+});
+
+it("lists replays alongside ordinary progress without changing solved statistics", () => {
+  const solved = { "2026-10-18": { easy: { completed: true, time: 402, timestamp: 1 } } };
+  const snapshot = {
+    version: 1,
+    puzzle: "0".repeat(81),
+    answers: "0".repeat(81),
+    notesMode: "auto",
+    manualNotes: Array(81).fill(""),
+    autoOverrides: { added: Array(81).fill(""), removed: Array(81).fill("") },
+  };
+  const replays = {
+    "2026-10-18": { easy: { elapsed: 133, filled: 19, empty: 50, updatedAt: 300, snapshot } },
+  };
+  const progress = {
+    "2026-10-18": {
+      easy: { elapsed: 50, filled: 2, empty: 50, updatedAt: 1 },
+      medium: { elapsed: 80, filled: 3, empty: 50, updatedAt: 200 },
+    },
+  };
+  const list = unfinishedList(progress, solved, replays);
+  expect(list.map((x) => [x.diff, !!x.replay, x.pct])).toEqual([
+    ["easy", true, 38],
+    ["medium", false, 6],
+  ]);
+  expect(list[0].solvedTime).toBe(402);
+  expect(dayDesc(solved, progress, "2026-10-18", replays)).toContain(
+    "Easy solved, replay in progress"
+  );
+  const stats = monthStats(data, solved, progress, new Date(2026, 9, 1), "2026-10-18");
+  expect(stats.tot).toBe(1);
+  expect(stats.unf).toBe(1);
+  expect(stats.rows.easy.avg).toBe(402);
+});
+it("does not offer an orphan or snapshotless replay as resumable", () => {
+  const replays = { day: { easy: { elapsed: 133, filled: 19, empty: 50, updatedAt: 1 } } };
+  expect(replayState({}, replays, "day", "easy")).toBe(null);
+  expect(
+    replayState({ day: { easy: { completed: true, time: 402 } } }, replays, "day", "easy")
+  ).toBe(null);
 });
