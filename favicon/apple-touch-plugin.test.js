@@ -53,8 +53,8 @@ function isInk(r, g, b) {
 }
 
 describe("apple-touch raster", () => {
-  it("renders the 7 outlines to a 180 PNG with no font", () => {
-    const svg = readFileSync(new URL("./I7-apple.svg", import.meta.url), "utf8");
+  it("renders the 9 outlines to a 180 PNG with no font", () => {
+    const svg = readFileSync(new URL("./I9-apple.svg", import.meta.url), "utf8");
     expect(svg).not.toMatch(/<text|font-family|@font-face/i);
     expect(svg).toContain("<path");
     expect(svg).toContain('transform="rotate(-8 90 90)"');

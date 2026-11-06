@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("static icons are digit 7 under /sudoku/ before the weekday swap", async ({
+test("static icons are digit 9 under /sudoku/ before the weekday swap", async ({
   page,
   baseURL,
 }) => {
@@ -8,12 +8,12 @@ test("static icons are digit 7 under /sudoku/ before the weekday swap", async ({
   const html = await (await page.request.get(`${origin}/sudoku/`)).text();
   expect(html).toContain('rel="icon"');
   expect(html).toContain('sizes="any"');
-  expect(html).toContain('href="/sudoku/favicon/I7-16.svg"');
-  expect(html).toContain('href="/sudoku/favicon/I7-32.svg"');
+  expect(html).toContain('href="/sudoku/favicon/I9-16.svg"');
+  expect(html).toContain('href="/sudoku/favicon/I9-32.svg"');
   expect(html).toContain('href="/sudoku/apple-touch-icon.png"');
   expect(html).not.toContain("manifest");
 
-  const svg = await page.request.get(`${origin}/sudoku/favicon/I7-16.svg`);
+  const svg = await page.request.get(`${origin}/sudoku/favicon/I9-16.svg`);
   expect(svg.status()).toBe(200);
   expect(svg.headers()["content-type"] ?? "").toMatch(/svg/);
 

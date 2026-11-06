@@ -28,9 +28,9 @@ describe("faviconPath", () => {
 function fakeDocument(visibility = "visible") {
   /** @type {Record<string, { href: string }>} */
   const links = {
-    any: { href: "/sudoku/favicon/I7-16.svg" },
-    "16x16": { href: "/sudoku/favicon/I7-16.svg" },
-    "32x32": { href: "/sudoku/favicon/I7-32.svg" },
+    any: { href: "/sudoku/favicon/I9-16.svg" },
+    "16x16": { href: "/sudoku/favicon/I9-16.svg" },
+    "32x32": { href: "/sudoku/favicon/I9-32.svg" },
   };
   /** @type {Map<string, () => void>} */
   const listeners = new Map();
