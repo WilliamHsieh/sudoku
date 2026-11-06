@@ -152,3 +152,25 @@ test("new shell and complete bank activate together while an old tab keeps its a
   await start(page).click();
   await expectValue(page, 0, 2);
 });
+
+test("a stale first HTML shell fails visibly and Reload fetches a fresh coherent release", async ({
+  page,
+  deployment,
+}) => {
+  deployment.publish();
+  deployment.launchOld();
+  await page.goto(`${deployment.url}?q=${DEMO_PUZZLE}&keep=yes#board`);
+  await expect(page.getByRole("heading", { name: "Could not prepare puzzles" })).toBeVisible();
+  await expect(start(page)).toHaveCount(0);
+  await page.getByRole("link", { name: "Reload Sudoku" }).click();
+  await expect(start(page)).toBeVisible();
+  await expect(page.locator('meta[name="sudoku-build"]')).toHaveAttribute("content", "new");
+  expect(
+    deployment.requests.some(
+      (path) => path.startsWith("/sudoku/?") && path.includes("_sudoku_check=")
+    )
+  ).toBe(true);
+  expect(new URL(page.url()).searchParams.get("keep")).toBe("yes");
+  expect(new URL(page.url()).hash).toBe("#board");
+  expect(new URL(page.url()).searchParams.has("_sudoku_check")).toBe(false);
+});

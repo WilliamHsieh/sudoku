@@ -27,6 +27,9 @@ async function start() {
         '<div class="preparing"><h1>Could not prepare puzzles</h1><p role="alert"></p><button type="button">Retry</button><p><a href="">Reload Sudoku</a></p></div>';
       target.querySelector('[role="alert"]').textContent = error.message;
       target.querySelector("button").onclick = () => void start();
+      const reload = new URL(location.href);
+      reload.searchParams.set("_sudoku_check", `${Date.now()}-${Math.random()}`);
+      target.querySelector("a").href = reload.href;
       return null;
     }
   }

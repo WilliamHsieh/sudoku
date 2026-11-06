@@ -6,8 +6,9 @@ export const UPDATE_PARAM = "_sudoku_update";
 /** Remove the navigation marker even if the check fails or storage is blocked. */
 export function stripUpdateParam() {
   const url = new URL(location.href);
-  if (url.searchParams.has(UPDATE_PARAM)) {
+  if (url.searchParams.has(UPDATE_PARAM) || url.searchParams.has("_sudoku_check")) {
     url.searchParams.delete(UPDATE_PARAM);
+    url.searchParams.delete("_sudoku_check");
     history.replaceState(history.state, "", url);
   }
 }
