@@ -81,8 +81,8 @@ try {
   await start(page).click();
   await expectValue(page, 0, 4);
   await caption(page, "Offline reload: the saved answer is still here.");
-  await shot(page, "04-offline-reload");
   await page.waitForTimeout(4000);
+  await shot(page, "04-offline-reload");
   const firstVideo = page.video();
   await context.close();
   videos.push(await firstVideo.path());
@@ -95,8 +95,8 @@ try {
   await start(page).click();
   await expectValue(page, 0, 4);
   await caption(page, "Offline browser restart: the complete bank and saved game are available.");
-  await shot(page, "05-offline-browser-restart");
   await page.waitForTimeout(4000);
+  await shot(page, "05-offline-browser-restart");
   await context.setOffline(false);
   await caption(page, "Back online. A new shell and changed complete bank are published.");
   await page.waitForTimeout(2500);
@@ -108,8 +108,8 @@ try {
   const notice = page.locator(".update-notice.active");
   await expect(notice).toBeVisible();
   await caption(page, "New version ready: the entire new release has passed verification.");
-  await shot(page, "06-update-ready-progress-intact");
   await page.waitForTimeout(4000);
+  await shot(page, "06-update-ready-progress-intact");
   await context.setOffline(true);
   await caption(
     page,
@@ -127,8 +127,8 @@ try {
     page,
     "Updated offline: new shell + complete bank, same custom link and saved answer."
   );
-  await shot(page, "07-updated-progress-survives");
   await page.waitForTimeout(4000);
+  await shot(page, "07-updated-progress-survives");
   const secondVideo = page.video();
   await context.close();
   videos.push(await secondVideo.path());

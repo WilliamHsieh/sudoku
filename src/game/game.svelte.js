@@ -128,7 +128,9 @@ export function createGame() {
       return;
     }
     if (customKey) {
-      store.save(date, difficulty, progressPayload(history.present, get(timer)));
+      const saved = store.save(date, difficulty, progressPayload(history.present, get(timer)));
+      if (strict && !saved)
+        throw new Error("This puzzle changed in another tab. Reload to use its saved progress.");
       return;
     }
     if (isSolved(history.present)) {
@@ -155,7 +157,9 @@ export function createGame() {
       !savedAutoProgress
     )
       return;
-    puzzleProgress.save(meta.dateStr, meta.difficulty, payload);
+    const written = puzzleProgress.save(meta.dateStr, meta.difficulty, payload);
+    if (strict && !written)
+      throw new Error("This puzzle changed in another tab. Reload to use its saved progress.");
   }
 
   function syncSolved() {
