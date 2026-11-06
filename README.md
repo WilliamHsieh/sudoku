@@ -36,7 +36,7 @@ These commands write local artifacts to `.lavish/hint-ui-implemented/`. The prod
 
 Hints are hidden in Manual mode. Auto reasons from the current board and visible Auto candidates, including the player's removals. Those removals are accepted as assumptions, so a mistaken removal can affect a hint. Tidy reasons from the current board and independently certified eliminations; missing pencil marks are not reasoning premises. In both modes an elimination must remove a currently visible candidate. Search skips ineffective pattern instances and keeps looking within the same technique before trying the next one. Placements can still fill an empty cell whose digit was not pencilled in. Closing an effective hint without changing the board may show it again on the next request.
 
-Tidy's trusted eliminations are saved separately from player notes. They are structurally validated on load and independently re-proved before search, follow undo/redo, and reset on manual answer edits. Auto progress stays in its candidate overrides and never promotes player assumptions into Tidy's trusted ledger. Re-adding an eliminated candidate makes that deduction eligible again. Applying an already absent elimination creates no hidden ledger-only move or undo entry. Hint highlights preserve the player's visible notes rather than replacing them with proof candidates. Closing, changing the board, pausing, or hiding the page cancels pending work. This implementation searches on request only; it does not claim background precomputation or offline PWA caching.
+Tidy's trusted eliminations are saved separately from player notes. They are structurally validated on load and independently re-proved before search, follow undo/redo, and reset on manual answer edits. Auto progress stays in its candidate overrides and never promotes player assumptions into Tidy's trusted ledger. Re-adding an eliminated candidate makes that deduction eligible again. Applying an already absent elimination creates no hidden ledger-only move or undo entry. Hint highlights preserve the player's visible notes rather than replacing them with proof candidates. Closing, changing the board, pausing, or hiding the page cancels pending work. The hint engine searches on request only. The offline shell includes its worker so hints remain available without a network connection.
 
 Puzzles come from `scraper.py`, which a GitHub Action runs daily at 04:00 UTC (`uv run python scraper.py` to run it yourself). Every push to `master` deploys to GitHub Pages.
 
@@ -57,7 +57,7 @@ bank, HTML, JavaScript (including the hint worker), CSS, font, and icons.
 
 Publish the whole `dist` directory together. A foreground check downloads into a
 separate release cache, verifies every byte, and rereads the network manifest.
-Only then does it write the ready marker and show Update. An unchanged bank is
+The HTML build identity must also match the manifest. Only then does it write the ready marker and show Update. An unchanged bank is
 verified and reused locally. Explicit Update flushes game state, selects the ready
 release, and reloads. Background checks never activate or reload a game.
 
@@ -68,3 +68,16 @@ requests bypass the worker cache. Failed staging deletes only its own incomplete
 cache. Ready releases are retained so old and browser-restored tabs can still
 load their assets. Offline caches are scoped to this app; game storage is never
 cleared by release installation.
+
+Custom games keep answers, notes, and elapsed time in `sudoku-custom-progress`.
+Starting a typed custom puzzle adds its givens to the existing URL, so offline
+restart and Update reopen the same puzzle. Other query parameters and fragments
+are preserved. Daily and custom saves compare the stored puzzle entry with this
+document's last known entry. A stale tab can keep playing, but cannot overwrite a
+newer saved game; Update reports the conflict and offers Reload Sudoku.
+
+The canonical browser suites cover real service-worker control, failed first
+preparation and retry, offline reload/new page/full browser restart, app-only bank
+reuse, corrupt/interrupted/mismatched staging, atomic shell-and-bank activation,
+and old-tab resource and save safety. `node scripts/offline-evidence.mjs` records a
+paced Chromium walkthrough (set `SUDOKU_OFFLINE_EVIDENCE` to choose its directory).

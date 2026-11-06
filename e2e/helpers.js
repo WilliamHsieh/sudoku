@@ -23,10 +23,11 @@ export async function openBoard(page, path = "./") {
   });
   const dest = path === "./" ? `./?q=${DEMO_PUZZLE}` : path;
   await page.goto(dest);
-  await expect(page.locator("main")).toBeVisible();
+  const start = page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true });
+  await expect(page.locator(".board").or(start)).toBeVisible();
   const board = page.locator(".board > .cell");
   if ((await board.count()) === 0) {
-    await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).click();
+    await start.click();
   }
   await expect(board).toHaveCount(81);
   await page

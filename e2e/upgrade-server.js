@@ -14,6 +14,7 @@ export async function upgradeServer(buildDirectory = buildRoot) {
   const requests = [];
   const navigations = [];
   let gate = Promise.resolve();
+  let bankGate = Promise.resolve();
   const abortedChecks = [];
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, "http://localhost");
@@ -43,6 +44,7 @@ export async function upgradeServer(buildDirectory = buildRoot) {
     }
     if (relative.startsWith("banks/")) {
       bankRequested = true;
+      await bankGate;
       if (fault === "bank-delay") await new Promise((resolve) => setTimeout(resolve, 2000));
       if (fault === "bank-corrupt") {
         res.writeHead(200).end("corrupt bank");
@@ -105,6 +107,13 @@ export async function upgradeServer(buildDirectory = buildRoot) {
       page.on("request", (request) => {
         if (request.isNavigationRequest()) navigations.push(request.url());
       }),
+    holdBank: () => {
+      let release;
+      bankGate = new Promise((resolve) => {
+        release = resolve;
+      });
+      return release;
+    },
     holdManifest: () => {
       let release;
       gate = new Promise((resolve) => {

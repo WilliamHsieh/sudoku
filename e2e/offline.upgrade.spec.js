@@ -21,11 +21,15 @@ test("first visit blocks play until complete; a failed bank download has a worki
   page,
   deployment,
 }) => {
-  deployment.fault("bank-delay");
+  const release = deployment.holdBank();
   await page.goto(deployment.url);
   await expect(page.getByRole("heading", { name: "Preparing puzzles" })).toBeVisible();
   await expect(start(page)).toHaveCount(0);
+  await expect
+    .poll(() => deployment.requests.filter((url) => url.includes("/banks/")).length)
+    .toBe(1);
   deployment.fault("bank-corrupt");
+  release();
   await expect(page.getByRole("heading", { name: "Could not prepare puzzles" })).toBeVisible();
   await expect(start(page)).toHaveCount(0);
   deployment.fault("");
