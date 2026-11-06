@@ -87,7 +87,7 @@
           <NotesMode desktop />
         </div>
       {/if}
-      {#if game.notesMode !== "manual"}
+      {#if !game.solved && game.notesMode !== "manual"}
         <button
           class="hint-trigger"
           id="hint-trigger"

@@ -8,13 +8,14 @@
    * @type {{
    *   diff: 'easy' | 'medium' | 'hard',
    *   st: import('./stats.js').PuzzleState,
+   *   replay?: import('./stats.js').ProgressState | null,
    *   avg?: number | null,
    *   isPb?: boolean,
    *   inPlay?: number | null,
    *   onplay?: () => void,
    * }}
    */
-  let { diff, st, avg = null, isPb = false, inPlay = null, onplay } = $props();
+  let { diff, st, replay = null, avg = null, isPb = false, inPlay = null, onplay } = $props();
 
   const delta = $derived(st.kind === "solved" && avg != null ? st.time - avg : 0);
 </script>
@@ -31,6 +32,9 @@
           {delta < 0 ? "faster" : "slower"} than average
         {/if}
       </div>
+      {#if replay}<div class="s num replay-line">
+          Replay in progress · {formatTime(replay.elapsed)} played
+        </div>{/if}
     </div>
     <button
       class="tm num solved-open"
@@ -89,6 +93,10 @@
     margin-top: 4px;
     font-size: 13px;
     color: var(--ink2);
+  }
+  .s.replay-line {
+    color: var(--amber);
+    font-weight: 500;
   }
   .num {
     font-variant-numeric: tabular-nums;

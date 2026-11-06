@@ -4,10 +4,15 @@
   import { solvedPuzzles, puzzleProgress, formatTime } from "./store.js";
   import { solvedModel } from "./solved.js";
   import { puzzleData } from "./puzzles.js";
+  import { replayProgress } from "./journal/progress.js";
+  import { replayState } from "./journal/stats.js";
   import { DIFF_LABEL } from "./journal/format.js";
   import Icon from "./journal/Icon.svelte";
-  /** @type {{onjournal: () => void, onreplay: () => void}} */
-  let { onjournal, onreplay } = $props();
+  /** @type {{onjournal: () => void, onreplay: () => void, onresume: () => void}} */
+  let { onjournal, onreplay, onresume } = $props();
+  const replay = $derived(
+    replayState($solvedPuzzles, $replayProgress, game.dateStr, game.difficulty)
+  );
   const record = $derived($solvedPuzzles[game.dateStr]?.[game.difficulty]);
   const model = $derived(
     solvedModel({
@@ -47,15 +52,35 @@
         ></span
       >
     </div>
+    {#if replay}
+      <div class="replay-card" role="group" aria-labelledby="sv-replay-title">
+        <div class="replay-text">
+          <b id="sv-replay-title">Replay in progress</b>
+          <span>{formatTime(replay.elapsed)} played · {replay.pct}% filled</span>
+          <div class="replay-bar" aria-hidden="true"><i style:width={`${replay.pct}%`}></i></div>
+        </div>
+        <button
+          class="resume"
+          aria-label={`Resume replay, ${formatTime(replay.elapsed)} played`}
+          onclick={onresume}><Icon name="play" />Resume</button
+        >
+      </div>
+    {/if}
     <div class="actions">
-      <button class="quiet" onclick={onjournal}><Icon name="arrow-left" />Journal</button>
-      <button class="primary" id="sv-replay" aria-describedby="sv-rn" onclick={onreplay}
-        ><Icon name="rotate-ccw" />Replay</button
+      <button class="quiet journal-back" onclick={onjournal}
+        ><Icon name="arrow-left" />Journal</button
+      >
+      <button
+        class={replay ? "quiet replay" : "primary replay"}
+        id="sv-replay"
+        aria-haspopup="dialog"
+        aria-describedby="sv-rn"
+        onclick={onreplay}><Icon name="rotate-ccw" />Replay</button
       >
     </div>
     <p id="sv-rn" class="note">
       <Icon name="history" /><span
-        >Your <b>{formatTime(record.time)}</b> stays saved until you finish a replay.</span
+        >Your <b>{formatTime(record.time)}</b> stays saved until you finish {replay ? "the" : "a"} replay.</span
       >
     </p>
   </div>
@@ -115,7 +140,59 @@
     height: 48px;
     font: 600 16px/1 var(--ui-font);
     cursor: pointer;
-    --ic: 17px;
+    --ic: 18px;
+  }
+  .replay-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 18px;
+    padding: 12px 12px 12px 14px;
+    border-radius: 12px;
+    background: var(--card);
+    box-shadow: inset 0 0 0 1px var(--hair);
+  }
+  .replay-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .replay-text b {
+    font: 600 15px/1.3 var(--ui-font);
+    color: var(--ui-ink);
+  }
+  .replay-text span {
+    font: 500 13px/1.3 var(--ui-font);
+    color: var(--ink2);
+  }
+  .replay-bar {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--neutral);
+    margin-top: 6px;
+    max-width: 150px;
+    overflow: hidden;
+  }
+  .replay-bar i {
+    display: block;
+    height: 100%;
+    background: var(--amber);
+  }
+  button.resume {
+    flex: none;
+    height: 40px;
+    padding: 0 16px;
+    border-radius: 10px;
+    font: 600 15px/1 var(--ui-font);
+    gap: 7px;
+    --ic: 16px;
+    background: var(--blue);
+    color: var(--on-accent);
+  }
+  button.resume:hover {
+    background: var(--blue-d);
   }
   button:focus-visible {
     outline: 2px solid var(--focus);
@@ -134,6 +211,14 @@
   }
   .primary:hover {
     background: var(--blue-d);
+  }
+  button:disabled,
+  button.resume:disabled,
+  button:disabled:hover {
+    background: var(--neutral);
+    color: var(--ui-soft);
+    opacity: 0.65;
+    cursor: default;
   }
   .note {
     display: flex;
@@ -163,19 +248,55 @@
       flex-direction: column;
       justify-content: center;
     }
+    .group {
+      text-align: center;
+    }
+    h2 {
+      justify-content: center;
+      font-size: 14px;
+      --ic: 17px;
+    }
     .result-row {
       flex-direction: column;
-      gap: 6px;
-      align-items: flex-start;
+      gap: 8px;
+      align-items: center;
+      margin-top: 10px;
     }
     .hero {
-      font-size: 56px;
+      font-size: 100px;
+      line-height: 0.92;
+      letter-spacing: -0.035em;
+    }
+    .replay-card {
+      flex-direction: column;
+      align-items: stretch;
+      text-align: left;
+      margin-top: 20px;
     }
     .actions {
       flex-direction: column;
+      gap: 8px;
+      margin-top: 24px;
     }
-    button {
-      flex: auto;
+    .actions button {
+      flex: none;
+      height: 48px;
+      border-radius: 9px;
+      font: 600 15px/1 var(--ui-font);
+      --ic: 16px;
+    }
+    .actions .replay {
+      order: -1;
+    }
+    .actions .primary {
+      height: 56px;
+      border-radius: 11px;
+      font-size: 16px;
+      --ic: 18px;
+    }
+    .note {
+      margin: 14px 0 0;
+      text-align: left;
     }
   }
 </style>

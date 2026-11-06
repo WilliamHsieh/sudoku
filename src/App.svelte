@@ -28,6 +28,7 @@
   import { get } from "svelte/store";
   import { done, puzzleProgress, solvedPuzzles, timer, formatTime } from "./store";
   import { game } from "./game/game.svelte.js";
+  import { replayProgress } from "./journal/progress.js";
   import { firstUnsolvedLatest } from "./game/daily.js";
   import { customProgress } from "./journal/progress.js";
   import { puzzleData } from "./puzzles.js";
@@ -317,7 +318,12 @@
   }
   function confirmReplay() {
     replayConfirm = false;
-    game.startReplay();
+    game.startReplay(!!$replayProgress[game.dateStr]?.[game.difficulty]);
+    handleLoadPuzzle();
+    void tick().then(() => focusId("time-control"));
+  }
+  function resumeReplay() {
+    if (!game.resumeReplay()) return;
     handleLoadPuzzle();
     void tick().then(() => focusId("time-control"));
   }
@@ -835,6 +841,7 @@
     const onAway = () => {
       hints.close();
       hintFrame = null;
+      if (game.replaying) game.flushProgress();
       if (showCalendar || game.solved) {
         // Clear #58's view/entry announcement without pausing these views.
         resumeStatus = "";
@@ -1145,6 +1152,7 @@
       >
         {#if game.journalView}<JournalSolved
             onjournal={solvedJournal}
+            onresume={resumeReplay}
             onreplay={() => (replayConfirm = true)}
           />
         {:else if solvedScreen && resultModel}<SolvedPanel
@@ -1321,12 +1329,12 @@
     </div>
 
     <OptionsSheet
-      canRestart={!game.solved}
+      canRestart={!game.solved && !game.replaying}
       viewport={playViewport}
       oncustom={openCustomPuzzle}
       onclosed={focusMore}
       onrestart={() => {
-        if (game.solved) return;
+        if (game.solved || game.replaying) return;
         game.restart();
         resetKeypad();
         resetAutofill();
@@ -1377,6 +1385,7 @@
 
 {#if replayConfirm}<ReplayConfirm
     time={get(timer)}
+    replayTime={$replayProgress[game.dateStr]?.[game.difficulty]?.elapsed ?? null}
     oncancel={cancelReplay}
     onconfirm={confirmReplay}
   />{/if}

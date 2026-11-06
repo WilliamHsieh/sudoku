@@ -36,6 +36,18 @@ export function puzzleState(solved, progress, date, d) {
   return { kind: "none" };
 }
 
+/** A replay remains a solved puzzle for all statistics.
+ * @param {Parameters<typeof puzzleState>[0]} solved
+ * @param {Parameters<typeof puzzleState>[1]} replays
+ * @param {string} date @param {string} diff
+ * @returns {ProgressState | null}
+ */
+export function replayState(solved, replays, date, diff) {
+  if (!solved[date]?.[diff]?.completed || !replays[date]?.[diff]?.snapshot) return null;
+  const state = puzzleState({}, replays, date, diff);
+  return state.kind === "progress" ? state : null;
+}
+
 /** @param {Record<string, Record<string, { completed?: boolean }>>} solved @param {string} date */
 export function solvedCount(solved, date) {
   return DIFFS.filter((d) => solved?.[date]?.[d]?.completed).length;
@@ -119,17 +131,25 @@ export function averages(solved) {
 }
 
 /**
- * Every in-progress puzzle, newest activity first.
+ * Every in-progress puzzle and replay, newest activity first.
  * @param {Record<string, Record<string, { elapsed?: number, filled?: number, empty?: number, updatedAt?: number, snapshot?: unknown }>>} progress
  * @param {Record<string, Record<string, { completed?: boolean, time?: number, timestamp?: number }>>} solved
+ * @param {Parameters<typeof puzzleState>[1]} [replays]
  */
-export function unfinishedList(progress, solved) {
-  /** @type {Array<ProgressState & { date: string, diff: (typeof DIFFS)[number] }>} */
+export function unfinishedList(progress, solved, replays = {}) {
+  /** @type {Array<ProgressState & { date: string, diff: (typeof DIFFS)[number], replay?: boolean, solvedTime?: number }>} */
   const l = [];
   for (const s in progress) {
     for (const d of DIFFS) {
       const st = puzzleState(solved, progress, s, d);
       if (st.kind === "progress") l.push({ date: s, diff: d, ...st });
+    }
+  }
+  for (const date in replays) {
+    for (const diff of DIFFS) {
+      const state = replayState(solved, replays, date, diff);
+      if (state)
+        l.push({ date, diff, ...state, replay: true, solvedTime: solved[date][diff].time });
     }
   }
   return l.sort((a, b) => b.updatedAt - a.updatedAt);
@@ -215,11 +235,13 @@ export function monthCells(puzzleData, latest, today, view) {
  * @param {Record<string, Record<string, { completed?: boolean, time?: number, timestamp?: number }>>} solved
  * @param {Record<string, Record<string, { elapsed?: number, filled?: number, empty?: number, updatedAt?: number }>>} progress
  * @param {string} date
+ * @param {Parameters<typeof puzzleState>[1]} [replays]
  */
-export function dayDesc(solved, progress, date) {
+export function dayDesc(solved, progress, date, replays = {}) {
   const label = { solved: "solved", progress: "in progress", none: "not solved" };
   return DIFFS.map(
-    (d) => `${DIFF_LABEL[d]} ${label[puzzleState(solved, progress, date, d).kind]}`
+    (d) =>
+      `${DIFF_LABEL[d]} ${label[puzzleState(solved, progress, date, d).kind]}${replayState(solved, replays, date, d) ? ", replay in progress" : ""}`
   ).join(", ");
 }
 

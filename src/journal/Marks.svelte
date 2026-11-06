@@ -1,5 +1,5 @@
 <script>
-  /** @typedef {'solved' | 'progress' | 'none'} MarkKind */
+  /** @typedef {'replaying' | 'solved' | 'progress' | 'none'} MarkKind */
 
   /**
    * E·M·H squares. `pos` highlights one of three (1024 strip).
@@ -9,7 +9,7 @@
 
   /** @param {MarkKind} kind */
   function fill(kind) {
-    if (kind === "solved") return "var(--ink)";
+    if (kind === "solved" || kind === "replaying") return "var(--ink)";
     if (kind === "progress") return "var(--same-digit)";
     return "none";
   }
@@ -53,6 +53,13 @@
         stroke={stroke(kind)}
         stroke-width={sw(kind)}
       ></rect>
+      {#if kind === "replaying"}<circle
+          class="replay-dot"
+          cx={x + (size - 1.5) / 2}
+          cy={size / 2}
+          r={size === 9 ? 1.75 : 2.1}
+          fill="var(--same-digit)"
+        />{/if}
     {/if}
   {/each}
 </svg>

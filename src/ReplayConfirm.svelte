@@ -2,8 +2,8 @@
   import { onMount } from "svelte";
   import { formatTime } from "./store.js";
   import Icon from "./journal/Icon.svelte";
-  /** @type {{time: number, oncancel: () => void, onconfirm: () => void}} */
-  let { time, oncancel, onconfirm } = $props();
+  /** @type {{time: number, replayTime?: number | null, oncancel: () => void, onconfirm: () => void}} */
+  let { time, replayTime = null, oncancel, onconfirm } = $props();
   let dialog = $state(/** @type {HTMLDialogElement | undefined} */ (undefined));
   /** Keep Tab inside the card, including browsers that allow a stop in browser chrome. @param {KeyboardEvent} event */
   function trapFocus(event) {
@@ -36,14 +36,18 @@
     oncancel();
   }}
 >
-  <h2 id="replay-title">Replay this puzzle?</h2>
+  <h2 id="replay-title">{replayTime == null ? "Replay this puzzle?" : "Start the replay over?"}</h2>
   <p id="replay-body">
-    You'll start from a fresh board at 0:00. Your <b>{formatTime(time)}</b> stays saved, and is replaced
-    only if you finish.
+    {#if replayTime != null}Your replay at <b>{formatTime(replayTime)}</b> will be cleared and
+      you'll start again from 0:00. Your <b>{formatTime(time)}</b> stays saved.
+    {:else}You'll start from a fresh board at 0:00. Your <b>{formatTime(time)}</b> stays saved, and is
+      replaced only if you finish.{/if}
   </p>
   <div class="actions">
     <button class="quiet" onclick={oncancel}>Cancel</button>
-    <button class="primary" onclick={onconfirm}><Icon name="rotate-ccw" />Replay</button>
+    <button class="primary" onclick={onconfirm}
+      ><Icon name="rotate-ccw" />{replayTime == null ? "Replay" : "Start over"}</button
+    >
   </div>
 </dialog>
 

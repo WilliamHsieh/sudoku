@@ -66,7 +66,7 @@ export function createGame() {
   let customKey = "";
   let marked = $state(false);
   let journalView = $state(false);
-  let replaying = false;
+  let replaying = $state(false);
   let previousRecord = null;
   /** @type {number[]} */
   let lastBlockers = $state([]);
@@ -158,6 +158,7 @@ export function createGame() {
         if (strict) throw new Error("Could not save completion. Please retry.");
         return;
       }
+      if (replaying) journalView = true;
       const cleared = store.clear(meta.dateStr, meta.difficulty);
       if (strict && !cleared) throw new Error("Could not save progress. Please retry.");
       return;
@@ -200,6 +201,7 @@ export function createGame() {
           replaying ? replayProgress : puzzleProgress
         );
       }
+      if (marked && replaying) journalView = true;
       if (marked && meta.dateStr && meta.difficulty)
         puzzleProgress.clear(meta.dateStr, meta.difficulty);
     } else {
@@ -214,9 +216,30 @@ export function createGame() {
     get previousRecord() {
       return previousRecord;
     },
-    startReplay() {
-      if (!journalView || !meta.dateStr || !meta.difficulty) return;
+    get replaying() {
+      return replaying;
+    },
+    /** Only the confirmed S3 action may replace an existing replay. @param {boolean} [startOver] */
+    startReplay(startOver = false) {
+      if (!journalView || !meta.dateStr || !meta.difficulty) return false;
+      if (!replayProgress.isCurrent(meta.dateStr, meta.difficulty)) return false;
+      const saved = get(replayProgress)[meta.dateStr]?.[meta.difficulty];
+      if (saved && !startOver) return false;
       this.load(state.givens.join(""), { ...meta, replay: true });
+      return true;
+    },
+    resumeReplay() {
+      if (!journalView || !meta.dateStr || !meta.difficulty) return false;
+      if (!replayProgress.isCurrent(meta.dateStr, meta.difficulty)) return false;
+      const saved = get(replayProgress)[meta.dateStr]?.[meta.difficulty];
+      if (!saved?.snapshot) return false;
+      this.load(state.givens.join(""), {
+        ...meta,
+        replay: true,
+        snapshot: saved.snapshot,
+        elapsed: saved.elapsed,
+      });
+      return true;
     },
     get state() {
       return state;
@@ -460,6 +483,7 @@ export function createGame() {
 
     /** Clear answers, notes and undo/redo. Keeps the puzzle and the notes mode. */
     restart() {
+      if (replaying || journalView) return;
       prepareMutation();
       const next = restartState(state);
       const changed = changedCells(state, next).length > 0;
@@ -513,8 +537,7 @@ export function createGame() {
         marked = true;
         timer.set(record.time);
         done.set(true);
-      } else if (replaying && meta.dateStr && meta.difficulty) {
-        replayProgress.clear(meta.dateStr, meta.difficulty);
+      } else if (replaying && !info.snapshot && meta.dateStr && meta.difficulty) {
         replayProgress.save(meta.dateStr, meta.difficulty, progressPayload(history.present, 0));
       }
       onLoad();
