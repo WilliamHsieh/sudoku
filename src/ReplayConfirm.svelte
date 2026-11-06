@@ -1,6 +1,7 @@
 <script>
   import { onMount } from "svelte";
   import { formatTime } from "./store.js";
+  import { fmtTime } from "./journal/format.js";
   import Icon from "./journal/Icon.svelte";
   /** @type {{time: number, replayTime?: number | null, oncancel: () => void, onconfirm: () => void}} */
   let { time, replayTime = null, oncancel, onconfirm } = $props();
@@ -38,8 +39,8 @@
 >
   <h2 id="replay-title">{replayTime == null ? "Replay this puzzle?" : "Start the replay over?"}</h2>
   <p id="replay-body">
-    {#if replayTime != null}Your replay at <b>{formatTime(replayTime)}</b> will be cleared and
-      you'll start again from 0:00. Your <b>{formatTime(time)}</b> stays saved.
+    {#if replayTime != null}Your replay at <b>{fmtTime(replayTime)}</b> will be cleared and you'll
+      start again from 0:00. Your <b>{formatTime(time)}</b> stays saved.
     {:else}You'll start from a fresh board at 0:00. Your <b>{formatTime(time)}</b> stays saved, and is
       replaced only if you finish.{/if}
   </p>

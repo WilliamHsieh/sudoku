@@ -33,7 +33,7 @@
         {/if}
       </div>
       {#if replay}<div class="s num replay-line">
-          Replay in progress · {formatTime(replay.elapsed)} played
+          Replay in progress · {fmtTime(replay.elapsed)} played
         </div>{/if}
     </div>
     <button

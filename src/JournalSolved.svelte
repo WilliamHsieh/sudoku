@@ -6,7 +6,7 @@
   import { puzzleData } from "./puzzles.js";
   import { replayProgress } from "./journal/progress.js";
   import { replayState } from "./journal/stats.js";
-  import { DIFF_LABEL } from "./journal/format.js";
+  import { DIFF_LABEL, fmtTime } from "./journal/format.js";
   import Icon from "./journal/Icon.svelte";
   /** @type {{onjournal: () => void, onreplay: () => void, onresume: () => void}} */
   let { onjournal, onreplay, onresume } = $props();
@@ -56,12 +56,12 @@
       <div class="replay-card" role="group" aria-labelledby="sv-replay-title">
         <div class="replay-text">
           <b id="sv-replay-title">Replay in progress</b>
-          <span>{formatTime(replay.elapsed)} played · {replay.pct}% filled</span>
+          <span>{fmtTime(replay.elapsed)} played · {replay.pct}% filled</span>
           <div class="replay-bar" aria-hidden="true"><i style:width={`${replay.pct}%`}></i></div>
         </div>
         <button
           class="resume"
-          aria-label={`Resume replay, ${formatTime(replay.elapsed)} played`}
+          aria-label={`Resume replay, ${fmtTime(replay.elapsed)} played`}
           onclick={onresume}><Icon name="play" />Resume</button
         >
       </div>

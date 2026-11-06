@@ -2,7 +2,7 @@
   import { onMount, tick, untrack } from "svelte";
   import { createSheetExit } from "./sheet-exit.svelte.js";
   import { get } from "svelte/store";
-  import { solvedPuzzles, puzzleProgress, formatTime } from "./store.js";
+  import { solvedPuzzles, puzzleProgress } from "./store.js";
   import { puzzleData } from "./puzzles.js";
   import { game } from "./game/game.svelte.js";
   import { formatDay, latestPuzzleDay } from "./game/daily.js";
@@ -1018,7 +1018,7 @@
                 class="ulnk"
                 type="button"
                 data-d={x.date}
-                aria-label={`Open ${longDate(x.date)}: ${DIFF_LABEL[x.diff]}${x.replay ? " replay" : ""}, ${x.pct}% filled${x.replay ? `. Solved in ${formatTime(x.solvedTime)}` : ""}`}
+                aria-label={`Open ${longDate(x.date)}: ${DIFF_LABEL[x.diff]}${x.replay ? " replay" : ""}, ${x.pct}% filled${x.replay ? `. Solved in ${fmtTime(x.solvedTime)}` : ""}`}
                 onclick={() => pickDayFromUnfinished(x.date)}
               >
                 <span>
@@ -1088,7 +1088,7 @@
                 type="button"
                 data-d={x.date}
                 aria-label={x.replay
-                  ? `Open ${longDate(x.date)}: ${DIFF_LABEL[x.diff]} replay, ${x.pct}% filled. Solved in ${formatTime(x.solvedTime)}`
+                  ? `Open ${longDate(x.date)}: ${DIFF_LABEL[x.diff]} replay, ${x.pct}% filled. Solved in ${fmtTime(x.solvedTime)}`
                   : `${DIFF_LABEL[x.diff]}, ${longDate(x.date)}: ${x.pct}% filled`}
                 onclick={() => pickDayFromUnfinished(x.date)}
               >
