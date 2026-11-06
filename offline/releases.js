@@ -1,11 +1,20 @@
 // Cache protocol 1 is independent of app and bank versions. Ready releases are
-// immutable. Only the active pointer changes, after an explicit user action.
+// immutable except for verified repair of damaged bytes. Only explicit user
+// activation changes the active pointer.
 export async function sha256(bytes) {
   return [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))]
     .map((n) => n.toString(16).padStart(2, "0"))
     .join("");
 }
 export function validateManifest(manifest) {
+  if (manifest?.schema === 1 && manifest.release) {
+    if (
+      manifest.version !== manifest.release.version ||
+      manifest.builtAt !== manifest.release.builtAt
+    )
+      throw new Error("Release identity changed");
+    manifest = manifest.release;
+  }
   const asset = (a) =>
     a &&
     typeof a.path === "string" &&
@@ -98,8 +107,7 @@ export function createReleaseStore({ root, caches, fetch, budgetMs = 60_000 }) {
       if (JSON.stringify(existing) !== JSON.stringify(next))
         throw new Error("Release identity changed");
       if (await complete(existing)) return existing;
-      // Never replace an active release in place, even after storage damage.
-      throw new Error("Saved release is incomplete");
+      return repair(existing);
     }
     const name = releaseName(next.version);
     const cache = await caches.open(name);
@@ -133,7 +141,7 @@ export function createReleaseStore({ root, caches, fetch, budgetMs = 60_000 }) {
           if (signal.aborted) throw new Error("Download cancelled");
           await cache.put(url(entry.path), response);
         }
-        const latest = await (await network("version.json", signal)).json();
+        const latest = validateManifest(await (await network("version.json", signal)).json());
         if (JSON.stringify(latest) !== JSON.stringify(next))
           throw new Error("Deployment changed during download");
         if (signal.aborted) throw new Error("Download cancelled");
@@ -145,6 +153,38 @@ export function createReleaseStore({ root, caches, fetch, budgetMs = 60_000 }) {
       // releases remain available to old tabs and browser-restored documents.
       await caches.delete(name);
       throw error;
+    }
+  }
+  async function repair(saved) {
+    // Collect every replacement first. A failed download must not delete or
+    // overwrite any valid part of the active release. The saved manifest is
+    // the authority even when the server now advertises a newer deployment.
+    const name = `${prefix}repair:${saved.version}`;
+    const staging = await caches.open(name);
+    const damaged = [];
+    try {
+      await bounded(async (signal) => {
+        for (const entry of [...saved.assets, saved.bank]) {
+          if (await verified(await asset(saved.version, entry.path), entry.hash)) continue;
+          const response = await network(entry.path, signal);
+          if (!(await verified(response, entry.hash)))
+            throw new Error("Download verification failed");
+          if (signal.aborted) throw new Error("Download cancelled");
+          await staging.put(url(entry.path), response);
+          damaged.push(entry);
+        }
+        if (signal.aborted) throw new Error("Download cancelled");
+      });
+      const target = await caches.open(releaseName(saved.version));
+      for (const entry of damaged) {
+        const response = await staging.match(url(entry.path));
+        if (!(await verified(response, entry.hash))) throw new Error("Repair verification failed");
+        await target.put(url(entry.path), response);
+      }
+      if (!(await complete(saved))) throw new Error("Saved release is incomplete");
+      return saved;
+    } finally {
+      await caches.delete(name);
     }
   }
   async function activate(version) {

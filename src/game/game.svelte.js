@@ -124,17 +124,27 @@ export function createGame() {
     if (!date || !difficulty) return;
     if (!store.isCurrent(date, difficulty)) {
       if (strict)
-        throw new Error("This puzzle changed in another tab. Reload to use its saved progress.");
+        throw new Error(
+          "Could not verify saved progress. Storage may be unavailable or this puzzle changed in another tab."
+        );
       return;
     }
     if (customKey) {
       const saved = store.save(date, difficulty, progressPayload(history.present, get(timer)));
       if (strict && !saved)
-        throw new Error("This puzzle changed in another tab. Reload to use its saved progress.");
+        throw new Error(
+          "Could not verify saved progress. Storage may be unavailable or this puzzle changed in another tab."
+        );
       return;
     }
     if (isSolved(history.present)) {
-      puzzleProgress.clear(meta.dateStr, meta.difficulty);
+      if (!marked) marked = solvedPuzzles.markSolved(meta.dateStr, meta.difficulty, get(timer));
+      if (!marked) {
+        if (strict) throw new Error("Could not save completion. Please retry.");
+        return;
+      }
+      const cleared = puzzleProgress.clear(meta.dateStr, meta.difficulty);
+      if (strict && !cleared) throw new Error("Could not save progress. Please retry.");
       return;
     }
     const elapsed = get(timer);
@@ -159,17 +169,19 @@ export function createGame() {
       return;
     const written = puzzleProgress.save(meta.dateStr, meta.difficulty, payload);
     if (strict && !written)
-      throw new Error("This puzzle changed in another tab. Reload to use its saved progress.");
+      throw new Error(
+        "Could not verify saved progress. Storage may be unavailable or this puzzle changed in another tab."
+      );
   }
 
   function syncSolved() {
     if (isSolved(history.present)) {
       done.set(true);
       if (!marked && meta.dateStr && meta.difficulty) {
-        solvedPuzzles.markSolved(meta.dateStr, meta.difficulty, get(timer));
-        marked = true;
+        marked = solvedPuzzles.markSolved(meta.dateStr, meta.difficulty, get(timer));
       }
-      if (meta.dateStr && meta.difficulty) puzzleProgress.clear(meta.dateStr, meta.difficulty);
+      if (marked && meta.dateStr && meta.difficulty)
+        puzzleProgress.clear(meta.dateStr, meta.difficulty);
     } else {
       done.set(false);
     }

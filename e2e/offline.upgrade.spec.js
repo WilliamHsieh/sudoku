@@ -174,3 +174,129 @@ test("a stale first HTML shell fails visibly and Reload fetches a fresh coherent
   expect(new URL(page.url()).hash).toBe("#board");
   expect(new URL(page.url()).searchParams.has("_sudoku_check")).toBe(false);
 });
+
+for (const fault of ["blocked getter", "malformed snapshot"]) {
+  test(`Update preserves the page and gameplay on ${fault}`, async ({ page, deployment }) => {
+    const errors = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.goto(`${deployment.url}?q=${DEMO_PUZZLE}`);
+    await start(page).click();
+    await cell(page, 0).click();
+    await page.keyboard.press("4");
+    deployment.publish();
+    await check(page);
+    await expect(notice(page)).toBeVisible();
+    const before = await page.evaluate((fault) => {
+      const key = "sudoku-custom-progress";
+      if (fault === "malformed snapshot") {
+        const data = JSON.parse(localStorage.getItem(key));
+        data.unrelated = { hard: { snapshot: {} } };
+        localStorage.setItem(key, JSON.stringify(data));
+      }
+      const saved = localStorage.getItem(key);
+      const read = Storage.prototype.getItem;
+      window.__readSaved = () => saved === read.call(localStorage, key);
+      window.__writes = 0;
+      const write = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (...args) {
+        window.__writes++;
+        return write.apply(this, args);
+      };
+      if (fault === "blocked getter")
+        Storage.prototype.getItem = () => {
+          throw new Error("blocked getter");
+        };
+      window.__sameDocument = true;
+      return saved;
+    }, fault);
+    expect(before).toBeTruthy();
+    await cell(page, 0).click();
+    await page.keyboard.press("2");
+    await expectValue(page, 0, 2);
+    await notice(page).getByRole("button", { name: "Update", exact: true }).click();
+    await expect(page.getByRole("link", { name: "Reload Sudoku" })).toBeVisible();
+    await page.waitForTimeout(1200);
+    expect(await page.evaluate(() => window.__sameDocument)).toBe(true);
+    expect(await page.evaluate(() => window.__readSaved())).toBe(true);
+    expect(await page.evaluate(() => window.__writes)).toBe(0);
+    expect(errors).toEqual([]);
+    await expectValue(page, 0, 2);
+    await page.screenshot({ path: test.info().outputPath("storage-failure.png") });
+  });
+}
+
+for (const damage of ["missing", "corrupt"]) {
+  test(`online Retry repairs a ${damage} local complete bank and keeps saved progress`, async ({
+    page,
+    context,
+    deployment,
+  }) => {
+    await page.goto(`${deployment.url}?q=${DEMO_PUZZLE}`);
+    await start(page).click();
+    await cell(page, 0).click();
+    await page.keyboard.press("4");
+    const saved = await page.evaluate(() => localStorage.getItem("sudoku-custom-progress"));
+    const oldBank = await page.evaluate(() => globalThis.__sudokuPuzzleBank);
+    await page.evaluate(async (damage) => {
+      const name = (await caches.keys()).find((name) => name.endsWith(":release:old"));
+      const cache = await caches.open(name);
+      const bank = (await cache.keys()).find((request) => request.url.includes("/banks/"));
+      if (damage === "missing") await cache.delete(bank);
+      else await cache.put(bank, new Response("corrupt local bank"));
+    }, damage);
+    await context.setOffline(true);
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Could not prepare puzzles" })).toBeVisible();
+    await expect(start(page)).toHaveCount(0);
+    await context.setOffline(false);
+    deployment.fault("bank-corrupt");
+    await page.getByRole("button", { name: "Retry" }).click();
+    await expect(page.getByRole("heading", { name: "Could not prepare puzzles" })).toBeVisible();
+    expect(await page.evaluate(() => localStorage.getItem("sudoku-custom-progress"))).toBe(saved);
+    expect(
+      await page.evaluate(async () => {
+        const cache = await caches.open(
+          (await caches.keys()).find((name) => name.endsWith(":release:old"))
+        );
+        return !!(await cache.match(new URL("index.html", location.href)));
+      })
+    ).toBe(true);
+    deployment.fault("");
+    await page.getByRole("button", { name: "Retry" }).click();
+    await expect(start(page)).toBeVisible();
+    expect(await page.evaluate(() => globalThis.__sudokuPuzzleBank)).toEqual(oldBank);
+    expect(await page.evaluate(() => localStorage.getItem("sudoku-custom-progress"))).toBe(saved);
+    await context.setOffline(true);
+    await page.reload();
+    await start(page).click();
+    await expectValue(page, 0, 4);
+    await page.screenshot({ path: test.info().outputPath("repaired-bank.png") });
+  });
+}
+
+test("verification requests bypass cached release content", async ({ page, deployment }) => {
+  await page.goto(deployment.url);
+  await expect(start(page)).toBeVisible();
+  const bankUrl = await page.evaluate(async () => {
+    const cache = await caches.open(
+      (await caches.keys()).find((name) => name.endsWith(":release:old"))
+    );
+    await cache.put(new URL("version.json", location.href), new Response('{"poisoned":true}'));
+    return (await cache.keys()).find((request) => request.url.includes("/banks/")).url;
+  });
+  deployment.fault("bank-corrupt");
+  const results = await page.evaluate(async (url) => {
+    const cached = await (await fetch(url)).text();
+    const noStore = await (await fetch(url, { cache: "no-store" })).text();
+    const reload = await (await fetch(url, { cache: "reload" })).text();
+    const nonce = await (await fetch(`${url}?_sudoku_check=probe`)).text();
+    const version = await (await fetch(new URL("version.json", location.href))).json();
+    return { cached, noStore, reload, nonce, version };
+  }, bankUrl);
+  expect(Object.keys(JSON.parse(results.cached)).length).toBeGreaterThan(400);
+  expect(results.noStore).toBe("corrupt bank");
+  expect(results.reload).toBe("corrupt bank");
+  expect(results.nonce).toBe("corrupt bank");
+  expect(results.version.version).toBe("old");
+  expect(results.version.poisoned).toBeUndefined();
+});

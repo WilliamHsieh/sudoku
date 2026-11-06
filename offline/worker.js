@@ -18,8 +18,8 @@ scope.addEventListener("message", (event) => {
         release = await releases.manifest();
         if (release.version !== current.version || release.builtAt !== current.builtAt)
           throw new Error("The app changed. Reload Sudoku, then retry.");
-        await releases.stage(release);
       }
+      await releases.stage(release);
       if (!(await releases.complete(release)))
         throw new Error("Saved puzzles are incomplete. Reconnect and retry.");
       await releases.pin(source.id, release.version);

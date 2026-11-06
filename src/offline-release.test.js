@@ -41,3 +41,32 @@ it("rejects a manifest that labels valid old shell bytes as a new build", async 
   await expect(x.store.stage(mislabeled)).rejects.toThrow();
   expect(await x.store.ready("new")).toBeNull();
 });
+
+it.each(["missing", "corrupt"])(
+  "repairs a %s bank without discarding the active release",
+  async (fault) => {
+    const x = await fixture();
+    const old = await x.release("old");
+    await x.store.stage(old);
+    await x.store.activate("old");
+    const cache = await x.caches.open("sudoku-offline-v1:/sudoku/:release:old");
+    const bankUrl = `https://example.org/sudoku/${old.bank.path}`;
+    if (fault === "missing") await cache.delete(bankUrl);
+    else await cache.put(bankUrl, new Response("broken"));
+    const html = await (await x.store.asset("old", "index.html")).text();
+    x.bodies.set(old.bank.path, "bad download");
+    await expect(x.store.stage(old)).rejects.toThrow();
+    expect((await x.store.active()).version).toBe("old");
+    expect(await (await x.store.asset("old", "index.html")).text()).toBe(html);
+    // A newer deployment must not prevent repair from the saved manifest hashes.
+    await x.release("new");
+    x.requests.length = 0;
+    await x.store.stage(old);
+    expect(await x.store.complete(old)).toBe(true);
+    expect((await x.store.active()).version).toBe("old");
+    expect(x.requests.map(({ url }) => new URL(url).pathname)).toEqual([
+      `/sudoku/${old.bank.path}`,
+    ]);
+    expect((await x.caches.keys()).some((name) => name.includes(":repair:"))).toBe(false);
+  }
+);

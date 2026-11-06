@@ -97,3 +97,21 @@ it.each(["fetch", "body", "hash"])(
     expect(await store.ready("new")).toBeNull();
   }
 );
+it("reads complete metadata from a legacy-compatible discovery envelope", async () => {
+  const x = await fixture();
+  const release = await x.release("new");
+  const envelope = {
+    schema: 1,
+    version: release.version,
+    builtAt: release.builtAt,
+    html: release.assets.find((asset) => asset.path === "index.html").hash,
+    assets: release.assets.filter((asset) => /\.(js|css)$/.test(asset.path)),
+    release,
+  };
+  x.bodies.set("version.json", JSON.stringify(envelope));
+  expect(await x.store.manifest()).toEqual(release);
+  await x.store.stage(release);
+  expect(await x.store.complete(release)).toBe(true);
+  expect(() => validateManifest({ ...envelope, version: "different" })).toThrow();
+  expect(() => validateManifest({ ...envelope, builtAt: 999 })).toThrow();
+});

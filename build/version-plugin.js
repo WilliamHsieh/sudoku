@@ -64,7 +64,16 @@ export function versionPlugin() {
         this.emitFile({
           type: "asset",
           fileName: "version.json",
-          source: JSON.stringify({ schema: 2, version, builtAt, bank, assets }),
+          // Already-open schema-1 clients verify only HTML and JS/CSS within
+          // 1500 ms. Both contracts come from these same final build bytes.
+          source: JSON.stringify({
+            schema: 1,
+            version,
+            builtAt,
+            html: assets.find((asset) => asset.path === "index.html").hash,
+            assets: assets.filter((asset) => /^assets\/.*\.(js|css)$/.test(asset.path)),
+            release: { schema: 2, version, builtAt, bank, assets },
+          }),
         });
       },
     },

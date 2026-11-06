@@ -1,10 +1,26 @@
 import { execFileSync } from "node:child_process";
 import { build } from "vite";
 import { puzzleData } from "../src/puzzles.js";
+import { mkdirSync, readFileSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 
 export const buildRoot = resolve("node_modules/.cache/sudoku-upgrade");
 export default async function buildUpgrades() {
+  const legacyRoot = `${buildRoot}/legacy-source`;
+  rmSync(legacyRoot, { recursive: true, force: true });
+  mkdirSync(legacyRoot, { recursive: true });
+  execFileSync("tar", ["-xz", "-C", legacyRoot], {
+    input: readFileSync("e2e/fixtures/legacy-78bf225.tar.gz"),
+  });
+  execFileSync(
+    process.execPath,
+    [resolve("node_modules/vite/bin/vite.js"), "build", "--outDir", `${buildRoot}/legacy`],
+    {
+      cwd: legacyRoot,
+      env: { ...process.env, SUDOKU_BUILD_VERSION: "legacy", SUDOKU_BUILD_TIME: "500" },
+      stdio: "pipe",
+    }
+  );
   for (const [version, time] of [
     ["old", "1000"],
     ["new", "2000"],
