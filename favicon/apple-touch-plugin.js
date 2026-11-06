@@ -4,7 +4,7 @@ import { Resvg } from "@resvg/resvg-js";
 export const APPLE_TOUCH_ICON = "apple-touch-icon.png";
 export const APPLE_TOUCH_SIZE = 180;
 
-const appleSvgUrl = new URL("./I7-apple.svg", import.meta.url);
+const appleSvgUrl = new URL("./I9-apple.svg", import.meta.url);
 
 /**
  * Rasterize an outline SVG to a square PNG.
@@ -28,7 +28,7 @@ export function rasterizeSvg(svg, size) {
   };
 }
 
-/** 180×180 apple-touch PNG for the static home-screen icon (digit 7). */
+/** 180×180 apple-touch PNG for the static home-screen icon (digit 9). */
 export function appleTouchPng() {
   const rendered = rasterizeSvg(readFileSync(appleSvgUrl), APPLE_TOUCH_SIZE);
   if (rendered.width !== APPLE_TOUCH_SIZE || rendered.height !== APPLE_TOUCH_SIZE) {

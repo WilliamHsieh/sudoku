@@ -34,7 +34,7 @@ function msUntilLocalMidnight(date) {
 
 /**
  * Point the 16 and 32 tab icons at the weekday digit for `date`.
- * The apple-touch icon is static and stays on 7.
+ * The apple-touch icon is static and stays on 9.
  * @param {Document} doc
  * @param {Date} date
  * @param {string} [base]
