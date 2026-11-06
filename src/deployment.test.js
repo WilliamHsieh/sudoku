@@ -1,111 +1,98 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { createHash } from "node:crypto";
-import { probeDeployment } from "./auto-update.js";
+import { fixture } from "../offline/test-fixture.js";
+import { validateManifest, createReleaseStore } from "../offline/releases.js";
 
-const hash = (value) => createHash("sha256").update(value).digest("hex");
-const current = { version: "old", builtAt: 1 };
-function deployment() {
-  const html = '<script src="/sudoku/assets/new.js"></script>';
-  const js = 'console.log("new build")';
-  const manifest = {
-    schema: 1,
-    version: "new",
-    builtAt: 2,
-    html: hash(html),
-    assets: [{ path: "assets/new.js", hash: hash(js) }],
-  };
-  const bodies = new Map([
-    ["/sudoku/index.html", html],
-    ["/sudoku/assets/new.js", js],
-  ]);
-  const fetcher = vi.fn(async (url, init) => {
-    const asset = url.pathname.includes("/assets/");
-    expect(init.cache).toBe(asset ? "reload" : "no-store");
-    expect(init.redirect).toBe("error");
-    expect(url.searchParams.has("_sudoku_check")).toBe(!asset);
-    const body = url.pathname.endsWith("version.json")
-      ? JSON.stringify(manifest)
-      : bodies.get(url.pathname);
-    return new Response(body ?? "missing", { status: body ? 200 : 404 });
-  });
-  vi.stubGlobal("location", { href: "https://example.test/sudoku/?q=123" });
-  vi.stubGlobal("fetch", fetcher);
-  return { manifest, bodies, fetcher };
-}
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.useRealTimers();
 });
-it("verifies HTML, warms exact asset URLs and rereads the manifest within one budget", async () => {
-  const { fetcher } = deployment();
-  expect(await probeDeployment("/sudoku/", current, { verify: true })).toMatchObject({
-    version: "new",
-  });
-  expect(fetcher).toHaveBeenCalledTimes(4);
+it("verifies every shell byte and rereads the manifest before ready", async () => {
+  const x = await fixture();
+  const manifest = await x.release("new");
+  await x.store.stage(manifest);
+  expect(x.requests).toHaveLength(4);
+  expect(
+    x.requests.every(
+      ({ url, options }) =>
+        new URL(url).searchParams.has("_sudoku_check") &&
+        options.cache === "no-store" &&
+        options.redirect === "error"
+    )
+  ).toBe(true);
 });
 it("manifest-only probes read only version.json", async () => {
-  const { fetcher } = deployment();
-  expect(await probeDeployment("/sudoku/", current)).toMatchObject({ version: "new" });
-  expect(fetcher).toHaveBeenCalledOnce();
+  const x = await fixture();
+  await x.release("new");
+  expect(await x.store.manifest()).toMatchObject({ version: "new" });
+  expect(x.requests).toHaveLength(1);
 });
-it.each(["/sudoku/index.html", "/sudoku/assets/new.js"])(
-  "rejects mixed deployment bytes: %s",
-  async (path) => {
-    const { bodies } = deployment();
-    bodies.set(path, "old or error HTML");
-    expect(await probeDeployment("/sudoku/", current, { verify: true })).toBeNull();
-  }
-);
-it("rejects a manifest changed during verification", async () => {
-  const { manifest, fetcher } = deployment();
-  fetcher.mockResolvedValueOnce(new Response(JSON.stringify({ ...manifest, version: "other" })));
-  expect(await probeDeployment("/sudoku/", current, { verify: true })).toBeNull();
+it.each(["index.html", "assets/new.js"])("rejects mixed deployment bytes: %s", async (path) => {
+  const x = await fixture();
+  const manifest = await x.release("new");
+  x.bodies.set(path, "old or error HTML");
+  await expect(x.store.stage(manifest)).rejects.toThrow("verification");
+  expect(await x.store.ready("new")).toBeNull();
 });
 it.each([
-  { schema: 2 },
+  { schema: 1 },
   { version: 12 },
   { version: "bad/version" },
   { builtAt: 1.5 },
-  { html: "invalid" },
+  { bank: { path: "banks/wrong.json", hash: "a".repeat(64) } },
   { assets: [] },
   { assets: [null] },
   ...["../outside.js", "https://other.test/evil.js", "assets/new.js?extra=1"].map((path) => ({
     assets: [{ path, hash: "a".repeat(64) }],
   })),
 ])("rejects invalid manifest fields: %j", async (fields) => {
-  const { manifest, fetcher } = deployment();
-  Object.assign(manifest, fields);
-  expect(await probeDeployment("/sudoku/", current, { verify: true })).toBeNull();
-  expect(fetcher).toHaveBeenCalledOnce();
+  const x = await fixture();
+  const manifest = await x.release("new");
+  expect(() => validateManifest({ ...manifest, ...fields })).toThrow();
 });
-it("does not fetch HTML for the current version", async () => {
-  const { manifest, fetcher } = deployment();
-  manifest.version = "old";
-  expect(await probeDeployment("/sudoku/", current, { verify: true })).toBeNull();
-  expect(fetcher).toHaveBeenCalledOnce();
+it("does not fetch anything for a verified ready release", async () => {
+  const x = await fixture();
+  const manifest = await x.release("new");
+  await x.store.stage(manifest);
+  x.requests.length = 0;
+  await x.store.stage(manifest);
+  expect(x.requests).toHaveLength(0);
 });
-it("falls through on missing assets, malformed JSON, redirects or offline errors", async () => {
-  const { bodies, fetcher } = deployment();
-  bodies.delete("/sudoku/assets/new.js");
-  expect(await probeDeployment("/sudoku/", current, { verify: true })).toBeNull();
-  fetcher.mockResolvedValueOnce(new Response("not json"));
-  expect(await probeDeployment("/sudoku/", current)).toBeNull();
-  fetcher.mockRejectedValueOnce(Error("redirect/offline"));
-  expect(await probeDeployment("/sudoku/", current)).toBeNull();
+it("rejects missing assets, malformed JSON, redirects and offline errors", async () => {
+  const x = await fixture();
+  const manifest = await x.release("new");
+  x.bodies.delete("assets/new.js");
+  await expect(x.store.stage(manifest)).rejects.toThrow();
+  x.bodies.set("version.json", "not json");
+  await expect(x.store.manifest()).rejects.toThrow();
+  x.bodies.set("version.json", Error("offline/redirect"));
+  await expect(x.store.manifest()).rejects.toThrow();
 });
 it.each(["fetch", "body", "hash"])(
-  "enforces the total budget even on a stalled %s",
+  "bounds a stalled %s and leaves no ready marker",
   async (stage) => {
+    const x = await fixture();
+    const manifest = await x.release("new");
     vi.useFakeTimers();
-    const { fetcher } = deployment();
     const stalled = new Promise(() => {});
-    if (stage === "fetch") fetcher.mockReturnValueOnce(stalled);
-    if (stage === "body")
-      fetcher.mockResolvedValueOnce(Object.assign(new Response(), { json: () => stalled }));
+    let signal;
+    const store = createReleaseStore({
+      root: "https://example.org/sudoku/",
+      caches: x.caches,
+      budgetMs: 100,
+      fetch: async (_url, options) => {
+        signal = options.signal;
+        if (stage === "fetch") return stalled;
+        const response = new Response("new");
+        if (stage === "body")
+          response.clone = () => Object.assign(new Response(), { arrayBuffer: () => stalled });
+        return response;
+      },
+    });
     if (stage === "hash") vi.stubGlobal("crypto", { subtle: { digest: () => stalled } });
-    const result = probeDeployment("/sudoku/", current, { verify: true });
-    await vi.advanceTimersByTimeAsync(1500);
-    expect(await result).toBeNull();
-    expect(fetcher.mock.calls[0][1].signal.aborted).toBe(true);
+    const result = expect(store.stage(manifest)).rejects.toThrow("timed out");
+    await vi.advanceTimersByTimeAsync(100);
+    await result;
+    expect(signal.aborted).toBe(true);
+    expect(await store.ready("new")).toBeNull();
   }
 );

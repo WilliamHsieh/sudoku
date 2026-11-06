@@ -43,3 +43,28 @@ Puzzles come from `scraper.py`, which a GitHub Action runs daily at 04:00 UTC (`
 ## License
 
 [MIT](LICENSE). Puzzles come from The New York Times Sudoku page. This project isn't affiliated with The New York Times.
+
+## Offline releases
+
+Production startup prepares the complete current NYT bank and the offline shell
+before play. A failed download shows Retry. Later launches use the verified local
+release, including offline navigation under `/sudoku/`.
+
+The scraper still updates `src/puzzles.js`. The build extracts that data into
+`banks/<sha256>.json`; the app JavaScript does not contain the bank. `version.json`
+(schema 2) identifies the app build separately and lists SHA-256 digests for the
+bank, HTML, JavaScript (including the hint worker), CSS, font, and icons.
+
+Publish the whole `dist` directory together. A foreground check downloads into a
+separate release cache, verifies every byte, and rereads the network manifest.
+Only then does it write the ready marker and show Update. An unchanged bank is
+verified and reused locally. Explicit Update flushes game state, selects the ready
+release, and reloads. Background checks never activate or reload a game.
+
+The service worker is a stable release router. Its install/activate lifecycle
+claims clients but does not select an app version. Navigation uses the active
+release; client pins preserve resources for old running tabs. Verification
+requests bypass the worker cache. Failed staging deletes only its own incomplete
+cache. Ready releases are retained so old and browser-restored tabs can still
+load their assets. Offline caches are scoped to this app; game storage is never
+cleared by release installation.

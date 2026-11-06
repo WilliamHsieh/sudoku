@@ -3,10 +3,7 @@ import { createUpdater } from "./auto-update.js";
 import { installAutoUpdate, createUpdateAction } from "./auto-update-browser.js";
 
 const { deploymentProbe } = vi.hoisted(() => ({ deploymentProbe: vi.fn() }));
-vi.mock("./auto-update.js", async (original) => ({
-  ...(await original()),
-  probeDeployment: deploymentProbe,
-}));
+vi.mock("../offline/client.js", () => ({ stageUpdate: deploymentProbe, activateUpdate: vi.fn() }));
 const current = { version: "old", builtAt: 1 };
 const next = { version: "new", builtAt: 2 };
 function setup(overrides = {}) {

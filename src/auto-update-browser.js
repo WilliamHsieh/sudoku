@@ -1,4 +1,5 @@
-import { createUpdater, probeDeployment } from "./auto-update.js";
+import { stageUpdate, activateUpdate } from "../offline/client.js";
+import { createUpdater } from "./auto-update.js";
 
 export const UPDATE_PARAM = "_sudoku_update";
 
@@ -14,7 +15,8 @@ export function stripUpdateParam() {
 /** Reload only after an explicit Update action, preserving the URL.
  * @param {string} version
  */
-export function reloadForUpdate(version) {
+export async function reloadForUpdate(version) {
+  await activateUpdate(version);
   const url = new URL(location.href);
   url.searchParams.set(UPDATE_PARAM, version);
   location.replace(url.href);
@@ -38,7 +40,7 @@ export function createUpdateAction({ flush, reload, setUpdating }) {
       }, 3000);
       try {
         flush();
-        reload();
+        Promise.resolve(reload()).catch(() => {});
       } catch {
         // Keep Updating… until the same three-second recovery deadline.
       }
@@ -57,7 +59,7 @@ export function createUpdateAction({ flush, reload, setUpdating }) {
 export function installAutoUpdate(options) {
   const updater = createUpdater({
     current: options.current,
-    probe: () => probeDeployment(options.base, options.current, { verify: true }),
+    probe: () => stageUpdate(options.current),
     visible: () => document.visibilityState === "visible",
     notify: options.notify,
   });
