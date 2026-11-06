@@ -238,7 +238,8 @@ for (const width of [390, 1280]) {
         if (replayPuzzle[i] !== "0") continue;
         await page.locator(`.cell[data-i="${i}"]`).click();
         await page.keyboard.press(replayAnswer[i]);
-        if (i < 70) expect((await readReplayStorage(page)).solved).toBe(before.solved);
+        if (i !== replayPuzzle.lastIndexOf("0"))
+          expect((await readReplayStorage(page)).solved).toBe(before.solved);
       }
       await expect(page.locator(".sv-view-panel")).toBeVisible();
       await expect(page.locator(".replay-card")).toHaveCount(0);
