@@ -248,8 +248,10 @@
     const saved = get(customProgress).puzzles?.[parsed.puzzle];
     game.load(parsed.puzzle, { custom: true, snapshot: saved?.snapshot, elapsed: saved?.elapsed });
     const url = new URL(window.location.href);
-    url.searchParams.set("q", parsed.puzzle);
-    history.replaceState(history.state, "", url);
+    if (url.searchParams.get("q") !== parsed.puzzle) {
+      url.searchParams.set("q", parsed.puzzle);
+      history.replaceState(history.state, "", url);
+    }
     customOpen = false;
     customPreview = false;
     handleLoadPuzzle();
