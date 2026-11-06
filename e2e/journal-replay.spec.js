@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { fmtTime } from "../src/journal/format.js";
 import {
   REPLAY_DATE,
   replayPuzzle,
@@ -250,7 +251,20 @@ for (const width of [390, 1280]) {
         JSON.parse(before.solved)[REPLAY_DATE].easy.timestamp
       );
       expect(JSON.parse(after.replay)).toEqual({});
+      const time = fmtTime(saved.time);
+      await expect(page.locator(".hero")).toHaveText(time);
+      await expect(page.locator("#time-control")).toHaveAttribute(
+        "aria-label",
+        `Solved in ${time} on October 31`
+      );
+      await expect(page.locator(".summary")).toHaveText(
+        `Easy · ${fmtTime(499 - saved.time)} faster than average`
+      );
       await page.getByRole("button", { name: "Journal", exact: true }).click();
+      await showSolvedRow(page, time);
+      await expect(
+        page.locator(".sblock .srow").filter({ hasText: "Easy" }).first().locator(".r.num")
+      ).toHaveText(["2", fmtTime((499 + saved.time) / 2), time]);
       await expect(page.locator(".day .replay-dot")).toHaveCount(0);
       await expect(page.locator(".ucard .ulnk")).toHaveCount(0);
       await expect(page.getByRole("button", { name: /Unfinished puzzles, / })).toHaveCount(0);
