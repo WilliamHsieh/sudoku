@@ -122,6 +122,14 @@ export function createReleaseStore({ root, caches, fetch, budgetMs = 60_000 }) {
           response ??= await network(entry.path, signal);
           if (!(await verified(response, entry.hash)))
             throw new Error("Download verification failed");
+          if (entry.path === "index.html") {
+            const html = await response.clone().text();
+            if (
+              !html.includes(`<meta name="sudoku-build" content="${next.version}">`) ||
+              !html.includes(`<meta name="sudoku-built-at" content="${next.builtAt}">`)
+            )
+              throw new Error("Shell version does not match the release");
+          }
           if (signal.aborted) throw new Error("Download cancelled");
           await cache.put(url(entry.path), response);
         }

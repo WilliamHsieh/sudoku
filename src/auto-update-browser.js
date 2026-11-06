@@ -23,9 +23,9 @@ export async function reloadForUpdate(version) {
 }
 
 /** Flush autosave before navigation; restore the action if navigation fails.
- * @param {{ flush: () => void, reload: () => void, setUpdating: (value: boolean) => void }} options
+ * @param {{ flush: () => void, reload: () => void, setUpdating: (value: boolean) => void, onError?: (message: string) => void }} options
  */
-export function createUpdateAction({ flush, reload, setUpdating }) {
+export function createUpdateAction({ flush, reload, setUpdating, onError = () => {} }) {
   let busy = false;
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   let timer;
@@ -40,8 +40,11 @@ export function createUpdateAction({ flush, reload, setUpdating }) {
       }, 3000);
       try {
         flush();
-        Promise.resolve(reload()).catch(() => {});
-      } catch {
+        Promise.resolve(reload()).catch((error) =>
+          onError(error.message || "Could not update. Please retry.")
+        );
+      } catch (error) {
+        onError(error.message || "Could not save progress. Please retry.");
         // Keep Updating… until the same three-second recovery deadline.
       }
     },

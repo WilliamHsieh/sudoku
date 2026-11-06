@@ -35,7 +35,7 @@ import {
 import { bit, popcount } from "./board.js";
 import { fromSnapshot } from "./snapshot.js";
 import { done, timer, timerRunning, resetTimer, solvedPuzzles } from "../store.js";
-import { puzzleProgress, progressPayload } from "../journal/progress.js";
+import { puzzleProgress, customProgress, progressPayload } from "../journal/progress.js";
 
 /** Demo puzzle shipped on master (the board you get by clicking Play). */
 export const DEMO_PUZZLE =
@@ -43,6 +43,7 @@ export const DEMO_PUZZLE =
 
 /**
  * @typedef {Object} LoadMeta
+ * @property {boolean} [custom]
  * @property {string | null} [dateStr]
  * @property {string | null} [difficulty]
  */
@@ -56,6 +57,7 @@ export function createGame() {
   let placement = $state(null);
   /** @type {{ dateStr: string | null, difficulty: string | null }} */
   let meta = $state({ dateStr: null, difficulty: null });
+  let customKey = "";
   let marked = $state(false);
   /** @type {number[]} */
   let lastBlockers = $state([]);
@@ -115,8 +117,20 @@ export function createGame() {
     return result;
   }
 
-  function persistProgress(force = false) {
-    if (!meta.dateStr || !meta.difficulty) return;
+  function persistProgress(force = false, strict = false) {
+    const store = customKey ? customProgress : puzzleProgress;
+    const date = customKey ? "puzzles" : meta.dateStr;
+    const difficulty = customKey || meta.difficulty;
+    if (!date || !difficulty) return;
+    if (!store.isCurrent(date, difficulty)) {
+      if (strict)
+        throw new Error("This puzzle changed in another tab. Reload to use its saved progress.");
+      return;
+    }
+    if (customKey) {
+      store.save(date, difficulty, progressPayload(history.present, get(timer)));
+      return;
+    }
     if (isSolved(history.present)) {
       puzzleProgress.clear(meta.dateStr, meta.difficulty);
       return;
@@ -421,6 +435,7 @@ export function createGame() {
     load(puzzle, info = {}) {
       prepareMutation();
       persistProgress();
+      customKey = info.custom ? puzzle : "";
       if (info.snapshot) {
         history = createHistory(fromSnapshot(info.snapshot));
       } else {
@@ -444,7 +459,7 @@ export function createGame() {
 
     /** Write current in-progress puzzle to `sudoku-progress`. */
     flushProgress() {
-      persistProgress();
+      persistProgress(false, true);
     },
   };
 }

@@ -27,6 +27,7 @@
   import { done, puzzleProgress, solvedPuzzles, timer, formatTime } from "./store";
   import { game } from "./game/game.svelte.js";
   import { firstUnsolvedLatest } from "./game/daily.js";
+  import { customProgress } from "./journal/progress.js";
   import { puzzleData } from "./puzzles.js";
   import { unfinishedList } from "./journal/stats.js";
   import { ring } from "./ring.js";
@@ -244,7 +245,11 @@
     if (!customReady) return;
     const parsed = parsePuzzleInput(customRaw);
     if (!parsed.ok) return;
-    game.load(parsed.puzzle);
+    const saved = get(customProgress).puzzles?.[parsed.puzzle];
+    game.load(parsed.puzzle, { custom: true, snapshot: saved?.snapshot, elapsed: saved?.elapsed });
+    const url = new URL(window.location.href);
+    url.searchParams.set("q", parsed.puzzle);
+    history.replaceState(history.state, "", url);
     customOpen = false;
     customPreview = false;
     handleLoadPuzzle();
@@ -695,6 +700,7 @@
   let updateVersion = "";
   let noticeHadFocus = false;
   let updating = $state(false);
+  let updateError = $state("");
   // Once visible, keep it visible through later resume animations. A newly
   // discovered version waits for both the hold and the 600ms reveal to finish.
   let noticeRevealed = $state(false);
@@ -729,6 +735,9 @@
   }
 
   const updateAction = createUpdateAction({
+    onError: (message) => {
+      updateError = message;
+    },
     setUpdating: (value) => {
       updating = value;
     },
@@ -738,6 +747,7 @@
 
   function updateNow() {
     restoreNoticeFocus();
+    updateError = "";
     updateAction.run();
   }
 
@@ -1310,6 +1320,11 @@
 {/if}
 
 <!-- The polite live region stays mounted so screen readers announce the inserted notice. -->
+{#if updateError}
+  <div class="update-error" role="alert">
+    {updateError} <a href={window.location.href}>Reload Sudoku</a>
+  </div>
+{/if}
 <div class="update-live sr-only" aria-live="polite" aria-atomic="true">
   {noticeActive ? (updating ? "Updating…" : UPDATE_COPY) : ""}
 </div>
@@ -1332,6 +1347,18 @@
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
+  }
+  .update-error {
+    position: fixed;
+    bottom: 76px;
+    left: 16px;
+    right: 16px;
+    z-index: 1200;
+    padding: 12px;
+    background: var(--page);
+    color: var(--ink);
+    text-align: center;
+    border: 1px solid var(--hair);
   }
   .update-live {
     position: fixed;

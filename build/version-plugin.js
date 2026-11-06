@@ -30,6 +30,11 @@ export function versionPlugin() {
     },
     transformIndexHtml: () => [
       { tag: "meta", attrs: { name: "sudoku-build", content: version }, injectTo: "head" },
+      {
+        tag: "meta",
+        attrs: { name: "sudoku-built-at", content: String(builtAt) },
+        injectTo: "head",
+      },
     ],
     generateBundle: {
       order: "post",

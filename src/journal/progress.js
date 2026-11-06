@@ -1,3 +1,4 @@
+import { mergeEntry } from "../persistence.js";
 import { writable } from "svelte/store";
 import { toSnapshot } from "../game/snapshot.js";
 
@@ -26,7 +27,9 @@ function readJson(key, fallback) {
 
 function writeJson(key, value) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(key, JSON.stringify(value));
+  const text = JSON.stringify(value);
+  localStorage.setItem(key, text);
+  if (localStorage.getItem(key) !== text) throw new Error("Could not verify saved progress");
 }
 
 function createSolvedPuzzles() {
@@ -38,7 +41,9 @@ function createSolvedPuzzles() {
     set,
     update,
     markSolved: (dateStr, difficulty, completionTime) => {
+      if (!puzzleProgress.isCurrent(dateStr, difficulty)) return;
       update((solved) => {
+        solved = readJson(SOLVED_KEY, solved);
         const next = { ...solved, [dateStr]: { ...(solved[dateStr] || {}) } };
         next[dateStr][difficulty] = {
           completed: true,
@@ -58,8 +63,8 @@ function createSolvedPuzzles() {
   };
 }
 
-function createPuzzleProgress() {
-  const initial = readJson(PROGRESS_KEY, {});
+function createPuzzleProgress(key = PROGRESS_KEY) {
+  const initial = readJson(key, {});
   const { subscribe, set, update } = writable(initial);
 
   return {
@@ -72,22 +77,37 @@ function createPuzzleProgress() {
      * @param {Omit<ProgressEntry, 'updatedAt'>} entry
      */
     save: (dateStr, difficulty, entry) => {
+      let saved = false;
       update((prog) => {
-        const next = { ...prog, [dateStr]: { ...(prog[dateStr] || {}) } };
-        next[dateStr][difficulty] = { ...entry, updatedAt: Date.now() };
-        writeJson(PROGRESS_KEY, next);
+        const current = readJson(key, prog);
+        const next = mergeEntry(current, prog, dateStr, difficulty, {
+          ...entry,
+          updatedAt: Date.now(),
+        });
+        if (!next) return prog;
+        writeJson(key, next);
+        saved = true;
         return next;
       });
+      return saved;
+    },
+    isCurrent: (dateStr, difficulty) => {
+      let prog = {};
+      subscribe((value) => {
+        prog = value;
+      })();
+      const current = readJson(key, prog);
+      return (
+        JSON.stringify(current[dateStr]?.[difficulty]) ===
+        JSON.stringify(prog[dateStr]?.[difficulty])
+      );
     },
     clear: (dateStr, difficulty) => {
       update((prog) => {
-        if (!prog[dateStr]?.[difficulty]) return prog;
-        const day = { ...prog[dateStr] };
-        delete day[difficulty];
-        const next = { ...prog };
-        if (Object.keys(day).length) next[dateStr] = day;
-        else delete next[dateStr];
-        writeJson(PROGRESS_KEY, next);
+        const current = readJson(key, prog);
+        const next = mergeEntry(current, prog, dateStr, difficulty, null);
+        if (!next) return prog;
+        if (JSON.stringify(next) !== JSON.stringify(current)) writeJson(key, next);
         return next;
       });
     },
@@ -96,6 +116,7 @@ function createPuzzleProgress() {
 
 export const solvedPuzzles = createSolvedPuzzles();
 export const puzzleProgress = createPuzzleProgress();
+export const customProgress = createPuzzleProgress("sudoku-custom-progress");
 
 /**
  * How many of the empty cells have answers.

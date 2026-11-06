@@ -3,9 +3,9 @@ import { upgradeServer } from "./upgrade-server.js";
 import { cell, expectValue, DEMO_PUZZLE, solve, switchNotesMode } from "./helpers.js";
 
 const test = base.extend({
-  // eslint-disable-next-line no-empty-pattern
-  deployment: async ({}, use) => {
+  deployment: async ({ page }, use) => {
     const server = await upgradeServer(process.env.SUDOKU_UPGRADE_BASELINE);
+    server.track(page);
     await use(server);
     await server.close();
   },
@@ -13,7 +13,8 @@ const test = base.extend({
 test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
 const notice = (page) => page.locator(".update-notice.active");
 const build = (page) => page.locator('meta[name="sudoku-build"]');
-const attempts = (deployment) => deployment.requests.filter((r) => r.includes("_sudoku_update="));
+const attempts = (deployment) =>
+  deployment.navigations.filter((r) => r.includes("_sudoku_update="));
 const live = (page) => page.locator(".update-live");
 
 async function open(page, deployment, query = `?q=${DEMO_PUZZLE}`) {
@@ -343,7 +344,7 @@ test("Update writes no return marker to either storage area", async ({ page, dep
   ).toEqual([]);
 });
 
-test("share-link Update confirms the original givens without saving answers", async ({
+test("share-link Update preserves the givens and locally saved answers", async ({
   page,
   deployment,
 }) => {
@@ -355,7 +356,7 @@ test("share-link Update confirms the original givens without saving answers", as
   await notice(page).getByRole("button", { name: "Update", exact: true }).tap();
   await expect(build(page)).toHaveAttribute("content", "new");
   await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).click();
-  await expectValue(page, 0, 0);
+  await expectValue(page, 0, 4);
   expect(new URL(page.url()).searchParams.get("q")).toBe(DEMO_PUZZLE);
   expect(await page.evaluate(() => localStorage.getItem("sudoku-progress"))).toBeNull();
   expect(await page.evaluate(() => Object.keys(sessionStorage))).toEqual([]);
@@ -367,32 +368,17 @@ for (const edited of [false, true]) {
     deployment,
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
+    await open(page, deployment);
+    const release = deployment.holdManifest();
     deployment.publish();
-    deployment.launchOld();
-    // Hold the initial check until Play is usable, including the first edit.
-    let release;
-    const gate = new Promise((resolve) => {
-      release = resolve;
-    });
-    await page.route("**/version.json?*", async (route) => {
-      await gate;
-      await route.continue().catch(() => {});
-    });
+    await page.clock.setSystemTime(new Date(Date.now() + 60_000));
+    await page.evaluate(() =>
+      window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true }))
+    );
     const navigations = [];
     page.on("framenavigated", (frame) => {
       if (frame === page.mainFrame()) navigations.push(frame.url());
     });
-    // Freeze scheduling so the 1.5s network budget cannot race test-driver input.
-    await page.clock.install();
-    await page.clock.pauseAt(new Date());
-    await page.addInitScript(() => {
-      localStorage.setItem("sudoku-keypad-coach", "1");
-      window.documentIdentity = {};
-    });
-    await page.goto(`${deployment.url}?q=${DEMO_PUZZLE}`);
-    await page
-      .getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true })
-      .dispatchEvent("click");
     if (edited) {
       await cell(page, 0).dispatchEvent("click");
       await page.keyboard.press("4");
@@ -401,8 +387,8 @@ for (const edited of [false, true]) {
     const identity = await page.evaluateHandle(() => window.documentIdentity);
     release();
     await expect(notice(page)).toHaveCSS("opacity", "1");
-    await page.clock.runFor(1600);
-    expect(navigations).toHaveLength(1);
+    await page.waitForTimeout(200);
+    expect(navigations).toHaveLength(0);
     expect(attempts(deployment)).toHaveLength(0);
     expect(await identity.evaluate((value) => value === window.documentIdentity)).toBe(true);
     await expect(cell(page, 0)).toBeVisible();
@@ -411,15 +397,18 @@ for (const edited of [false, true]) {
   });
 }
 
-test("no service worker is registered before or after Update", async ({ page, deployment }) => {
+test("one scoped service worker controls the page before and after Update", async ({
+  page,
+  deployment,
+}) => {
   await openDaily(page, deployment);
   const registrations = () =>
     page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length);
-  expect(await registrations()).toBe(0);
+  expect(await registrations()).toBe(1);
   await publish(page, deployment);
   await notice(page).getByRole("button", { name: "Update", exact: true }).tap();
   await expect(build(page)).toHaveAttribute("content", "new");
-  expect(await registrations()).toBe(0);
+  expect(await registrations()).toBe(1);
 });
 
 for (const gesture of ["pointercancel", "touchcancel", "drag-return"]) {
@@ -508,11 +497,16 @@ test("cold launch keeps the newer shell when the server offers an older deployme
   page.on("framenavigated", (frame) => {
     if (frame === page.mainFrame()) navigations.push(frame.url());
   });
-  // The shell is new/2000; version.json, HTML and assets form a coherent old/1000 deployment.
-  deployment.launchNew();
+  // A locally verified newer release remains usable after server rollback.
+  deployment.publish();
   const url = `${deployment.url}?q=${DEMO_PUZZLE}&keep=yes#board`;
   await page.goto(url);
   await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).click();
+  deployment.publish("old");
+  await page.clock.setSystemTime(new Date(Date.now() + 60_000));
+  await page.evaluate(() =>
+    window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true }))
+  );
   await expect(build(page)).toHaveAttribute("content", "new");
   await expect(page.locator(".board > .cell")).toHaveCount(81);
   expect(navigations).toEqual([url]);
@@ -549,24 +543,24 @@ test("ordinary and persisted pageshow have exact version request counts without 
   await open(page, deployment);
   const identity = await page.evaluateHandle(() => window.documentIdentity);
   const probes = () => deployment.requests.filter((r) => r.includes("version.json")).length;
-  await expect.poll(probes).toBe(1);
+  await expect.poll(probes).toBe(3);
   await page.clock.setSystemTime(new Date(Date.now() + 60_000));
   deployment.publish();
   await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pageshow")));
   await page.waitForTimeout(100);
-  expect(probes()).toBe(1);
+  expect(probes()).toBe(3);
   await page.evaluate(() =>
     window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true }))
   );
   await expect(notice(page)).toHaveCSS("opacity", "1");
   // Verification reads the manifest before and after warming HTML/assets.
-  expect(probes()).toBe(3);
+  expect(probes()).toBe(5);
   await page.evaluate(() => {
     window.dispatchEvent(new PageTransitionEvent("pageshow"));
     window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true }));
   });
   await page.waitForTimeout(100);
-  expect(probes()).toBe(3);
+  expect(probes()).toBe(5);
   expect(await identity.evaluate((value) => value === window.documentIdentity)).toBe(true);
   expect(attempts(deployment)).toHaveLength(0);
 });

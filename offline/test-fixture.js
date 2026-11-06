@@ -28,7 +28,10 @@ export async function fixture(options = {}) {
       assets: [],
     };
     for (const [path, body] of [
-      ["index.html", version],
+      [
+        "index.html",
+        `<meta name="sudoku-build" content="${version}"><meta name="sudoku-built-at" content="${manifest.builtAt}">${version}`,
+      ],
       [`assets/${version}.js`, version],
       [manifest.bank.path, bank],
     ]) {

@@ -67,7 +67,7 @@ for (const viewport of [
       await page.getByRole("button", { name: "Start puzzle" }).click();
       await expect(page.locator(".board > .cell.given")).toHaveCount(30);
       await expect(page.locator(".custom-editor")).toHaveCount(0);
-      expect(new URL(page.url()).search).toBe("");
+      expect(new URL(page.url()).searchParams.get("q")).toBe(PUZZLE);
     });
 
     test("More opens the editor without changing the current game", async ({ page }) => {

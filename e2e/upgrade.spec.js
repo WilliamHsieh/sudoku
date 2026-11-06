@@ -45,34 +45,21 @@ async function publish(page, deployment) {
   await check(page);
   await expect(notice(page)).toHaveCSS("opacity", "1");
 }
-test("a three-second version request never blocks the board", async ({ page, deployment }) => {
-  let completed = false;
-  await page.route("**/version.json?*", async (route) => {
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-    completed = true;
-    await route.continue().catch(() => {});
-  });
-  await page.addInitScript(() => {
-    const fetcher = window.fetch;
-    window.fetch = (...args) => {
-      if (String(args[0]).includes("version.json")) window.versionStarted = performance.now();
-      return fetcher(...args);
-    };
-    const observer = new MutationObserver(() => {
-      if (document.querySelector("#app")?.childElementCount) {
-        window.uiMounted = performance.now();
-        observer.disconnect();
-      }
-    });
-    observer.observe(document, { childList: true, subtree: true });
-  });
-  await page.addInitScript(() => localStorage.setItem("sudoku-keypad-coach", "1"));
-  await page.goto(`${deployment.url}?q=${DEMO_PUZZLE}`);
-  await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).click();
-  await expect(cell(page, 0)).toBeVisible();
-  // Measure inside the document, excluding test-runner and interaction latency.
-  expect(await page.evaluate(() => window.uiMounted - window.versionStarted)).toBeLessThan(500);
-  expect(completed).toBe(false);
+test("a slow background version request never blocks a prepared board", async ({
+  page,
+  deployment,
+}) => {
+  await open(page, deployment);
+  const release = deployment.holdManifest();
+  deployment.publish();
+  await page.clock.setSystemTime(new Date(Date.now() + 60_000));
+  await check(page);
+  await cell(page, 0).tap();
+  await page.keyboard.press("2");
+  await expectValue(page, 0, 2);
+  await expect(notice(page)).toHaveCount(0);
+  release();
+  await expect(notice(page)).toBeVisible();
 });
 
 test("notice persists for 60 seconds; dismissal dedupes the same version", async ({
@@ -211,32 +198,29 @@ test("responsive notice removal restores keyboard focus to More", async ({ page,
   await expect(page.locator("[data-more]:visible")).toBeFocused();
 });
 
-test("a missing module still offers Reload Sudoku and recovers on the next launch", async ({
+test("verified cached modules survive missing network assets during Update", async ({
   page,
   deployment,
 }) => {
   await open(page, deployment);
   await publish(page, deployment);
   deployment.fault("missing-asset");
-  await page.route("**/*", (route) => route.continue());
+  await page.context().setOffline(true);
   await notice(page).getByRole("button", { name: "Update", exact: true }).tap();
-  const retry = page.getByRole("link", { name: "Reload Sudoku" });
-  await expect(retry).toBeVisible();
-  expect(page.url()).not.toContain("_sudoku_update");
-  deployment.fault("");
-  await retry.click();
   await expect(build(page)).toHaveAttribute("content", "new");
+  expect(page.url()).not.toContain("_sudoku_update");
   await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).tap();
   await expect(cell(page, 0)).toBeVisible();
-  await expectValue(page, 0, 0);
+  await expectValue(page, 0, 4);
 });
 
 for (const fault of ["offline", "version-error", "timeout", "old-html"]) {
   test(`background check keeps the board usable on ${fault}`, async ({ page, deployment }) => {
-    deployment.publish();
-    deployment.launchOld();
-    deployment.fault(fault);
     await open(page, deployment);
+    deployment.publish();
+    deployment.fault(fault);
+    await page.clock.setSystemTime(new Date(Date.now() + 60_000));
+    await check(page);
     await expect(notice(page)).toHaveCount(0);
     expect(deployment.requests.filter((r) => r.includes("_sudoku_update="))).toHaveLength(0);
   });

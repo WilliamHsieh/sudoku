@@ -74,6 +74,7 @@ it.each(["fetch", "body", "hash"])(
     const manifest = await x.release("new");
     vi.useFakeTimers();
     const stalled = new Promise(() => {});
+    /** @type {AbortSignal | undefined} */
     let signal;
     const store = createReleaseStore({
       root: "https://example.org/sudoku/",
@@ -92,7 +93,7 @@ it.each(["fetch", "body", "hash"])(
     const result = expect(store.stage(manifest)).rejects.toThrow("timed out");
     await vi.advanceTimersByTimeAsync(100);
     await result;
-    expect(signal.aborted).toBe(true);
+    expect(signal?.aborted).toBe(true);
     expect(await store.ready("new")).toBeNull();
   }
 );

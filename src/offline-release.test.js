@@ -13,7 +13,7 @@ it("stages a complete verified release before explicit activation, reusing an un
   expect(x.requests.filter((r) => r.url.includes("banks/"))).toHaveLength(1);
   await x.store.activate("new");
   expect((await x.store.active()).version).toBe("new");
-  expect(await (await x.store.asset("old", "index.html")).text()).toBe("old");
+  expect(await (await x.store.asset("old", "index.html")).text()).toContain('content="old"');
   expect(x.requests.every((r) => r.options.cache === "no-store")).toBe(true);
 });
 it.each(["corrupt", "interrupted", "mismatch"])(
@@ -29,6 +29,15 @@ it.each(["corrupt", "interrupted", "mismatch"])(
     await expect(x.store.stage(next)).rejects.toThrow();
     await expect(x.store.activate("new")).rejects.toThrow();
     expect((await x.store.active()).version).toBe("old");
-    expect(await (await x.store.asset("old", "index.html")).text()).toBe("old");
+    expect(await (await x.store.asset("old", "index.html")).text()).toContain('content="old"');
   }
 );
+
+it("rejects a manifest that labels valid old shell bytes as a new build", async () => {
+  const x = await fixture();
+  const old = await x.release("old");
+  const mislabeled = { ...old, version: "new", builtAt: 2 };
+  x.bodies.set("version.json", JSON.stringify(mislabeled));
+  await expect(x.store.stage(mislabeled)).rejects.toThrow();
+  expect(await x.store.ready("new")).toBeNull();
+});

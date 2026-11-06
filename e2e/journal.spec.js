@@ -154,6 +154,7 @@ test.describe("mobile journal selected", () => {
 
 /** @param {import('@playwright/test').Page} page @param {string} rootSel */
 async function armSlideWatch(page, rootSel) {
+  await expect(page.locator(rootSel)).toBeVisible();
   await page.evaluate((rootSel) => {
     const root = document.querySelector(rootSel);
     const titleSel = rootSel === ".dcal" ? ".dmhead h2" : ".mhead h1";
