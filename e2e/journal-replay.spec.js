@@ -242,6 +242,7 @@ for (const width of [390, 1280]) {
           expect((await readReplayStorage(page)).solved).toBe(before.solved);
       }
       await expect(page.locator(".sv-view-panel")).toBeVisible();
+      await expect(page.locator(".cell.selected, .cell.same")).toHaveCount(0);
       await expect(page.locator(".replay-card")).toHaveCount(0);
       await expect(page.locator("#sv-rn")).toHaveText(/finish a replay/);
       const after = await readReplayStorage(page),

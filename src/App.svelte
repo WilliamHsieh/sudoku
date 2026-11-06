@@ -373,6 +373,11 @@
       return;
     }
     if (game.journalView) {
+      untrack(() => {
+        game.select(-1);
+        resetKeypad();
+        releaseShiftHover();
+      });
       solvedScreen = true;
       controlsGone = true;
       return;
