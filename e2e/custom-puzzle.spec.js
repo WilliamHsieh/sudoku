@@ -247,6 +247,9 @@ test.describe("Custom puzzle validation", () => {
       await expect(page.getByRole("button", { name: "Start puzzle", exact: true })).toBeDisabled();
       await expect(page.locator(".board > .cell")).toHaveCount(0);
       expect(dialogs).toEqual([]);
+      if (query.startsWith("q=11")) {
+        await expect(page.locator(".board-error")).toContainText("Repeated numbers");
+      }
     });
   }
 
@@ -316,3 +319,129 @@ for (const viewport of [
     });
   });
 }
+
+for (const viewport of [
+  { width: 402, height: 874 },
+  { width: 390, height: 700 },
+  { width: 320, height: 568 },
+]) {
+  test.describe(`Stable custom layout at ${viewport.width}x${viewport.height}`, () => {
+    test.use({ viewport, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+
+    for (const initialMode of ["Fill board", "Paste puzzle"]) {
+      test(`keeps the board and footer fixed from ${initialMode} through both transitions`, async ({
+        page,
+      }) => {
+        await page.goto("./");
+        await page.getByRole("button", { name: "Custom puzzle", exact: true }).click();
+        const tab = (name) => page.getByRole("button", { name, exact: true });
+        const geometry = () =>
+          page.evaluate(() => {
+            const rect = (selector) => {
+              const { x, y, width, height } = document
+                .querySelector(selector)
+                .getBoundingClientRect();
+              return { x, y, width, height };
+            };
+            return {
+              board: rect(".input-board"),
+              tabs: rect(".input-modes"),
+              footer: rect(".action-panel"),
+              start: rect(".primary-action"),
+              scroll: [
+                window.scrollX,
+                window.scrollY,
+                document.querySelector(".editor-body").scrollTop,
+              ],
+            };
+          });
+        await page
+          .locator(".journal-view")
+          .evaluate((el) => Promise.all(el.getAnimations().map((animation) => animation.finished)));
+        await tab(initialMode).click();
+        // Wait for the layout action and fonts before storing the reference geometry.
+        await page.evaluate(() => document.fonts.ready);
+        await expect.poll(async () => (await geometry()).board.width).toBeGreaterThan(0);
+        await page.evaluate(
+          () =>
+            new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+        );
+        const before = await geometry();
+        expect(before.tabs.y + before.tabs.height).toBeLessThanOrEqual(before.board.y);
+        expect(before.board.width).toBeCloseTo(before.board.height, 1);
+        expect(before.footer.y + before.footer.height).toBeLessThanOrEqual(viewport.height);
+        for (const next of initialMode === "Fill board"
+          ? ["Paste puzzle", "Fill board"]
+          : ["Fill board", "Paste puzzle"]) {
+          await tab(next).click();
+          await expect.poll(geometry).toEqual(before);
+          if (next === "Paste puzzle") {
+            const input = page.getByRole("textbox", { name: "Puzzle link or 81 digits" });
+            const box = await input.boundingBox();
+            expect(box.y).toBeGreaterThanOrEqual(before.board.y + before.board.height);
+            await input.fill(PUZZLE);
+            await expect(page.locator(".input-cell.given")).toHaveCount(30);
+          } else {
+            await expect(page.locator(".draft-key")).toHaveCount(9);
+            await expect(page.getByRole("toolbar", { name: "Board tools" })).toBeVisible();
+          }
+          await expect.poll(geometry).toEqual(before);
+          await expect
+            .poll(() =>
+              page.locator(".editor-body").evaluate((el) => el.scrollHeight - el.clientHeight)
+            )
+            .toBeLessThanOrEqual(1);
+          expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
+            viewport.width
+          );
+        }
+      });
+    }
+  });
+}
+
+test("short keyboard-sized viewport keeps paste, errors and Start reachable, then restores layout", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 402, height: 874 });
+  await page.goto("./");
+  await page.getByRole("button", { name: "Custom puzzle", exact: true }).click();
+  await page
+    .locator(".journal-view")
+    .evaluate((el) => Promise.all(el.getAnimations().map((animation) => animation.finished)));
+  const board = page.locator(".input-board");
+  const before = await board.boundingBox();
+  await page.getByRole("button", { name: "Paste puzzle", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Enter 1", exact: true })).toHaveCount(0);
+  const input = page.getByRole("textbox", { name: "Puzzle link or 81 digits" });
+  await input.focus();
+  // A real viewport resize exercises the scroll fallback, without mocking CSS
+  // or claiming to reproduce the native iOS keyboard.
+  await page.setViewportSize({ width: 402, height: 420 });
+  await input.fill("https://example.com/?q=123");
+  await expect(page.locator(".import-error")).toContainText("81");
+  await expect(page.getByRole("button", { name: "Fill board", exact: true })).toBeDisabled();
+  await page.locator(".import-error").scrollIntoViewIfNeeded();
+  const paste = page.getByRole("button", { name: "Paste from clipboard", exact: true });
+  const footer = await page.locator(".action-panel").boundingBox();
+  const pasteBox = await paste.boundingBox();
+  expect(pasteBox.y).toBeGreaterThanOrEqual(0);
+  expect(pasteBox.y + pasteBox.height).toBeLessThanOrEqual(footer.y);
+  expect(footer.y + footer.height).toBeLessThanOrEqual(420);
+  expect(
+    await page.evaluate(() => [
+      window.scrollX,
+      window.scrollY,
+      document.documentElement.scrollWidth,
+    ])
+  ).toEqual([0, 0, 402]);
+  await input.fill(PUZZLE);
+  await expect(page.locator(".string-meta")).toContainText("81 / 81");
+  await expect(page.getByRole("button", { name: "Start puzzle", exact: true })).toBeEnabled();
+  await page.setViewportSize({ width: 402, height: 874 });
+  await page.getByRole("button", { name: "Fill board", exact: true }).click();
+  await expect(input).toHaveCount(0);
+  await expect.poll(() => board.boundingBox()).toEqual(before);
+  await expect.poll(() => page.locator(".editor-body").evaluate((el) => el.scrollTop)).toBe(0);
+  await expect(page.locator(".input-cell.given")).toHaveCount(30);
+});

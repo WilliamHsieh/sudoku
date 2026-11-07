@@ -61,7 +61,7 @@
     .draft-header {
       height: 44px;
       padding: 0 8px;
-      margin: -3px -8px -7px;
+      margin: -3px -8px 0;
       border: 0;
       gap: 7px;
     }

@@ -199,13 +199,47 @@
   {#if children}{@render children()}{/if}
 {:else}
   <section
-    use:fitDraftKeypad={{ mode, preview }}
+    use:fitDraftKeypad={{ preview }}
     class="custom-editor quiet"
     class:paste={mode === "paste" && !preview}
     class:preview
     aria-label="Custom sudoku editor"
   >
     <div class="editor-body">
+      <div class="setup-top">
+        {#if preview}
+          <div class="review-copy">
+            <span class="kicker">YOUR PUZZLE</span>
+            <h3>Check the givens.</h3>
+            <p>Check the starting numbers. These will be fixed when you begin.</p>
+            <button
+              class="secondary"
+              onclick={() => {
+                preview = false;
+                mode = "board";
+                focusCell();
+              }}>Edit board <Icon name="grid-3x3" /></button
+            >
+          </div>
+        {:else}
+          <div class="input-modes" aria-label="Input method">
+            <button
+              class:active={mode === "board"}
+              aria-pressed={mode === "board"}
+              disabled={Boolean(importError) || invalid || normalized.length > 81}
+              onclick={() => chooseMode("board")}><Icon name="grid-3x3" />Fill board</button
+            >
+            <button
+              class:active={mode === "paste"}
+              aria-pressed={mode === "paste"}
+              onclick={() => chooseMode("paste")}
+              ><svg viewBox="0 0 24 24" aria-hidden="true"
+                ><path d="M9 5h10v14H5V9M5 3v6h6M3 9l6-6" /></svg
+              >Paste puzzle</button
+            >
+          </div>
+        {/if}
+      </div>
       <section class="board-area" aria-label="Starting board">
         {#if preview}
           <div class="board-heading">
@@ -228,7 +262,7 @@
               class:conflict={conflicts.has(i)}
               data-r={Math.floor(i / 9)}
               data-c={i % 9}
-              tabindex={!preview && selected === i ? 0 : -1}
+              tabindex={!preview && mode === "board" && selected === i ? 0 : -1}
               aria-label="Row {Math.floor(i / 9) + 1}, column {(i % 9) + 1}, {digit ||
                 'empty'}{conflicts.has(i) ? ', repeated digit' : ''}"
               aria-pressed={!preview && selected === i && mode === "board"}
@@ -241,161 +275,133 @@
             >
           {/each}
         </div>
-        {#if error}<p class="board-error" role="status">{error}</p>{/if}
-        {#if !preview && mode === "board"}
-          <div class="editor-tools" role="toolbar" aria-label="Board tools">
-            <div class="history-tools">
-              <button
-                class="tool blank"
-                aria-label="Enter blank"
-                title="Enter blank (0 / Space)"
-                onclick={() => fill(0)}
-                ><svg viewBox="0 0 24 24" aria-hidden="true"
-                  ><rect x="5" y="5" width="14" height="14" rx="2" /></svg
-                ><span>Blank</span></button
-              >
-              <span class="tool-divider" aria-hidden="true"></span>
-              <button
-                class="tool"
-                aria-label="Undo"
-                title="Undo"
-                disabled={!past.length}
-                onclick={undo}
-                ><svg viewBox="0 0 24 24" aria-hidden="true"
-                  ><path d="M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></svg
-                ><span>Undo</span></button
-              >
-              <button
-                class="tool"
-                aria-label="Redo"
-                title="Redo"
-                disabled={!future.length}
-                onclick={redo}
-                ><svg viewBox="0 0 24 24" aria-hidden="true"
-                  ><path d="m15 14 5-5-5-5M20 9H9.5a5.5 5.5 0 0 0 0 11H13" /></svg
-                ><span>Redo</span></button
-              >
-              <span class="tool-divider" aria-hidden="true"></span>
-              <button
-                class="tool erase"
-                aria-label="Erase selected cell"
-                title="Erase selected cell"
-                disabled={!cells[selected]}
-                onclick={() => fill(0, false)}
-                ><svg viewBox="0 0 24 24" aria-hidden="true"
-                  ><path
-                    d="M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.829 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21M5.082 11.09l8.828 8.828"
-                  /></svg
-                ><span>Erase</span></button
-              >
-            </div>
-            <button
-              class="clear-board"
-              aria-label="Clear all givens"
-              title="Clear all givens"
-              disabled={!raw || /^0+$/.test(raw)}
-              onclick={clear}
-              ><svg viewBox="0 0 24 24" aria-hidden="true"
-                ><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6" /></svg
-              ><span>Clear</span></button
-            >
-          </div>
-          <p class="keyboard-hint">
-            1–9 enter <span>·</span> 0 / Space blank <span>·</span> Arrows move <span>·</span> ⌫ erase
-          </p>
-        {:else if !preview}<p class="board-caption">
-            Read left to right, top to bottom. Select a square to edit.
-          </p>{/if}
       </section>
-
-      <aside class="setup-panel" aria-label="Puzzle input">
-        <div class="setup-top">
-          {#if preview}
-            <div class="review-copy">
-              <span class="kicker">YOUR PUZZLE</span>
-              <h3>Check the givens.</h3>
-              <p>Check the starting numbers. These will be fixed when you begin.</p>
-              <button
-                class="secondary"
-                onclick={() => {
-                  preview = false;
-                  mode = "board";
-                  focusCell();
-                }}>Edit board <Icon name="grid-3x3" /></button
-              >
+      {#if !preview}
+        <div class="input-region" role="group" aria-label="Puzzle input">
+          <div
+            class="manual-input"
+            class:inactive={mode !== "board"}
+            inert={mode !== "board"}
+            aria-hidden={mode !== "board"}
+          >
+            <div class="manual-copy">
+              <h3>Enter the givens.</h3>
+              <p>Copy the starting numbers from your puzzle. Leave the empty squares blank.</p>
             </div>
-          {:else}
-            <span class="kicker input-kicker">INPUT METHOD</span>
-            <div class="input-modes" aria-label="Input method">
-              <button
-                class:active={mode === "board"}
-                aria-pressed={mode === "board"}
-                disabled={Boolean(importError) || invalid || normalized.length > 81}
-                onclick={() => chooseMode("board")}><Icon name="grid-3x3" />Fill board</button
-              >
-              <button
-                class:active={mode === "paste"}
-                aria-pressed={mode === "paste"}
-                onclick={() => chooseMode("paste")}
-                ><svg viewBox="0 0 24 24" aria-hidden="true"
-                  ><path d="M9 5h10v14H5V9M5 3v6h6M3 9l6-6" /></svg
-                >Paste puzzle</button
-              >
-            </div>
-            {#if mode === "board"}
-              <div class="manual-copy">
-                <h3>Enter the givens.</h3>
-                <p>Copy the starting numbers from your puzzle. Leave the empty squares blank.</p>
-              </div>
-            {:else}
-              <div class="string-input" class:keyboard-focus={keyboardFocus}>
-                <label for="puzzle-string">Puzzle link or 81 digits</label>
-                <textarea
-                  id="puzzle-string"
-                  rows="4"
-                  spellcheck="false"
-                  autocapitalize="off"
-                  autocomplete="off"
-                  placeholder="Paste a link or 81 digits…"
-                  value={pasteText}
-                  aria-describedby="string-help import-error"
-                  aria-invalid={Boolean(importError) || invalid || normalized.length > 81}
-                  oninput={(event) => updatePaste(event.currentTarget.value)}></textarea>
-                <div class="string-meta">
-                  <span id="string-help">0 or . = empty</span><span>{pasteLength} / 81</span>
-                </div>
+            <div class="editor-tools" role="toolbar" aria-label="Board tools">
+              <div class="history-tools">
                 <button
-                  class="secondary paste-clipboard"
-                  disabled={reading}
-                  onclick={pasteClipboard}
-                  aria-label="Paste from clipboard"
+                  class="tool blank"
+                  aria-label="Enter blank"
+                  title="Enter blank (0 / Space)"
+                  onclick={() => fill(0)}
                   ><svg viewBox="0 0 24 24" aria-hidden="true"
-                    ><rect x="5" y="5" width="14" height="16" rx="2" /><path
-                      d="M9 3h6v4H9zM9 12h6M9 16h4"
-                    /></svg
-                  >{reading ? "Pasting…" : "Paste"}</button
+                    ><rect x="5" y="5" width="14" height="14" rx="2" /></svg
+                  ><span>Blank</span></button
                 >
-                <p class="import-error" id="import-error" role="status">{importError}</p>
+                <span class="tool-divider" aria-hidden="true"></span>
+                <button
+                  class="tool"
+                  aria-label="Undo"
+                  title="Undo"
+                  disabled={!past.length}
+                  onclick={undo}
+                  ><svg viewBox="0 0 24 24" aria-hidden="true"
+                    ><path d="M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></svg
+                  ><span>Undo</span></button
+                >
+                <button
+                  class="tool"
+                  aria-label="Redo"
+                  title="Redo"
+                  disabled={!future.length}
+                  onclick={redo}
+                  ><svg viewBox="0 0 24 24" aria-hidden="true"
+                    ><path d="m15 14 5-5-5-5M20 9H9.5a5.5 5.5 0 0 0 0 11H13" /></svg
+                  ><span>Redo</span></button
+                >
+                <span class="tool-divider" aria-hidden="true"></span>
+                <button
+                  class="tool erase"
+                  aria-label="Erase selected cell"
+                  title="Erase selected cell"
+                  disabled={!cells[selected]}
+                  onclick={() => fill(0, false)}
+                  ><svg viewBox="0 0 24 24" aria-hidden="true"
+                    ><path
+                      d="M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.829 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21M5.082 11.09l8.828 8.828"
+                    /></svg
+                  ><span>Erase</span></button
+                >
               </div>
-            {/if}
-          {/if}
-        </div>
-        {#if !preview && mode === "board"}
-          <div class="keypad-panel">
-            <div class="draft-keypad-slot">
-              <div class="draft-keypad-scale">
-                <div class="input-keypad" aria-label="Enter given numbers">
-                  {#each [1, 2, 3, 4, 5, 6, 7, 8, 9] as digit (digit)}<button
-                      class="draft-key"
-                      onclick={() => fill(digit)}
-                      aria-label="Enter {digit}">{digit}</button
-                    >{/each}
+              <button
+                class="clear-board"
+                aria-label="Clear all givens"
+                title="Clear all givens"
+                disabled={!raw || /^0+$/.test(raw)}
+                onclick={clear}
+                ><svg viewBox="0 0 24 24" aria-hidden="true"
+                  ><path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6" /></svg
+                ><span>Clear</span></button
+              >
+            </div>
+            <p class="keyboard-hint">
+              1–9 enter <span>·</span> 0 / Space blank <span>·</span> Arrows move <span>·</span> ⌫ erase
+            </p>
+            <div class="keypad-panel">
+              <div class="draft-keypad-slot">
+                <div class="draft-keypad-scale">
+                  <div class="input-keypad" aria-label="Enter given numbers">
+                    {#each [1, 2, 3, 4, 5, 6, 7, 8, 9] as digit (digit)}<button
+                        class="draft-key"
+                        onclick={() => fill(digit)}
+                        aria-label="Enter {digit}">{digit}</button
+                      >{/each}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        {/if}
-      </aside>
+          <div
+            class="paste-input"
+            class:inactive={mode !== "paste"}
+            inert={mode !== "paste"}
+            aria-hidden={mode !== "paste"}
+          >
+            <div class="string-input" class:keyboard-focus={keyboardFocus}>
+              <label for="puzzle-string">Puzzle link or 81 digits</label>
+              <textarea
+                id="puzzle-string"
+                rows="4"
+                spellcheck="false"
+                autocapitalize="off"
+                autocomplete="off"
+                placeholder="Paste a link or 81 digits…"
+                value={pasteText}
+                aria-describedby="string-help import-error"
+                aria-invalid={Boolean(importError) || invalid || normalized.length > 81}
+                oninput={(event) => updatePaste(event.currentTarget.value)}></textarea>
+              <div class="string-meta">
+                <span id="string-help">0 or . = empty</span><span>{pasteLength} / 81</span>
+              </div>
+              <button
+                class="secondary paste-clipboard"
+                disabled={reading}
+                onclick={pasteClipboard}
+                aria-label="Paste from clipboard"
+                ><svg viewBox="0 0 24 24" aria-hidden="true"
+                  ><rect x="5" y="5" width="14" height="16" rx="2" /><path
+                    d="M9 3h6v4H9zM9 12h6M9 16h4"
+                  /></svg
+                >{reading ? "Pasting…" : "Paste"}</button
+              >
+              <p class="import-error" id="import-error" role="status">{importError}</p>
+            </div>
+            <p class="board-caption">Read left to right, top to bottom. Select a square to edit.</p>
+          </div>
+        </div>
+      {/if}
+      <p class="board-error" role="status">{error}</p>
     </div>
 
     <footer class="action-panel">
@@ -428,24 +434,30 @@
 
 <style>
   .custom-editor {
-    display: grid;
-    grid-template-columns: minmax(0, 580px) 320px;
-    grid-template-rows: max-content 1fr;
-    justify-content: center;
-    align-content: start;
-    gap: 16px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
     flex: 1 1 auto;
     min-height: 0;
     min-width: 0;
     width: 100%;
-    max-width: 1040px;
+    max-width: 644px;
+    max-height: var(--draft-viewport-height, none);
     margin: 0 auto;
     padding: 28px 32px 32px;
     color: var(--ui-ink);
     font-family: var(--ui-font);
   }
   .editor-body {
-    display: contents;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overflow-anchor: none;
+    overscroll-behavior: contain;
+    padding-bottom: 4px;
   }
   button,
   textarea {
@@ -475,8 +487,7 @@
     flex: none;
   }
   .board-area {
-    grid-column: 1;
-    grid-row: 1 / span 2;
+    flex: none;
     min-width: 0;
   }
   .board-heading {
@@ -658,16 +669,6 @@
     margin: 0 4px;
     color: var(--line-thin);
   }
-  .setup-panel {
-    grid-column: 2;
-    grid-row: 1;
-    padding: 20px;
-    border: 1px solid var(--hair);
-    border-radius: 14px;
-    background: var(--board-bg);
-    min-width: 0;
-    align-self: start;
-  }
   .kicker {
     display: block;
     margin-bottom: 12px;
@@ -760,8 +761,6 @@
   }
   .action-panel {
     position: relative;
-    grid-column: 2;
-    grid-row: 2;
     align-self: start;
     padding: 20px;
     border: 1px solid var(--hair);
@@ -923,11 +922,8 @@
   }
   @media (max-width: 899px) and (min-width: 600px) {
     .custom-editor {
-      grid-template-columns: minmax(0, 1fr) 260px;
       padding: 24px 16px;
-      gap: 16px 20px;
     }
-    .setup-panel,
     .action-panel {
       padding: 16px;
     }
@@ -961,19 +957,6 @@
       gap: 0;
       overflow: hidden;
     }
-    .editor-body {
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-      gap: 8px;
-      overflow-y: auto;
-      overscroll-behavior: contain;
-      padding: 0 0 4px;
-    }
-    .setup-panel {
-      display: contents;
-    }
     .setup-top {
       order: 0;
       flex: none;
@@ -982,7 +965,6 @@
       border-radius: 12px;
       background: var(--board-bg);
     }
-    .input-kicker,
     .manual-copy {
       display: none;
     }
@@ -1003,7 +985,6 @@
       box-shadow: none;
     }
     .board-area {
-      order: 1;
       width: 100%;
       flex: none;
     }
@@ -1172,7 +1153,6 @@
   }
 
   /* Selected A: retain the existing tokens and controls, with quiet framing. */
-  .quiet .setup-panel,
   .quiet .action-panel {
     background: transparent;
     border: 0;
@@ -1183,9 +1163,6 @@
     border-top: 1px solid var(--hair);
     padding-top: 20px;
   }
-  .quiet .input-kicker {
-    display: none;
-  }
   .quiet .input-modes {
     border: 0;
     border-bottom: 1px solid var(--hair);
@@ -1195,7 +1172,7 @@
     background: transparent;
   }
   .quiet .input-modes button {
-    min-height: 46px;
+    min-height: 44px;
     border: 0;
     border-bottom: 2px solid transparent;
     border-radius: 0;
@@ -1332,6 +1309,53 @@
   @media (max-width: 599px) and (max-height: 600px) {
     .quiet .history-tools {
       gap: 0;
+    }
+  }
+  /* Both panels occupy one grid track. The inactive panel still contributes its
+     size, but is absent from focus navigation and the accessibility tree. */
+  .setup-top {
+    flex: none;
+  }
+  .input-region {
+    display: grid;
+    flex: none;
+    min-width: 0;
+  }
+  .manual-input,
+  .paste-input {
+    grid-area: 1 / 1;
+    min-width: 0;
+    align-self: start;
+  }
+  .inactive {
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .manual-copy {
+    display: none;
+  }
+  .editor-tools {
+    margin-top: 0;
+  }
+  .keypad-panel {
+    margin-top: 8px;
+  }
+  .board-error {
+    flex: none;
+    margin: 0;
+  }
+  .board-error:empty {
+    display: none;
+  }
+  .action-panel {
+    flex: none;
+  }
+  @media (max-width: 599px) {
+    .custom-editor {
+      max-width: none;
+    }
+    .quiet .string-input {
+      margin-top: 7px;
     }
   }
 </style>

@@ -1712,6 +1712,10 @@
         max(16px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
     }
 
+    main:has(> :global(.draft-header)) {
+      gap: 0;
+    }
+
     /* Clip lock on the pad. Desktop keeps master's `1fr` columns and
        implicit rows so 1280 idle tracks stay pixel-identical; cells and
        the notes grid already use minmax(0,1fr) + min-width:0. */
