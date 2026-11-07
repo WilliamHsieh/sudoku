@@ -15,12 +15,15 @@ stripUpdateParam();
 async function start() {
   const target = document.getElementById("app");
   if (import.meta.env.PROD) {
-    target.innerHTML =
-      '<div class="preparing" role="status"><h1>Preparing puzzles</h1><p>Downloading puzzles for offline play…</p></div>';
+    target.replaceChildren();
     try {
       globalThis.__sudokuPuzzleBank = await prepareOffline(
         __SUDOKU_BUILD__,
-        import.meta.env.BASE_URL
+        import.meta.env.BASE_URL,
+        () => {
+          target.innerHTML =
+            '<div class="preparing" role="status"><h1>Preparing puzzles</h1><p>Downloading puzzles for offline play…</p></div>';
+        }
       );
     } catch (error) {
       target.innerHTML =

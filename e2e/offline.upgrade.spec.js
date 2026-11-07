@@ -42,6 +42,171 @@ test("first visit blocks play until complete; a failed bank download has a worki
     await page.evaluate(() => Object.keys(globalThis.__sudokuPuzzleBank).length)
   ).toBeGreaterThan(400);
 });
+test("first visit stays blocked while any offline shell entry is missing", async ({
+  page,
+  deployment,
+}) => {
+  const release = deployment.holdAsset("apple-touch-icon.png");
+  try {
+    await page.goto(deployment.url);
+    await expect(page.getByRole("heading", { name: "Preparing puzzles" })).toBeVisible();
+    await expect
+      .poll(() =>
+        deployment.requests.some((url) => url.includes("apple-touch-icon.png?_sudoku_check="))
+      )
+      .toBe(true);
+    await expect(start(page)).toHaveCount(0);
+    expect(await page.evaluate(() => globalThis.__sudokuPuzzleBank)).toBeUndefined();
+  } finally {
+    release();
+  }
+  await expect(start(page)).toBeVisible();
+  expect(
+    await page.evaluate(async () => {
+      const cache = await caches.open(
+        (await caches.keys()).find((name) => name.endsWith(":release:old"))
+      );
+      const manifest = await (await cache.match(new URL("__ready", location.href))).json();
+      return Promise.all(
+        [...manifest.assets, manifest.bank].map(async (entry) => {
+          const response = await cache.match(new URL(entry.path, location.href));
+          if (!response) return false;
+          const hash = [
+            ...new Uint8Array(await crypto.subtle.digest("SHA-256", await response.arrayBuffer())),
+          ]
+            .map((n) => n.toString(16).padStart(2, "0"))
+            .join("");
+          return hash === entry.hash;
+        })
+      );
+    })
+  ).not.toContain(false);
+});
+
+// Observe from document creation: a transient preparing screen is a regression,
+// even if it has disappeared by the time Play becomes visible.
+async function observePreparation(context) {
+  await context.addInitScript(() => {
+    window.__preparingSeen = [];
+    new MutationObserver((records) => {
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (/Preparing puzzles|Downloading puzzles/.test(node.textContent || ""))
+            window.__preparingSeen.push(node.textContent);
+        }
+      }
+    }).observe(document, { childList: true, subtree: true });
+  });
+}
+
+test("verified warm launches never show preparation and work on fresh offline navigation", async ({
+  page,
+  context,
+  deployment,
+}) => {
+  await observePreparation(context);
+  await page.goto(`${deployment.url}?q=${DEMO_PUZZLE}&keep=yes#board`);
+  await start(page).click();
+  await cell(page, 0).click();
+  await page.keyboard.press("4");
+  expect(await page.evaluate(() => window.__preparingSeen.length)).toBeGreaterThan(0);
+  const banks = () => deployment.requests.filter((url) => url.includes("/banks/"));
+  expect(banks()).toHaveLength(1);
+  await page.reload();
+  await expect(start(page)).toBeVisible();
+  expect(await page.evaluate(() => window.__preparingSeen)).toEqual([]);
+  await context.setOffline(true);
+  await page.reload();
+  await start(page).click();
+  await expectValue(page, 0, 4);
+  expect(await page.evaluate(() => window.__preparingSeen)).toEqual([]);
+  const fresh = await context.newPage();
+  await fresh.goto(`${deployment.url}?q=${DEMO_PUZZLE}&keep=yes#board`);
+  await start(fresh).click();
+  await expectValue(fresh, 0, 4);
+  expect(await fresh.evaluate(() => window.__preparingSeen)).toEqual([]);
+  expect(await fresh.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
+  expect(banks()).toHaveLength(1);
+});
+
+test("warm boot does not wait for service worker registration network checks", async ({
+  page,
+  context,
+  deployment,
+}) => {
+  await page.goto(deployment.url);
+  await expect(start(page)).toBeVisible();
+  // Model a register/update request whose network never responds. The real
+  // controlling worker and all cached release verification remain in use.
+  await context.addInitScript(() => {
+    navigator.serviceWorker.register = () => new Promise(() => {});
+  });
+  await page.reload();
+  await expect(start(page)).toBeVisible({ timeout: 3000 });
+});
+
+test("warm launch bypasses a blocked background update without changing the active release", async ({
+  page,
+  context,
+  deployment,
+}) => {
+  await observePreparation(context);
+  await page.goto(`${deployment.url}?q=${DEMO_PUZZLE}`);
+  await start(page).click();
+  await cell(page, 0).click();
+  await page.keyboard.press("4");
+  const release = deployment.holdBank();
+  deployment.publish("next");
+  await check(page);
+  await expect
+    .poll(() => deployment.requests.filter((url) => url.includes("/banks/")).length)
+    .toBe(2);
+  try {
+    const fresh = await context.newPage();
+    await fresh.goto(`${deployment.url}?q=${DEMO_PUZZLE}`);
+    await expect(start(fresh)).toBeVisible({ timeout: 3000 });
+    expect(await fresh.evaluate(() => window.__preparingSeen)).toEqual([]);
+    await start(fresh).click();
+    await expectValue(fresh, 0, 4);
+    await expect(fresh.locator('meta[name="sudoku-build"]')).toHaveAttribute("content", "old");
+    expect(await fresh.evaluate(() => globalThis.__sudokuPuzzleBank["2099-01-01"])).toBeUndefined();
+    release();
+    await expect(notice(page)).toBeVisible();
+    await expectValue(fresh, 0, 4);
+  } finally {
+    release();
+  }
+});
+
+test("preparation notifications do not break already-open clients using the original reply protocol", async ({
+  page,
+  deployment,
+}) => {
+  await page.goto(deployment.url);
+  await expect(start(page)).toBeVisible();
+  await page.evaluate(async () => {
+    const cache = await caches.open(
+      (await caches.keys()).find((name) => name.endsWith(":release:old"))
+    );
+    const bank = (await cache.keys()).find((request) => request.url.includes("/banks/"));
+    await cache.delete(bank);
+    window.__legacyReplies = [];
+    const channel = new MessageChannel();
+    channel.port1.onmessage = ({ data }) => window.__legacyReplies.push(data);
+    navigator.serviceWorker.controller.postMessage(
+      {
+        type: "PREPARE",
+        current: { version: "old", builtAt: 1000 },
+      },
+      [channel.port2]
+    );
+  });
+  await expect.poll(() => page.evaluate(() => window.__legacyReplies.length)).toBeGreaterThan(0);
+  const first = await page.evaluate(() => window.__legacyReplies[0]);
+  expect(first.state).toBeUndefined();
+  expect(Object.keys(first.value).length).toBeGreaterThan(400);
+});
+
 test("second launch and an app-only update reuse the bank, and activate fully offline", async ({
   page,
   context,
@@ -225,7 +390,7 @@ for (const fault of ["blocked getter", "malformed snapshot"]) {
   });
 }
 
-for (const damage of ["missing", "corrupt"]) {
+for (const damage of ["missing", "corrupt", "corrupt shell"]) {
   test(`online Retry repairs a ${damage} local complete bank and keeps saved progress`, async ({
     page,
     context,
@@ -240,16 +405,20 @@ for (const damage of ["missing", "corrupt"]) {
     await page.evaluate(async (damage) => {
       const name = (await caches.keys()).find((name) => name.endsWith(":release:old"));
       const cache = await caches.open(name);
-      const bank = (await cache.keys()).find((request) => request.url.includes("/banks/"));
+      const bank = (await cache.keys()).find((request) =>
+        damage === "corrupt shell"
+          ? request.url.endsWith("apple-touch-icon.png")
+          : request.url.includes("/banks/")
+      );
       if (damage === "missing") await cache.delete(bank);
-      else await cache.put(bank, new Response("corrupt local bank"));
+      else await cache.put(bank, new Response("corrupt local entry"));
     }, damage);
     await context.setOffline(true);
     await page.reload();
     await expect(page.getByRole("heading", { name: "Could not prepare puzzles" })).toBeVisible();
     await expect(start(page)).toHaveCount(0);
     await context.setOffline(false);
-    deployment.fault("bank-corrupt");
+    deployment.fault(damage === "corrupt shell" ? "shell-corrupt" : "bank-corrupt");
     await page.getByRole("button", { name: "Retry" }).click();
     await expect(page.getByRole("heading", { name: "Could not prepare puzzles" })).toBeVisible();
     expect(await page.evaluate(() => localStorage.getItem("sudoku-custom-progress"))).toBe(saved);
@@ -262,7 +431,17 @@ for (const damage of ["missing", "corrupt"]) {
       })
     ).toBe(true);
     deployment.fault("");
-    await page.getByRole("button", { name: "Retry" }).click();
+    const release =
+      damage === "corrupt shell"
+        ? deployment.holdAsset("apple-touch-icon.png")
+        : deployment.holdBank();
+    try {
+      await page.getByRole("button", { name: "Retry" }).click();
+      await expect(page.getByRole("heading", { name: "Preparing puzzles" })).toBeVisible();
+      await expect(start(page)).toHaveCount(0);
+    } finally {
+      release();
+    }
     await expect(start(page)).toBeVisible();
     expect(await page.evaluate(() => globalThis.__sudokuPuzzleBank)).toEqual(oldBank);
     expect(await page.evaluate(() => localStorage.getItem("sudoku-custom-progress"))).toBe(saved);

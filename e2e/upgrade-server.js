@@ -15,6 +15,7 @@ export async function upgradeServer(buildDirectory = buildRoot) {
   const navigations = [];
   let gate = Promise.resolve();
   let bankGate = Promise.resolve();
+  const assetGates = new Map();
   const abortedChecks = [];
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, "http://localhost");
@@ -22,6 +23,11 @@ export async function upgradeServer(buildDirectory = buildRoot) {
     const relative = url.pathname.replace(/^\/sudoku\//, "") || "index.html";
     if (!url.pathname.startsWith("/sudoku/") || relative.includes("..")) {
       res.writeHead(404).end();
+      return;
+    }
+    await assetGates.get(relative);
+    if (relative === "apple-touch-icon.png" && fault === "shell-corrupt") {
+      res.writeHead(200).end("corrupt icon");
       return;
     }
     if (relative === "version.json") {
@@ -107,6 +113,16 @@ export async function upgradeServer(buildDirectory = buildRoot) {
       page.on("request", (request) => {
         if (request.isNavigationRequest()) navigations.push(request.url());
       }),
+    holdAsset: (path) => {
+      let release;
+      assetGates.set(
+        path,
+        new Promise((resolve) => {
+          release = resolve;
+        })
+      );
+      return release;
+    },
     holdBank: () => {
       let release;
       bankGate = new Promise((resolve) => {
