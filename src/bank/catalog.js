@@ -72,6 +72,11 @@ export function validatePuzzle(value) {
 /** Validate before publishing or exposing a downloaded bank. Unknown schemas fail closed.
  * @param {unknown} value @returns {Promise<import('./types.js').Catalog>} */
 export async function validateCatalog(value) {
+  return validateSnapshot(structuredClone(value));
+}
+/** Validate only a private snapshot captured before any asynchronous work.
+ * @param {unknown} value @returns {Promise<import('./types.js').Catalog>} */
+async function validateSnapshot(value) {
   const catalog = /** @type {import('./types.js').Catalog} */ (value);
   if (
     !catalog ||
@@ -96,12 +101,13 @@ export async function validateCatalog(value) {
     if (catalog[key] !== undefined && JSON.stringify(catalog[key]) !== JSON.stringify(indexes[key]))
       throw new Error("Invalid catalog index");
   }
-  return structuredClone({ ...catalog, ...indexes });
+  return Object.assign(catalog, indexes);
 }
 /** Snapshot and index a validated catalog; callers cannot mutate the index through lookup.
  * @param {unknown} value */
 export async function openCatalog(value) {
-  const catalog = freezeSnapshot(await validateCatalog(value));
+  const snapshot = structuredClone(value);
+  const catalog = freezeSnapshot(await validateSnapshot(snapshot));
   verified.add(catalog);
   const byId = new Map(catalog.puzzles.map((p) => [p.id, p]));
   const byDigits = new Map(catalog.puzzles.map((p) => [p.digits, p]));

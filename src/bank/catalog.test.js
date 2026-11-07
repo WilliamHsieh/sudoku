@@ -8,7 +8,8 @@ import { grade } from "./grade.js";
 import { parseLine, parseRating, puzzleId } from "./parse.js";
 import { importCatalog } from "./import.js";
 import { openCatalog, validateCatalog } from "./catalog.js";
-import { fixtureCatalog, fixtureLines, source, puzzle } from "./test-fixtures.js";
+import { selectPuzzle } from "./select.js";
+import { fixtureCatalog, fixtureLines, source, puzzle, catalogWith } from "./test-fixtures.js";
 
 describe("source parsing and product grading", () => {
   it.each([
@@ -132,6 +133,36 @@ describe("catalog publication", () => {
         puzzles: [{ ...p, id: "f".repeat(40), sourceHash: undefined }],
       })
     ).rejects.toThrow("Hash");
+  });
+  it.each([
+    { name: "validate", run: async (value) => ({ catalog: await validateCatalog(value) }) },
+    { name: "open", run: openCatalog },
+  ])("snapshots input before $name awaits native WebCrypto", async ({ run }) => {
+    const value = structuredClone({ ...catalogWith([12]), schema: 1 });
+    const original = structuredClone(value);
+    // Both entries reach the first native digest before returning this pending promise.
+    const pending = run(value);
+    value.schema = 999;
+    value.puzzles[0].digits = "not a sudoku";
+    value.source.grader.name = "changed while hashing";
+    const result = await pending;
+    const snapshot = result.catalog;
+    expect(snapshot).toMatchObject(original);
+    await expect(validateCatalog(snapshot)).resolves.toEqual(snapshot);
+    await expect(validateCatalog(value)).rejects.toThrow();
+    if ("byId" in result && typeof result.byId === "function") {
+      expect(Object.isFrozen(snapshot.puzzles[0])).toBe(true);
+      expect(result.byId(original.puzzles[0].id)).toEqual(original.puzzles[0]);
+      expect(result.byDigits(original.puzzles[0].digits)).toEqual(original.puzzles[0]);
+      const selected = selectPuzzle({
+        catalog: snapshot,
+        playerId: "player",
+        mode: "medium",
+        seed: 1,
+      });
+      expect(selected.status).toBe("selected");
+      if (selected.status === "selected") expect(selected.puzzle).toEqual(original.puzzles[0]);
+    }
   });
   it("runs the CLI against caller paths with no network dependency", () => {
     const dir = mkdtempSync(join(tmpdir(), "sudoku-bank-test-"));

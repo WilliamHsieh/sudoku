@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { deriveAbility, setColdStart } from "./ability.js";
+import { deriveAbility, firstAttempts, setColdStart } from "./ability.js";
 import { openCatalog } from "./catalog.js";
 import { selectPuzzle } from "./select.js";
-import { attempt, catalogWith, puzzle } from "./test-fixtures.js";
+import { projectRecords } from "./records.js";
+import { attempt, catalogWith, puzzle, start } from "./test-fixtures.js";
 
 const catalog = (
   await openCatalog(
@@ -73,7 +74,7 @@ describe("synthetic player sequences", () => {
   it("repeated light Medium finishes alone promote the next Easy rating", () => {
     const records = wins("medium", 13, 5, "light");
     expect(ability(records).bands.easy.max).toBe(13);
-    expect(ability(records).promotions[0].code).toBe("light_medium_entered_easy");
+    expect(ability(records).promotions.map((p) => p.code)).toContain("light_medium_entered_easy");
     expect(ability(wins("medium", 13)).bands.easy.max).toBe(12);
     expect(ability(wins("medium", 13, 5, "some_effort")).bands.easy.max).toBe(12);
   });
@@ -84,10 +85,11 @@ describe("synthetic player sequences", () => {
       ...wins("medium", 15, 5, "light", 120),
     ];
     expect(ability(records).bands.easy.max).toBe(15);
-    expect(ability(records).bands.medium.max).toBe(15);
+    expect(ability(records).bands.medium.max).toBe(16);
     expect(ability(records).promotions.map((p) => p.code)).toEqual([
       "hard_entered_medium",
       "light_medium_entered_easy",
+      "light_medium_explored",
       "light_medium_entered_easy",
     ]);
   });
@@ -125,6 +127,23 @@ describe("synthetic player sequences", () => {
     expect(ability(Array(5).fill(one)).bands).toEqual(ability([]).bands);
     const sameBoard = wins("hard", 15).map((a) => ({ ...a, puzzle: one.puzzle }));
     expect(ability(sameBoard).bands).toEqual(ability([]).bands);
+  });
+  it.each([100, 99])("keeps primary evidence when a replay starts at %i", (replayAt) => {
+    const primary = start(100, { attemptId: "z-first", mode: "medium", puzzle: puzzle(100, 12) });
+    const replay = { ...primary, attemptId: "a-replay" };
+    const records = projectRecords({
+      schema: 1,
+      events: [
+        { id: "start", attemptId: primary.attemptId, at: 100, type: "start", start: primary },
+        { id: "complete", attemptId: primary.attemptId, at: 101, type: "complete" },
+        { id: "start", attemptId: replay.attemptId, at: replayAt, type: "start", start: replay },
+        { id: "complete", attemptId: replay.attemptId, at: 102, type: "complete" },
+      ],
+    });
+    expect(records.map((a) => a.replay)).toEqual([false, true]);
+    expect(firstAttempts(records, "player").map((a) => a.attemptId)).toEqual(["z-first"]);
+    expect(ability(records.slice(0, 1)).evidenceCount).toBe(1);
+    expect(ability(records).evidenceCount).toBe(1);
   });
   it("uses recent five neighborhood attempts; unrelated ratings do not count", () => {
     const recentFailures = Array.from({ length: 5 }, (_, i) =>
@@ -197,6 +216,93 @@ describe("synthetic player sequences", () => {
       settings: { candidateMode: "auto" },
     }));
     expect(ability(changed).bands).toEqual(ability(records).bands);
+  });
+});
+
+describe("Medium recalibration from sustained light completions", () => {
+  it.each([
+    { level: 1, rating: 12, ceiling: 13, next: 14 },
+    { level: 4, rating: 47, ceiling: 48, next: 49 },
+  ])(
+    "advances L$level across a missing ceiling rating by one present step",
+    async ({ level, rating, ceiling, next }) => {
+      const local = (await openCatalog(catalogWith([rating, next, next + 1, 85]))).catalog;
+      const options = {
+        ...base,
+        catalog: local,
+        coldStart: setColdStart({
+          kind: "level",
+          level: /** @type {import('./types.js').Level} */ (level),
+        }),
+      };
+      const records = wins("medium", rating, 4, "light");
+      expect(deriveAbility({ ...options, records }).bands.medium.max).toBe(ceiling);
+      // An unresolved fifth sample counts toward the window, but not as a completion.
+      records.push(attempt(104, { mode: "medium", puzzle: puzzle(104, rating) }, "pause"));
+      const learned = deriveAbility({ ...options, records });
+      expect(learned.bands.medium.max).toBe(next);
+      expect(learned.promotions).toContainEqual({
+        code: "light_medium_explored",
+        ratingTenths: next,
+        attemptIds: records.map((a) => a.attemptId),
+      });
+      expect(learned.promotions.filter((p) => p.code === "light_medium_explored")).toHaveLength(1);
+      const selected = selectPuzzle({ ...options, records, mode: "medium", seed: 1 });
+      expect(selected.candidateRange.max).toBe(next);
+      expect(selected.status).toBe("selected");
+      // The same four-of-five completion sequence without light would remain at the prior.
+      const withoutLight = records.map((a) => ({ ...a, feedback: undefined }));
+      const control = deriveAbility({ ...options, records: withoutLight });
+      expect(control.bands.medium.max).toBe(ceiling);
+      expect(control.stableEasy).toEqual(deriveAbility(options).stableEasy);
+      expect(control.neighborhoods.every((n) => n.classification !== "familiar")).toBe(true);
+    }
+  );
+  it.each([undefined, "some_effort", "struggle"])(
+    "does not treat %s feedback as light",
+    (feedback) => {
+      const records = wins(
+        "medium",
+        13,
+        5,
+        /** @type {import('./types.js').Feedback} */ (feedback)
+      );
+      expect(ability(records).bands).toEqual(ability([]).bands);
+    }
+  );
+  it("requires four independent light completes and retains unresolved samples in the recent window", () => {
+    const records = wins("medium", 13, 3, "light");
+    records.push(attempt(103, { mode: "medium", puzzle: puzzle(103, 13) }, "hint", "light"));
+    records.push(attempt(104, { mode: "medium", puzzle: puzzle(104, 13) }, "pause"));
+    expect(ability(records).bands.medium.max).toBe(13);
+    records.push(attempt(105, { mode: "medium", puzzle: puzzle(105, 13) }, "complete", "light"));
+    expect(ability(records).bands.medium.max).toBe(13);
+  });
+  it("keeps repeated struggle in the recent window despite four light completions across history", () => {
+    const records = [
+      ...wins("medium", 13, 2, "light", 100),
+      ...wins("medium", 13, 2, "struggle", 102),
+      ...wins("medium", 13, 2, "light", 104),
+    ];
+    expect(ability(records).bands.medium.max).toBe(13);
+  });
+  it("does not leap a remote rating gap or use light wins outside the current Medium band", () => {
+    const gaps = catalogWith([12, 19, 85]);
+    expect(
+      deriveAbility({ ...base, catalog: gaps, records: wins("medium", 12, 30, "light") }).bands
+        .medium.max
+    ).toBe(13);
+    expect(ability(wins("medium", 15, 10, "light")).bands.medium.max).toBe(13);
+  });
+  it("consumes each window and requires fresh nearby evidence for another step", () => {
+    const local = catalogWith([12, 14, 16, 19]);
+    const records = wins("medium", 12, 5, "light");
+    expect(deriveAbility({ ...base, catalog: local, records }).bands.medium.max).toBe(14);
+    // More old-range wins cannot establish light evidence near the next target (1.6).
+    records.push(...wins("medium", 12, 5, "light", 110));
+    expect(deriveAbility({ ...base, catalog: local, records }).bands.medium.max).toBe(14);
+    records.push(...wins("medium", 14, 5, "light", 120));
+    expect(deriveAbility({ ...base, catalog: local, records }).bands.medium.max).toBe(16);
   });
 });
 

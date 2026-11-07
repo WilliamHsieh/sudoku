@@ -32,7 +32,7 @@ export function firstAttempts(records, playerId) {
   const ids = new Set();
   const boards = new Set();
   return records
-    .filter((a) => a.playerId === playerId)
+    .filter((a) => a.playerId === playerId && !a.replay)
     .slice()
     .sort((a, b) => a.startedAt - b.startedAt || a.attemptId.localeCompare(b.attemptId))
     .filter((a) => {
@@ -54,7 +54,7 @@ export function firstAttempts(records, playerId) {
       const seen = boards.has(a.puzzle.id) || boards.has(a.puzzle.digits);
       boards.add(a.puzzle.id);
       boards.add(a.puzzle.digits);
-      return !a.replay && !seen;
+      return !seen;
     })
     .sort((a, b) => a.startedAt - b.startedAt || a.attemptId.localeCompare(b.attemptId));
 }
@@ -93,7 +93,7 @@ export function deriveAbility({
     ratings.filter((r) => r > ceiling && r <= ceiling + C.neighborhoodTenths)[
       C.stepsPerAdjustment - 1
     ];
-  /** @param {import('./types.js').Attempt[]} window @param {number} target @param {'easy'|'medium'} destination */
+  /** @param {import('./types.js').Attempt[]} window @param {number} target @param {'easy'|'medium'|'medium_explore'} destination */
   const stable = (window, target, destination) => {
     const recent = window
       .filter((a) => Math.abs(a.puzzle.ratingTenths - target) <= C.neighborhoodTenths)
@@ -101,11 +101,14 @@ export function deriveAbility({
     const wins = recent.filter(
       (a) =>
         independent(a) &&
-        (destination === "easy"
-          ? eligibleEasy.has(a.attemptId) && a.feedback === "light"
-          : eligibleMedium.has(a.attemptId)) &&
-        // Low-rated wins alone cannot certify a higher unseen frontier.
-        a.puzzle.ratingTenths >= target
+        (destination === "medium"
+          ? eligibleMedium.has(a.attemptId)
+          : eligibleEasy.has(a.attemptId) && a.feedback === "light") &&
+        // Medium may explore one nearby step from light evidence in its current band.
+        // Promotion from Hard or into Easy still needs evidence at/above the target.
+        (destination === "medium_explore"
+          ? a.puzzle.ratingTenths >= bands.medium.min && a.puzzle.ratingTenths <= bands.medium.max
+          : a.puzzle.ratingTenths >= target)
     );
     return recent.length >= C.minimumSamples &&
       wins.length >=
@@ -125,15 +128,20 @@ export function deriveAbility({
     mediumWindow.push(attempt);
     easyWindow.push(attempt);
     const mediumTarget = nextRating(bands.medium.max);
-    const mediumProof =
+    const hardProof =
       mediumTarget !== undefined && mediumTarget <= bands.hard.max
         ? stable(mediumWindow, mediumTarget, "medium")
         : null;
+    const mediumLightProof =
+      mediumTarget !== undefined && !hardProof
+        ? stable(mediumWindow, mediumTarget, "medium_explore")
+        : null;
+    const mediumProof = hardProof || mediumLightProof;
     if (mediumProof) {
       bands.medium.max = mediumTarget;
       bands.hard = { min: mediumTarget, max: mediumTarget + C.neighborhoodTenths };
       promotions.push({
-        code: "hard_entered_medium",
+        code: hardProof ? "hard_entered_medium" : "light_medium_explored",
         ratingTenths: mediumTarget,
         attemptIds: mediumProof.map((a) => a.attemptId),
       });
