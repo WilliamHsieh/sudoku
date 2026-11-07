@@ -1,0 +1,183 @@
+import { deriveAbility } from "./ability.js";
+import { levelBand } from "./grade.js";
+import { CALIBRATION as C, RULE_VERSION } from "./calibration.js";
+import { freezeSnapshot, requireVerifiedCatalog } from "./catalog.js";
+import { canonical, seedHash } from "./random.js";
+
+/** @typedef {import('./types.js').Recommendation & ({status: 'selected', puzzle: import('./types.js').Puzzle}|{status: 'exhausted_in_range', fallbackPuzzle?: import('./types.js').Puzzle})} Selection */
+/** Pure selection over an immutable catalog opened for this launch. Recent recommendations
+ * are ordered oldest to newest and scoped to this player by the persistence caller.
+ * Exhaustion proposes a replay; it never starts one without an explicit caller action.
+ * @param {{catalog: import('./types.js').Catalog, records?: import('./types.js').Attempt[], playerId: string,
+ * coldStart?: import('./types.js').ColdStart, mode: import('./types.js').Mode,
+ * level?: import('./types.js').Level, seed: string|number,
+ * recentRecommendations?: import('./types.js').Recommendation[]}} input
+ * @returns {Selection} */
+export function selectPuzzle({
+  catalog,
+  records = [],
+  playerId,
+  coldStart,
+  mode,
+  level,
+  seed,
+  recentRecommendations = [],
+}) {
+  requireVerifiedCatalog(catalog);
+  if (
+    !["easy", "medium", "hard", "manual"].includes(mode) ||
+    !(typeof seed === "string" || (typeof seed === "number" && Number.isFinite(seed)))
+  )
+    throw new Error("Invalid selection mode or seed");
+  if (mode === "manual" && level === undefined)
+    throw new Error("Manual selection requires a level");
+  const ability = deriveAbility({ catalog, records, playerId, coldStart });
+  const band = mode === "manual" ? levelBand(level) : ability.bands[mode];
+  const history = records.filter((a) => a.playerId === playerId);
+  const recent = recentRecommendations.slice(-C.recentRecommendationLimit);
+  const recentIds = new Set(recent.map((r) => r.puzzleId));
+  const played = (/** @type {import('./types.js').Puzzle} */ p) =>
+    history.filter((a) => a.puzzle?.digits === p.digits);
+  const available = catalog.puzzles.filter(
+    (p) =>
+      !recentIds.has(p.id) &&
+      !played(p).some((a) => a.outcome === "in_progress" || a.outcome === "paused")
+  );
+  const pool = available.filter((p) => p.ratingTenths >= band.min && p.ratingTenths <= band.max);
+  const ratings = [...new Set(pool.map((p) => p.ratingTenths))].sort((a, b) => a - b);
+  const codes = [
+    mode === "manual"
+      ? "manual_level"
+      : ability.provisional
+        ? "provisional_anchor"
+        : "personalized_range",
+    "present_ratings_only",
+    "rating_gap_stay_in_range",
+    "rating_bucket_then_puzzle",
+  ];
+  if (mode === "easy" && ability.easyCaution) codes.push("easy_failure_caution");
+  let detail = `Allowed rating tenths ${band.min}..${band.max}; available ratings: ${ratings.join(", ") || "none"}. Gaps use present buckets within the allowed range.`;
+  const historyText = canonical({
+    records: [...history].sort((a, b) => a.attemptId.localeCompare(b.attemptId)),
+    recentRecommendations: recent,
+  });
+  /** @type {import('./types.js').Recommendation} */
+  const snapshot = {
+    mode,
+    candidateRange: { min: band.min, max: Number.isFinite(band.max) ? band.max : null },
+    selectedRatingBucket: null,
+    puzzleId: null,
+    reason: { codes, detail },
+    fallbackUsed: false,
+    ruleVersion: RULE_VERSION,
+    historySnapshotVersion: `history-v1-${seedHash(historyText)}-${seedHash(`history:${historyText}`)}`,
+    catalogVersion: catalog.catalogVersion,
+    seed,
+    context: {
+      coldStart: coldStart ?? { kind: "level", level: 1 },
+      ...(mode === "manual" ? { manualLevel: level } : {}),
+      recentPuzzleIds: recent.map((r) => r.puzzleId),
+    },
+  };
+  /** Lexicographic priorities: later priorities cannot cancel earlier ones.
+   * @param {number} rating */
+  const priority = (rating) => {
+    const evidence = ability.neighborhoods.find((n) => n.ratingTenths === rating);
+    if (mode === "easy") return evidence?.classification === "familiar" ? 0 : 1;
+    if (mode === "medium")
+      return evidence?.classification === "solvable_effortful"
+        ? 0
+        : evidence?.independentComplete
+          ? 1
+          : 2;
+    if (mode === "hard") return evidence?.classification === "unstable" ? 0 : 1;
+    return 0;
+  };
+  /** Pick a bucket before a board, so bucket population never affects difficulty.
+   * @param {import('./types.js').Puzzle[]} candidates */
+  const sample = (candidates) => {
+    let buckets = [...new Set(candidates.map((p) => p.ratingTenths))].sort((a, b) => a - b);
+    const best = Math.min(...buckets.map(priority));
+    const preferred = buckets.filter((r) => priority(r) === best);
+    // Nearby exploration is allowed only inside the previously determined Hard range.
+    const explore =
+      mode === "hard" &&
+      best === 0 &&
+      seedHash(`${seed}:explore`) / 2 ** 32 < C.hardExplorationShare;
+    buckets = explore
+      ? buckets.filter(
+          (r) =>
+            priority(r) !== best &&
+            !ability.neighborhoods.find((n) => n.ratingTenths === r)?.firstValidAttemptCount
+        )
+      : preferred;
+    if (!buckets.length) buckets = preferred;
+    if (mode === "easy") buckets = buckets.slice(0, C.conservativeBucketCount);
+    if (mode === "medium") buckets = buckets.slice(-C.conservativeBucketCount);
+    // A recent failure is a secondary Easy priority, after familiarity.
+    if (mode === "easy") {
+      const unstuck = buckets.filter(
+        (r) => !ability.neighborhoods.find((n) => n.ratingTenths === r)?.explicitFail
+      );
+      if (unstuck.length) buckets = unstuck;
+    }
+    const lastRating = recent.at(-1)?.selectedRatingBucket;
+    const diverse = buckets.filter((r) => r !== lastRating);
+    if (diverse.length) buckets = diverse;
+    const rating = buckets[seedHash(`${seed}:rating`) % buckets.length];
+    const boards = candidates
+      .filter((p) => p.ratingTenths === rating)
+      .sort((a, b) => a.id.localeCompare(b.id));
+    return boards[seedHash(`${seed}:puzzle`) % boards.length];
+  };
+  let unseen = pool.filter((p) => !played(p).length);
+  if (!unseen.length && mode !== "manual") {
+    // Equal range was tried above. A conservative fallback may only go downward.
+    unseen = available.filter(
+      (p) => p.ratingTenths < band.min && p.ratingTenths <= band.max && !played(p).length
+    );
+    if (unseen.length) {
+      snapshot.fallbackUsed = true;
+      codes.push("conservative_unseen_range");
+      detail += " The original range has no unseen puzzle; a lower range is used.";
+      snapshot.candidateRange = {
+        min: Math.min(...unseen.map((p) => p.ratingTenths)),
+        max: Math.max(...unseen.map((p) => p.ratingTenths)),
+      };
+    }
+  }
+  if (unseen.length) {
+    const puzzle = structuredClone(sample(unseen));
+    const neighborhood = ability.neighborhoods.find((n) => n.ratingTenths === puzzle.ratingTenths);
+    codes.push(`evidence_${neighborhood?.classification ?? "insufficient_evidence"}`);
+    if (mode === "easy") codes.push("conservative_side");
+    if (mode === "medium") codes.push("comfortable_upper_edge");
+    if (mode === "hard")
+      codes.push(neighborhood?.classification === "unstable" ? "known_frontier" : "nearby_range");
+    detail += ` Selected bucket ${puzzle.ratingTenths}; evidence ${neighborhood?.classification ?? "insufficient_evidence"}.`;
+    return freezeSnapshot({
+      ...snapshot,
+      status: "selected",
+      puzzle,
+      puzzleId: puzzle.id,
+      selectedRatingBucket: puzzle.ratingTenths,
+      reason: { codes: [...codes, "unseen_in_range"], detail },
+    });
+  }
+  const fallbackPuzzle = pool.length ? structuredClone(sample(pool)) : undefined;
+  return freezeSnapshot({
+    ...snapshot,
+    status: "exhausted_in_range",
+    fallbackUsed: true,
+    puzzleId: fallbackPuzzle?.id ?? null,
+    selectedRatingBucket: fallbackPuzzle?.ratingTenths ?? null,
+    ...(fallbackPuzzle ? { fallbackPuzzle } : {}),
+    reason: {
+      codes: [
+        ...codes,
+        fallbackPuzzle ? "propose_replay_in_range" : "manual_level_change_required",
+      ],
+      detail: `${detail} No unseen puzzle in the suitable or conservative range; an explicit replay or manual level change is needed.`,
+    },
+  });
+}
