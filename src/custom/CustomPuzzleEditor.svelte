@@ -1136,7 +1136,7 @@
     }
     .board-caption {
       font-size: 10px;
-      margin: 10px 4px;
+      margin: 8px 4px;
     }
   }
 
