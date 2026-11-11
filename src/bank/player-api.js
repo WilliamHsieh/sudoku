@@ -1,6 +1,6 @@
-import { deriveUnlockState, mergeMaxOpenLevel } from "./unlock.js";
+import { mergeMaxOpenLevel } from "./unlock.js";
+import { projectPlayerUnlock } from "./player-unlock.js";
 import { fixedLevelOrder, selectPuzzle } from "./select.js";
-import { firstAttempts } from "./ability.js";
 import { CALIBRATION as C } from "./calibration.js";
 
 /** @typedef {import('./types.js').Attempt} Attempt */
@@ -36,8 +36,8 @@ function compareId(a, b) {
  * previousMaxOpenLevel is the persisted high-water mark BEFORE this completion.
  * Replays and below-frontier solves carry zero unlock progress.
  * @param {Attempt[]} attempts @param {string} attemptId
- * @param {{previousMaxOpenLevel: number}} options */
-export function solveResult(attempts, attemptId, { previousMaxOpenLevel }) {
+ * @param {{previousMaxOpenLevel: number, frontier?: import("./player-unlock.js").UnlockFrontier}} options */
+export function solveResult(attempts, attemptId, { previousMaxOpenLevel, frontier }) {
   onePlayer(attempts);
   mergeMaxOpenLevel(previousMaxOpenLevel, previousMaxOpenLevel);
   const target = attempts.find((a) => a.attemptId === attemptId);
@@ -52,28 +52,40 @@ export function solveResult(attempts, attemptId, { previousMaxOpenLevel }) {
         ? { ...a, outcome: /** @type {const} */ ("paused") }
         : a
     );
-  const before = deriveUnlockState(
-    through.map((a) =>
-      a.attemptId === attemptId ? { ...a, outcome: /** @type {const} */ ("paused") } : a
-    )
+  // Use the same opening boundary before and after this completion. Inference
+  // sees only the history preceding the target, so a lower-level target cannot
+  // move its own boundary or erase earlier frontier credit.
+  const beforeAttempts = through.map((a) =>
+    a.attemptId === attemptId
+      ? { ...a, outcome: /** @type {const} */ ("paused"), endedAt: undefined }
+      : a
   );
-  const level = target.puzzle.level;
-  const highest = mergeMaxOpenLevel(previousMaxOpenLevel, before.maxOpenLevel);
-  const atFrontier = level === highest && !target.replay;
-  const countsTowardUnlock =
-    atFrontier &&
-    target.outcome === "independent_complete" &&
-    target.hintCount === 0 &&
-    !target.hintUsed &&
-    !target.answerRevealed &&
-    firstAttempts(through, target.playerId).some((a) => a.attemptId === attemptId);
-  // A persisted frontier can be ahead of derived evidence after calibration.
-  // It establishes eligibility for THIS solve, not the dates of earlier unlocks.
-  const hintFreeSolvesAtLevel = atFrontier
-    ? Math.min(
-        before.perLevel[level].hintFreeSolves + Number(countsTowardUnlock),
-        C.unlockRequiredHintFreeSolves
+  const before = projectPlayerUnlock(beforeAttempts, {
+    maxOpenLevel: previousMaxOpenLevel,
+    frontier,
+  });
+  const after = projectPlayerUnlock(through, {
+    maxOpenLevel: previousMaxOpenLevel,
+    frontier:
+      frontier ??
+      (before.frontier?.level === previousMaxOpenLevel &&
+      beforeAttempts.some(
+        (a) =>
+          a.puzzle.level < previousMaxOpenLevel &&
+          validEnd(a) &&
+          a.outcome !== "paused" &&
+          a.outcome !== "in_progress"
       )
+        ? before.frontier
+        : undefined),
+    targetAttemptId: attemptId,
+  });
+  const level = target.puzzle.level;
+  const highest = before.maxOpenLevel;
+  const atFrontier = level === highest && !target.replay;
+  const countsTowardUnlock = atFrontier && after.credited.has(attemptId);
+  const hintFreeSolvesAtLevel = atFrontier
+    ? Math.min(after.perLevel[level].hintFreeSolves, C.unlockRequiredHintFreeSolves)
     : 0;
   const solved = through.filter(
     (a) => completed(a) && validEnd(a) && !a.replay && a.puzzle.level === level
@@ -86,11 +98,7 @@ export function solveResult(attempts, attemptId, { previousMaxOpenLevel }) {
     hintFreeSolvesAtLevel,
     required: C.unlockRequiredHintFreeSolves,
     justUnlockedLevel:
-      countsTowardUnlock &&
-      hintFreeSolvesAtLevel >= C.unlockRequiredHintFreeSolves &&
-      level < C.unlockMaxLevel
-        ? level + 1
-        : null,
+      countsTowardUnlock && after.maxOpenLevel > highest ? after.maxOpenLevel : null,
     levelSolvedDistinct,
   };
 }
