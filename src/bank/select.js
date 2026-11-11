@@ -1,16 +1,17 @@
+import { catalogIndex } from "./indexes.js";
 import { deriveAbility } from "./ability.js";
 import { levelBand } from "./grade.js";
 import { CALIBRATION as C, RULE_VERSION } from "./calibration.js";
 import { freezeSnapshot, requireVerifiedCatalog } from "./catalog.js";
 import { canonical, seedHash } from "./random.js";
 
-/** @typedef {import('./types.js').Recommendation & ({status: 'selected', puzzle: import('./types.js').Puzzle}|{status: 'exhausted_in_range', fallbackPuzzle?: import('./types.js').Puzzle})} Selection */
+/** @typedef {import('./types.js').Recommendation & ({status: 'selected', puzzle: import('./types.js').Puzzle}|{status: 'exhausted_in_range'|'level_locked', fallbackPuzzle?: import('./types.js').Puzzle})} Selection */
 /** Pure selection over an immutable catalog opened for this launch. Recent recommendations
  * are ordered oldest to newest and scoped to this player by the persistence caller.
  * Exhaustion proposes a replay; it never starts one without an explicit caller action.
  * @param {{catalog: import('./types.js').Catalog, records?: import('./types.js').Attempt[], playerId: string,
  * coldStart?: import('./types.js').ColdStart, mode: import('./types.js').Mode,
- * level?: import('./types.js').Level, seed: string|number,
+ * level?: import('./types.js').Level, maxOpenLevel?: import('./types.js').Level, seed: string|number,
  * recentRecommendations?: import('./types.js').Recommendation[]}} input
  * @returns {Selection} */
 export function selectPuzzle({
@@ -20,40 +21,65 @@ export function selectPuzzle({
   coldStart,
   mode,
   level,
+  maxOpenLevel,
   seed,
   recentRecommendations = [],
 }) {
   requireVerifiedCatalog(catalog);
   if (
-    !["easy", "medium", "hard", "manual"].includes(mode) ||
+    !["easy", "medium", "hard", "manual", "sequential"].includes(mode) ||
     !(typeof seed === "string" || (typeof seed === "number" && Number.isFinite(seed)))
   )
     throw new Error("Invalid selection mode or seed");
-  if (mode === "manual" && level === undefined)
-    throw new Error("Manual selection requires a level");
+  const fixedLevel = mode === "manual" || mode === "sequential";
+  if (fixedLevel && level === undefined)
+    throw new Error(
+      mode === "manual"
+        ? "Manual selection requires a level"
+        : "Sequential selection requires a level"
+    );
+  const openBand = maxOpenLevel === undefined ? undefined : levelBand(maxOpenLevel);
+  const locked = fixedLevel && maxOpenLevel !== undefined && level > maxOpenLevel;
   const ability = deriveAbility({ catalog, records, playerId, coldStart });
-  const band = mode === "manual" ? levelBand(level) : ability.bands[mode];
+  const originalBand = fixedLevel ? levelBand(level) : ability.bands[mode];
+  const band = { ...originalBand, max: Math.min(originalBand.max, openBand?.max ?? Infinity) };
+  const index = catalogIndex(catalog);
+  const neighborhoods = new Map(ability.neighborhoods.map((n) => [n.ratingTenths, n]));
   const history = records.filter((a) => a.playerId === playerId);
   const recent = recentRecommendations.slice(-C.recentRecommendationLimit);
   const recentIds = new Set(recent.map((r) => r.puzzleId));
-  const played = (/** @type {import('./types.js').Puzzle} */ p) =>
-    history.filter((a) => a.puzzle?.digits === p.digits);
-  const available = catalog.puzzles.filter(
+  const played = new Set();
+  const active = new Set();
+  for (const attempt of history) {
+    if (!attempt.puzzle) continue;
+    played.add(attempt.puzzle.digits);
+    if (attempt.outcome === "in_progress" || attempt.outcome === "paused")
+      active.add(attempt.puzzle.digits);
+  }
+  const candidates = fixedLevel
+    ? index.byLevel(level)
+    : index.ratings
+        .filter((rating) => rating <= band.max)
+        .flatMap((rating) => index.byRating(rating));
+  const available = candidates.filter(
     (p) =>
       !recentIds.has(p.id) &&
-      !played(p).some((a) => a.outcome === "in_progress" || a.outcome === "paused")
+      !active.has(p.digits) &&
+      (maxOpenLevel === undefined || p.level <= maxOpenLevel)
   );
   const pool = available.filter((p) => p.ratingTenths >= band.min && p.ratingTenths <= band.max);
   const ratings = [...new Set(pool.map((p) => p.ratingTenths))].sort((a, b) => a - b);
   const codes = [
-    mode === "manual"
-      ? "manual_level"
+    fixedLevel
+      ? mode === "sequential"
+        ? "sequential_level"
+        : "manual_level"
       : ability.provisional
         ? "provisional_anchor"
         : "personalized_range",
     "present_ratings_only",
     "rating_gap_stay_in_range",
-    "rating_bucket_then_puzzle",
+    mode === "sequential" ? "rating_then_catalog_id" : "rating_bucket_then_puzzle",
   ];
   if (mode === "easy" && ability.easyCaution) codes.push("easy_failure_caution");
   let detail = `Allowed rating tenths ${band.min}..${band.max}; available ratings: ${ratings.join(", ") || "none"}. Gaps use present buckets within the allowed range.`;
@@ -76,13 +102,24 @@ export function selectPuzzle({
     context: {
       coldStart: coldStart ?? { kind: "level", level: 1 },
       ...(mode === "manual" ? { manualLevel: level } : {}),
+      ...(mode === "sequential" ? { sequentialLevel: level } : {}),
+      ...(maxOpenLevel === undefined ? {} : { maxOpenLevel }),
       recentPuzzleIds: recent.map((r) => r.puzzleId),
     },
   };
+  if (locked)
+    return freezeSnapshot({
+      ...snapshot,
+      status: "level_locked",
+      reason: {
+        codes: [...codes, "level_locked"],
+        detail: `Level ${level} is above max open level ${maxOpenLevel}.`,
+      },
+    });
   /** Lexicographic priorities: later priorities cannot cancel earlier ones.
    * @param {number} rating */
   const priority = (rating) => {
-    const evidence = ability.neighborhoods.find((n) => n.ratingTenths === rating);
+    const evidence = neighborhoods.get(rating);
     if (mode === "easy") return evidence?.classification === "familiar" ? 0 : 1;
     if (mode === "medium")
       return evidence?.classification === "solvable_effortful"
@@ -96,6 +133,8 @@ export function selectPuzzle({
   /** Pick a bucket before a board, so bucket population never affects difficulty.
    * @param {import('./types.js').Puzzle[]} candidates */
   const sample = (candidates) => {
+    // The level index is already ordered by rating, then catalog ID. No RNG.
+    if (mode === "sequential") return candidates[0];
     let buckets = [...new Set(candidates.map((p) => p.ratingTenths))].sort((a, b) => a - b);
     const best = Math.min(...buckets.map(priority));
     const preferred = buckets.filter((r) => priority(r) === best);
@@ -105,20 +144,14 @@ export function selectPuzzle({
       best === 0 &&
       seedHash(`${seed}:explore`) / 2 ** 32 < C.hardExplorationShare;
     buckets = explore
-      ? buckets.filter(
-          (r) =>
-            priority(r) !== best &&
-            !ability.neighborhoods.find((n) => n.ratingTenths === r)?.firstValidAttemptCount
-        )
+      ? buckets.filter((r) => priority(r) !== best && !neighborhoods.get(r)?.firstValidAttemptCount)
       : preferred;
     if (!buckets.length) buckets = preferred;
     if (mode === "easy") buckets = buckets.slice(0, C.conservativeBucketCount);
     if (mode === "medium") buckets = buckets.slice(-C.conservativeBucketCount);
     // A recent failure is a secondary Easy priority, after familiarity.
     if (mode === "easy") {
-      const unstuck = buckets.filter(
-        (r) => !ability.neighborhoods.find((n) => n.ratingTenths === r)?.explicitFail
-      );
+      const unstuck = buckets.filter((r) => !neighborhoods.get(r)?.explicitFail);
       if (unstuck.length) buckets = unstuck;
     }
     const lastRating = recent.at(-1)?.selectedRatingBucket;
@@ -130,11 +163,11 @@ export function selectPuzzle({
       .sort((a, b) => a.id.localeCompare(b.id));
     return boards[seedHash(`${seed}:puzzle`) % boards.length];
   };
-  let unseen = pool.filter((p) => !played(p).length);
-  if (!unseen.length && mode !== "manual") {
+  let unseen = pool.filter((p) => !played.has(p.digits));
+  if (!unseen.length && !fixedLevel && !(openBand && openBand.max < originalBand.min)) {
     // Equal range was tried above. A conservative fallback may only go downward.
     unseen = available.filter(
-      (p) => p.ratingTenths < band.min && p.ratingTenths <= band.max && !played(p).length
+      (p) => p.ratingTenths < band.min && p.ratingTenths <= band.max && !played.has(p.digits)
     );
     if (unseen.length) {
       snapshot.fallbackUsed = true;
@@ -148,7 +181,7 @@ export function selectPuzzle({
   }
   if (unseen.length) {
     const puzzle = structuredClone(sample(unseen));
-    const neighborhood = ability.neighborhoods.find((n) => n.ratingTenths === puzzle.ratingTenths);
+    const neighborhood = neighborhoods.get(puzzle.ratingTenths);
     codes.push(`evidence_${neighborhood?.classification ?? "insufficient_evidence"}`);
     if (mode === "easy") codes.push("conservative_side");
     if (mode === "medium") codes.push("comfortable_upper_edge");

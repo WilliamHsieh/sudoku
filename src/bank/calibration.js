@@ -1,5 +1,10 @@
-// All values in this object are 待校準. These are rules, not probability estimates.
+// These are rules, not probability estimates.
 export const CALIBRATION = Object.freeze({
+  // Progressive unlock: signed off by William 2026-11-11.
+  unlockInitialLevels: 3,
+  unlockRequiredHintFreeSolves: 10,
+  unlockMaxLevel: 8,
+  // Other calibration values remain 待校準.
   promotionWindow: 5,
   independentRequired: 4,
   minimumSamples: 5,

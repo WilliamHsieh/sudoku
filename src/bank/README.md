@@ -55,13 +55,43 @@ If the band has no unseen board, automatic modes first search lower ratings. Onl
 
 Every result freezes mode, candidate range, chosen bucket and ID (or null when none exists), structured reason, fallback flag, rule version, history version, catalog version, seed, and cold-start/recent-pick context. A null maximum denotes an open-ended L8 manual range. The history token is a deterministic pair of seed hashes over canonical records and recent picks; it is a diagnostic version token, not an integrity hash or an archive of history. Keep the underlying append-only logs to reproduce prior inputs. Result objects do not change when later records change.
 
+## Opt-in unlock and sequential selection
+
+`deriveUnlockState(attempts, policy)` in `unlock.js` accepts only one player's projected **bank** records. It never reads storage or legacy keys. Legacy play supplies no unlock credit: everyone starts fresh at L1–L3, even if legacy saves contain completed puzzles. A later caller must pass bank records only. Mixed-player input is rejected. It returns `maxOpenLevel` and counts for each level: `independentSolves`, `hintFreeSolves`, and `required`. It uses ability's `firstAttempts` rule: exclude replays first, order by start time and attempt ID, then keep one attempt per distinct board and attempt ID. An unfinished, unsuccessful, or pre-open first attempt still reserves its board; a later success or replay cannot replace it.
+
+William's rules, signed off on 2026-11-11 via Lizzy, start everyone with L1–L3 open. Ten distinct qualifying independent solves at the current highest open level unlock the next level: ten at L3 open L4, then ten at L4 open L5, up to L8. Qualifying solves use no star-key hint panel and reveal no answer. Each frontier requires its own evidence. Wins at lower levels cannot skip a level.
+
+Qualifying first attempts are replayed in completion-time (`endedAt`) order, with equal timestamps ordered by attempt ID using code-unit order. A solve counts only when its level is the highest open level at that point in the replay. Earlier solves at a locked level are never credited later. Each tenth qualifying solve opens only the next level, whose counter starts at zero. For example, ten earlier L4 solves followed by ten L3 solves open L4 with zero L4 credit, not L5. Missing or invalid completion timestamps supply no unlock evidence; later feedback (`updatedAt`) cannot move a solve past an unlock.
+
+`perLevel` counts only evidence completed while that level was the highest open level. `independentSolves` counts `independent_complete` outcomes without an answer reveal; `hintFreeSolves` additionally requires `hintCount === 0` and no `hintUsed` flag. Only the latter unlocks levels. Unknown hint counts fail closed; reproject older snapshots from their event log. Hinted, viewed-answer, given-up, paused, and replay attempts cannot unlock levels.
+
+`unlockInitialLevels: 3`, `unlockRequiredHintFreeSolves: 10`, and `unlockMaxLevel: 8` live only in `calibration.js`. These values and the star-key-only hint rule are **signed off by William 2026-11-11**. Unrelated calibration values remain 待校準. A policy can override these fields for pure rule evaluation. `mergeMaxOpenLevel(previous, derived)` returns their maximum. A later caller must persist this high-water mark so future calibration cannot re-lock earned levels. This PR writes no unlock state and does not change personalized Easy's promotion rules.
+
+`selectPuzzle` accepts optional `maxOpenLevel`. Omission means no clamp and retains the existing selection behavior. Manual and sequential requests above this level return `status: "level_locked"`, with no puzzle or replay proposal. Personalized ranges and any lower fallback are limited to open levels. If the clamp makes the range empty, selection returns `exhausted_in_range` with no puzzle. The applied limit is included in the result context. Locked results are failures, not issued recommendations, and must not be saved to the recommendation log.
+
+`mode: "sequential"` requires `level` and uses the same seed-bearing input contract as other modes. Within that level it selects by ascending rating, then stable catalog ID; the seed does not affect the choice and no RNG is used. It excludes played, active, paused, and recently recommended boards using the same player scope and board identity as other modes. When exhausted, it proposes the first eligible in-level replay, or returns no proposal if all boards are active/recent. It never falls back to another level. Sequential snapshots and starts use the existing schema; issuing a sequential pick remains an explicit caller action.
+
+## Indexing and reproducibility
+
+A verified immutable catalog has one cached lookup index, keyed by catalog object in a `WeakMap`. `openCatalog`, selection, and ability share its by-ID, by-digits, by-level, and by-rating lookups. Maps stay private; sorted buckets are read-only. Mutable raw catalog inputs to `deriveAbility` receive fresh indexes so a caller mutation cannot leave stale evidence. Selection still requires a verified catalog.
+
+Record projection tracks seen boards per player with sets. Selection builds played/active-board sets once per history. Ability indexes local evidence by present rating and uses bounded recent windows instead of scanning the growing history for each attempt. Ordering still needs sorting; projection and evidence accumulation are linear in input size for the fixed neighborhood/window policy, plus returned sample data. Indexing does not change the evidence or seeded selection rules.
+
+`indexes.test.js` pins SHA-256 digests of JSON outputs from master `399edbab4ff2f33773de8f6374a992620ec189f6` for generated histories. It checks ability and selection byte-for-byte for identical inputs, and record projection except the new `hintCount` field. The suite also checks index reuse and catalog-read/attempt-scan counts without timing assertions. A newly projected history includes `hintCount`, so its diagnostic history hash can differ from an older projection that omitted that field.
+
+Run `node scripts/bank-select-benchmark.mjs` manually for 4,000 synthetic puzzles and 4,000 attempts. It loads the pinned baseline from local Git history, asserts equivalent results, and prints before/after first-call and median timings. Catalog opening/index construction and fixture generation are excluded. The script cleans up its temporary baseline modules and is not part of CI. Timings describe this Node run, not mobile-browser performance.
+
 ## Records and ability
 
-`records.js` projects an append-only event log into one record per attempt. Retry identities are `(attemptId, eventId)`; equal retries collapse and conflicting retries fail. A completion resent with a new event ID still leaves one outcome. A start snapshots the board, rating, catalog/source, mode, reason, settings, and optional full recommendation. Later catalog removal or re-rating cannot alter it.
+`records.js` projects an append-only event log into one record per attempt. Retry identities are `(attemptId, eventId)`; equal retries collapse and conflicting retries fail. A completion resent with a new event ID still leaves one outcome. Every event timestamp must be a positive safe integer (therefore finite and greater than zero). Exact same-ID retries with identical content remain idempotent, even after later feedback. Any other event must be at or after the attempt's latest accepted timestamp, which also prevents pre-start events. Timestamp validation happens before ignoring terminal `complete` retries: `start10 → give_up20 → complete0` and backdated completions are rejected. Valid new-ID terminal completion retries stay in the append-only log but do not change the projected outcome, end/update time, or effective time. Invalid stored events make the log unreadable; no repair or overwrite is performed. A start snapshots the board, rating, catalog/source, mode, reason, settings, and optional full recommendation. Later catalog removal or re-rating cannot alter it.
 
 The host supplies a cumulative **foreground effective time** through `time` events, flushing it before pause/background/close. Paused time updates are rejected. Gaps between events, no input, app crashes, and resumed wall-clock time never add play time or imply failure. Settings history remains attached to each sample. V1 deliberately does not use speed to rank ability, so different assistance settings are never compared by speed.
 
 Outcomes distinguish independent complete, hinted complete, viewed answer, explicit give-up, in progress, and paused. Omitted feedback stays absent. Neighborhood summaries keep first-attempt counts, separate outcomes, unresolved samples, feedback distribution/missing count, settings, effective time, recency, and replays. Only independent complete and explicit give-up enter the main solvability denominator. The recent five-attempt window includes unresolved attempts; it does not silently replace them with older completions. Hints and answers are auxiliary outcomes, not mastery or proof of inability.
+
+`hintCount` is the number of distinct star-key hint-panel uses per attempt, deduped by `(attemptId, eventId)`, and `hintUsed === (hintCount > 0)`. A `hint` event means one use of the **star key (the 3-step hint panel)**; an omitted source or `source: "star"` counts once. **Fill and the 30-second single-cell hint dot do not count and must not be recorded as `hint` events by the later wiring PR.**
+
+For defensive compatibility, explicitly non-star sources such as `"fill"` and `"hint_dot"` remain in the append-only log but are ignored by the projection: no hint, outcome, or time change. Sources must be nonempty strings when present; timestamp and retry validation still apply, including conflicts that change a source under the same event ID. The count is reconstructed from existing events, including replay attempts; records schema remains version 1 with no new stored field.
 
 The model rebuilds in attempt-start order. Each distinct board contributes at most one primary attempt. Replays are excluded before board deduplication, so a replay with an equal or earlier timestamp cannot remove the original evidence. A four-of-five signal can admit the next present rating from Hard into Medium only within the current nearby frontier; a consumed window cannot raise several steps.
 
@@ -75,28 +105,31 @@ Records use `sudoku-bank-records-v1`; recommendations use `sudoku-bank-recommend
 
 `inspectLegacySaves` is migration V1: retain all four legacy keys, report missing/present/unreadable state, and create no inferred evidence. It never deletes or rewrites `sudoku-progress`, `sudoku-solved`, `sudoku-replay-progress`, or `sudoku-custom-progress`, and never maps NYT difficulty to L1–L8. Unsupported new storage schemas fail closed.
 
-## 待校準
+## Rule values
 
-All tuning values live in `calibration.js`:
+All rule values live in `calibration.js`. The three unlock values below are signed off by William 2026-11-11; all other rows remain 待校準:
 
-| Parameter                   | Initial rule                                                                                                               |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `promotionWindow`           | Most recent 5 neighborhood attempts                                                                                        |
-| `minimumSamples`            | 5 attempts before expansion                                                                                                |
-| `independentRequired`       | At least 4 independent completes in that window                                                                            |
-| `repeatedStruggle`          | 2 struggle reports block the candidate signal                                                                              |
-| `neighborhoodTenths`        | ±3 tenths, using only present ratings                                                                                      |
-| `stepsPerAdjustment`        | 1 next-present-rating step per adjustment, within the neighborhood                                                         |
-| `familiarityLightRequired`  | 4 independent `light` completes for familiarity/Easy promotion; promotion must be from Medium                              |
-| `NO_FEEDBACK_POLICY`        | Ignore absent feedback; do not infer any feeling                                                                           |
-| `maxPerLevel`               | 500, configurable with `--max-per-level`; stratify by in-level rating                                                      |
-| `recentRecommendationLimit` | Exclude the last 10 issued picks                                                                                           |
-| `hardExplorationShare`      | 0.2 seeded branch for nearby unexplored buckets when an unstable frontier is available; bounded by the existing Hard range |
-| `conservativeBucketCount`   | Use the lower 2 equally qualified buckets for Easy, upper 2 for Medium                                                     |
-| `coldEasyBelow`             | Easy minimum: anchor lower bound minus 3 tenths, floored at 10                                                             |
-| `coldEasyAboveL1`           | L1 Easy maximum: anchor lower bound plus 2 tenths; other levels stop at the anchor lower bound                             |
-| `coldMediumAbove`           | Medium: anchor lower bound through +3 tenths, clipped to the anchor level                                                  |
-| `coldHardAbove`             | Hard: Medium upper edge through anchor lower bound +6 tenths, clipped to the anchor level                                  |
+| Parameter                      | Initial rule                                                                                                               |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `unlockInitialLevels`          | 3 initially open levels; signed off by William 2026-11-11                                                                  |
+| `unlockRequiredHintFreeSolves` | 10 independent first solves without a star-key hint at the frontier; signed off by William 2026-11-11                      |
+| `unlockMaxLevel`               | 8 maximum open level; signed off by William 2026-11-11                                                                     |
+| `promotionWindow`              | Most recent 5 neighborhood attempts                                                                                        |
+| `minimumSamples`               | 5 attempts before expansion                                                                                                |
+| `independentRequired`          | At least 4 independent completes in that window                                                                            |
+| `repeatedStruggle`             | 2 struggle reports block the candidate signal                                                                              |
+| `neighborhoodTenths`           | ±3 tenths, using only present ratings                                                                                      |
+| `stepsPerAdjustment`           | 1 next-present-rating step per adjustment, within the neighborhood                                                         |
+| `familiarityLightRequired`     | 4 independent `light` completes for familiarity/Easy promotion; promotion must be from Medium                              |
+| `NO_FEEDBACK_POLICY`           | Ignore absent feedback; do not infer any feeling                                                                           |
+| `maxPerLevel`                  | 500, configurable with `--max-per-level`; stratify by in-level rating                                                      |
+| `recentRecommendationLimit`    | Exclude the last 10 issued picks                                                                                           |
+| `hardExplorationShare`         | 0.2 seeded branch for nearby unexplored buckets when an unstable frontier is available; bounded by the existing Hard range |
+| `conservativeBucketCount`      | Use the lower 2 equally qualified buckets for Easy, upper 2 for Medium                                                     |
+| `coldEasyBelow`                | Easy minimum: anchor lower bound minus 3 tenths, floored at 10                                                             |
+| `coldEasyAboveL1`              | L1 Easy maximum: anchor lower bound plus 2 tenths; other levels stop at the anchor lower bound                             |
+| `coldMediumAbove`              | Medium: anchor lower bound through +3 tenths, clipped to the anchor level                                                  |
+| `coldHardAbove`                | Hard: Medium upper edge through anchor lower bound +6 tenths, clipped to the anchor level                                  |
 
 The 4-of-5 rule is a candidate signal, not an Easy classifier or a future success probability. Missing feedback is not light feedback. Cold-start bands are priors, not mastery evidence. Synthetic player sequences verify these rules only; actual experience still needs play testing.
 

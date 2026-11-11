@@ -1,6 +1,7 @@
 import { CALIBRATION as C } from "./calibration.js";
 import { levelBand } from "./grade.js";
 import { validatePuzzle, validateSource } from "./catalog.js";
+import { catalogIndex } from "./indexes.js";
 import { isTerminal } from "./records.js";
 
 /** Pure, injectable cold-start setting. The caller owns persistence and any experience labels.
@@ -72,32 +73,41 @@ export function deriveAbility({
   coldStart = { kind: "level", level: 1 },
 }) {
   const bands = provisional(setColdStart(coldStart));
-  const ratings = [...new Set(catalog.puzzles.map((p) => p.ratingTenths))].sort((a, b) => a - b);
+  const index = catalogIndex(catalog);
+  const ratings = index.ratings;
   const history = firstAttempts(records, playerId).filter((a) => {
-    const current = catalog.puzzles.find((p) => p.digits === a.puzzle.digits);
+    const current = index.byDigits(a.puzzle.digits);
     return (
-      ratings.includes(a.puzzle.ratingTenths) &&
+      index.hasRating(a.puzzle.ratingTenths) &&
       (!current || current.ratingTenths === a.puzzle.ratingTenths)
     );
   });
   const eligibleEasy = new Set();
   const eligibleMedium = new Set();
-  /** @type {import('./types.js').Attempt[]} */
-  let mediumWindow = [];
-  /** @type {import('./types.js').Attempt[]} */
-  let easyWindow = [];
+  /** @type {Map<number, import('./types.js').Attempt[]>} */
+  const mediumWindow = new Map();
+  /** @type {Map<number, import('./types.js').Attempt[]>} */
+  const easyWindow = new Map();
   /** @type {{code: string, ratingTenths: number, attemptIds: string[]}[]} */
   const promotions = [];
+  /** Use bounded offsets rather than incrementing rating values: valid L8 ratings
+   * can reach Number.MAX_SAFE_INTEGER, where adding one can stop making progress.
+   * @param {number} center */
+  const nearbyRatings = (center) => {
+    const present = new Set();
+    for (let offset = -C.neighborhoodTenths; offset <= C.neighborhoodTenths; offset++) {
+      const rating = Math.ceil(center) + offset;
+      if (index.hasRating(rating) && Math.abs(rating - center) <= C.neighborhoodTenths)
+        present.add(rating);
+    }
+    return [...present];
+  };
   /** @param {number} ceiling */
   const nextRating = (ceiling) =>
-    ratings.filter((r) => r > ceiling && r <= ceiling + C.neighborhoodTenths)[
-      C.stepsPerAdjustment - 1
-    ];
-  /** @param {import('./types.js').Attempt[]} window @param {number} target @param {'easy'|'medium'|'medium_explore'} destination */
+    nearbyRatings(ceiling).filter((r) => r > ceiling)[C.stepsPerAdjustment - 1];
+  /** @param {Map<number, import('./types.js').Attempt[]>} window @param {number} target @param {'easy'|'medium'|'medium_explore'} destination */
   const stable = (window, target, destination) => {
-    const recent = window
-      .filter((a) => Math.abs(a.puzzle.ratingTenths - target) <= C.neighborhoodTenths)
-      .slice(-C.promotionWindow);
+    const recent = window.get(target) ?? [];
     const wins = recent.filter(
       (a) =>
         independent(a) &&
@@ -125,8 +135,14 @@ export function deriveAbility({
       eligibleEasy.add(attempt.attemptId);
     if (attempt.mode === "hard" && rating >= bands.hard.min && rating <= bands.hard.max)
       eligibleMedium.add(attempt.attemptId);
-    mediumWindow.push(attempt);
-    easyWindow.push(attempt);
+    for (const window of [mediumWindow, easyWindow]) {
+      for (const target of nearbyRatings(rating)) {
+        const recent = window.get(target) ?? [];
+        recent.push(attempt);
+        if (recent.length > C.promotionWindow) recent.shift();
+        window.set(target, recent);
+      }
+    }
     const mediumTarget = nextRating(bands.medium.max);
     const hardProof =
       mediumTarget !== undefined && mediumTarget <= bands.hard.max
@@ -145,7 +161,7 @@ export function deriveAbility({
         ratingTenths: mediumTarget,
         attemptIds: mediumProof.map((a) => a.attemptId),
       });
-      mediumWindow = []; // A consumed window cannot drive multiple steps.
+      mediumWindow.clear(); // A consumed window cannot drive multiple steps.
     }
     const easyTarget = nextRating(bands.easy.max);
     const easyProof =
@@ -159,7 +175,7 @@ export function deriveAbility({
         ratingTenths: easyTarget,
         attemptIds: easyProof.map((a) => a.attemptId),
       });
-      easyWindow = [];
+      easyWindow.clear();
     }
   }
   const stableEasy = { ...bands.easy };
@@ -178,6 +194,28 @@ export function deriveAbility({
     );
     bands.easy.max = below.at(-C.stepsPerAdjustment) ?? bands.easy.min - 1;
   }
+  // Index evidence by each present neighboring rating once, preserving history order.
+  /** @type {Map<number, import('./types.js').Attempt[]>} */
+  const localEvidence = new Map();
+  const replayCounts = new Map();
+  for (const attempt of history) {
+    for (const rating of nearbyRatings(attempt.puzzle.ratingTenths)) {
+      if (!localEvidence.has(rating)) localEvidence.set(rating, []);
+      localEvidence.get(rating).push(attempt);
+    }
+  }
+  for (const attempt of records) {
+    if (
+      attempt.playerId !== playerId ||
+      !attempt.replay ||
+      !attempt.puzzle ||
+      !Number.isFinite(attempt.puzzle.ratingTenths)
+    )
+      continue;
+    // Preserve support for caller-supplied fractional replay ratings.
+    for (const rating of nearbyRatings(attempt.puzzle.ratingTenths))
+      replayCounts.set(rating, (replayCounts.get(rating) ?? 0) + 1);
+  }
   return {
     bands,
     stableEasy,
@@ -186,23 +224,16 @@ export function deriveAbility({
     provisional: promotions.length === 0,
     evidenceCount: history.length,
     neighborhoods: ratings.map((rating) =>
-      summarizeNeighborhood(
-        rating,
-        history,
-        records.filter((a) => a.playerId === playerId)
-      )
+      summarizeNeighborhood(rating, localEvidence.get(rating) ?? [], replayCounts.get(rating) ?? 0)
     ),
   };
 }
 
 /** Outcomes and unresolved attempts stay separate; no prediction of future success.
  * Feedback is optional, and time is retained only with its assistive-settings history.
- * @param {number} rating @param {import('./types.js').Attempt[]} first
- * @param {import('./types.js').Attempt[]} all */
-function summarizeNeighborhood(rating, first, all) {
-  const local = first.filter(
-    (a) => Math.abs(a.puzzle.ratingTenths - rating) <= C.neighborhoodTenths
-  );
+ * @param {number} rating @param {import('./types.js').Attempt[]} local
+ * @param {number} replayCount */
+function summarizeNeighborhood(rating, local, replayCount) {
   const recent = local.slice(-C.promotionWindow);
   const independentCount = recent.filter(independent).length;
   const feedback = { light: 0, some_effort: 0, struggle: 0, missing: 0 };
@@ -248,9 +279,6 @@ function summarizeNeighborhood(rating, first, all) {
       effectiveMs: a.effectiveMs,
       replay: a.replay,
     })),
-    replayCount: all.filter(
-      (a) =>
-        a.replay && a.puzzle && Math.abs(a.puzzle.ratingTenths - rating) <= C.neighborhoodTenths
-    ).length,
+    replayCount,
   };
 }

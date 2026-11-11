@@ -4,7 +4,7 @@ import { validatePuzzle, validateSource } from "./catalog.js";
 
 export const RECORDS_KEY = "sudoku-bank-records-v1";
 export const RECORDS_SCHEMA = 1;
-const modes = ["easy", "medium", "hard", "manual"];
+const modes = ["easy", "medium", "hard", "manual", "sequential"];
 const feedbacks = ["light", "some_effort", "struggle"];
 const types = [
   "start",
@@ -78,14 +78,16 @@ export function projectRecords(log) {
   /** @type {Map<string, import('./types.js').Attempt>} */
   const attempts = new Map();
   const seen = new Map();
+  const playerBoards = new Map();
   for (const event of log.events) {
     if (
       !event ||
       !nonempty(event.id) ||
       !nonempty(event.attemptId) ||
       !Number.isSafeInteger(event.at) ||
-      event.at < 0 ||
-      !types.includes(event.type)
+      event.at <= 0 ||
+      !types.includes(event.type) ||
+      (event.type === "hint" && event.source !== undefined && !nonempty(event.source))
     )
       throw new Error("Invalid event");
     const key = JSON.stringify([event.attemptId, event.id]);
@@ -101,19 +103,21 @@ export function projectRecords(log) {
         throw new Error("Attempt already started or identity mismatch");
       // Derive replay as well as honoring explicit provenance. A caller cannot
       // accidentally upskill by giving a new attempt ID to a seen board.
+      const boards = playerBoards.get(event.start.playerId) ?? new Set();
       const replay =
         event.start.replay ||
-        [...attempts.values()].some(
-          (a) =>
-            a.playerId === event.start.playerId &&
-            (a.puzzle.id === event.start.puzzle.id || a.puzzle.digits === event.start.puzzle.digits)
-        );
+        boards.has(event.start.puzzle.id) ||
+        boards.has(event.start.puzzle.digits);
+      boards.add(event.start.puzzle.id);
+      boards.add(event.start.puzzle.digits);
+      playerBoards.set(event.start.playerId, boards);
       attempts.set(event.attemptId, {
         ...structuredClone(event.start),
         replay,
         startedAt: event.at,
         updatedAt: event.at,
         effectiveMs: 0,
+        hintCount: 0,
         hintUsed: false,
         answerRevealed: false,
         outcome: "in_progress",
@@ -128,9 +132,17 @@ export function projectRecords(log) {
         throw new Error("Invalid feedback");
       if (!isTerminal(attempt)) throw new Error("Feedback requires a finished attempt");
     }
+    // Fail closed before the terminal retry exception: timestamps must be positive
+    // safe integers and new events cannot predate the latest accepted event.
+    // Exact same-ID retries were already checked above and remain idempotent.
+    if (event.at < attempt.updatedAt) throw new Error("Out-of-order event");
+    // Only the star key (3-step hint panel) is a hint. An omitted source keeps
+    // existing hint events compatible. Fill and the 30-second hint dot must not
+    // emit hint events; ignore explicit non-star sources without changing state.
+    // Timestamp and retry validation still apply to these append-only entries.
+    if (event.type === "hint" && event.source !== undefined && event.source !== "star") continue;
     // Re-sending completion under a new event ID must not create new evidence.
     if (isTerminal(attempt) && event.type === "complete") continue;
-    if (event.at < attempt.updatedAt) throw new Error("Out-of-order event");
     if (isTerminal(attempt) && event.type !== "feedback") throw new Error("Attempt is finished");
     switch (event.type) {
       case "time":
@@ -158,7 +170,8 @@ export function projectRecords(log) {
         attempt.outcome = "in_progress";
         break;
       case "hint":
-        attempt.hintUsed = true;
+        attempt.hintCount++;
+        attempt.hintUsed = attempt.hintCount > 0;
         break;
       case "reveal":
         attempt.answerRevealed = true;
