@@ -1,3 +1,4 @@
+import { storeCompletedAttempts } from "./unlock-test-fixtures.js";
 import { describe, expect, it, vi } from "vitest";
 import { attempt, memoryStorage, puzzle } from "./test-fixtures.js";
 import { deriveUnlockState } from "./unlock.js";
@@ -178,6 +179,7 @@ describe("effective stored frontier", () => {
       JSON.stringify({ schema: 1, playerId: "player", maxOpenLevel: 5, extra: "keep" })
     );
     history.push(...wins(3, 56, 21));
+    storeCompletedAttempts(storage, history);
     await persistUnlockState(storage, history, options);
     expect(saved(storage)).toMatchObject({
       maxOpenLevel: 5,
@@ -292,6 +294,7 @@ it("conservatively checkpoints undated stored access when no lower-level history
   const storage = memoryStorage(),
     earlier = wins(10, 56, 1);
   storage.setItem(UNLOCK_KEY, JSON.stringify({ schema: 1, playerId: "player", maxOpenLevel: 5 }));
+  storeCompletedAttempts(storage, earlier);
   await persistUnlockState(storage, earlier, options);
   expect(saved(storage).maxOpenLevel).toBe(5);
   const before = saved(storage),
