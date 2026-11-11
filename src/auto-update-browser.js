@@ -24,7 +24,7 @@ export async function reloadForUpdate(version) {
 }
 
 /** Flush autosave before navigation; restore the action if navigation fails.
- * @param {{ flush: () => void, reload: () => void, setUpdating: (value: boolean) => void, onError?: (message: string) => void }} options
+ * @param {{ flush: () => void | Promise<void>, reload: () => void, setUpdating: (value: boolean) => void, onError?: (message: string) => void }} options
  */
 export function createUpdateAction({ flush, reload, setUpdating, onError = () => {} }) {
   let busy = false;
@@ -40,10 +40,17 @@ export function createUpdateAction({ flush, reload, setUpdating, onError = () =>
         setUpdating(false);
       }, 3000);
       try {
-        flush();
-        Promise.resolve(reload()).catch((error) =>
-          onError(error.message || "Could not update. Please retry.")
-        );
+        const saved = flush();
+        const navigate = () =>
+          Promise.resolve(reload()).catch((error) =>
+            onError(error.message || "Could not update. Please retry.")
+          );
+        // Preserve the synchronous legacy path. Bank writes can wait on a Web Lock.
+        if (saved)
+          saved
+            .then(navigate)
+            .catch((error) => onError(error.message || "Could not save progress. Please retry."));
+        else void navigate();
       } catch (error) {
         onError(error.message || "Could not save progress. Please retry.");
         // Keep Updating… until the same three-second recovery deadline.

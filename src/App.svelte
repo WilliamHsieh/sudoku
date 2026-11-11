@@ -159,6 +159,13 @@
     };
   });
 
+  $effect(() => {
+    if (game.bankMeta) {
+      const paused = playUi.paused;
+      untrack(() => game.bankLifecycle(paused ? "pause" : "resume"));
+    }
+  });
+
   game.setOnActivity(() => playUi.noteActivity());
   game.setOnLoad(() => {
     playUi.resetForLoad();
@@ -843,13 +850,18 @@
     /** First departure signal; later hidden/pagehide events must not shorten the absence. */
     let hiddenAt = /** @type {number | null} */ (null);
     const isHidden = () => document.hidden || document.visibilityState === "hidden";
-    const onAway = () => {
+    const onAway = (event) => {
+      const recordDeparture = () => {
+        if (event?.type === "pagehide") game.bankLifecycle("close");
+        else if (event?.type === "visibilitychange" && isHidden()) game.bankLifecycle("background");
+      };
       hints.close();
       hintFrame = null;
       if (game.replaying) game.flushProgress();
       if (showCalendar || game.solved) {
         // Clear #58's view/entry announcement without pausing these views.
         resumeStatus = "";
+        recordDeparture();
         return;
       }
       hiddenAt ??= Date.now();
@@ -864,6 +876,8 @@
       const cover = wrapEl?.querySelector(".paused-cover");
       if (cover) getComputedStyle(cover).opacity;
       if (newlyPaused) void focusAfterPause(true);
+      // noteHidden folds the timer's last running segment before recording time.
+      recordDeparture();
     };
     const onReturn = () => {
       if (isHidden() || hiddenAt === null) return;
@@ -878,13 +892,13 @@
       if (result === "announced") void announceResumed();
       else if (result === "quiet" && !silent) void focusAfterPause(false);
     };
-    const onVis = () => (isHidden() ? onAway() : onReturn());
+    const onVis = (event) => (isHidden() ? onAway(event) : onReturn());
     /** @param {FocusEvent} event */
     const onWindowBlur = (event) => {
       // Native dialog Tab wrapping can briefly focus browser chrome. While a
       // dialog is open, use the explicit lifecycle signals for backgrounding.
       if (PAUSE_ON_WINDOW_BLUR && event.target === window && (!playUi.modal || isHidden()))
-        onAway();
+        onAway(event);
     };
     window.addEventListener("blur", onWindowBlur);
     window.addEventListener("focus", onReturn);
