@@ -658,3 +658,138 @@ it("a fresh recorder can abandon a slot to recover from another recorder's quota
   await b.flush(true);
   expect(Object.keys(slots(storage))).toEqual(["b"]);
 });
+
+function limitStorage(storage, extra = 512) {
+  const total = () => [...storage.data.values()].reduce((sum, text) => sum + text.length, 0);
+  const quota = total() + extra;
+  const write = storage.setItem;
+  storage.setItem = (key, text) => {
+    if (total() - (storage.data.get(key)?.length ?? 0) + text.length > quota)
+      throw new DOMException("full", "QuotaExceededError");
+    write(key, text);
+  };
+}
+
+it.each(["old", "sibling"])(
+  "abandon %s fits the final store under quota with a pending old-save migration",
+  async (id) => {
+    const { storage, recorder } = setup();
+    await start(recorder(), "sibling");
+    const sibling = slots(storage).sibling;
+    const { raw, value } = await oldSave(storage);
+    const log = storage.getItem(RECORDS_KEY);
+    limitStorage(storage);
+    const r = recorder();
+    expect((await r.listSlots("player")).count).toBe(2);
+    expect(await r.abandon(id, "player")).toEqual({ ok: true, code: undefined });
+    expect(JSON.parse(storage.getItem(BANK_SAVES_KEY)).abandoned).toEqual([id]);
+    if (id === "old") expect(slots(storage)).toEqual({ sibling });
+    else {
+      expect(Object.keys(slots(storage))).toEqual(["old"]);
+      expect(JSON.parse(slots(storage).old)).toMatchObject(value);
+    }
+    expect(storage.getItem(BANK_GAME_KEY)).toBe(raw);
+    expect(storage.getItem(RECORDS_KEY)).toBe(log);
+    expect(await recorder().resume(id)).toBe(null);
+    const after = [...storage.data.entries()];
+    expect((await r.abandon(id, "player")).ok).toBe(true);
+    expect([...storage.data.entries()]).toEqual(after);
+  }
+);
+
+it.each(["old", "new"])("can abandon the only %s slot under quota and repeat it", async (kind) => {
+  const { storage, recorder } = setup();
+  const old = kind === "old" ? await oldSave(storage) : null;
+  if (!old) await start(recorder(), "only");
+  const id = old ? "old" : "only";
+  const log = storage.getItem(RECORDS_KEY);
+  limitStorage(storage);
+  const r = recorder();
+  expect((await r.abandon(id, "player")).ok).toBe(true);
+  expect(JSON.parse(storage.getItem(BANK_SAVES_KEY))).toEqual({
+    schema: 1,
+    slots: {},
+    abandoned: [id],
+  });
+  expect((await recorder().listSlots("player")).count).toBe(0);
+  expect((await r.abandon(id, "player")).ok).toBe(true);
+  expect(storage.getItem(RECORDS_KEY)).toBe(log);
+  expect(storage.getItem(BANK_GAME_KEY)).toBe(old?.raw ?? null);
+});
+
+it("abandon without pending migration preserves its sibling under quota", async () => {
+  const { storage, recorder } = setup();
+  await start(recorder(), "a");
+  await start(recorder(), "b");
+  const sibling = slots(storage).b;
+  limitStorage(storage, 0);
+  expect((await recorder().abandon("a", "player")).ok).toBe(true);
+  expect(slots(storage)).toEqual({ b: sibling });
+});
+
+it.each(["quota", "blocked"])(
+  "a %s abandon write with pending migration leaves every stored byte unchanged and can retry",
+  async (failure) => {
+    const { storage, recorder } = setup();
+    await start(recorder(), "sibling");
+    const { raw } = await oldSave(storage);
+    const before = [...storage.data.entries()];
+    const write = storage.setItem;
+    storage.setItem = () => {
+      if (failure === "quota") throw new DOMException("full", "QuotaExceededError");
+      throw Error("write blocked");
+    };
+    const r = recorder();
+    expect(await r.abandon("old", "player")).toEqual({
+      ok: false,
+      code: failure === "quota" ? "quota_exceeded" : "write_failed",
+    });
+    expect([...storage.data.entries()]).toEqual(before);
+    storage.setItem = write;
+    await r.flush(true);
+    expect(Object.keys(slots(storage))).toEqual(["sibling"]);
+    expect(JSON.parse(storage.getItem(BANK_SAVES_KEY)).abandoned).toEqual(["old"]);
+    expect(storage.getItem(BANK_GAME_KEY)).toBe(raw);
+  }
+);
+
+it("concurrent abandons under quota preserve both markers and cannot resurrect the old slot", async () => {
+  const { storage, recorder } = setup();
+  await start(recorder(), "sibling");
+  const { raw } = await oldSave(storage);
+  limitStorage(storage);
+  const results = await Promise.all([
+    recorder().abandon("old", "player"),
+    recorder().abandon("sibling", "player"),
+  ]);
+  expect(results.every((r) => r.ok)).toBe(true);
+  const store = JSON.parse(storage.getItem(BANK_SAVES_KEY));
+  expect(store.slots).toEqual({});
+  expect(store.abandoned.sort()).toEqual(["old", "sibling"]);
+  expect((await recorder().listSlots("player")).count).toBe(0);
+  expect(storage.getItem(BANK_GAME_KEY)).toBe(raw);
+});
+
+it("a queued completion deletion folds a newly pending migration into quota recovery", async () => {
+  const { storage, recorder } = setup();
+  const r = recorder();
+  await start(r, "completed");
+  const write = storage.setItem;
+  storage.setItem = (key, text) => {
+    if (key === BANK_SAVES_KEY) throw Error("deletion blocked");
+    write(key, text);
+  };
+  r.complete(0);
+  expect((await r.flush()).ok).toBe(false);
+  expect(projectRecords(recordLog(storage))[0].outcome).toBe("independent_complete");
+  storage.setItem = write;
+  // Storage can change after the failed job releases the lock.
+  const { raw, value } = await oldSave(storage);
+  const log = storage.getItem(RECORDS_KEY);
+  limitStorage(storage);
+  expect(await r.flush()).toEqual({ ok: true });
+  expect(Object.keys(slots(storage))).toEqual(["old"]);
+  expect(JSON.parse(slots(storage).old)).toMatchObject(value);
+  expect(storage.getItem(BANK_GAME_KEY)).toBe(raw);
+  expect(storage.getItem(RECORDS_KEY)).toBe(log);
+});

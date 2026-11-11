@@ -75,6 +75,7 @@ describe("solve openings survive checkpoint failures and delays", () => {
       const now = vi.fn(() => {
         throw Error("Unexpected clock");
       });
+      storeCompletedAttempts(storage, history);
       expect((await persistUnlockState(storage, history, { ...options, now })).ok).toBe(true);
       if (variant === "empty dated opening") {
         expect(saved(storage)).toMatchObject({
@@ -89,6 +90,7 @@ describe("solve openings survive checkpoint failures and delays", () => {
   it("retains a delivered opening when verification failed, then records the next solve opening", async () => {
     const storage = memoryStorage();
     await persistUnlockState(storage, [], options);
+    storeCompletedAttempts(storage, first());
     const read = storage.getItem,
       write = storage.setItem;
     let fail = false;
@@ -107,6 +109,7 @@ describe("solve openings survive checkpoint failures and delays", () => {
     storage.getItem = read;
     storage.setItem = write;
     const original = structuredClone(saved(storage).openings[4]);
+    storeCompletedAttempts(storage, full());
     expect(
       (
         await persistUnlockState(storage, full(), {
@@ -171,6 +174,7 @@ describe("option C ignores undated stored high-water marks", () => {
     expect(
       solveResult(history, history.at(-1).attemptId, { previousMaxOpenLevel: 8 }).justUnlockedLevel
     ).toBe(5);
+    storeCompletedAttempts(storage, history);
     expect((await persistUnlockState(storage, history, options)).ok).toBe(true);
     checkFive(saved(storage));
     expect(saved(storage).openings[8]).toBeUndefined();
@@ -183,6 +187,7 @@ it("does not mistake unknown policy fields for a policy change or discard them",
   const state = JSON.parse(storage.getItem(UNLOCK_KEY));
   state.policy.note = "preserve";
   storage.setItem(UNLOCK_KEY, JSON.stringify(state));
+  storeCompletedAttempts(storage, full());
   expect(
     (
       await persistUnlockState(storage, full(), {
@@ -208,6 +213,7 @@ it("keeps solve-earned completion dates when an initial policy is restored after
   const now = vi.fn(() => {
     throw Error("These levels were earned by solves");
   });
+  storeCompletedAttempts(storage, history);
   expect((await persistUnlockState(storage, history, { ...options, now })).ok).toBe(true);
   expect(saved(storage)).toMatchObject({
     maxOpenLevel: 6,
@@ -222,6 +228,7 @@ it("does not re-date solve-earned levels when an explicit request repeats the ea
   const now = vi.fn(() => {
     throw Error("No non-solve opening is needed");
   });
+  storeCompletedAttempts(storage, full());
   expect((await persistUnlockState(storage, full(), { ...options, openLevel: 5, now })).ok).toBe(
     true
   );
@@ -239,6 +246,7 @@ it("derives the same dated result from ignored values in either stale/fresh writ
   ]) {
     const storage = memoryStorage();
     storage.setItem(UNLOCK_KEY, JSON.stringify({ schema: 1, playerId: "player", maxOpenLevel: 8 }));
+    storeCompletedAttempts(storage, fresh);
     await Promise.all(
       order.map((history) =>
         persistUnlockState(storage, history, {

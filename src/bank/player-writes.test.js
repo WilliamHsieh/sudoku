@@ -6,6 +6,7 @@ import { attempt, catalogWith, memoryStorage, puzzle, start } from "./test-fixtu
 import { buildBankGameMeta } from "./game-meta.js";
 import { openCatalog } from "./catalog.js";
 import { selectPuzzle } from "./select.js";
+import { storeAttempts, storeCompletedAttempts } from "./unlock-test-fixtures.js";
 
 function locks() {
   let tail = Promise.resolve();
@@ -275,6 +276,7 @@ describe("persisted unlock high-water mark", () => {
     });
     const records = wins(),
       before = structuredClone(records);
+    storeCompletedAttempts(storage, records);
     expect(await persistUnlockState(storage, records, options)).toMatchObject({
       ok: true,
       state: { maxOpenLevel: 4 },
@@ -317,6 +319,7 @@ describe("persisted unlock high-water mark", () => {
       ),
     ]) {
       const storage = memoryStorage();
+      storeAttempts(storage, [...wins(9), extra]);
       expect(await persistUnlockState(storage, [...wins(9), extra], options)).toMatchObject({
         ok: true,
         state: { maxOpenLevel: 3 },
@@ -358,6 +361,7 @@ describe("persisted unlock high-water mark", () => {
     const storage = memoryStorage(),
       shared = locks(),
       opts = { ...options, locks: shared };
+    storeCompletedAttempts(storage, wins());
     const restore = failVerification(storage, UNLOCK_KEY);
     expect((await persistUnlockState(storage, wins(), opts)).ok).toBe(false);
     restore();
@@ -375,6 +379,7 @@ describe("persisted unlock high-water mark", () => {
     const storage = memoryStorage(),
       read = storage.getItem,
       write = storage.setItem;
+    storeCompletedAttempts(storage, wins());
     storage.getItem = () => {
       throw Error("blocked");
     };
@@ -461,10 +466,14 @@ it("persists unlock after an unfinished first attempt resumes and completes", as
     ],
   };
   const options = { playerId: "player", locks: null };
+  storeCompletedAttempts(storage, wins(9));
+  const earlier = storedLog(storage).events;
+  storage.setItem(RECORDS_KEY, JSON.stringify({ schema: 1, events: [...earlier, ...log.events] }));
   expect(
     await persistUnlockState(storage, [...wins(9), ...projectRecords(log)], options)
   ).toMatchObject({ ok: true, state: { maxOpenLevel: 3 } });
   log.events.push({ id: "complete", attemptId: data.attemptId, at: 3001, type: "complete" });
+  storage.setItem(RECORDS_KEY, JSON.stringify({ schema: 1, events: [...earlier, ...log.events] }));
   expect(
     await persistUnlockState(storage, [...wins(9), ...projectRecords(log)], options)
   ).toMatchObject({ ok: true, state: { maxOpenLevel: 4 } });

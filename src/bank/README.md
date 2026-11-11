@@ -234,9 +234,11 @@ the log confirms a terminal outcome. If deletion fails, the log still prevents r
 An unfinished, consistent old checkpoint appears as a read-through slot when no new slot or
 abandonment marker exists for its ID. Reading/opening does not migrate it. Every queued
 recorder write checks for pending migration under the same lock, including feedback writes
-without an open game, checkpoint writes, and explicit abandon. Migration is verified before
-the queued operation runs. The old key's exact text is kept even after verification, so a crash
-cannot discard the only copy. New slots take precedence and concurrent migration is idempotent.
+without an open game, checkpoint writes, and explicit abandon. For checkpoint deletion,
+including abandon, migration and deletion are computed in memory and the final store is
+written and verified once. Other queued operations verify migration before they run.
+The old key's exact text is kept even after verification, so a crash cannot discard the only
+copy. New slots take precedence and concurrent migration is idempotent.
 The old format has no checkpoint date; its migrated `updatedAt` uses stable attempt start time.
 Corrupt, unknown-schema, or unreadable old/new storage blocks slot operations without repair.
 
@@ -258,14 +260,23 @@ Missing identity returns `identity_required`; an unknown/wrong-player ID returns
 `flush()` now returns `{ ok: true }` or `{ ok: false, code }`, with `quota_exceeded` or
 `write_failed`. Existing slots survive quota failure and failed work stays queued for retry.
 `flush(true)` retains its previous success/rejection contract. A fresh recorder can list and
-abandon slots to free space even when a playing recorder's queue is blocked. Errors still
-reach `onError`; game actions receive no storage exceptions.
+abandon slots to free space even when a playing recorder's queue is blocked. With a pending
+old checkpoint, abandon writes only the final migrated-and-abandoned store, so it succeeds
+when that store fits even if the expanded intermediate store would exceed quota. This applies
+to abandoning either the old checkpoint or another slot. The retained old key still uses space,
+and even an empty slot store needs room for its abandonment markers.
+
+Ordinary checkpoint saves and record-event writes still persist pending migration first.
+A smaller replacement checkpoint can therefore fit while that intermediate migration exceeds
+quota. This is a known limitation outside the abandon/delete recovery path; use a fresh
+recorder to abandon a checkpoint explicitly. Pending record events, including completion,
+can also remain blocked by migration quota. Errors still reach `onError`; game actions receive
+no storage exceptions.
 
 Without Web Locks the queue guarantees **single-tab behavior only**. Records and slots are
 not a crash-atomic transaction; a log-only attempt is unresumable and browser termination can
 lose queued writes. Concurrent old/new application writers are not a supported synchronization
-protocol. No visible slot picker or new game host wiring is added here. Unlock storage and
-the stale-tab unlock-boundary limitation in #102 remain unchanged.
+protocol. No visible slot picker or new game host wiring is added here.
 
 ## Rule values
 
@@ -432,8 +443,16 @@ value with that derived, dated state; its maximum can be lower than the ignored 
 Monotonic access applies to accepted dated states. Malformed values, unreadable storage,
 wrong players, and unknown schemas still fail closed and are never treated as ignored data.
 
-Round 4 boundary rule: preserve **all levels earned by solves** before applying a non-solve
-opening request. Their boundaries are the actual qualifying completion cursors, including
+The writer re-reads the records inside the shared bank lock and projects the **full log for
+this player** before deriving solve-earned openings. The caller's attempts may be stale and
+are not the source of solve evidence. Persist record events before requesting an unlock
+checkpoint. Missing records supply no solve evidence; unreadable records fail closed.
+Stale-then-fresh and fresh-then-stale callers therefore save the same new boundaries from
+the same canonical log, including after missing, empty-initialized, or ignored undated storage.
+Already saved boundaries remain immutable.
+
+Preserve **all levels earned by solves** before applying a non-solve opening request. Their
+boundaries are the actual qualifying completion cursors, including
 both the tenth L3 solve and the tenth L4 solve when checkpoint writes were delayed or failed.
 A retry can persist L5 directly with both dates; missing observations never convert a normal
 unlock to a write-time opening. An explicit `openLevel` request does not re-date a level that

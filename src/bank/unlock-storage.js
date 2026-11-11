@@ -122,6 +122,11 @@ export async function persistUnlockState(
       const current = readUnlockState(storage, playerId);
       if (current.status === "unreadable")
         return { ok: false, code: "unreadable_storage", detail: current.detail };
+      const records = readRecords(storage);
+      if (records.status === "unreadable") throw new Error("Unreadable bank history");
+      // The caller may predate a delayed completion. Only the full locked log
+      // can date new solve-earned openings; saved boundaries remain immutable.
+      const history = projectRecords(records.log).filter((a) => a.playerId === playerId);
       const previous = current.state?.maxOpenLevel ?? C.unlockInitialLevels;
       const openings = { ...current.state?.openings };
       let frontier = current.state?.frontier ?? current.state?.openings?.[previous];
@@ -137,11 +142,7 @@ export async function persistUnlockState(
         const at = now();
         if (!Number.isSafeInteger(at) || at <= 0)
           throw new Error("A valid opening clock is required");
-        const records = readRecords(storage);
-        if (records.status === "unreadable") throw new Error("Unreadable bank history");
-        const canonicalEnd = latest(
-          projectRecords(records.log).filter((a) => a.playerId === playerId)
-        );
+        const canonicalEnd = latest(history);
         return Math.max(
           at,
           latestCompletion?.endedAt ?? 0,
@@ -156,7 +157,7 @@ export async function persistUnlockState(
         unlockInitialLevels: Math.min(activePolicy.unlockInitialLevels, previous),
       };
       const earned = projectPlayerUnlock(
-        snapshot,
+        history,
         { maxOpenLevel: previous, frontier, openings },
         priorPolicy
       );
@@ -176,7 +177,7 @@ export async function persistUnlockState(
         baseline = requested;
         frontier = openings[baseline];
         derived = projectPlayerUnlock(
-          snapshot,
+          history,
           { maxOpenLevel: baseline, frontier, openings },
           activePolicy
         );
@@ -187,7 +188,7 @@ export async function persistUnlockState(
         // Only an explicit policy transition can open an unearned next level.
         // Existing solve-earned openings retain their actual completion cursors.
         derived = projectPlayerUnlock(
-          snapshot,
+          history,
           { maxOpenLevel: baseline, frontier, openings },
           activePolicy
         );
@@ -198,7 +199,7 @@ export async function persistUnlockState(
           baseline = level;
           frontier = openings[level];
           derived = projectPlayerUnlock(
-            snapshot,
+            history,
             { maxOpenLevel: baseline, frontier, openings },
             activePolicy
           );
