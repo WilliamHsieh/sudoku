@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { createRecorder, BANK_GAME_KEY, BANK_LOCK } from "./recorder.js";
+import { createRecorder, BANK_GAME_KEY, BANK_SAVES_KEY, BANK_LOCK } from "./recorder.js";
 import { memoryStorage, catalogWith } from "./test-fixtures.js";
 import { openCatalog } from "./catalog.js";
 import { selectPuzzle } from "./select.js";
@@ -102,34 +102,37 @@ it("a stale tab cannot overwrite the other tab's board", async () => {
   a.time(4);
   a.save(snapshot, 4);
   await a.flush(true);
-  const saved = storage.getItem(BANK_GAME_KEY);
+  const saved = storage.getItem(BANK_SAVES_KEY);
   b.time(5);
   b.save(snapshot, 5);
   await expect(b.flush(true)).rejects.toThrow(/Could not save/);
-  expect(storage.getItem(BANK_GAME_KEY)).toBe(saved);
+  expect(storage.getItem(BANK_SAVES_KEY)).toBe(saved);
   expect(errors).toHaveBeenCalled();
   expect(log(storage).events.filter((e) => e.type === "time")).toHaveLength(2);
 });
-it.each([BANK_GAME_KEY, RECORDS_KEY])("blocked reads never replace %s or crash", async (key) => {
-  const storage = memoryStorage();
-  const write = vi.spyOn(storage, "setItem");
-  storage.getItem = (k) => {
-    if (k === key) throw Error("blocked");
-    return null;
-  };
-  const error = vi.fn();
-  const r = createRecorder({ storage, locks: null, onError: error });
-  expect(await r.open(await meta("a"))).toBe(null);
-  expect(write).not.toHaveBeenCalled();
-  expect(error).toHaveBeenCalled();
-});
+it.each([BANK_GAME_KEY, BANK_SAVES_KEY, RECORDS_KEY])(
+  "blocked reads never replace %s or crash",
+  async (key) => {
+    const storage = memoryStorage();
+    const write = vi.spyOn(storage, "setItem");
+    storage.getItem = (k) => {
+      if (k === key) throw Error("blocked");
+      return null;
+    };
+    const error = vi.fn();
+    const r = createRecorder({ storage, locks: null, onError: error });
+    expect(await r.open(await meta("a"))).toBe(null);
+    expect(write).not.toHaveBeenCalled();
+    expect(error).toHaveBeenCalled();
+  }
+);
 it("corrupt records remain intact and block a new attempt", async () => {
   const storage = memoryStorage();
   storage.setItem(RECORDS_KEY, '{"schema":99}');
   const r = createRecorder({ storage, locks: null, onError: vi.fn() });
   expect(await r.open(await meta("a"))).toBe(null);
   expect(storage.getItem(RECORDS_KEY)).toBe('{"schema":99}');
-  expect(storage.getItem(BANK_GAME_KEY)).toBe(null);
+  expect(storage.getItem(BANK_SAVES_KEY)).toBe(null);
 });
 it("retries a bank checkpoint after its verification read failed", async () => {
   const storage = memoryStorage();
@@ -143,7 +146,7 @@ it("retries a bank checkpoint after its verification read failed", async () => {
   let fail = false;
   storage.setItem = (key, value) => {
     write(key, value);
-    if (key === BANK_GAME_KEY) fail = true;
+    if (key === BANK_SAVES_KEY) fail = true;
   };
   storage.getItem = (key) => {
     if (fail) {
@@ -156,9 +159,9 @@ it("retries a bank checkpoint after its verification read failed", async () => {
   await r.flush();
   storage.setItem = write;
   await r.flush(true);
-  expect(JSON.parse(read(BANK_GAME_KEY)).meta.attemptId).toBe("a");
+  expect(JSON.parse(JSON.parse(read(BANK_SAVES_KEY)).slots.a).meta.attemptId).toBe("a");
 });
-it("an explicit new attempt may replace only a completed bank checkpoint", async () => {
+it("an explicit new attempt preserves unfinished slots and completion removes only its slot", async () => {
   const storage = memoryStorage();
   const data = await meta("a");
   const a = createRecorder({ storage, locks: null, onError: vi.fn() });
@@ -167,14 +170,15 @@ it("an explicit new attempt may replace only a completed bank checkpoint", async
   a.save(toSnapshot(newGame(data.puzzle.digits)), 0);
   await a.flush(true);
   const b = createRecorder({ storage, locks: null, onError: vi.fn() });
-  expect(await b.open(await meta("b"))).toBe(null);
+  expect(await b.open(await meta("b"))).not.toBe(null);
+  expect(Object.keys(JSON.parse(storage.getItem(BANK_SAVES_KEY)).slots)).toEqual(["a"]);
   a.complete(0);
   await a.flush(true);
   expect(await b.open(await meta("b"))).not.toBe(null);
   b.begin();
   b.save(toSnapshot(newGame(data.puzzle.digits)), 0);
   await b.flush(true);
-  expect(JSON.parse(storage.getItem(BANK_GAME_KEY)).meta.attemptId).toBe("b");
+  expect(JSON.parse(JSON.parse(storage.getItem(BANK_SAVES_KEY)).slots.b).meta.attemptId).toBe("b");
   expect(log(storage).events.filter((e) => e.type === "start")).toHaveLength(2);
 });
 it("two resumed contexts retain every hint and time event for the same attempt", async () => {

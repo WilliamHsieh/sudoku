@@ -9,7 +9,7 @@ import { selectPuzzle } from "./select.js";
 import { openCatalog } from "./catalog.js";
 import { catalogWith, memoryStorage } from "./test-fixtures.js";
 import { readRecords, projectRecords, RECORDS_KEY } from "./records.js";
-import { BANK_GAME_KEY } from "./recorder.js";
+import { BANK_GAME_KEY, BANK_SAVES_KEY } from "./recorder.js";
 import { createUpdateAction } from "../auto-update-browser.js";
 
 const games = [];
@@ -87,7 +87,8 @@ it("persists edits, notes and elapsed time; explicit reload resumes the same att
   timer.set(12);
   game.bankLifecycle("background");
   await game.flushProgress(true);
-  const checkpoint = JSON.parse(storage.getItem(BANK_GAME_KEY));
+  const store = JSON.parse(storage.getItem(BANK_SAVES_KEY));
+  const checkpoint = JSON.parse(Object.values(store.slots)[0]);
   game.load(DEMO_PUZZLE);
   await game.flushProgress(true);
   const resumed = setup(storage).game;
@@ -96,10 +97,12 @@ it("persists edits, notes and elapsed time; explicit reload resumes the same att
   expect(resumed.notesMode).toBe("manual");
   expect(resumed.hasNote(80, 9)).toBe(true);
   expect(get(timer)).toBe(12);
-  expect(JSON.parse(storage.getItem(BANK_GAME_KEY)).snapshot).toEqual(checkpoint.snapshot);
+  expect(
+    JSON.parse(Object.values(JSON.parse(storage.getItem(BANK_SAVES_KEY)).slots)[0]).snapshot
+  ).toEqual(checkpoint.snapshot);
   expect(log(storage).events.filter((e) => e.type === "start")).toHaveLength(1);
   expect(log(storage).events.at(-1).type).toBe("resume");
-  expect([...storage.data.keys()].sort()).toEqual([BANK_GAME_KEY, RECORDS_KEY].sort());
+  expect([...storage.data.keys()].sort()).toEqual([BANK_SAVES_KEY, RECORDS_KEY].sort());
   expect(onError).not.toHaveBeenCalled();
 });
 it("records only closed-to-open star panel uses, including an unavailable provider", async () => {
@@ -268,13 +271,16 @@ it("restoring a checkpoint with changed attempt identity fails closed", async ()
   await game.startBank(await meta());
   game.load(DEMO_PUZZLE);
   await game.flushProgress(true);
-  const checkpoint = JSON.parse(storage.getItem(BANK_GAME_KEY));
+  const store = JSON.parse(storage.getItem(BANK_SAVES_KEY));
+  const checkpoint = JSON.parse(Object.values(store.slots)[0]);
   checkpoint.meta.playerId = "different-player";
-  const damaged = JSON.stringify(checkpoint);
-  storage.setItem(BANK_GAME_KEY, damaged);
+  checkpoint.playerId = "different-player";
+  store.slots[checkpoint.meta.attemptId] = JSON.stringify(checkpoint);
+  const damaged = JSON.stringify(store);
+  storage.setItem(BANK_SAVES_KEY, damaged);
   const resumed = setup(storage).game;
   expect(await resumed.startBank()).toBe(false);
-  expect(storage.getItem(BANK_GAME_KEY)).toBe(damaged);
+  expect(storage.getItem(BANK_SAVES_KEY)).toBe(damaged);
 });
 it("new metadata after completion starts a new attempt without reusing the old ID", async () => {
   const { game, storage } = setup();

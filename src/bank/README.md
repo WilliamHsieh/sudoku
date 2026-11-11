@@ -131,7 +131,7 @@ const resumed = await game.startBank();
 `buildBankGameMeta` is pure and clones the selected puzzle, level, ID, mode, source, and full
 recommendation snapshot (range, reason, seed, rule/history/catalog versions and context).
 It rejects locked/exhausted proposals. It does not load a catalog, generate IDs, or write storage.
-`startBank` returns false for a missing resume, invalid data, or an existing unfinished bank save.
+`startBank` returns false for a missing resume, invalid data, or a reused attempt ID.
 It leaves the current game alone in those cases. Storage write failures after launch leave the
 board usable and the queued work available for retry. `createGame(options)` accepts recorder
 storage, Web Locks, clock, ID generator and `onError` dependencies for isolated tests.
@@ -182,15 +182,17 @@ attempt needs a new `startBank(meta)` with a new attempt ID, rather than `restar
 Storage keys:
 
 - `sudoku-bank-records-v1`: existing schema-1 append-only log; schema unchanged.
-- `sudoku-bank-game-v1`: new schema-1 checkpoint containing board snapshot (answers, notes,
-  overrides and trusted eliminations), metadata, displayed elapsed seconds and cumulative
-  effective milliseconds. It is kept after completion and may be replaced only by an explicit
-  new attempt after the log confirms completion. Tests cover that replacement rule.
+- `sudoku-bank-game-v1`: the old schema-1 single checkpoint. Read-through migration keeps
+  its original text unchanged; this recorder never writes or deletes this key.
+- `sudoku-bank-saves-v1`: schema-1 slot map, keyed by attempt ID. Each checkpoint contains
+  answers, notes, overrides, trusted eliminations, metadata, displayed elapsed seconds,
+  cumulative effective milliseconds, `playerId`, and `updatedAt`. Explicitly abandoned
+  attempt IDs are retained as small markers in the same store.
 - The recommendation key is unchanged; this adapter does not publish recommendations or
   persist unlock state. The caller still owns recommendation issuance.
 
 Every record append and checkpoint write uses `navigator.locks.request("sudoku-bank-writes-v1")`.
-Both run after a fresh storage read. Checkpoints use the last confirmed raw value as an
+Both run after a fresh storage read. Each slot uses its last confirmed raw value as an
 optimistic revision, following `persistence.js`'s stale-save protection. A stale tab cannot
 replace another tab's board. Its failed write remains queued and blocks a strict Update flush.
 Without Web Locks, an in-document promise queue provides **single-tab behavior only**;
@@ -203,13 +205,67 @@ A strict flush rejects if work remains, so the existing Update error path preven
 and reload. Successful queues can be retried without duplicate events. `pagehide` requests a
 final write but browsers can terminate before asynchronous locks finish; regular timer and
 board checkpoints limit this loss. Explicit Update waits for the queue for at most two seconds, then continues activation/reload;
-unpersisted events at that deadline are an accepted loss. The two keys are not a
+unpersisted events at that deadline are an accepted loss. The records and saves keys are not a
 crash-atomic transaction; resume checks their identities and uses the log's cumulative time.
 
 Tests use small generated fixtures, never the published catalog. They drive the game API,
 hint session, cue clock, queue failures and two simulated lock-sharing contexts. The existing
 browser suites check default play/persistence/pause/hints/update. No new browser entry point
 or visible UI is added: **no visible UI change — skips designer review**.
+
+## Multi-slot saves
+
+`recorder.js` adds `BANK_SAVES_KEY`, `listSlots(playerId)`, `resume(attemptId)`,
+`unfinishedSlots(playerId)`, and `abandon(attemptId, playerId)`. These are explicit opt-in
+calls; constructing a recorder does not access storage. `open(meta)` prepares a new attempt
+without dropping other slots; call `begin()` and `save(snapshot, elapsed)` as before.
+`resume(id)` returns that checkpoint or `null`; call `begin(true)` when play resumes.
+`open(null)` keeps latest-checkpoint restore, with attempt ID order breaking timestamp ties.
+
+The layout is `{ schema: 1, slots: { [attemptId]: checkpointJSON }, abandoned: [attemptId] }`.
+Each slot is a JSON string whose exact text serves as its revision. One store gives one atomic
+`setItem` and one verification read under the existing bank lock, with no separate index that
+can disagree with its board. Writers validate a fresh whole-store read, compare the target
+slot with its last confirmed text, preserve other slot strings, recheck the store text, and
+verify the write. Identical delivered retries are accepted. Different-attempt tabs merge
+fresh slots; same-attempt stale boards are rejected. Completion removes only its slot after
+the log confirms a terminal outcome. If deletion fails, the log still prevents resume.
+
+An unfinished, consistent old checkpoint appears as a read-through slot when no new slot or
+abandonment marker exists for its ID. Reading/opening does not migrate it. The next queued
+game write, checkpoint write, or explicit abandon persists the new store under the lock.
+Feedback-only calls without an open game retain their records-only path. The old key's exact
+text is kept even after verification, so a crash cannot discard the only copy. New slots take
+precedence and concurrent migration is idempotent. The old format has no checkpoint date;
+its migrated `updatedAt` uses stable attempt start time. Corrupt, unknown-schema, or unreadable
+old/new storage blocks slot operations without repair.
+
+Both list methods return `{ ok, items, count, code? }`. `listSlots` includes only resumable
+slots, with `attemptId`, `updatedAt`, `mode`, `level`, and `effectiveMs`. `unfinishedSlots`
+joins C2's player-scoped `unfinishedList` with slots, adding `resumable` and `reason`: `null`,
+`missing_slot`, `inconsistent_slot`, or `abandoned`. C2 remains the source and ordering rule;
+list activity dates and cumulative time come from the log. Read failures return `read_failed`.
+Resume validates the full start identity and uses log time when the checkpoint is behind.
+
+There is no hidden eviction or slot limit. Storage grows with full board/metadata snapshots,
+the log, and small abandonment markers; each save reads and rewrites the slot store. Explicit
+`abandon(id, playerId)` returns `{ ok, code? }`, removes only that new-store board copy, and
+keeps a marker against old-key/stale-tab resurrection. It is idempotent, retains history, and
+does not append `give_up` or infer failure. The C2 item stays unfinished but unresumable; play
+again with a new attempt ID. The retained old checkpoint still occupies its original space.
+Missing identity returns `identity_required`; an unknown/wrong-player ID returns `identity_mismatch`.
+
+`flush()` now returns `{ ok: true }` or `{ ok: false, code }`, with `quota_exceeded` or
+`write_failed`. Existing slots survive quota failure and failed work stays queued for retry.
+`flush(true)` retains its previous success/rejection contract. A fresh recorder can list and
+abandon slots to free space even when a playing recorder's queue is blocked. Errors still
+reach `onError`; game actions receive no storage exceptions.
+
+Without Web Locks the queue guarantees **single-tab behavior only**. Records and slots are
+not a crash-atomic transaction; a log-only attempt is unresumable and browser termination can
+lose queued writes. Concurrent old/new application writers are not a supported synchronization
+protocol. No visible slot picker or new game host wiring is added here. Unlock storage and
+the stale-tab unlock-boundary limitation in #102 remain unchanged.
 
 ## Rule values
 
@@ -282,7 +338,7 @@ feedback use, upload, or aggregation. Importing the modules or creating a record
 read or write storage. The host calls these functions only after bank opt-in. All selectors
 accept projected schema-1 bank attempts and leave their inputs unchanged. They reject mixed
 players, as unlock does. `levelList` also checks its explicit `playerId`. Custom and legacy
-records belong to a later UI merge, and multi-slot board saves belong to C3.
+records belong to a later UI merge. C3 adds the multi-slot board store described above.
 
 `player-api.js` exports four pure functions:
 

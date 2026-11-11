@@ -3,12 +3,16 @@ import { validateBankGameMeta } from "./game-meta.js";
 import { fromSnapshot } from "../game/snapshot.js";
 import { freezeSnapshot } from "./catalog.js";
 import { canonical } from "./random.js";
+import { unfinishedList } from "./player-api.js";
 
 import { withBankLock } from "./write-lock.js";
 export { BANK_LOCK } from "./write-lock.js";
 
 export const BANK_GAME_KEY = "sudoku-bank-game-v1";
+export const BANK_SAVES_KEY = "sudoku-bank-saves-v1";
 /** @typedef {{schema: 1, meta: import('./types.js').BankGameMeta, snapshot: import('../game/snapshot.js').Snapshot, elapsed: number, effectiveMs: number}} BankSave */
+/** @typedef {BankSave & {playerId: string, updatedAt: number}} BankSlot */
+/** @typedef {{schema: 1, slots: Record<string, string>, abandoned: string[]}} SaveStore */
 /** @param {BankSave} value */
 function validateSave(value) {
   if (
@@ -64,30 +68,124 @@ export function createRecorder(options = {}) {
   const jobs = [];
   /** @type {Promise<void> | null} */
   let draining = null;
+  let failureCode = null;
 
   function locked(work) {
     return withBankLock(locks, work);
   }
-  function readSave() {
-    const raw = storage.getItem(BANK_GAME_KEY);
-    return { raw, value: raw === null ? null : validateSave(JSON.parse(raw)) };
+  // Callers hold the bank lock. Raw strings are per-slot revisions, so a
+  // different attempt's write does not invalidate this recorder's checkpoint.
+  function readSaves(log) {
+    const raw = storage.getItem(BANK_SAVES_KEY);
+    /** @type {SaveStore} */
+    const store = raw === null ? { schema: 1, slots: {}, abandoned: [] } : JSON.parse(raw);
+    if (
+      store?.schema !== 1 ||
+      !store.slots ||
+      typeof store.slots !== "object" ||
+      Array.isArray(store.slots) ||
+      !Array.isArray(store.abandoned) ||
+      !store.abandoned.every((id) => typeof id === "string" && id.length > 0) ||
+      new Set(store.abandoned).size !== store.abandoned.length
+    )
+      throw new Error("Invalid bank saves store");
+    const slots = new Map();
+    for (const [id, text] of Object.entries(store.slots)) {
+      if (typeof text !== "string") throw new Error("Invalid bank slot text");
+      /** @type {BankSlot} */
+      const value = JSON.parse(text);
+      validateSave(value);
+      if (
+        id !== value.meta.attemptId ||
+        value.playerId !== value.meta.playerId ||
+        !Number.isSafeInteger(value.updatedAt) ||
+        value.updatedAt <= 0 ||
+        store.abandoned.includes(id)
+      )
+        throw new Error("Invalid bank slot identity");
+      slots.set(id, { raw: text, value });
+    }
+    const oldRaw = storage.getItem(BANK_GAME_KEY);
+    let migration = false;
+    if (oldRaw !== null) {
+      const old = validateSave(JSON.parse(oldRaw));
+      const id = old.meta.attemptId;
+      const attempt = projectRecords(log).find((a) => a.attemptId === id);
+      if (attempt && !isTerminal(attempt) && !slots.has(id) && !store.abandoned.includes(id)) {
+        if (!consistent(old, log)) throw new Error("Bank save identity or time mismatch");
+        // The old format has no checkpoint date. Use a stable date so later
+        // log events cannot change this read-through slot's revision.
+        const value = { ...old, playerId: old.meta.playerId, updatedAt: attempt.startedAt };
+        const text = JSON.stringify(value);
+        store.slots = { ...store.slots, [id]: text };
+        slots.set(id, { raw: text, value });
+        migration = true;
+      }
+    }
+    return { raw, store, slots, migration };
+  }
+  function consistent(value, log) {
+    const attempt = projectRecords(log).find((a) => a.attemptId === value.meta.attemptId);
+    const start = log.events.find(
+      (e) => e.type === "start" && e.attemptId === value.meta.attemptId
+    );
+    return (
+      !!attempt &&
+      !isTerminal(attempt) &&
+      start?.type === "start" &&
+      canonical(start.start) === canonical(value.meta) &&
+      value.effectiveMs <= attempt.effectiveMs
+    );
+  }
+  function writeSaves(current) {
+    const raw = JSON.stringify(current.store);
+    if (storage.getItem(BANK_SAVES_KEY) !== current.raw)
+      throw new Error("Bank saves changed during write");
+    storage.setItem(BANK_SAVES_KEY, raw);
+    if (storage.getItem(BANK_SAVES_KEY) !== raw) throw new Error("Bank save not verified");
+    // The old key is deliberately never rewritten or deleted, even after verification.
   }
   function records() {
     const result = readRecords(storage);
     if (result.status === "unreadable") throw new Error(result.detail);
     return result.log;
   }
+  function append(payload) {
+    let writeError;
+    const result = saveEvent(
+      {
+        getItem: (key) => storage.getItem(key),
+        setItem: (key, value) => {
+          try {
+            storage.setItem(key, value);
+          } catch (error) {
+            writeError = error;
+            throw error;
+          }
+        },
+      },
+      payload
+    );
+    if (!result.ok) throw writeError ?? new Error(result.code);
+    return result;
+  }
   function drain() {
     if (!draining) {
       let failed = false;
       draining = locked(() => {
+        failureCode = null;
         while (jobs.length) {
+          if (meta) {
+            const current = readSaves(records());
+            if (current.migration) writeSaves(current);
+          }
           jobs[0]();
           jobs.shift();
         }
       })
         .catch((error) => {
           failed = true;
+          failureCode = error?.name === "QuotaExceededError" ? "quota_exceeded" : "write_failed";
           fail(error);
         })
         .finally(() => {
@@ -133,13 +231,12 @@ export function createRecorder(options = {}) {
       const at = Math.max(1, originalAt, attempt?.updatedAt ?? 0);
       if (running && attempt?.outcome === "paused") {
         const last = log.events.filter((event) => event.attemptId === attemptId).at(-1);
-        const resumed = saveEvent(storage, {
+        const resumed = append({
           id: `${id}:resume:${last.id}`,
           attemptId,
           at,
           type: "resume",
         });
-        if (!resumed.ok) throw new Error(resumed.code);
         attempt = projectRecords(resumed.log).find((a) => a.attemptId === attemptId);
       }
       const payload = {
@@ -152,8 +249,7 @@ export function createRecorder(options = {}) {
           ? { effectiveMs: Math.max(extra.effectiveMs, attempt?.effectiveMs ?? 0) }
           : {}),
       };
-      const result = saveEvent(storage, payload);
-      if (!result.ok) throw new Error(result.code);
+      append(payload);
     });
   }
   /** Set, change, or clear local feedback. Explicit identity supports a finished
@@ -194,14 +290,13 @@ export function createRecorder(options = {}) {
         if (attempt.answerRevealed) return reject("answer_revealed");
         if (attempt.hintCount !== 0 || attempt.hintUsed) return reject("hint_used");
         originalAt ??= now();
-        const saved = saveEvent(storage, {
+        append({
           id,
           attemptId,
           type: "feedback",
           feedback,
           at: Math.max(1, originalAt, attempt.updatedAt),
         });
-        if (!saved.ok) throw new Error(saved.code);
         result = { ok: true, eventId: id };
       });
       await drain();
@@ -219,68 +314,175 @@ export function createRecorder(options = {}) {
     event("time", { effectiveMs });
   }
   function save(snapshot, elapsed) {
-    if (!meta) return;
-    /** @type {BankSave} */
-    const value = structuredClone({ schema: 1, meta, snapshot, elapsed, effectiveMs });
+    if (!meta || finished) return;
+    /** @type {BankSlot} */
+    const value = structuredClone({
+      schema: 1,
+      meta,
+      playerId: meta.playerId,
+      snapshot,
+      elapsed,
+      effectiveMs,
+      updatedAt: Math.max(1, now()),
+    });
     enqueue(() => {
       validateSave(value);
-      const current = readSave();
+      if (!Number.isSafeInteger(value.updatedAt) || value.updatedAt <= 0)
+        throw new Error("Invalid bank slot timestamp");
+      const log = records();
+      const current = readSaves(log);
+      if (current.store.abandoned.includes(value.meta.attemptId))
+        throw new Error("Bank slot was abandoned");
+      if (!consistent(value, log)) throw new Error("Bank save identity or time mismatch");
       const raw = JSON.stringify(value);
-      if (current.raw !== expected && current.raw !== raw)
+      const previous = current.slots.get(value.meta.attemptId)?.raw ?? null;
+      if (previous !== expected && previous !== raw)
         throw new Error("Bank save changed in another tab");
-      storage.setItem(BANK_GAME_KEY, raw);
-      if (storage.getItem(BANK_GAME_KEY) !== raw) throw new Error("Bank save not verified");
+      current.store.slots = { ...current.store.slots, [value.meta.attemptId]: raw };
+      writeSaves(current);
       expected = raw;
+    });
+  }
+  /** Open a fresh session after pending writes succeed. Null keeps the existing
+   * latest-save restore entry; resume(attemptId) selects an exact attempt.
+   * @param {import('./types.js').BankGameMeta | null} next
+   * @param {string} [attemptId] */
+  async function open(next, attemptId) {
+    try {
+      await drain();
+      if (jobs.length) return null;
+      return await locked(() => {
+        const log = records();
+        const current = readSaves(log);
+        let value;
+        if (next) {
+          validateBankGameMeta(next);
+          if (
+            projectRecords(log).some((a) => a.attemptId === next.attemptId) ||
+            current.slots.has(next.attemptId) ||
+            current.store.abandoned.includes(next.attemptId)
+          )
+            throw new Error("Attempt already exists; resume it");
+        } else {
+          value =
+            attemptId === undefined
+              ? [...current.slots.values()]
+                  .map((s) => s.value)
+                  .filter((s) => consistent(s, log))
+                  .sort(
+                    (a, b) =>
+                      b.updatedAt - a.updatedAt || (a.meta.attemptId < b.meta.attemptId ? -1 : 1)
+                  )[0]
+              : current.slots.get(attemptId)?.value;
+          if (!value) return null;
+          if (!consistent(value, log)) throw new Error("Bank save identity or time mismatch");
+        }
+        meta = freezeSnapshot(structuredClone(next ?? value.meta));
+        const attempt = projectRecords(log).find((a) => a.attemptId === meta.attemptId);
+        effectiveMs = next ? 0 : attempt.effectiveMs;
+        offset = next ? 0 : effectiveMs - value.elapsed * 1000;
+        settings = next ? meta.settings.candidateMode : attempt.settings.candidateMode;
+        paused = false;
+        finished = false;
+        begun = false;
+        expected = current.slots.get(meta.attemptId)?.raw ?? null;
+        return next ? { meta } : value;
+      });
+    } catch (error) {
+      fail(error);
+      return null;
+    }
+  }
+  /** @param {string} playerId */
+  async function unfinishedSlots(playerId) {
+    try {
+      if (typeof playerId !== "string" || !playerId) throw new Error("Player identity required");
+      return await locked(() => {
+        const log = records();
+        const current = readSaves(log);
+        const list = unfinishedList(projectRecords(log).filter((a) => a.playerId === playerId));
+        const items = list.items.map((item) => {
+          const slot = current.slots.get(item.attemptId)?.value;
+          const resumable = !!slot && consistent(slot, log);
+          return {
+            ...item,
+            resumable,
+            reason: resumable
+              ? null
+              : current.store.abandoned.includes(item.attemptId)
+                ? "abandoned"
+                : slot
+                  ? "inconsistent_slot"
+                  : "missing_slot",
+          };
+        });
+        return { ok: true, items, count: items.length };
+      });
+    } catch (error) {
+      fail(error);
+      return { ok: false, code: "read_failed", items: [], count: 0 };
+    }
+  }
+  function removeCompleted(attemptId) {
+    enqueue(() => {
+      const log = records();
+      const attempt = projectRecords(log).find((a) => a.attemptId === attemptId);
+      if (!attempt || !isTerminal(attempt)) throw new Error("Completion not recorded");
+      const current = readSaves(log);
+      if (!current.slots.has(attemptId)) return;
+      delete current.store.slots[attemptId];
+      writeSaves(current);
     });
   }
   return {
     get meta() {
       return meta;
     },
-    /** @param {import('./types.js').BankGameMeta | null} next null explicitly resumes */
-    async open(next) {
-      try {
-        return await locked(() => {
-          const current = readSave();
-          const log = records();
-          if (next) {
-            validateBankGameMeta(next);
-            if (
-              current.value &&
-              !projectRecords(log).some(
-                (a) => a.attemptId === current.value.meta.attemptId && isTerminal(a)
-              )
-            )
-              throw new Error("An unfinished bank game already exists");
-            if (projectRecords(log).some((a) => a.attemptId === next.attemptId))
-              throw new Error("Attempt already exists; resume it");
-            meta = freezeSnapshot(structuredClone(next));
-            settings = meta.settings.candidateMode;
-          } else {
-            if (!current.value) return null;
-            const attempt = projectRecords(log).find(
-              (a) => a.attemptId === current.value.meta.attemptId
-            );
-            if (!attempt || isTerminal(attempt)) return null;
-            const start = log.events.find(
-              (e) => e.type === "start" && e.attemptId === attempt.attemptId
-            );
-            if (start?.type !== "start" || canonical(start.start) !== canonical(current.value.meta))
-              throw new Error("Bank save identity mismatch");
-            if (current.value.effectiveMs > attempt.effectiveMs)
-              throw new Error("Bank save time exceeds recorded time");
-            meta = freezeSnapshot(current.value.meta);
-            effectiveMs = Math.max(current.value.effectiveMs, attempt.effectiveMs);
-            offset = effectiveMs - current.value.elapsed * 1000;
-            settings = attempt.settings.candidateMode;
-          }
-          expected = current.raw;
-          return next ? { meta } : current.value;
-        });
-      } catch (error) {
-        fail(error);
-        return null;
-      }
+    open,
+    /** @param {string} attemptId */
+    resume(attemptId) {
+      if (typeof attemptId !== "string" || !attemptId) return Promise.resolve(null);
+      return open(null, attemptId);
+    },
+    unfinishedSlots,
+    /** Consistent, resumable slots in unfinishedList order. @param {string} playerId */
+    async listSlots(playerId) {
+      const result = await unfinishedSlots(playerId);
+      const items = result.items
+        .filter((item) => item.resumable)
+        .map(({ attemptId, updatedAt, mode, level, effectiveMs }) => ({
+          attemptId,
+          updatedAt,
+          mode,
+          level,
+          effectiveMs,
+        }));
+      return { ...result, items, count: items.length };
+    },
+    /** Delete only the checkpoint, not the record or its outcome. A marker stops
+     * old saves and stale tabs from resurrecting it. @param {string} attemptId
+     * @param {string} playerId */
+    async abandon(attemptId, playerId) {
+      if (!attemptId || !playerId) return { ok: false, code: "identity_required" };
+      let result = { ok: false, code: "retry_pending" };
+      enqueue(() => {
+        const log = records();
+        const attempt = projectRecords(log).find((a) => a.attemptId === attemptId);
+        if (!attempt || attempt.playerId !== playerId) {
+          result = { ok: false, code: "identity_mismatch" };
+          return;
+        }
+        const current = readSaves(log);
+        if (!current.store.abandoned.includes(attemptId)) {
+          delete current.store.slots[attemptId];
+          current.store.abandoned.push(attemptId);
+          writeSaves(current);
+        }
+        if (meta?.attemptId === attemptId) finished = true;
+        result = { ok: true, code: undefined };
+      });
+      await drain();
+      return jobs.length ? { ok: false, code: failureCode ?? "retry_pending" } : result;
     },
     begin(resumed = false) {
       if (begun) return;
@@ -316,9 +518,11 @@ export function createRecorder(options = {}) {
       }
     },
     complete(elapsed) {
+      if (!meta || finished) return;
       time(elapsed);
       event("complete");
       finished = true;
+      removeCompleted(meta.attemptId);
     },
     restartClock(elapsed) {
       time(elapsed);
@@ -327,6 +531,8 @@ export function createRecorder(options = {}) {
     async flush(strict = false) {
       await drain();
       if (strict && jobs.length) throw new Error("Could not save bank progress. Please retry.");
+      if (!strict)
+        return jobs.length ? { ok: false, code: failureCode ?? "write_failed" } : { ok: true };
     },
   };
 }
