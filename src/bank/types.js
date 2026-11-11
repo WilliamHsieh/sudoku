@@ -1,6 +1,6 @@
 /**
  * @typedef {1|2|3|4|5|6|7|8} Level
- * @typedef {'easy'|'medium'|'hard'|'manual'} Mode
+ * @typedef {'easy'|'medium'|'hard'|'manual'|'sequential'} Mode
  * @typedef {{codes: string[], detail: string}} Reason
  * @typedef {{id: string, digits: string, ratingTenths: number, level: Level, sourceHash?: string, sourceBucket?: string, [key: string]: unknown}} Puzzle
  * @typedef {{repo: string, gitSha: string, files: string[], license: string, grader: {name: string, version: string, settings: string}, verification: {method: string, version: string, url: string}, [key: string]: unknown}} Source
@@ -14,7 +14,7 @@
  * source: Source, mode: Mode, ruleVersion: string, reason: Reason, replay: boolean,
  * settings: Settings, recommendation?: Recommendation}} Start
  * @typedef {Start & {startedAt: number, updatedAt: number, endedAt?: number,
- * effectiveMs: number, hintUsed: boolean, answerRevealed: boolean, outcome: Outcome,
+ * effectiveMs: number, hintCount: number, hintUsed: boolean, answerRevealed: boolean, outcome: Outcome,
  * feedback?: Feedback, settingsHistory: {at: number, settings: Settings}[]}} Attempt
  * @typedef {{id: string, attemptId: string, at: number} & (
  * {type: 'start', start: Start} |
@@ -30,6 +30,6 @@
  * @typedef {{mode: Mode, candidateRange: {min: number, max: number|null}, selectedRatingBucket: number|null,
  * puzzleId: string|null, reason: Reason, fallbackUsed: boolean, ruleVersion: string,
  * historySnapshotVersion: string, catalogVersion: string, seed: string|number,
- * context?: {coldStart: ColdStart, manualLevel?: Level, recentPuzzleIds: (string|null)[]}}} Recommendation
+ * context?: {coldStart: ColdStart, manualLevel?: Level, sequentialLevel?: Level, maxOpenLevel?: Level, recentPuzzleIds: (string|null)[]}}} Recommendation
  */
 export {};

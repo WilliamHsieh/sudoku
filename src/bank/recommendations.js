@@ -9,7 +9,7 @@ export const RECOMMENDATIONS_KEY = "sudoku-bank-recommendations-v1";
 export function validateRecommendation(snapshot) {
   if (
     !snapshot ||
-    !["easy", "medium", "hard", "manual"].includes(snapshot.mode) ||
+    !["easy", "medium", "hard", "manual", "sequential"].includes(snapshot.mode) ||
     ![snapshot.catalogVersion, snapshot.ruleVersion, snapshot.historySnapshotVersion].every(
       (v) => typeof v === "string" && v.length
     ) ||

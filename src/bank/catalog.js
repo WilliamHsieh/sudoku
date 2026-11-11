@@ -1,3 +1,4 @@
+import { catalogIndex } from "./indexes.js";
 import { grade } from "./grade.js";
 import { puzzleId, validateDigits } from "./parse.js";
 
@@ -109,11 +110,10 @@ export async function openCatalog(value) {
   const snapshot = structuredClone(value);
   const catalog = freezeSnapshot(await validateSnapshot(snapshot));
   verified.add(catalog);
-  const byId = new Map(catalog.puzzles.map((p) => [p.id, p]));
-  const byDigits = new Map(catalog.puzzles.map((p) => [p.digits, p]));
+  const index = catalogIndex(catalog);
   return {
     catalog,
-    byId: (/** @type {string} */ id) => structuredClone(byId.get(id)),
-    byDigits: (/** @type {string} */ digits) => structuredClone(byDigits.get(digits)),
+    byId: (/** @type {string} */ id) => structuredClone(index.byId(id)),
+    byDigits: (/** @type {string} */ digits) => structuredClone(index.byDigits(digits)),
   };
 }
