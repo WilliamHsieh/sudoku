@@ -9,8 +9,7 @@
     class="back"
     type="button"
     onclick={onback}
-    aria-label={preview ? "Back to editing" : "Back to daily puzzles"}
-    ><Icon name="arrow-left" /></button
+    aria-label={preview ? "Back to editing" : "Back to home"}><Icon name="arrow-left" /></button
   >
   <h1>{preview ? "Review puzzle" : "Custom puzzle"}</h1>
 </header>

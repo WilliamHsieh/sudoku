@@ -1,5 +1,5 @@
 import { freezeTimers } from "./paint-cases.js";
-import { switchNotesMode } from "./helpers.js";
+import { switchNotesMode, resumeFromHome } from "./helpers.js";
 // Pause, More/Options, Restart, and the single-candidate cue.
 import { test, expect } from "@playwright/test";
 import {
@@ -691,9 +691,7 @@ export function registerPr6Tests(opts = {}) {
   test("reduced motion resumes instantly", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.reload();
-    if ((await page.locator(".board > .cell").count()) === 0) {
-      await page.getByRole("button", { name: /^(?:Play|Back to game|Start puzzle)$/ }).click();
-    }
+    if ((await page.locator(".board > .cell").count()) === 0) await resumeFromHome(page);
     await expect(page.locator(".board > .cell")).toHaveCount(81);
     await page.clock.runFor(2_000);
     await setTabHidden(page, true);
@@ -793,9 +791,8 @@ export function registerPr6Tests(opts = {}) {
     const digit = digits[blank];
     digits[blank] = "0";
     await page.goto(`./?q=${digits.join("")}`);
-    if ((await page.locator(".board > .cell").count()) === 0) {
-      await page.getByRole("button", { name: /^(?:Play|Back to game|Start puzzle)$/ }).click();
-    }
+    if ((await page.locator(".board > .cell").count()) === 0)
+      await page.getByRole("button", { name: "Start puzzle", exact: true }).click();
     await cell(page, blank).click();
     await page.keyboard.press(digit);
     await page.clock.runFor(900);
@@ -816,7 +813,7 @@ export function registerPr6Tests(opts = {}) {
     await expect(page.locator("#header-time .time")).toHaveText(shown);
   });
 
-  test("the journal resumes a hidden game silently", async ({ page }) => {
+  test("Unfinished resumes a hidden game silently", async ({ page }) => {
     await page.clock.runFor(2_000);
     await expect(page.locator("#header-time .time")).toHaveText("0:02");
     await page.locator(".dbtn").click();
@@ -826,7 +823,8 @@ export function registerPr6Tests(opts = {}) {
     await page.clock.runFor(250 + 600);
     await expect(page.locator(".paused-cover")).toHaveCount(0);
     await expect(page.locator("#resume-status")).toHaveText("");
-    await page.getByRole("button", { name: /^(?:Play|Back to game|Start puzzle)$/ }).click();
+    await page.getByRole("button", { name: /Unfinished/ }).click();
+    await page.getByRole("button", { name: /^Resume / }).click();
     await expect(page.locator(".board > .cell")).toHaveCount(81);
     await expect(page.locator(".paused-cover")).toHaveCount(0);
     await expect(page.locator("#time-control")).toHaveAttribute("aria-pressed", "false");
@@ -874,9 +872,8 @@ export function registerPr6Tests(opts = {}) {
 
   test("the cue idle restarts when the reveal ends", async ({ page }) => {
     await page.goto("./?q=" + DEMO_PUZZLE + "&cueMs=3000");
-    if ((await page.locator(".board > .cell").count()) === 0) {
-      await page.getByRole("button", { name: /^(?:Play|Back to game|Start puzzle)$/ }).click();
-    }
+    if ((await page.locator(".board > .cell").count()) === 0)
+      await page.getByRole("button", { name: "Start puzzle", exact: true }).click();
     await expect(page.locator(".board > .cell")).toHaveCount(81);
     await page.clock.runFor(2_000);
     await expect(page.locator(".board")).toHaveAttribute("data-cue-phase", "idle");

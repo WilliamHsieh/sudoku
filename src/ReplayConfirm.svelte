@@ -3,8 +3,8 @@
   import { formatTime } from "./store.js";
   import { fmtTime } from "./journal/format.js";
   import Icon from "./journal/Icon.svelte";
-  /** @type {{time: number, replayTime?: number | null, oncancel: () => void, onconfirm: () => void}} */
-  let { time, replayTime = null, oncancel, onconfirm } = $props();
+  /** @type {{time: number, replayTime?: number | null, bank?: boolean, oncancel: () => void, onconfirm: () => void}} */
+  let { time, replayTime = null, bank = false, oncancel, onconfirm } = $props();
   let dialog = $state(/** @type {HTMLDialogElement | undefined} */ (undefined));
   /** Keep Tab inside the card, including browsers that allow a stop in browser chrome. @param {KeyboardEvent} event */
   function trapFocus(event) {
@@ -41,9 +41,12 @@
   <p id="replay-body">
     {#if replayTime != null}Your replay at <b>{fmtTime(replayTime)}</b> will be cleared and you'll
       start again from 0:00. Your <b>{formatTime(time)}</b> stays saved.
+    {:else if bank}The board clears and the timer starts at 0:00. When you finish, your new time
+      replaces <b>{formatTime(time)}</b>
     {:else}You'll start from a fresh board at 0:00. Your <b>{formatTime(time)}</b> stays saved, and is
       replaced only if you finish.{/if}
   </p>
+  {#if bank}<p class="bank-note">重玩不計入解鎖進度。</p>{/if}
   <div class="actions">
     <button class="quiet" onclick={oncancel}>Cancel</button>
     <button class="primary" onclick={onconfirm}
@@ -77,6 +80,9 @@
     margin: 8px 0 0;
     font: 500 15px/1.45 var(--ui-font);
     color: var(--ui-soft);
+  }
+  .bank-note {
+    margin-top: 6px;
   }
   b {
     color: var(--ui-ink);

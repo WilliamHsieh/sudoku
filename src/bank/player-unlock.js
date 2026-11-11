@@ -85,7 +85,13 @@ export function projectPlayerUnlock(attempts, stored = {}, policy = {}) {
   for (const [key, value] of Object.entries(known)) validateUnlockFrontier(value, Number(key));
   const dated = Object.values(known).sort((a, b) => a.level - b.level);
   const completions = firstAttempts(attempts, attempts[0]?.playerId)
-    .filter((a) => a.outcome === "independent_complete" && !a.answerRevealed && hasEnd(a))
+    .filter(
+      (a) =>
+        ["manual", "sequential"].includes(a.mode) &&
+        a.outcome === "independent_complete" &&
+        !a.answerRevealed &&
+        hasEnd(a)
+    )
     .sort(order);
   const credited = new Set();
   /** @type {Map<number, UnlockFrontier>} */

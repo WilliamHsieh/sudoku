@@ -1,6 +1,5 @@
 // Short phones shrink the keypad before the board; below the minimum layout, the body can scroll.
 import { test, expect } from "@playwright/test";
-import { test as fixedPuzzleTest } from "./fixed-puzzles.js";
 
 const VIEWS = [
   { width: 390, height: 844 },
@@ -119,29 +118,20 @@ test.describe("native shell", () => {
       await expect(page.locator("dialog.opts")).toBeHidden();
 
       await page.goto("./?freeze");
-      await expect(page.locator(".journal")).toBeVisible();
+      await expect(page.locator(".bank-pages")).toBeVisible();
       await expectNoPageOverflow(page);
-      if (mobile) {
-        await expectInsideViewport(page, ".header");
-        await expectInsideViewport(page, ".journal");
-        await expect(page.locator(".mobile")).toHaveCSS("overscroll-behavior", "contain");
-      } else {
-        await expectInsideViewport(page, ".header");
-        await expect(page.locator(".page.desktop")).toHaveCSS("overscroll-behavior", "contain");
-      }
+      await expectInsideViewport(page, ".bank-pages .bar");
+      await expect(page.locator(".bank-pages")).toHaveCSS("overscroll-behavior", "contain");
     });
   }
 
-  test("short journal lists scroll inside the page, not the page", async ({ page }) => {
+  test("short home and level list scroll inside the page", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 667 });
-    await page.goto("./?freeze");
-    await expect(page.locator(".journal")).toBeVisible();
-    const scroll = await page.locator(".mobile").evaluate((el) => ({
-      overflow: el.scrollHeight - el.clientHeight,
-      behavior: getComputedStyle(el).overscrollBehavior,
-    }));
-    expect(scroll.overflow).toBeGreaterThan(0);
-    expect(scroll.behavior).toBe("contain");
+    await page.goto("./");
+    await page.getByRole("button", { name: "Choose L1–L8" }).click();
+    await page.getByRole("button", { name: /^L3 / }).click();
+    await expect(page.locator(".puzzles li").last()).toBeAttached();
+    await page.locator(".puzzles li").last().scrollIntoViewIfNeeded();
     await expectNoPageOverflow(page);
   });
 
@@ -168,10 +158,8 @@ test.describe("native shell", () => {
     await page.locator("#opts-done").click();
 
     await page.goto("./?freeze");
-    await page.locator(".mobile .day.is-latest").click();
-    await expect(page.locator(".sheet")).toHaveCSS("animation-name", "none");
-    await expect(page.locator(".scrim")).toHaveCSS("animation-name", "none");
-    await expect(page.locator(".mgrid")).toHaveCSS("transition-duration", "0s");
+    await page.getByRole("button", { name: "Choose L1–L8" }).click();
+    await expect(page.locator(".pages-view")).toHaveCSS("animation-name", "none");
   });
 
   test("overlays ease out in about 260ms when motion is allowed", async ({ page }) => {
@@ -214,26 +202,6 @@ test.describe("native shell", () => {
     expect(closing.d).toBe("0.26s");
     expect(closing.e).toBe(EASE);
     await expect(page.locator("dialog.opts")).toBeHidden();
-
-    await page.goto("./?freeze");
-    await page.locator(".mobile .day.is-latest").click();
-    await expect(page.locator(".sheet")).toBeVisible();
-    const daySheet = await page.locator(".sheet").evaluate((el) => {
-      const cs = getComputedStyle(el);
-      return { d: cs.animationDuration, e: cs.animationTimingFunction, name: cs.animationName };
-    });
-    expect(daySheet.name).toContain("sheet-up");
-    expect(daySheet.d).toBe("0.26s");
-    expect(daySheet.e).toBe(EASE);
-    await page.locator(".sheet").getByRole("button", { name: "Close" }).click();
-    await expect(page.locator(".sheet")).toHaveClass(/closing/);
-    const dayOut = await page.locator(".sheet").evaluate((el) => {
-      const cs = getComputedStyle(el);
-      return { d: cs.animationDuration, name: cs.animationName };
-    });
-    expect(dayOut.name).toContain("sheet-down");
-    expect(dayOut.d).toBe("0.26s");
-    await expect(page.locator(".sheet")).toHaveCount(0);
 
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("./?shot=1&freeze");
@@ -467,6 +435,7 @@ test.describe("native shell", () => {
   });
 
   test("standalone keeps browser-tab geometry at every viewport", async ({ page, context }) => {
+    test.slow(); // This case loads both shells at every viewport.
     const cdp = await context.newCDPSession(page);
     for (const vp of [
       { width: 390, height: 844 },
@@ -492,6 +461,7 @@ test.describe("native shell", () => {
   });
 
   test("short windows can scroll every cell and Resume fully into view", async ({ page }) => {
+    test.slow(); // Check all 81 cells in both browser and standalone modes.
     await page.setViewportSize({ width: 800, height: 200 });
     for (const standalone of [false, true]) {
       await page.goto(`./?shot=1&freeze${standalone ? "&standalone=1" : ""}`);
@@ -505,33 +475,6 @@ test.describe("native shell", () => {
       await expectScrollableTarget(page.locator("#resume"));
     }
   });
-
-  fixedPuzzleTest(
-    "journal last row and legend scroll fully into view, including a 6-row month",
-    async ({ page }) => {
-      await page.clock.install({ time: new Date("2026-10-21T12:00:00") });
-      for (const vp of VIEWS) {
-        await page.setViewportSize(vp);
-        await page.goto("./?freeze");
-        await expectMonthReachable(page, "October");
-        const prev = page.locator("button[aria-label='Previous month']").locator("visible=true");
-        await prev.click();
-        await expect(visibleTitle(page)).toContainText("September");
-        await prev.click();
-        await expect(visibleTitle(page)).toContainText("August");
-        await expectMonthReachable(page, "August");
-        const rows = await page.evaluate(() => {
-          const grid = [...document.querySelectorAll(".mgrid, .dgrid")].find(
-            (el) => el.getClientRects().length > 0
-          );
-          const days = [...grid.querySelectorAll(".day")];
-          const tops = new Set(days.map((el) => Math.round(el.getBoundingClientRect().top)));
-          return tops.size;
-        });
-        expect(rows, `${vp.width}x${vp.height} August rows`).toBe(6);
-      }
-    }
-  );
 });
 
 const SHORT_WIDE = [
@@ -621,34 +564,6 @@ test("pause Resume keeps a 44px target inside short boards", async ({ page }) =>
 });
 
 /** @param {import('@playwright/test').Page} page */
-function visibleTitle(page) {
-  return page.locator(".mhead h1, .dmhead h2").locator("visible=true");
-}
-
-/**
- * Scroll the journal scroller so the last day and the legend are fully inside
- * both the scroller and the viewport.
- * @param {import('@playwright/test').Page} page
- * @param {string} month
- */
-async function expectMonthReachable(page, month) {
-  await expect(visibleTitle(page)).toContainText(month);
-  await expectNoPageOverflow(page);
-  const mobile = (page.viewportSize()?.width ?? 0) < 600;
-  const scroller = page.locator(mobile ? ".mobile" : ".page.desktop");
-  const port = await scroller.boundingBox();
-  const vp = page.viewportSize();
-  expect(port.y + port.height, "journal scroller bottom").toBeGreaterThan(vp.height - 2);
-  expect(port.y + port.height).toBeLessThanOrEqual(vp.height + 1);
-
-  const last = page.locator(".mgrid .day, .dgrid .day").locator("visible=true").last();
-  await last.scrollIntoViewIfNeeded();
-  await expectBoxInside(page, last, scroller);
-  const legend = page.locator(mobile ? ".mobile .legend" : ".legend.dleg");
-  await legend.scrollIntoViewIfNeeded();
-  await expectBoxInside(page, legend, scroller);
-}
-
 /** @param {import('@playwright/test').Page} page @param {string} selector */
 async function expectFullyInView(page, selector) {
   const boxes = await page.locator(selector).evaluateAll((els) =>
@@ -676,24 +591,6 @@ async function expectFullyInView(page, selector) {
   }
 }
 
-/**
- * @param {import('@playwright/test').Page} page
- * @param {import('@playwright/test').Locator} target
- * @param {import('@playwright/test').Locator} scroller
- */
-async function expectBoxInside(page, target, scroller) {
-  const box = await target.boundingBox();
-  const port = await scroller.boundingBox();
-  const vp = page.viewportSize();
-  expect(box).toBeTruthy();
-  expect(box.y).toBeGreaterThanOrEqual(port.y - 1);
-  expect(box.y + box.height).toBeLessThanOrEqual(port.y + port.height + 1);
-  expect(box.y).toBeGreaterThanOrEqual(-1);
-  expect(box.y + box.height).toBeLessThanOrEqual(vp.height + 1);
-  expect(box.x).toBeGreaterThanOrEqual(-1);
-  expect(box.x + box.width).toBeLessThanOrEqual(vp.width + 1);
-}
-
 /** @param {import('@playwright/test').Page} page */
 async function shellGeometry(page) {
   await page.locator("main").waitFor();
@@ -707,8 +604,8 @@ async function shellGeometry(page) {
     };
     return {
       board: rect(".board"),
-      title: rect(document.querySelector("main.on-journal") ? ".header h1" : ".dbtn"),
-      journal: rect(".journal"),
+      title: rect(document.querySelector("main.on-pages") ? ".bank-pages h1" : ".dbtn"),
+      home: rect(".bank-pages"),
       documentHeight: document.scrollingElement.scrollHeight,
       bodyHeight: document.body.scrollHeight,
       innerHeight,

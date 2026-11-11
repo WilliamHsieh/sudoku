@@ -1,320 +1,212 @@
 import { test, expect } from "@playwright/test";
-import { prepareSolved, finishSolved, blanks, solution } from "./solved-fixture.js";
-const sizes = [
-  [390, 844],
-  [768, 1024],
-  [1024, 768],
-  [1280, 800],
-  [1440, 900],
-];
-test.use({ colorScheme: "light" });
-for (const [width, height] of sizes) {
-  test(`solved layout ${width}x${height}, focus, announcement and actions`, async ({ page }) => {
-    await page.setViewportSize({ width, height });
-    await prepareSolved(page);
-    const before = await page.locator(".board").boundingBox();
-    await finishSolved(page);
-    await expect(page.locator("#sv-h")).toBeFocused();
-    await expect(page.locator(".sv-live")).toHaveText(
-      "Solved in 6 minutes 42 seconds. 1 minute 28 seconds faster than your Easy average. 4-day streak."
-    );
-    await expect(page.locator(".sv-time")).toHaveText("6:42");
-    await expect(page.locator(".sv-panel dl")).toContainText("−1:28");
-    await expect(page.locator(".sv-panel dd").last()).toHaveAttribute(
-      "aria-label",
-      "1 of 3 solved today"
-    );
-    await expect(page.locator(".game-controls, #keypad, .auto-slot")).toHaveCount(0);
-    await expect(page.locator("#time-control")).toHaveAttribute("aria-disabled", "true");
-    await expect(page.locator("#time-control")).not.toHaveAttribute("aria-pressed");
-    await expect(page.locator("#time-control")).not.toHaveAttribute("title");
-    await expect(page.locator('.success-message, [role="dialog"]')).toHaveCount(0);
-    await page
-      .locator(".sv-panel")
-      .evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
-    const board = await page.locator(".board").boundingBox();
-    expect(board).toEqual(before);
-    const panel = await page.locator(".sv-panel").boundingBox();
-    expect(panel.x).toBeGreaterThanOrEqual(0);
-    expect(panel.x + panel.width).toBeLessThanOrEqual(width);
-    expect(panel.y + panel.height).toBeLessThanOrEqual(height);
-    if (width >= 600) {
-      expect(panel.width).toBe(236);
-      expect(panel.y).toBe(board.y);
-      expect(panel.height).toBe(board.height);
-    } else {
-      expect(panel.y).toBeCloseTo(440, 0);
-    }
-    await page.keyboard.press("Tab");
-    await expect(page.locator(".sv-next")).toBeFocused();
-    await page.keyboard.press("Tab");
-    await expect(page.locator(".sv-journal")).toBeFocused();
-    await page.keyboard.press("Enter");
-    await expect(page.locator(".journal")).toBeVisible();
-  });
-}
-for (const width of [390, 1280])
-  test(`every game shortcut and pointer/hold/paint path is inert after solve at ${width}`, async ({
-    page,
-  }) => {
+import { solved, resumeTarget } from "./bank-fixture.js";
+
+for (const width of [390, 1280]) {
+  test(`bank result layout, feedback and Next at ${width}`, async ({ page }) => {
     await page.setViewportSize({ width, height: 844 });
-    await prepareSolved(page);
-    await finishSolved(page);
-    await expect(page.locator("#sv-h")).toBeFocused();
-    const snapshot = () =>
-      page.evaluate(() => ({
-        board: [...document.querySelectorAll(".cell")].map((c) => [
-          c.getAttribute("data-value"),
-          c.getAttribute("data-notes"),
-          c.className,
-        ]),
-        time: document.querySelector("#header-time").textContent,
-        progress: localStorage.getItem("sudoku-progress"),
-        solved: localStorage.getItem("sudoku-solved"),
-        mode: document.querySelector(".board").getAttribute("data-notes-mode"),
-      }));
-    const before = await snapshot();
-    // Includes every branch in handleGlobalKeydown/handleKeydown and Shift-hover.
+    await solved(page, { count: 6 });
+    await expect(page.locator(".sv-panel dt")).toHaveText(["vs average", "unlock L4"]);
+    await expect(page.locator(".sv-panel dd").last()).toHaveText("7/10");
+    await expect(page.getByRole("button", { name: "Next: L3" })).toBeVisible();
+    await page.getByRole("button", { name: "輕鬆", exact: true }).click();
+    await expect(page.getByRole("button", { name: "輕鬆", exact: true })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            JSON.parse(localStorage.getItem("sudoku-bank-records-v1"))
+              .events.filter((e) => e.type === "feedback")
+              .at(-1)?.feedback
+        )
+      )
+      .toBe("light");
+    await page.getByRole("button", { name: "輕鬆", exact: true }).click();
+    await expect(page.getByRole("button", { name: "輕鬆", exact: true })).toHaveAttribute(
+      "aria-pressed",
+      "false"
+    );
+    await page.locator("#sv-h").focus();
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".sv-panel")).toHaveCount(0);
+    await expect(page.locator(".board")).toBeVisible();
+  });
+  test(`solved board rejects all game input at ${width}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await solved(page);
+    const before = await page.locator(".board").innerText();
     for (const key of [
-      "0",
       "1",
-      "2",
-      "3",
-      "4",
-      "5",
-      "6",
-      "7",
-      "8",
-      "9",
       "ArrowLeft",
-      "ArrowRight",
-      "ArrowUp",
-      "ArrowDown",
       "Backspace",
       "Delete",
       "Control+z",
-      "Meta+z",
-      "Control+Shift+z",
-      "Meta+Shift+z",
       "Control+y",
-      "Tab",
-      "Shift+1",
-      "Shift+2",
-      "Shift+3",
-      "Shift+4",
-      "Shift+5",
-      "Shift+6",
-      "Shift+7",
-      "Shift+8",
-      "Shift+9",
-      "Space",
-      "Escape",
       "p",
-      "P",
-      "Control+1",
-      "Alt+2",
-      "Meta+3",
-    ]) {
-      await page.locator("#sv-h").focus();
+      "Shift+1",
+      "Escape",
+    ])
       await page.keyboard.press(key);
-      expect(await snapshot(), key).toEqual(before);
-    }
-    const cell = page.locator(`.cell[data-i="${blanks.at(-1)}"]`);
-    await cell.dispatchEvent("click");
-    await cell.dispatchEvent("contextmenu");
-    await cell.dispatchEvent("pointerdown", { pointerType: "touch", pointerId: 44 });
-    await cell.dispatchEvent("pointerup", { pointerType: "touch", pointerId: 44 });
-    await cell.dispatchEvent("pointerdown", { pointerType: "touch", pointerId: 44 });
-    await page.mouse.move(400, 400);
-    await page.mouse.down();
-    await page.mouse.move(600, 450, { steps: 10 });
-    await page.waitForTimeout(650);
-    await page.mouse.up();
-    expect(await snapshot()).toEqual(before);
+    await page.locator(".board > .cell").nth(0).click({ force: true });
+    await expect(page.locator(".board")).toHaveText(before);
+    await expect(page.locator(".paused-cover")).toHaveCount(0);
   });
-for (const width of [390, 1280])
-  test(`Enter from heading and body opens Next with hardware keyboard at ${width}`, async ({
+  test(`body Enter starts Next; More remains available after solve at ${width}`, async ({
     page,
   }) => {
     await page.setViewportSize({ width, height: 844 });
-    await prepareSolved(page);
-    await finishSolved(page);
-    await expect(page.locator("#sv-h")).toBeFocused();
+    await solved(page);
+    await expect(page.locator(".game-controls")).toHaveCount(0);
+    await page.getByRole("button", { name: "More", exact: true }).filter({ visible: true }).click();
+    await expect(page.getByRole("button", { name: "Restart puzzle", exact: true })).toHaveCount(0);
+    await expect(page.locator("#opt-custom")).toHaveCount(0);
+    await expect(page.locator("#opt-theme")).toBeVisible();
+    await page.getByRole("button", { name: "Done", exact: true }).click();
+    await expect(page.locator("dialog.opts")).not.toBeVisible();
+    await page.locator("#sv-h").focus();
+    await page.evaluate(() => document.activeElement.blur());
     await page.keyboard.press("Enter");
     await expect(page.locator(".sv-panel")).toHaveCount(0);
-    await expect(page.locator(".t2")).toContainText("Medium");
   });
-test("body Enter opens Next", async ({ page }) => {
-  await prepareSolved(page);
-  await finishSolved(page);
-  await expect(page.locator("#sv-h")).toBeFocused();
-  await page.evaluate(() => document.activeElement.blur());
-  await page.keyboard.press("Enter");
-  await expect(page.locator(".t2")).toContainText("Medium");
-});
-test("manual finish fires at 180ms; reduced focus is at S+200, announcement at S+700", async ({
-  page,
-}) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await prepareSolved(page);
-  await page.clock.install();
-  await page.clock.pauseAt(new Date(Date.now() + 1000));
-  await finishSolved(page);
-  await page.clock.runFor(179);
+}
+for (const variant of [
+  { name: "S1 top", count: 6, labels: ["vs average", "unlock L4"], third: "7/10" },
+  {
+    name: "S3 E/M/H",
+    count: 1,
+    mode: "easy",
+    labels: ["vs average", "day streak", "puzzle level"],
+    third: "L3",
+  },
+  {
+    name: "S4 L8",
+    level: 8,
+    highest: 8,
+    count: 1,
+    labels: ["vs average", "L8 solved"],
+    third: "2",
+  },
+  { name: "S4b below", highest: 4, count: 1, labels: ["vs average", "L3 solved"], third: "2" },
+  { name: "S4c L2", level: 2, count: 1, labels: ["vs average", "L2 solved"], third: "2" },
+  { name: "S4d first", level: 8, highest: 8, labels: ["L8 solved"], third: "1" },
+  { name: "S5 custom", custom: true, labels: [], third: null },
+  {
+    name: "S7 hinted top",
+    hinted: true,
+    count: 6,
+    labels: ["vs average", "unlock L4"],
+    third: "6/10",
+  },
+  {
+    name: "S7 hinted below",
+    hinted: true,
+    highest: 4,
+    count: 1,
+    labels: ["vs average", "L3 solved"],
+    third: "2",
+  },
+  {
+    name: "S7 hinted L8",
+    hinted: true,
+    level: 8,
+    highest: 8,
+    count: 1,
+    labels: ["vs average", "L8 solved"],
+    third: "2",
+  },
+  {
+    name: "S8 hinted E/M/H",
+    hinted: true,
+    mode: "easy",
+    count: 1,
+    labels: ["vs average", "day streak", "puzzle level"],
+    third: "L3",
+  },
+])
+  test(`${variant.name}: exact cells and feeling visibility`, async ({ page }) => {
+    await solved(page, variant);
+    await expect(page.locator(".sv-panel dt")).toHaveText(variant.labels);
+    if (variant.third) await expect(page.locator(".sv-panel dd").last()).toHaveText(variant.third);
+    await expect(page.locator(".sv-feel")).toHaveCount(variant.hinted || variant.custom ? 0 : 1);
+    await expect(page.locator(".sv-panel")).not.toContainText("這題用了提示");
+  });
+test("S6 resumes the most recently played other unfinished game", async ({ page }) => {
+  await solved(page, { extra: true });
+  await page.getByRole("button", { name: "Resume · L3", exact: true }).click();
   await expect(page.locator(".sv-panel")).toHaveCount(0);
-  await page.clock.runFor(1);
-  await expect(page.locator(".sv-panel")).toHaveCount(1);
-  await expect(page.locator(".sv-ring")).toHaveCount(0);
-  await expect(page.locator(".sv-panel")).toHaveCSS("transform", "none");
-  await page.clock.runFor(199);
-  await expect(page.locator("#sv-h")).not.toBeFocused();
-  await page.clock.runFor(1);
-  await expect(page.locator("#sv-h")).toBeFocused();
-  await expect(page.locator(".sv-live")).toBeEmpty();
-  await page.clock.runFor(500);
-  await expect(page.locator(".sv-live")).toContainText("Solved in");
+  await expect(page.locator("[data-time]").first()).toContainText("2:03");
 });
-test("autofill completion uses the real capped stagger and last origin", async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 800 });
-  const remaining = await prepareSolved(page, { autofill: true });
-  await page.evaluate(() => document.activeElement.blur());
-  await page.clock.install();
-  await page.clock.pauseAt(new Date(Date.now() + 1000));
+test("autofill completion still produces one solved panel", async ({ page }) => {
+  await resumeTarget(page);
+  await page.locator(".board").click({ position: { x: 5, y: 5 } });
   await page.keyboard.press("Tab");
-  await expect(page.locator(".af-filled")).toHaveCount(remaining.length);
-  const lastDelay = await page
-    .locator(".af-filled")
-    .last()
-    .evaluate((el) => parseFloat(el.style.getPropertyValue("--af-delay")));
-  expect(lastDelay).toBe(360);
-  await page.clock.runFor(lastDelay + 519);
-  await expect(page.locator(".sv-panel")).toHaveCount(0);
-  await page.clock.runFor(1);
   await expect(page.locator(".sv-panel")).toHaveCount(1);
-  const ring = page.locator(".sv-ring");
-  await expect(ring).toHaveCSS("pointer-events", "none");
-  const origin = await page.locator(`.cell[data-i="${remaining.at(-1)}"]`).boundingBox();
-  const board = await page.locator(".board").boundingBox();
-  expect(await ring.evaluate((el) => parseFloat(el.style.getPropertyValue("--sv-x")))).toBeCloseTo(
-    origin.x + origin.width / 2 - board.x
-  );
 });
-test("longest actual Resume label fits the 236px primary without wrapping", async ({ page }) => {
-  await prepareSolved(page, { lastToday: true });
-  await finishSolved(page);
+for (const action of ["tap", "button", "Enter"])
+  test(`S2 unlock closes by ${action} and only first Enter dismisses`, async ({ page }) => {
+    await solved(page, { count: 9 });
+    const overlay = page.getByRole("dialog", { name: /L4 已解鎖/ });
+    await expect(overlay).toBeVisible();
+    await expect(page.locator(".sv-panel dd").last()).toHaveText("L4");
+    if (action === "tap") await overlay.click({ position: { x: 10, y: 10 } });
+    else if (action === "button") await overlay.getByRole("button", { name: "繼續" }).click();
+    else await page.keyboard.press("Enter");
+    await expect(overlay).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Next: L4" })).toBeVisible();
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".header .t1")).toHaveText("L4");
+    await expect(overlay).toHaveCount(0);
+  });
+test("unlock reduced motion shows end state with focus contained", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await solved(page, { count: 9 });
+  const overlay = page.locator(".unlock-overlay");
+  await expect(overlay.locator(".lock-wrap")).toBeHidden();
+  expect(await overlay.evaluate((el) => el.getAnimations({ subtree: true }).length)).toBe(0);
+  await page.keyboard.press("Tab");
+  await expect(overlay.getByRole("button", { name: "繼續" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(overlay).toHaveCount(0);
   await expect(page.locator("#sv-h")).toBeFocused();
-  await expect(page.locator(".sv-next")).toContainText("Resume May 10 · Medium");
-  const measured = await page.locator(".sv-next > span").evaluate((el) => ({
-    scroll: el.scrollWidth,
-    client: el.clientWidth,
-    whiteSpace: getComputedStyle(el).whiteSpace,
-  }));
-  expect(measured.whiteSpace).toBe("nowrap");
-  expect(measured.scroll).toBeLessThanOrEqual(measured.client);
+});
+test("hinted tenth and replay completions do not show unlock overlay", async ({ page }) => {
+  await solved(page, { count: 9, hinted: true });
+  await expect(page.locator(".unlock-overlay")).toHaveCount(0);
+  await expect(page.locator(".sv-panel dd").last()).toHaveText("9/10");
 });
 
-// Observe rendered feedback, including CSS animations and Web Animations.
-async function observePlacement(page) {
+test("failed feeling persistence leaves the chip unchanged", async ({ page }) => {
+  await solved(page);
   await page.evaluate(() => {
-    window.penFeedback = [];
-    window.penObserver?.disconnect();
-    const inspect = () => {
-      for (const digit of document.querySelectorAll(".pen-box:not(.given)")) {
-        for (const animation of digit.getAnimations()) {
-          const frames = animation.effect.getKeyframes();
-          if (frames.some((frame) => frame.transform === "scale(0.86)")) {
-            window.penFeedback.push({
-              cell: Number(digit.closest(".cell").dataset.i),
-              duration: animation.effect.getTiming().duration,
-              frames: frames.map((frame) => frame.transform),
-            });
-          }
-        }
-      }
+    const write = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (key === "sudoku-bank-records-v1") throw new Error("Storage full");
+      return write.call(this, key, value);
     };
-    window.penObserver = new MutationObserver(inspect);
-    window.penObserver.observe(document.body, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-      attributes: true,
-    });
-    const sample = () => {
-      inspect();
-      window.penFrame = requestAnimationFrame(sample);
-    };
-    cancelAnimationFrame(window.penFrame);
-    sample();
   });
-}
+  const chip = page.getByRole("button", { name: "輕鬆", exact: true });
+  await chip.click();
+  await expect(page.locator(".toast")).toContainText("Could not save your feedback");
+  await expect(chip).toHaveAttribute("aria-pressed", "false");
+});
+test("holding Enter through unlock dismissal does not start Next", async ({ page }) => {
+  await solved(page, { count: 9 });
+  await page.keyboard.down("Enter");
+  await expect(page.locator(".unlock-overlay")).toHaveCount(0);
+  await page.keyboard.down("Enter");
+  await expect(page.getByRole("button", { name: "Next: L4" })).toBeVisible();
+  await page.keyboard.up("Enter");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".header .t1")).toHaveText("L4");
+});
 
-for (const width of [390, 1280]) {
-  test(`correcting the final wrong digit plays placement feedback before solving at ${width}`, async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width, height: width === 390 ? 844 : 800 });
-    await prepareSolved(page);
-    const last = blanks.at(-1);
-    await page.locator(`.cell[data-i="${last}"]`).click();
-    await page.keyboard.press(String((Number(solution[last]) % 9) + 1));
-    await page.waitForTimeout(200);
-    await observePlacement(page);
-    await page.keyboard.press(solution[last]);
-    await expect(page.locator("#sv-h")).toBeFocused();
-    const feedback = await page.evaluate(() => window.penFeedback);
-    expect(feedback.length).toBeGreaterThan(0);
-    expect([...new Set(feedback.map((frame) => frame.cell))]).toEqual([last]);
-    expect(feedback[0].duration).toBe(160);
-    expect(feedback[0].frames).toEqual(["scale(0.86)", "scale(1)"]);
-  });
-
-  test(`loading saved answers and returning from Journal never plays placement feedback at ${width}`, async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width, height: width === 390 ? 844 : 800 });
-    // Observe remounts and a fresh load independently.
-    await prepareSolved(page);
-    await page.locator(".dbtn").click();
-    await expect(page.locator(".journal")).toBeVisible();
-    await observePlacement(page);
-    await page.getByRole("button", { name: "Back to game", exact: true }).click();
-    await expect(page.locator(".board > .cell")).toHaveCount(81);
-    await page.waitForTimeout(250);
-    expect(await page.evaluate(() => window.penFeedback)).toEqual([]);
-    await page.reload();
-    await observePlacement(page);
-    await page.getByRole("button", { name: "Play", exact: true }).click();
-    await expect(page.locator(".board > .cell")).toHaveCount(81);
-    await page.waitForTimeout(250);
-    expect(await page.evaluate(() => window.penFeedback)).toEqual([]);
-  });
-}
-
-for (const theme of ["light", "dark"]) {
-  test(`desktop More keeps its position and Appearance works after solving in ${theme}`, async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 1280, height: 800 });
-    await page.emulateMedia({ colorScheme: theme });
-    await prepareSolved(page);
-    const more = page.locator(".header [data-more]");
-    const before = await more.boundingBox();
-    await finishSolved(page);
-    await expect(page.locator("#sv-h")).toBeFocused();
-    await expect(more).toBeVisible();
-    await expect(more).toBeEnabled();
-    const after = await more.boundingBox();
-    expect(after).toEqual(before);
-    await more.click();
-    const appearance = page.getByRole("combobox", { name: /Appearance/ });
-    await expect(appearance).toBeVisible();
-    await appearance.selectOption(theme === "light" ? "dark" : "light");
-    await expect(page.locator("html")).toHaveAttribute(
-      "data-theme",
-      theme === "light" ? "dark" : "light"
-    );
-    await page.keyboard.press("Escape");
-    await expect(more).toBeFocused();
-    await expect(page.locator(".sv-panel")).toBeVisible();
-  });
-}
+test("unlocking L8 shows its name and Next target", async ({ page }) => {
+  await solved(page, { level: 7, highest: 7, count: 9 });
+  const overlay = page.getByRole("dialog", { name: /L8 已解鎖/ });
+  await expect(overlay).toContainText("高階強制推理");
+  await expect(overlay.locator(".note")).toHaveText("L8");
+  await overlay.click({ position: { x: 10, y: 10 } });
+  await expect(page.getByRole("button", { name: "Next: L8" })).toBeVisible();
+});

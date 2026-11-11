@@ -57,8 +57,8 @@ for (const viewport of [
       await expect(cells.first()).toBeFocused();
       await page.keyboard.press("7");
       await expect(cells.first()).toHaveText("7");
-      await page.getByRole("button", { name: "Back to daily puzzles" }).click();
-      await expect(page.locator(".journal")).toBeVisible();
+      await page.getByRole("button", { name: "Back to home" }).click();
+      await expect(page.locator(".bank-pages")).toBeVisible();
       await expect(entry).toBeFocused();
       await entry.click();
       await expect(cells.first()).toHaveText("7");
@@ -70,22 +70,26 @@ for (const viewport of [
       expect(new URL(page.url()).searchParams.get("q")).toBe(PUZZLE);
     });
 
-    test("More opens the editor without changing the current game", async ({ page }) => {
+    test("Home custom entry keeps the unfinished game and its undo history", async ({ page }) => {
       await page.goto("./");
-      await page.getByRole("button", { name: "Play", exact: true }).click();
+      await page.getByRole("button", { name: /^Easy/ }).click();
       const empty = page.locator(".board > .cell:not(.given)").first();
       const id = await empty.getAttribute("data-i");
       await empty.click();
       await page.keyboard.press("9");
       await expect(empty).toHaveAttribute("data-value", "9");
-      await page.locator("[data-more]").filter({ visible: true }).click();
-      await page.locator("#opt-custom").click();
+      await page.locator(".dbtn").click();
+      await page.getByRole("button", { name: "Custom puzzle", exact: true }).click();
       await expect(page.locator("dialog[open]")).toHaveCount(0);
       await expect(page.locator(".input-cell")).toHaveCount(81);
       await page.keyboard.press("4");
       await expect(page.locator(".input-cell").first()).toHaveText("4");
-      await page.getByRole("button", { name: "Back to daily puzzles" }).click();
-      await page.getByRole("button", { name: "Back to game", exact: true }).click();
+      await page.getByRole("button", { name: "Back to home" }).click();
+      await page.getByRole("button", { name: /Unfinished/ }).click();
+      await page
+        .getByRole("button", { name: /Resume/ })
+        .first()
+        .click();
       await expect(page.locator(`.board > .cell[data-i="${id}"]`)).toHaveAttribute(
         "data-value",
         "9"
@@ -356,7 +360,7 @@ for (const viewport of [
             };
           });
         await page
-          .locator(".journal-view")
+          .locator(".pages-view")
           .evaluate((el) => Promise.all(el.getAnimations().map((animation) => animation.finished)));
         await tab(initialMode).click();
         // Wait for the layout action and fonts before storing the reference geometry.
@@ -407,7 +411,7 @@ test("short keyboard-sized viewport keeps paste, errors and Start reachable, the
   await page.goto("./");
   await page.getByRole("button", { name: "Custom puzzle", exact: true }).click();
   await page
-    .locator(".journal-view")
+    .locator(".pages-view")
     .evaluate((el) => Promise.all(el.getAnimations().map((animation) => animation.finished)));
   const board = page.locator(".input-board");
   const before = await board.boundingBox();

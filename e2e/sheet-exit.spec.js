@@ -7,7 +7,7 @@ test.use({ viewport });
 
 async function openSheet(page, kind, settle = true) {
   if (kind === "more") {
-    await openBoard(page, "./?shot=1&freeze");
+    await openBoard(page);
     if (settle) await page.locator("[data-more]").filter({ visible: true }).click();
   } else {
     await page.goto("./");
@@ -42,11 +42,11 @@ async function openSheet(page, kind, settle = true) {
 }
 
 for (const entryTime of [null, 64]) {
-  test(`both sheets share the 16 ms exit timeline, entry ${entryTime ?? "settled"}`, async ({
+  test(`More preserves the 16 ms exit timeline, entry ${entryTime ?? "settled"}`, async ({
     page,
   }, testInfo) => {
     const timelines = [];
-    for (const kind of ["difficulty", "more"]) {
+    for (const kind of ["more"]) {
       await openSheet(page, kind, entryTime === null);
       const result = await page.evaluate(
         async ({ kind, entryTime }) => {
@@ -112,10 +112,6 @@ for (const entryTime of [null, 64]) {
       }
       timelines.push(result);
     }
-    for (let i = 0; i < timelines[0].frames.length; i++) {
-      expect(timelines[0].frames[i].fraction).toBeCloseTo(timelines[1].frames[i].fraction, 4);
-      expect(timelines[0].frames[i].scrim).toBeCloseTo(timelines[1].frames[i].scrim, 4);
-    }
     await testInfo.attach("16ms-exit-timelines", {
       body: JSON.stringify(timelines),
       contentType: "application/json",
@@ -129,7 +125,7 @@ for (const reducedMotion of ["no-preference", "reduce"]) {
     test("no frame keeps an overlay or modal backdrop after the sheet leaves", async ({
       page,
     }, testInfo) => {
-      for (const kind of ["difficulty", "more"]) {
+      for (const kind of ["more"]) {
         await openSheet(page, kind);
         const frames = await page.evaluate(async (kind) => {
           const sheet = document.querySelector(kind === "more" ? "dialog.opts" : ".sheet");
@@ -178,26 +174,27 @@ for (const reducedMotion of ["no-preference", "reduce"]) {
   });
 }
 
-test("More keeps the header clear like the picker after view navigation", async ({
-  page,
-}, testInfo) => {
-  await openBoard(page, "./?shot=1&freeze");
+test("More keeps the header clear after view navigation", async ({ page }, testInfo) => {
+  // Install before app timers exist; mixing native and fake timer ticks changes the header.
+  await page.clock.install();
+  await openBoard(page);
   await page.addStyleTag({
     content: ".top-strip { height: 47px !important } main { padding-top: 47px !important }",
   });
-  for (const kind of ["difficulty", "more"]) {
+  for (const kind of ["more"]) {
     if (kind === "difficulty") await page.locator(".header .dbtn").click();
     else {
-      await page.clock.resume();
-      await page.getByRole("button", { name: "Back to game", exact: true }).click();
+      await page.locator(".header .dbtn").click();
+      await page.getByRole("button", { name: /Unfinished/ }).click();
+      await page.getByRole("button", { name: /^Resume / }).click();
     }
     await page.evaluate(() =>
       Promise.all(document.getAnimations().map((a) => a.finished.catch(() => {})))
     );
+    await expect(page.locator(".header .dbtn")).toHaveCSS("opacity", "1");
     const header = await page.locator(".header").boundingBox();
     const clip = { x: 0, y: 0, width: 390, height: Math.floor(header.y + header.height) };
     const clockTime = Date.now();
-    await page.clock.install({ time: clockTime });
     await page.clock.pauseAt(clockTime + 1000);
     await page.clock.setFixedTime(new Date(await page.evaluate(() => Date.now())));
     const reference = await page.screenshot({ clip });
@@ -230,9 +227,9 @@ test("More keeps the header clear like the picker after view navigation", async 
       const png = await page.screenshot({ clip });
       if (ms === 0)
         await testInfo.attach(`${kind}-header-0ms`, { body: png, contentType: "image/png" });
-      expect(decode(png).data.equals(closed), `${kind} header at ${ms} ms`).toBe(true);
       if (ms === 64)
         await testInfo.attach(`${kind}-top-64ms`, { body: png, contentType: "image/png" });
+      expect(decode(png).data.equals(closed), `${kind} header at ${ms} ms`).toBe(true);
     }
     await page.evaluate(() => {
       for (const a of window.exitFrames) a.finish();
@@ -248,13 +245,14 @@ async function settleAnimations(page) {
   );
 }
 
-for (const kind of ["more", "difficulty"]) {
+for (const kind of ["more"]) {
   test(`navigation during ${kind} exit completes dismissal`, async ({ page }, testInfo) => {
-    await openBoard(page, "./?shot=1&freeze");
+    await openBoard(page);
     await page.locator(".header .dbtn").click();
     await settleAnimations(page);
     if (kind === "more") {
-      await page.getByRole("button", { name: "Back to game", exact: true }).click();
+      await page.getByRole("button", { name: /Unfinished/ }).click();
+      await page.getByRole("button", { name: /^Resume / }).click();
       await settleAnimations(page);
       await page.locator("[data-more]").filter({ visible: true }).click();
     } else {
@@ -290,19 +288,19 @@ for (const kind of ["more", "difficulty"]) {
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     await page.clock.resume();
     if (kind === "more") {
-      await expect(page.locator(".journal-view")).toBeVisible();
+      await expect(page.locator(".pages-view")).toBeVisible();
       await settleAnimations(page);
-      await page.getByRole("button", { name: "Back to game", exact: true }).click();
+      await page.getByRole("button", { name: /^Resume / }).click();
     }
     await settleAnimations(page);
     await expect(page.locator(".board > .cell")).toHaveCount(81);
     await expect(page.locator("dialog.opts")).not.toBeVisible();
-    await expect(page.locator(".sheet, .scrim.on, .modal-scrim.on")).toHaveCount(0);
+    await expect(page.locator("dialog.opts:visible, .scrim.on, .modal-scrim.on")).toHaveCount(0);
     await expect(page.locator("body")).not.toHaveClass(/journal-sheet/);
     await expect(page.locator("#time-control")).toBeFocused();
     await page.locator(".header .dbtn").click();
-    await expect(page.locator(".journal-view")).toBeVisible();
-    await expect(page.locator(".sheet, .scrim.on")).toHaveCount(0);
+    await expect(page.locator(".pages-view")).toBeVisible();
+    await expect(page.locator("dialog.opts:visible, .scrim.on")).toHaveCount(0);
     await testInfo.attach("navigation-exit-pose", {
       body: JSON.stringify({ kind, ...pose }),
       contentType: "application/json",

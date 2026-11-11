@@ -1,6 +1,6 @@
 import { test as base, expect } from "@playwright/test";
 import { upgradeServer } from "./upgrade-server.js";
-import { cell, expectValue, DEMO_PUZZLE } from "./helpers.js";
+import { cell, expectValue, DEMO_PUZZLE, resumeFromHome } from "./helpers.js";
 const test = base.extend({
   // eslint-disable-next-line no-empty-pattern
   deployment: async ({}, use) => {
@@ -9,7 +9,18 @@ const test = base.extend({
     await server.close();
   },
 });
-const start = (page) => page.getByRole("button", { name: /^(Play|Start puzzle)$/, exact: true });
+const start = (page) =>
+  page.getByRole("button", { name: /^(?:Easy |Play$|Start puzzle$)/, exact: true });
+async function enter(page) {
+  await expect(start(page)).toBeVisible();
+  const saved = await page.evaluate(() => {
+    const raw = localStorage.getItem("sudoku-bank-custom-v1");
+    return raw && Object.values(JSON.parse(raw).slots).some((s) => !s.completed);
+  });
+  if (saved || (await page.getByRole("button", { name: /Unfinished/ }).isVisible()))
+    await resumeFromHome(page);
+  else await start(page).click();
+}
 const notice = (page) => page.locator(".update-notice.active");
 async function check(page) {
   await page.clock.setSystemTime(new Date(await page.evaluate(() => Date.now() + 60_000)));
@@ -106,7 +117,7 @@ test("verified warm launches never show preparation and work on fresh offline na
 }) => {
   await observePreparation(context);
   await page.goto(`${deployment.url}?q=${DEMO_PUZZLE}&keep=yes#board`);
-  await start(page).click();
+  await enter(page);
   await cell(page, 0).click();
   await page.keyboard.press("4");
   expect(await page.evaluate(() => window.__preparingSeen.length)).toBeGreaterThan(0);
@@ -120,12 +131,12 @@ test("verified warm launches never show preparation and work on fresh offline na
   expect(await page.evaluate(() => window.__preparingSeen)).toEqual([]);
   await context.setOffline(true);
   await page.reload();
-  await start(page).click();
+  await enter(page);
   await expectValue(page, 0, 4);
   expect(await page.evaluate(() => window.__preparingSeen)).toEqual([]);
   const fresh = await context.newPage();
   await fresh.goto(`${deployment.url}?q=${DEMO_PUZZLE}&keep=yes#board`);
-  await start(fresh).click();
+  await enter(fresh);
   await expectValue(fresh, 0, 4);
   expect(await fresh.evaluate(() => window.__preparingSeen)).toEqual([]);
   expect(await fresh.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
@@ -155,7 +166,7 @@ test("warm launch bypasses a blocked background update without changing the acti
 }) => {
   await observePreparation(context);
   await page.goto(`${deployment.url}?q=${DEMO_PUZZLE}`);
-  await start(page).click();
+  await enter(page);
   await cell(page, 0).click();
   await page.keyboard.press("4");
   const release = deployment.holdBank();
@@ -169,7 +180,7 @@ test("warm launch bypasses a blocked background update without changing the acti
     await fresh.goto(`${deployment.url}?q=${DEMO_PUZZLE}`);
     await expect(start(fresh)).toBeVisible({ timeout: 3000 });
     expect(await fresh.evaluate(() => window.__preparingSeen)).toEqual([]);
-    await start(fresh).click();
+    await enter(fresh);
     await expectValue(fresh, 0, 4);
     await expect(fresh.locator('meta[name="sudoku-build"]')).toHaveAttribute("content", "old");
     expect(await fresh.evaluate(() => globalThis.__sudokuPuzzleBank["2099-01-01"])).toBeUndefined();
@@ -216,14 +227,14 @@ test("second launch and an app-only update reuse the bank, and activate fully of
   deployment,
 }) => {
   await page.goto(`${deployment.url}?q=${DEMO_PUZZLE}&keep=yes#board`);
-  await start(page).click();
+  await enter(page);
   const catalogPath = await page.evaluate(() => globalThis.__sudokuBankCatalog.path);
   // Keep the NYT reuse assertion separate from the additional manifest asset.
   const banks = () =>
     deployment.requests.filter((url) => url.includes("/banks/") && !url.includes(catalogPath));
   expect(banks()).toHaveLength(1);
   await page.reload();
-  await start(page).click();
+  await enter(page);
   expect(banks()).toHaveLength(1);
   deployment.publish();
   await check(page);
@@ -232,7 +243,7 @@ test("second launch and an app-only update reuse the bank, and activate fully of
   await context.setOffline(true);
   await notice(page).getByRole("button", { name: "Update", exact: true }).click();
   await expect(page.locator('meta[name="sudoku-build"]')).toHaveAttribute("content", "new");
-  await start(page).click();
+  await enter(page);
   await cell(page, 0).click();
   await page.keyboard.press("4");
   await expectValue(page, 0, 4);
@@ -247,7 +258,7 @@ for (const fault of ["bank-corrupt", "bank-interrupted", "manifest-change"]) {
     deployment,
   }) => {
     await page.goto(deployment.url);
-    await start(page).click();
+    await enter(page);
     const oldBank = await page.evaluate(() => globalThis.__sudokuPuzzleBank);
     deployment.publish("next");
     deployment.fault(fault);
@@ -259,7 +270,7 @@ for (const fault of ["bank-corrupt", "bank-interrupted", "manifest-change"]) {
     await expect(notice(page)).toHaveCount(0);
     await context.setOffline(true);
     await page.reload();
-    await start(page).click();
+    await enter(page);
     expect(await page.evaluate(() => globalThis.__sudokuPuzzleBank)).toEqual(oldBank);
     await expect(page.locator('meta[name="sudoku-build"]')).toHaveAttribute("content", "old");
     await expect(page.locator(".board > .cell")).toHaveCount(81);
@@ -282,13 +293,17 @@ test("new shell and complete bank activate together while an old tab keeps its a
 }) => {
   const url = `${deployment.url}?q=${DEMO_PUZZLE}&keep=yes#board`;
   await page.goto(url);
-  await start(page).click();
+  await enter(page);
   await cell(page, 0).click();
   await page.keyboard.press("4");
   const oldPage = await context.newPage();
   await oldPage.goto(url);
-  await start(oldPage).click();
+  await enter(oldPage);
   await expectValue(oldPage, 0, 4);
+  await oldPage.locator("#time-control").click();
+  // The updating tab takes the latest save; the paused tab remains a stale writer.
+  await page.reload();
+  await enter(page);
   deployment.publish("next");
   await check(page);
   await expect(notice(page)).toBeVisible();
@@ -298,16 +313,21 @@ test("new shell and complete bank activate together while an old tab keeps its a
   await context.setOffline(true);
   await notice(page).getByRole("button", { name: "Update", exact: true }).click();
   await expect(page.locator('meta[name="sudoku-build"]')).toHaveAttribute("content", "next");
-  await start(page).click();
+  await enter(page);
   await expectValue(page, 0, 4);
   await cell(page, 0).click();
   await page.keyboard.press("2");
   await expectValue(page, 0, 2);
-  const saved = await page.evaluate(() => localStorage.getItem("sudoku-custom-progress"));
+  // Freeze the current writer through the normal save-on-leave path before
+  // checking that a stale tab cannot replace this exact checkpoint.
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Unfinished", exact: true })).toBeVisible();
+  const saved = await page.evaluate(() => localStorage.getItem("sudoku-bank-custom-v1"));
+  await oldPage.locator("#resume").click();
   await cell(oldPage, 0).click();
   await oldPage.keyboard.press("3");
   await expectValue(oldPage, 0, 3);
-  expect(await page.evaluate(() => localStorage.getItem("sudoku-custom-progress"))).toBe(saved);
+  expect(await page.evaluate(() => localStorage.getItem("sudoku-bank-custom-v1"))).toBe(saved);
   expect(
     await oldPage.evaluate(
       async (assets) => Promise.all(assets.map(async (url) => (await fetch(url)).ok)),
@@ -315,12 +335,13 @@ test("new shell and complete bank activate together while an old tab keeps its a
     )
   ).toEqual(oldAssets.map(() => true));
   expect(await oldPage.evaluate(() => globalThis.__sudokuPuzzleBank["2099-01-01"])).toBeUndefined();
-  await oldPage.getByRole("button", { name: /Open Journal/ }).click();
-  await expect(oldPage.locator(".journal")).toBeVisible();
-  expect(await page.evaluate(() => localStorage.getItem("sudoku-custom-progress"))).toBe(saved);
+  await oldPage.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(oldPage.locator(".bank-pages")).toHaveCount(0);
+  await expect(oldPage.locator(".toast")).toContainText("Could not save");
+  expect(await page.evaluate(() => localStorage.getItem("sudoku-bank-custom-v1"))).toBe(saved);
   expect(await page.evaluate(() => globalThis.__sudokuPuzzleBank["2099-01-01"])).toBeTruthy();
   await page.reload();
-  await start(page).click();
+  await enter(page);
   await expectValue(page, 0, 2);
 });
 
@@ -351,17 +372,17 @@ for (const fault of ["blocked getter", "malformed snapshot"]) {
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto(`${deployment.url}?q=${DEMO_PUZZLE}`);
-    await start(page).click();
+    await enter(page);
     await cell(page, 0).click();
     await page.keyboard.press("4");
     deployment.publish();
     await check(page);
     await expect(notice(page)).toBeVisible();
     const before = await page.evaluate((fault) => {
-      const key = "sudoku-custom-progress";
+      const key = "sudoku-bank-custom-v1";
       if (fault === "malformed snapshot") {
         const data = JSON.parse(localStorage.getItem(key));
-        data.unrelated = { hard: { snapshot: {} } };
+        data.slots.unrelated = { snapshot: {} };
         localStorage.setItem(key, JSON.stringify(data));
       }
       const saved = localStorage.getItem(key);
@@ -403,10 +424,12 @@ for (const damage of ["missing", "corrupt", "corrupt shell"]) {
     deployment,
   }) => {
     await page.goto(`${deployment.url}?q=${DEMO_PUZZLE}`);
-    await start(page).click();
+    await enter(page);
     await cell(page, 0).click();
     await page.keyboard.press("4");
-    const saved = await page.evaluate(() => localStorage.getItem("sudoku-custom-progress"));
+    await page.getByRole("button", { name: "Back", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Sudoku", exact: true })).toBeVisible();
+    const saved = await page.evaluate(() => localStorage.getItem("sudoku-bank-custom-v1"));
     const oldBank = await page.evaluate(() => globalThis.__sudokuPuzzleBank);
     await page.evaluate(async (damage) => {
       const name = (await caches.keys()).find((name) => name.endsWith(":release:old"));
@@ -427,7 +450,7 @@ for (const damage of ["missing", "corrupt", "corrupt shell"]) {
     deployment.fault(damage === "corrupt shell" ? "shell-corrupt" : "bank-corrupt");
     await page.getByRole("button", { name: "Retry" }).click();
     await expect(page.getByRole("heading", { name: "Could not prepare puzzles" })).toBeVisible();
-    expect(await page.evaluate(() => localStorage.getItem("sudoku-custom-progress"))).toBe(saved);
+    expect(await page.evaluate(() => localStorage.getItem("sudoku-bank-custom-v1"))).toBe(saved);
     expect(
       await page.evaluate(async () => {
         const cache = await caches.open(
@@ -450,10 +473,10 @@ for (const damage of ["missing", "corrupt", "corrupt shell"]) {
     }
     await expect(start(page)).toBeVisible();
     expect(await page.evaluate(() => globalThis.__sudokuPuzzleBank)).toEqual(oldBank);
-    expect(await page.evaluate(() => localStorage.getItem("sudoku-custom-progress"))).toBe(saved);
+    expect(await page.evaluate(() => localStorage.getItem("sudoku-bank-custom-v1"))).toBe(saved);
     await context.setOffline(true);
     await page.reload();
-    await start(page).click();
+    await enter(page);
     await expectValue(page, 0, 4);
     await page.screenshot({ path: test.info().outputPath("repaired-bank.png") });
   });
@@ -512,7 +535,7 @@ test("explicit fresh recovery becomes the durable offline release", async ({
   await page.reload();
   await expect(start(page)).toBeVisible();
   await expect(page.locator('meta[name="sudoku-build"]')).toHaveAttribute("content", "next");
-  await start(page).click();
+  await enter(page);
   await expect(page.locator(".board > .cell")).toHaveCount(81);
 });
 
