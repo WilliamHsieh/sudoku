@@ -12,6 +12,18 @@ test("a verified complete bank supports offline reload and a new page", async ({
     .toContain("/sudoku/sw.js");
   const bank = await page.evaluate(() => globalThis.__sudokuPuzzleBank);
   expect(Object.keys(bank).length).toBeGreaterThan(400);
+  const catalog = await page.evaluate(async () => {
+    const descriptor = globalThis.__sudokuBankCatalog;
+    const cache = await caches.open(`sudoku-offline-v1:/sudoku/:release:${descriptor.version}`);
+    const response = await cache.match(new URL(descriptor.path, location.href));
+    const bytes = await response.arrayBuffer();
+    const digest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))]
+      .map((n) => n.toString(16).padStart(2, "0"))
+      .join("");
+    return { descriptor, digest, data: JSON.parse(new TextDecoder().decode(bytes)) };
+  });
+  expect(catalog.digest).toBe(catalog.descriptor.hash);
+  expect(catalog.data.puzzles).toHaveLength(4000);
   await context.setOffline(true);
   await page.reload();
   await page.getByRole("button", { name: "Start puzzle", exact: true }).click();
@@ -27,6 +39,14 @@ test("a verified complete bank supports offline reload and a new page", async ({
   expect(new URL(restarted.url()).searchParams.get("keep")).toBe("yes");
   expect(new URL(restarted.url()).hash).toBe("#board");
   expect(await restarted.evaluate(() => globalThis.__sudokuPuzzleBank)).toEqual(bank);
+  expect(await restarted.evaluate(() => globalThis.__sudokuBankCatalog)).toEqual(
+    catalog.descriptor
+  );
+  expect(
+    await restarted.evaluate(async () =>
+      (await fetch(new URL(globalThis.__sudokuBankCatalog.path, location.href))).json()
+    )
+  ).toEqual(catalog.data);
   const [worker] = await Promise.all([
     restarted.waitForEvent("worker"),
     restarted.locator("#hint-trigger").click(),

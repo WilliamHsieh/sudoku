@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve, relative } from "node:path";
+import { validateCatalog } from "../src/bank/catalog.js";
 
 export function versionPlugin() {
   const version =
@@ -12,11 +13,19 @@ export function versionPlugin() {
     throw new Error("Invalid build identity");
   const hash = (source) => createHash("sha256").update(source).digest("hex");
   let bank;
+  let catalog;
   return {
     name: "sudoku-build-version",
     apply: "build",
     enforce: "post",
     config: () => ({ define: { __SUDOKU_BUILD__: JSON.stringify({ version, builtAt }) } }),
+    async buildStart() {
+      const source = readFileSync("src/bank/published/catalog-v1.json", "utf8");
+      await validateCatalog(JSON.parse(source));
+      const digest = hash(source);
+      catalog = { path: `banks/${digest}.json`, hash: digest, version, builtAt };
+      this.emitFile({ type: "asset", fileName: catalog.path, source });
+    },
     transform(code, id) {
       if (id !== resolve("src/puzzles.js")) return;
       // Read the scraper's normal module after fixture transforms. The data
@@ -29,6 +38,11 @@ export function versionPlugin() {
       return "export const puzzleData = globalThis.__sudokuPuzzleBank;";
     },
     transformIndexHtml: () => [
+      {
+        tag: "script",
+        children: `globalThis.__sudokuBankCatalog=${JSON.stringify(catalog)};`,
+        injectTo: "head",
+      },
       { tag: "meta", attrs: { name: "sudoku-build", content: version }, injectTo: "head" },
       {
         tag: "meta",

@@ -110,7 +110,10 @@ test("verified warm launches never show preparation and work on fresh offline na
   await cell(page, 0).click();
   await page.keyboard.press("4");
   expect(await page.evaluate(() => window.__preparingSeen.length)).toBeGreaterThan(0);
-  const banks = () => deployment.requests.filter((url) => url.includes("/banks/"));
+  const catalogPath = await page.evaluate(() => globalThis.__sudokuBankCatalog.path);
+  // Keep the NYT reuse assertion separate from the additional manifest asset.
+  const banks = () =>
+    deployment.requests.filter((url) => url.includes("/banks/") && !url.includes(catalogPath));
   expect(banks()).toHaveLength(1);
   await page.reload();
   await expect(start(page)).toBeVisible();
@@ -214,7 +217,10 @@ test("second launch and an app-only update reuse the bank, and activate fully of
 }) => {
   await page.goto(`${deployment.url}?q=${DEMO_PUZZLE}&keep=yes#board`);
   await start(page).click();
-  const banks = () => deployment.requests.filter((url) => url.includes("/banks/"));
+  const catalogPath = await page.evaluate(() => globalThis.__sudokuBankCatalog.path);
+  // Keep the NYT reuse assertion separate from the additional manifest asset.
+  const banks = () =>
+    deployment.requests.filter((url) => url.includes("/banks/") && !url.includes(catalogPath));
   expect(banks()).toHaveLength(1);
   await page.reload();
   await start(page).click();
@@ -461,7 +467,8 @@ test("verification requests bypass cached release content", async ({ page, deplo
       (await caches.keys()).find((name) => name.endsWith(":release:old"))
     );
     await cache.put(new URL("version.json", location.href), new Response('{"poisoned":true}'));
-    return (await cache.keys()).find((request) => request.url.includes("/banks/")).url;
+    const manifest = await (await cache.match(new URL("__ready", location.href))).json();
+    return new URL(manifest.bank.path, location.href).href;
   });
   deployment.fault("bank-corrupt");
   const results = await page.evaluate(async (url) => {
@@ -507,4 +514,56 @@ test("explicit fresh recovery becomes the durable offline release", async ({
   await expect(page.locator('meta[name="sudoku-build"]')).toHaveAttribute("content", "next");
   await start(page).click();
   await expect(page.locator(".board > .cell")).toHaveCount(81);
+});
+
+test("a corrupt sampled catalog rejects staging and activation while the old release stays usable", async ({
+  page,
+  context,
+  deployment,
+}) => {
+  await page.goto(deployment.url);
+  await expect(start(page)).toBeVisible();
+  const previous = await page.evaluate(() => globalThis.__sudokuBankCatalog);
+  deployment.publish();
+  deployment.fault("catalog-corrupt");
+  const result = await page.evaluate(async () => {
+    const command = (type, extra) =>
+      new Promise((resolve) => {
+        const channel = new MessageChannel();
+        channel.port1.onmessage = ({ data }) => {
+          channel.port1.close();
+          resolve(data);
+        };
+        navigator.serviceWorker.controller.postMessage({ type, ...extra }, [channel.port2]);
+      });
+    const staged = await command("STAGE", { current: { version: "old", builtAt: 1000 } });
+    const activated = await command("ACTIVATE", { version: "new" });
+    const metadata = await caches.open("sudoku-offline-v1:/sudoku/:metadata");
+    const active = await (await metadata.match(new URL("__active", location.href))).json();
+    const candidate = await caches.open("sudoku-offline-v1:/sudoku/:release:new");
+    return {
+      staged,
+      activated,
+      active,
+      ready: !!(await candidate.match(new URL("__ready", location.href))),
+    };
+  });
+  expect(result.staged.error).toBe("Download verification failed");
+  expect(result.activated.error).toBe("Release is not ready");
+  expect(result.active).toBe("old");
+  expect(result.ready).toBe(false);
+  expect(
+    deployment.requests.some((url) => url.includes(previous.path) && url.includes("_sudoku_check="))
+  ).toBe(true);
+  await context.setOffline(true);
+  await page.reload();
+  await expect(start(page)).toBeVisible();
+  expect(await page.evaluate(() => globalThis.__sudokuBankCatalog)).toEqual(previous);
+  expect(
+    await page.evaluate(
+      async () =>
+        (await (await fetch(new URL(globalThis.__sudokuBankCatalog.path, location.href))).json())
+          .puzzles.length
+    )
+  ).toBe(4000);
 });
