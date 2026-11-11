@@ -5,6 +5,41 @@ import { CALIBRATION as C, RULE_VERSION } from "./calibration.js";
 import { freezeSnapshot, requireVerifiedCatalog } from "./catalog.js";
 import { canonical, seedHash } from "./random.js";
 
+/** @type {WeakMap<ReturnType<typeof catalogIndex>, Map<import('./types.js').Level, readonly import('./types.js').Puzzle[]>>} */
+const levelOrders = new WeakMap();
+
+/** Fixed shuffled order shared by all players. Cache alongside the immutable catalog index.
+ * @param {import('./types.js').Catalog} catalog
+ * @param {import('./types.js').Level} level */
+export function fixedLevelOrder(catalog, level) {
+  requireVerifiedCatalog(catalog);
+  levelBand(level);
+  const index = catalogIndex(catalog);
+  let orders = levelOrders.get(index);
+  if (!orders) {
+    orders = new Map();
+    levelOrders.set(index, orders);
+  }
+  let order = orders.get(level);
+  if (!order) {
+    order = Object.freeze(
+      index
+        .byLevel(level)
+        .map((puzzle) => ({
+          puzzle,
+          hash: seedHash(`${catalog.catalogVersion}:${level}:${puzzle.id}`),
+        }))
+        .sort(
+          (a, b) =>
+            a.hash - b.hash || (a.puzzle.id < b.puzzle.id ? -1 : a.puzzle.id > b.puzzle.id ? 1 : 0)
+        )
+        .map(({ puzzle }) => puzzle)
+    );
+    orders.set(level, order);
+  }
+  return order;
+}
+
 /** @typedef {import('./types.js').Recommendation & ({status: 'selected', puzzle: import('./types.js').Puzzle}|{status: 'exhausted_in_range'|'level_locked', fallbackPuzzle?: import('./types.js').Puzzle})} Selection */
 /** Pure selection over an immutable catalog opened for this launch. Recent recommendations
  * are ordered oldest to newest and scoped to this player by the persistence caller.
@@ -40,7 +75,15 @@ export function selectPuzzle({
     );
   const openBand = maxOpenLevel === undefined ? undefined : levelBand(maxOpenLevel);
   const locked = fixedLevel && maxOpenLevel !== undefined && level > maxOpenLevel;
-  const ability = deriveAbility({ catalog, records, playerId, coldStart });
+  let ability = deriveAbility({ catalog, records, playerId, coldStart });
+  /** @type {import('./types.js').ColdStart} */
+  let effectiveColdStart = coldStart ?? { kind: "level", level: 1 };
+  // Provisional alone means no promotion yet, not necessarily no evidence.
+  // Keep ability derivation and explicit caller anchors unchanged once evidence exists.
+  if (!fixedLevel && coldStart === undefined && ability.evidenceCount === 0) {
+    effectiveColdStart = { kind: "level", level: C.coldStartLevels[mode] };
+    ability = deriveAbility({ catalog, records, playerId, coldStart: effectiveColdStart });
+  }
   const originalBand = fixedLevel ? levelBand(level) : ability.bands[mode];
   const band = { ...originalBand, max: Math.min(originalBand.max, openBand?.max ?? Infinity) };
   const index = catalogIndex(catalog);
@@ -57,13 +100,15 @@ export function selectPuzzle({
       active.add(attempt.puzzle.digits);
   }
   const candidates = fixedLevel
-    ? index.byLevel(level)
+    ? mode === "manual"
+      ? fixedLevelOrder(catalog, level)
+      : index.byLevel(level)
     : index.ratings
         .filter((rating) => rating <= band.max)
         .flatMap((rating) => index.byRating(rating));
   const available = candidates.filter(
     (p) =>
-      !recentIds.has(p.id) &&
+      (mode === "manual" || !recentIds.has(p.id)) &&
       !active.has(p.digits) &&
       (maxOpenLevel === undefined || p.level <= maxOpenLevel)
   );
@@ -79,7 +124,11 @@ export function selectPuzzle({
         : "personalized_range",
     "present_ratings_only",
     "rating_gap_stay_in_range",
-    mode === "sequential" ? "rating_then_catalog_id" : "rating_bucket_then_puzzle",
+    mode === "sequential"
+      ? "rating_then_catalog_id"
+      : mode === "manual"
+        ? "fixed_level_order"
+        : "rating_bucket_then_puzzle",
   ];
   if (mode === "easy" && ability.easyCaution) codes.push("easy_failure_caution");
   let detail = `Allowed rating tenths ${band.min}..${band.max}; available ratings: ${ratings.join(", ") || "none"}. Gaps use present buckets within the allowed range.`;
@@ -100,7 +149,7 @@ export function selectPuzzle({
     catalogVersion: catalog.catalogVersion,
     seed,
     context: {
-      coldStart: coldStart ?? { kind: "level", level: 1 },
+      coldStart: effectiveColdStart,
       ...(mode === "manual" ? { manualLevel: level } : {}),
       ...(mode === "sequential" ? { sequentialLevel: level } : {}),
       ...(maxOpenLevel === undefined ? {} : { maxOpenLevel }),
@@ -133,8 +182,8 @@ export function selectPuzzle({
   /** Pick a bucket before a board, so bucket population never affects difficulty.
    * @param {import('./types.js').Puzzle[]} candidates */
   const sample = (candidates) => {
-    // The level index is already ordered by rating, then catalog ID. No RNG.
-    if (mode === "sequential") return candidates[0];
+    // Fixed-level candidates retain their manual hash or sequential rating order.
+    if (fixedLevel) return candidates[0];
     let buckets = [...new Set(candidates.map((p) => p.ratingTenths))].sort((a, b) => a - b);
     const best = Math.min(...buckets.map(priority));
     const preferred = buckets.filter((r) => priority(r) === best);
