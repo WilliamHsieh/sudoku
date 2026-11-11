@@ -6,3 +6,5 @@ package-lock.json
 node_modules
 # Puzzle data, not code — Prettier would rewrite every quote.
 src/puzzles.js
+# Generated, hash-pinned catalog data; preserve its published bytes.
+src/bank/published/catalog-v1.json
