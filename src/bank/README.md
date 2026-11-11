@@ -274,3 +274,103 @@ The recommendation context records the anchor used. Explicit `setColdStart(...)`
 The formulas already produce nonempty bands for all eight anchors, including narrow L6: its Hard range is 68–69 (6.8–6.9), clipped at the level's upper bound. Existing lower fallback, clamp, and personalized sampling rules remain in use. The pre-index output tests still pin ability, records, and explicit Easy/Medium/Hard inputs; only the two manual selection digests now pin D0's order. The standalone old-baseline benchmark still expects the former manual behavior and is not a D0 equivalence check.
 
 This is pure logic with no visible UI change. The fixed order, “1 2 3” starts, and ignored legacy history follow the signed-off decisions. Other numerical choices, including band widths, remain 待校準.
+
+## Player API for the new UI
+
+This is an opt-in bank data layer. It adds no visible UI, automatic restore, daily-puzzle
+feedback use, upload, or aggregation. Importing the modules or creating a recorder does not
+read or write storage. The host calls these functions only after bank opt-in. All selectors
+accept projected schema-1 bank attempts and leave their inputs unchanged. They reject mixed
+players, as unlock does. `levelList` also checks its explicit `playerId`. Custom and legacy
+records belong to a later UI merge, and multi-slot board saves belong to C3.
+
+`player-api.js` exports four pure functions:
+
+- `solveResult(attempts, attemptId, { previousMaxOpenLevel })` describes a completed attempt.
+  Pass the persisted maximum from **before** that completion. The result contains `level`,
+  `mode`, `countsTowardUnlock`, `hintFreeSolvesAtLevel`, `required`, `justUnlockedLevel`
+  (or null), and `levelSolvedDistinct`. It replays the existing unlock rule through that
+  completion, ordered by `endedAt` and then attempt ID. Later completions and feedback do
+  not change that result. Only a hint-free independent first solve at the then-highest open
+  level supplies unlock credit. Replays and below-frontier solves carry zero progress.
+  A stored frontier ahead of derived evidence qualifies the current first solve, but does
+  not retroactively credit earlier locked-level completions. Retain the full log for counters.
+  Progress is capped at the required 10; L8 cannot open L9. A hinted frontier completion can
+  show the existing counter without adding to it. Distinct solved boards at the attempt's
+  saved level include hinted completions and exclude replays. This count is available at
+  L8 and below the highest open level. Missing, unfinished, or non-complete targets are errors.
+- `levelList(catalog, attempts, level, { playerId })` requires the same verified catalog as
+  selection. It returns `{ items, nextIndex, totals: { solved, total, inProgress } }`. Each
+  item has `puzzle`, a 1-based `index`, `state` (`unsolved`, `solved`, `in_progress`, or
+  `replaying`), `solvedAt`, and `solveMs`; missing solve values are null. A replaying item
+  also has `bestMs`, which is the **saved solve's time**, not the fastest replay. Any completed
+  attempt can mark its exact board digits or ID solved, across modes and catalog versions,
+  including hinted and replay completions. Revealing an answer does not count. The earliest
+  completion by `endedAt`, then attempt ID in code-unit order, is the saved solve. An active
+  or paused attempt on a solved board shows `replaying`; an active board without a solve
+  shows `in_progress`. A replay counts in both solved and in-progress totals. Items use
+  `fixedLevelOrder`; `nextIndex` calls the real manual `selectPuzzle` and maps its selected
+  board or replay proposal. It is null when no board is eligible. An exhausted replay proposal
+  still requires an explicit replay choice. The host checks the persisted unlock
+  maximum before offering a level; this list does not infer an unlock clamp.
+- `unfinishedList(attempts)` returns `{ items, count }` for in-progress and paused bank
+  attempts. Each item has `attemptId`, `startedAt`, `updatedAt`, `mode`, `level`, `effectiveMs`,
+  and `replay`. Newest activity comes first, with equal times ordered by attempt ID. All five
+  bank modes are supported. Resume updates the same attempt; a later complete removes it.
+  No saved board is required. Listing an attempt does not promise that a resumable save exists.
+- `dayStreak(attempts, { now, timeZone? })` returns `{ current, longest, todayDone }`. `now`
+  is an injected millisecond timestamp. The timezone defaults to the device's local timezone;
+  tests can supply an IANA timezone such as `Asia/Taipei` or `America/New_York`. Only completed
+  Easy, Medium, and Hard attempts count, using `endedAt`; hinted completes count, replays do
+  not. Manual L1–L8, sequential, Custom, answer reveals, and unfinished attempts do not count.
+  Multiple completions on one local date count once. Current is the consecutive run ending
+  today or yesterday. A missed today breaks the run only after today ends. Longest includes
+  all past runs. Future completions are ignored. Calendar dates, not elapsed 24-hour periods,
+  make the rule work across DST, year boundaries, and leap days.
+
+Replay mapping: `game.startReplay` starts a separate replay only from a solved Journal view;
+`resumeReplay` restores that replay. Journal's `replayState` retains the saved solve and requires
+both a solved entry and a replay snapshot. The bank list mirrors the solved-plus-active state
+and saved time, using exact board identity instead of date/difficulty. It needs no snapshot
+because C3 owns save availability. There is one deliberate difference required by C2:
+legacy `markSolved` replaces the stored solve when a replay completes, whereas this bank API
+retains the earliest completed solve, even after faster or slower replays. `bestMs` is therefore
+a compatibility label for that saved time, not a minimum. No Journal code or legacy storage
+is read by these APIs.
+
+`recorder.setFeedback(feedback, identity?)` sets or changes `light`, `some_effort`, or `struggle`.
+`recorder.clearFeedback(identity?)` passes `feedback: undefined`. Omit identity for the current
+game, or pass `{ attemptId, playerId }` for a historical attempt without opening a game. The
+write checks fresh projected records under the same recorder queue and cross-tab lock. It
+requires a finished attempt, zero star hints, and no answer reveal. A hint-free give-up is a
+finished attempt and can receive feedback; an unfinished attempt cannot. Clear follows the
+same guard, including for old hinted feedback. These guards are only on the new recorder
+write path: `projectRecords`, schema 1, and projection of existing feedback remain unchanged.
+
+Feedback methods return a promise of `{ ok, eventId?, code? }`; policy errors include
+`attempt_not_finished`, `hint_used`, `answer_revealed`, and `player_mismatch`. Rejected input
+does not block the queue. Storage failure returns `retry_pending`; the job retains its event
+ID and `flush()` retries it. Exact delivered retries never replace feedback written later by
+another tab. A new user change gets a new event ID. Errors do not throw into play; strict
+`flush(true)` keeps its existing rejection behavior when persistence still fails. Feedback
+remains local to the specified player and uses only `sudoku-bank-records-v1`.
+
+`unlock-storage.js` exports `UNLOCK_KEY`, `readUnlockState(storage, playerId)`, and
+`persistUnlockState(storage, attempts, { playerId, locks, policy? })`. The only new storage key
+is `sudoku-bank-unlock-v1`, with `{ schema: 1, playerId, maxOpenLevel }`. Reads distinguish
+missing, valid, and unreadable state. Explicit persistence derives from the supplied attempts,
+then uses `mergeMaxOpenLevel` with a fresh stored value under `sudoku-bank-writes-v1`. It
+returns `{ ok: true, state }` or `{ ok: false, code, detail? }`. Retry a failed call with the
+same inputs; a delivered write or stale tab cannot lower the maximum. The optional policy is
+the existing pure unlock policy. Changed calibration can never re-lock a stored level. The
+high-water mark preserves access, not missing historical evidence; retain the records log for
+progress counts. A different stored player, corrupt value, unknown schema, or blocked read
+is unreadable and is never overwritten. Unknown fields in a valid value are retained.
+
+Pass the host's Web Locks manager, or explicit `null` for the existing single-document
+fallback. `write-lock.js` shares `withBankLock(locks, work)` between persistence and the
+recorder; `BANK_LOCK` remains available from `recorder.js`. No global storage or lock manager
+is used by the unlock adapter. No Web Locks means no cross-tab guarantee. Feedback and unlock
+are separate writes, not a transaction. No new function reads or writes the four legacy keys.
+The signed-off initial three levels, ten hint-free first solves, and L8 cap are unchanged;
+other numerical rules in the Rule values section remain 待校準.
