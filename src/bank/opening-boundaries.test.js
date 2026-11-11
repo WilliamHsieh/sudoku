@@ -3,6 +3,7 @@ import { attempt, memoryStorage, puzzle } from "./test-fixtures.js";
 import { persistUnlockState, readUnlockState, UNLOCK_KEY } from "./unlock-storage.js";
 import { solveResult } from "./player-api.js";
 import { BANK_LOCK } from "./write-lock.js";
+import { storeAttempts } from "./unlock-test-fixtures.js";
 
 const options = { playerId: "player", locks: null, now: () => 1 };
 const wins = (first, count, rating) =>
@@ -55,6 +56,7 @@ describe("dated openings on every path", () => {
         openings: { 4: { level: 4, at: 1 }, 5: { level: 5, at: 1 } },
       },
     });
+    storeAttempts(storage, history);
     await persistUnlockState(storage, history, options);
     for (let i = 1; i <= 10; i++) {
       const before = saved(storage);
@@ -64,6 +66,7 @@ describe("dated openings on every path", () => {
         hintFreeSolvesAtLevel: i,
         justUnlockedLevel: i === 10 ? 6 : null,
       });
+      storeAttempts(storage, history);
       await persistUnlockState(storage, history, options);
     }
     expect(saved(storage).maxOpenLevel).toBe(6);
@@ -74,6 +77,7 @@ describe("dated openings on every path", () => {
     async (path) => {
       const storage = memoryStorage(),
         history = [...wins(1, 1, 13), ...wins(10, 10, 56)];
+      storeAttempts(storage, history);
       await persistUnlockState(storage, history, options);
       const request =
         path === "policy"
@@ -90,6 +94,7 @@ describe("dated openings on every path", () => {
           hintFreeSolvesAtLevel: i,
           justUnlockedLevel: i === 10 ? 6 : null,
         });
+        storeAttempts(storage, history);
         await persistUnlockState(storage, history, options);
       }
       expect(saved(storage).maxOpenLevel).toBe(6);
@@ -99,6 +104,7 @@ describe("dated openings on every path", () => {
   it("stamps an explicit policy change and blocks a historical cascade", async () => {
     const storage = memoryStorage(),
       history = [...wins(1, 10, 32), ...wins(20, 10, 45)];
+    storeAttempts(storage, history);
     await persistUnlockState(storage, history, {
       ...options,
       policy: { unlockRequiredHintFreeSolves: 20 },
@@ -115,6 +121,7 @@ describe("dated openings on every path", () => {
         hintFreeSolvesAtLevel: i,
         justUnlockedLevel: i === 10 ? 5 : null,
       });
+      storeAttempts(storage, history);
       await persistUnlockState(storage, history, options);
     }
     expect(saved(storage).maxOpenLevel).toBe(5);
@@ -190,6 +197,7 @@ it("rejects malformed, conflicting, and backwards per-level boundaries without o
 it("respects every recorded level boundary when a policy would otherwise open it earlier", async () => {
   const storage = memoryStorage(),
     history = [...wins(1, 10, 32), ...wins(20, 10, 45)];
+  storeAttempts(storage, history);
   await persistUnlockState(storage, history, {
     ...options,
     openLevel: 5,

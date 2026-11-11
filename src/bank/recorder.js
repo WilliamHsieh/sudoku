@@ -64,7 +64,7 @@ export function createRecorder(options = {}) {
   let finished = false;
   let begun = false;
   let settings = "auto";
-  /** @type {(() => void)[]} */
+  /** @type {{work: () => void, migrateBefore: boolean}[]} */
   const jobs = [];
   /** @type {Promise<void> | null} */
   let draining = null;
@@ -176,8 +176,8 @@ export function createRecorder(options = {}) {
         failureCode = null;
         while (jobs.length) {
           const current = readSaves(records());
-          if (current.migration) writeSaves(current);
-          jobs[0]();
+          if (current.migration && jobs[0].migrateBefore) writeSaves(current);
+          jobs[0].work();
           jobs.shift();
         }
       })
@@ -194,8 +194,9 @@ export function createRecorder(options = {}) {
     }
     return draining;
   }
-  function enqueue(job) {
-    jobs.push(job);
+  function enqueue(work, migrateBefore = true) {
+    // Deletions fold pending migration into their final verified store write.
+    jobs.push({ work, migrateBefore });
     void drain();
   }
   function event(type, extra = {}) {
@@ -427,10 +428,10 @@ export function createRecorder(options = {}) {
       const attempt = projectRecords(log).find((a) => a.attemptId === attemptId);
       if (!attempt || !isTerminal(attempt)) throw new Error("Completion not recorded");
       const current = readSaves(log);
-      if (!current.slots.has(attemptId)) return;
+      if (!current.slots.has(attemptId) && !current.migration) return;
       delete current.store.slots[attemptId];
       writeSaves(current);
-    });
+    }, false);
   }
   return {
     get meta() {
@@ -475,10 +476,10 @@ export function createRecorder(options = {}) {
           delete current.store.slots[attemptId];
           current.store.abandoned.push(attemptId);
           writeSaves(current);
-        }
+        } else if (current.migration) writeSaves(current);
         if (meta?.attemptId === attemptId) finished = true;
         result = { ok: true, code: undefined };
-      });
+      }, false);
       await drain();
       return jobs.length ? { ok: false, code: failureCode ?? "retry_pending" } : result;
     },

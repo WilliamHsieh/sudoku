@@ -5,6 +5,7 @@ import { solveResult } from "./player-api.js";
 import { persistUnlockState, readUnlockState, UNLOCK_KEY } from "./unlock-storage.js";
 import { projectPlayerUnlock } from "./player-unlock.js";
 import { BANK_LOCK } from "./write-lock.js";
+import { storeAttempts } from "./unlock-test-fixtures.js";
 
 const options = { playerId: "player", locks: null };
 const wins = (count, rating, offset) =>
@@ -18,6 +19,7 @@ function saved(storage) {
   return read.state;
 }
 async function earnedFive(storage, history) {
+  storeAttempts(storage, history);
   expect(
     await persistUnlockState(storage, history, {
       ...options,
@@ -51,6 +53,7 @@ describe("effective stored frontier", () => {
         required: 10,
         justUnlockedLevel: i === 10 ? 6 : null,
       });
+      storeAttempts(storage, history);
       expect(await persistUnlockState(storage, history, options)).toMatchObject({
         ok: true,
         state: { maxOpenLevel: i === 10 ? 6 : 5 },
@@ -83,6 +86,7 @@ describe("effective stored frontier", () => {
         hintFreeSolvesAtLevel: i,
         justUnlockedLevel: i === 10 ? 6 : null,
       });
+      storeAttempts(storage, history);
       await persistUnlockState(storage, history, options);
       expect(saved(storage).maxOpenLevel).toBe(i === 10 ? 6 : 5);
     }
@@ -93,9 +97,11 @@ describe("effective stored frontier", () => {
       history = original();
     await earnedFive(storage, history);
     history.push(...wins(4, 56, 21));
+    storeAttempts(storage, history);
     await persistUnlockState(storage, history, options);
     const opening = saved(storage).frontier;
     history.push(...wins(3, 10, 30));
+    storeAttempts(storage, history);
     await persistUnlockState(storage, history, options);
     expect(saved(storage).frontier).toEqual(opening);
     for (let i = 5; i <= 10; i++) {
@@ -108,6 +114,7 @@ describe("effective stored frontier", () => {
           frontier: before.frontier,
         })
       ).toMatchObject({ hintFreeSolvesAtLevel: i, justUnlockedLevel: i === 10 ? 6 : null });
+      storeAttempts(storage, history);
       await persistUnlockState(storage, history, options);
     }
     expect(saved(storage).maxOpenLevel).toBe(6);
@@ -118,6 +125,7 @@ describe("effective stored frontier", () => {
       history = original();
     await earnedFive(storage, history);
     history.push(...wins(10, 65, 20), ...wins(10, 56, 40));
+    storeAttempts(storage, history);
     await persistUnlockState(storage, history, options);
     expect(saved(storage).maxOpenLevel).toBe(6);
     const before = saved(storage),
@@ -126,6 +134,7 @@ describe("effective stored frontier", () => {
     expect(
       solveResult(history, next.attemptId, { previousMaxOpenLevel: 6, frontier: before.frontier })
     ).toMatchObject({ hintFreeSolvesAtLevel: 1, justUnlockedLevel: null });
+    storeAttempts(storage, history);
     await persistUnlockState(storage, history, options);
     expect(saved(storage).maxOpenLevel).toBe(6);
   });
@@ -144,6 +153,7 @@ describe("effective stored frontier", () => {
       attempt(33, { puzzle: puzzle(33, 56) }, "hint"),
       attempt(34, { puzzle: puzzle(34, 56) }, "reveal")
     );
+    storeAttempts(storage, history);
     await persistUnlockState(storage, history, options);
     expect(saved(storage).maxOpenLevel).toBe(5);
     const before = saved(storage),
@@ -201,6 +211,7 @@ describe("effective stored frontier", () => {
         return result;
       }),
     };
+    storeAttempts(storage, history);
     const read = storage.getItem,
       write = storage.setItem;
     let fail = true;
