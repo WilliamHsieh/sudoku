@@ -11,6 +11,7 @@ import { benchmarkFixture, equivalenceCases } from "../../scripts/bank-benchmark
 // SHA-256 over JSON.stringify outputs from master 399edbab4ff2f33773de8f6374a992620ec189f6.
 // The shared input has hintCount, so the selection history token compares identical inputs.
 // Fixture generation is deterministic; no Git executable or old checkout is needed in CI.
+// Manual selection digests alone were updated for Issue #94 D0's fixed hash order.
 const expected = {
   "120-easy": {
     ability: "2564b6686b89a2858f1ee6f6917ff7f82fb74dc8bfa9cb0b2e4da2b32a84bf09",
@@ -29,7 +30,7 @@ const expected = {
   },
   "120-manual": {
     ability: "2564b6686b89a2858f1ee6f6917ff7f82fb74dc8bfa9cb0b2e4da2b32a84bf09",
-    selection: "c28cd8ca5aeafb7f39c8908b469625ffbc6a6a83e0d8b11623797c7325bb9f4d",
+    selection: "c2151274f22a3cd5e2e63cec51fa2ef6fe2fe7c44ae5683db0e0e5c69aa30a65",
     records: "d1e1891a49433cfe58e5180aa6529abd7b5975c02bddf98aadc13a8d4a8f7a42",
   },
   "600-easy": {
@@ -49,7 +50,7 @@ const expected = {
   },
   "600-manual": {
     ability: "b763c92cd95f4b72992c0b1f1138e57789f82ea5e10d08a2893a160870414a92",
-    selection: "e8ac538c9bb2d61586ac084e255860f201d5b8c42a3fccd80a5bf51999b4c7b2",
+    selection: "955ad3b4e2f6c7805f91ffe4d9e9148459407e9846c00a478bfa282fa441aae4",
     records: "d42bc324bb207e930190f0e9efce6a320c1a3bc3724d5ac5c9cec5e8c7458a9e",
   },
 };
@@ -134,7 +135,7 @@ describe("catalog and history indexing", () => {
       ["easy", "medium", "hard", "manual"].map((mode) => ({ size, mode }))
     )
   )(
-    "matches pinned pre-index outputs byte-for-byte for $size records in $mode",
+    "matches pinned outputs (D0 manual; pre-index otherwise) for $size records in $mode",
     async ({ size, mode }) => {
       const fixture = benchmarkFixture(size);
       const records = projectRecords(fixture.log);

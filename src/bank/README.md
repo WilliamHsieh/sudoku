@@ -254,3 +254,23 @@ For cold download measurements, run `node scripts/measure-bank-release.mjs /path
 Manifest hashes prove that a file matches the manifest. They do not replace semantic Sudoku validation at build time. First launch must prepare the **complete published bank**, not one level at a time, before selection. Warm launch uses the verified local release without waiting for a background update. Keep existing staging, verification, activation, bound-version, and failed-update retention behavior. Do not swap catalog or puzzle snapshots during an active game.
 
 Player records and recommendations belong to application storage, not the service-worker resource cache. Clearing resource cache must not delete them. Item 5, UI integration and end-to-end experience validation, waits for signed-off UI.
+
+## D0: fixed manual order and per-mode starts
+
+Manual L1–L8 now uses one shuffled order per catalog version and level, shared by every player. `fixedLevelOrder(catalog, level)` sorts boards by ``seedHash(`${catalogVersion}:${level}:${puzzleId}`)``, then by puzzle ID when hashes match. The read-only order is cached with the verified catalog's index. Player identity, history, seed, time, and call count cannot change that order. A new catalog version can change it.
+
+Manual selection takes the first board in that order whose exact digits the player has not played. It skips active and paused boards. **Manual ignores the last ten recommendations**, including for replay proposals: a recommendation that was issued but never started repeats. This is the exception to the recent-pick exclusions described above. When no unseen board remains, selection returns `exhausted_in_range` and may propose the first inactive replay in the same order. A locked level still returns `level_locked`. Sequential selection keeps its rating-ascending order and recent-pick exclusion.
+
+For a player with no ability evidence and no explicit `coldStart`, `selectPuzzle` uses Lizzy's reading of William's signed-off “1 2 3”: Easy starts at L1, Medium at L2, and Hard at L3. The mapping lives only in `CALIBRATION.coldStartLevels`. The existing formulas give these inclusive ranges before catalog gaps or the optional level clamp:
+
+| Mode | Anchor | Rating tenths | In plain words |
+| --- | --- | --- | --- |
+| Easy | L1 | 10–12 | Ratings from 1.0 through 1.2 |
+| Medium | L2 | 26–29 | Ratings from 2.6 through 2.9 |
+| Hard | L3 | 35–38 | Ratings from 3.5 through 3.8 |
+
+The recommendation context records the anchor used. Explicit `setColdStart(...)` level and experience settings keep their existing behavior for all modes. After any eligible ability evidence exists, selection uses the existing ability rules; these new defaults no longer apply. The ability API itself is unchanged. Its `provisional` flag means no promotion yet, so selection also checks for zero evidence. Legacy/NYT history supplies no ability evidence. There is no extra exclusion for NYT boards.
+
+The formulas already produce nonempty bands for all eight anchors, including narrow L6: its Hard range is 68–69 (6.8–6.9), clipped at the level's upper bound. Existing lower fallback, clamp, and personalized sampling rules remain in use. The pre-index output tests still pin ability, records, and explicit Easy/Medium/Hard inputs; only the two manual selection digests now pin D0's order. The standalone old-baseline benchmark still expects the former manual behavior and is not a D0 equivalence check.
+
+This is pure logic with no visible UI change. The fixed order, “1 2 3” starts, and ignored legacy history follow the signed-off decisions. Other numerical choices, including band widths, remain 待校準.

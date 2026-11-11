@@ -4,6 +4,8 @@ export const CALIBRATION = Object.freeze({
   unlockInitialLevels: 3,
   unlockRequiredHintFreeSolves: 10,
   unlockMaxLevel: 8,
+  // Signed-off "1 2 3" reading: Easy starts at L1, Medium at L2, Hard at L3.
+  coldStartLevels: Object.freeze({ easy: 1, medium: 2, hard: 3 }),
   // Other calibration values remain 待校準.
   promotionWindow: 5,
   independentRequired: 4,

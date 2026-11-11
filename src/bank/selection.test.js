@@ -357,6 +357,7 @@ describe("selection, gaps and exhaustion", () => {
     const result = selectPuzzle({
       ...base,
       catalog: (await openCatalog(catalogWith([10, 13, 16]))).catalog,
+      coldStart: setColdStart({ kind: "level", level: 1 }),
       mode: "medium",
       seed: 1,
     });
@@ -520,9 +521,10 @@ describe("V1 evidence, filtering, and snapshots", () => {
       })
     ).catalog;
     const observed = new Set();
+    const coldStart = setColdStart({ kind: "level", level: 1 });
     for (let seed = 0; seed < 100; seed++) {
-      const a = selectPuzzle({ ...base, catalog: sparse, mode: "hard", seed });
-      const b = selectPuzzle({ ...base, catalog: flooded, mode: "hard", seed });
+      const a = selectPuzzle({ ...base, catalog: sparse, coldStart, mode: "hard", seed });
+      const b = selectPuzzle({ ...base, catalog: flooded, coldStart, mode: "hard", seed });
       expect(b.selectedRatingBucket).toBe(a.selectedRatingBucket);
       observed.add(b.selectedRatingBucket);
     }
@@ -556,7 +558,7 @@ describe("V1 evidence, filtering, and snapshots", () => {
     const result = selectPuzzle({ ...base, mode: "medium", seed: "snapshot" });
     expect(result).toMatchObject({
       mode: "medium",
-      candidateRange: { min: 10, max: 13 },
+      candidateRange: { min: 26, max: 29 },
       ruleVersion: "selection-v1",
       catalogVersion: catalog.catalogVersion,
       seed: "snapshot",
