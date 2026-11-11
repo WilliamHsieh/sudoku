@@ -78,18 +78,15 @@ describe("solve result", () => {
     expect(result([...wins(), below], below, 4).levelSolvedDistinct).toBe(11);
   });
   it("never re-locks a stored frontier or reports a lower-level unlock", () => {
-    expect(result(wins(), undefined, 5)).toMatchObject({
+    const history = wins();
+    expect(
+      solveResult(history, history.at(-1).attemptId, {
+        previousMaxOpenLevel: 5,
+        frontier: { level: 5, at: 1 },
+      })
+    ).toMatchObject({
       countsTowardUnlock: false,
       hintFreeSolvesAtLevel: 0,
-      justUnlockedLevel: null,
-    });
-  });
-  it("uses the stored frontier for this solve without inventing earlier unlock credit", () => {
-    const early = wins(1, 45, 1)[0],
-      target = wins(1, 45, 2)[0];
-    expect(result([early, target], target, 4)).toMatchObject({
-      countsTowardUnlock: true,
-      hintFreeSolvesAtLevel: 1,
       justUnlockedLevel: null,
     });
   });

@@ -43,35 +43,27 @@ function past(attempt, boundary, inclusive = false) {
   return inclusive ? delta >= 0 : delta > 0;
 }
 
-/** Conservative legacy cutoff, evaluated only against the full stored bank log.
- * @param {import('./types.js').Attempt[]} attempts @param {number} level
- * @returns {UnlockFrontier} */
-export function inferUnlockFrontier(attempts, level) {
-  if (new Set(attempts.map((a) => a.playerId)).size > 1)
-    throw new Error("Unlock attempts must belong to one player");
-  mergeMaxOpenLevel(level, level);
-  const finished = attempts
-    .filter((a) => hasEnd(a) && a.outcome !== "paused" && a.outcome !== "in_progress")
-    .sort(order);
-  const last = finished.filter((a) => a.puzzle.level < level).at(-1) ?? finished.at(-1);
-  return last
-    ? { level, after: { endedAt: last.endedAt, attemptId: last.attemptId } }
-    : { level, at: 0 };
-}
-
-/** Replay the same first-solve rule with a dated, monotonic stored frontier.
- * Numeric-only legacy calls conservatively infer the boundary after the latest
- * lower-level finished attempt. Supply the saved frontier to keep it stable when
- * the player later returns to lower levels. With no lower-level history, only a
- * specified current target has known eligibility; persistence checkpoints the
- * existing history and starts future credit after that checkpoint.
+/** Replay one player's solves with dated opening boundaries. Undated stored
+ * maxima are ignored; only solve history can supply their unlock evidence.
  * @param {import('./types.js').Attempt[]} attempts
- * @param {{maxOpenLevel?: number, frontier?: UnlockFrontier, openings?: Record<number, UnlockFrontier>, targetAttemptId?: string}} [stored]
+ * @param {{maxOpenLevel?: number, frontier?: UnlockFrontier, openings?: Record<number, UnlockFrontier>}} [stored]
  * @param {import('./unlock.js').UnlockPolicy} [policy] */
 export function projectPlayerUnlock(attempts, stored = {}, policy = {}) {
   if (new Set(attempts.map((a) => a.playerId)).size > 1)
     throw new Error("Unlock attempts must belong to one player");
+  if (stored.maxOpenLevel !== undefined)
+    mergeMaxOpenLevel(stored.maxOpenLevel, stored.maxOpenLevel);
+  const supplied = stored.frontier ?? stored.openings?.[stored.maxOpenLevel];
+  if (supplied !== undefined) validateUnlockFrontier(supplied, stored.maxOpenLevel);
+  stored = supplied ? { ...stored, frontier: supplied } : {};
   const state = deriveUnlockState([], policy);
+  const originOnly =
+    supplied?.at === 0 &&
+    supplied.level === state.maxOpenLevel &&
+    Object.values(stored.openings ?? {}).every(
+      (boundary) => boundary.level <= state.maxOpenLevel && boundary.at === 0
+    );
+  const historyOnly = !supplied || originOnly ? deriveUnlockState(attempts, policy) : null;
   const maximum = Math.max(
     stored.maxOpenLevel ?? state.maxOpenLevel,
     policy.unlockMaxLevel ?? C.unlockMaxLevel
@@ -87,20 +79,7 @@ export function projectPlayerUnlock(attempts, stored = {}, policy = {}) {
       required: policy.unlockRequiredHintFreeSolves ?? C.unlockRequiredHintFreeSolves,
     };
   if (stored.frontier) validateUnlockFrontier(stored.frontier, stored.maxOpenLevel ?? storedLevel);
-  const finished = attempts
-    .filter((a) => hasEnd(a) && a.outcome !== "paused" && a.outcome !== "in_progress")
-    .sort(order);
-  const lower = finished.filter((a) => a.puzzle.level < storedLevel).at(-1);
-  const inferred = lower ?? finished.at(-1);
-  const frontier =
-    stored.frontier ??
-    (inferred && storedLevel > state.maxOpenLevel
-      ? {
-          level: storedLevel,
-          after: { endedAt: inferred.endedAt, attemptId: inferred.attemptId },
-        }
-      : undefined);
-  const unknownTarget = !stored.frontier && !lower ? stored.targetAttemptId : undefined;
+  const frontier = stored.frontier;
   const known = { ...stored.openings };
   if (stored.frontier) known[stored.frontier.level] = stored.frontier;
   for (const [key, value] of Object.entries(known)) validateUnlockFrontier(value, Number(key));
@@ -116,7 +95,7 @@ export function projectPlayerUnlock(attempts, stored = {}, policy = {}) {
     for (const boundary of dated)
       if (past(a, boundary))
         state.maxOpenLevel = mergeMaxOpenLevel(state.maxOpenLevel, boundary.level);
-    if (!applied && (a.attemptId === unknownTarget || (frontier && past(a, frontier)))) {
+    if (!applied && frontier && past(a, frontier)) {
       state.maxOpenLevel = mergeMaxOpenLevel(state.maxOpenLevel, storedLevel);
       applied = true;
     }
@@ -144,7 +123,7 @@ export function projectPlayerUnlock(attempts, stored = {}, policy = {}) {
   }
   state.maxOpenLevel = mergeMaxOpenLevel(state.maxOpenLevel, storedLevel);
   return {
-    ...state,
+    ...(historyOnly ?? state),
     credited,
     openings: Object.fromEntries(openings),
     frontier:

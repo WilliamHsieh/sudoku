@@ -1,9 +1,5 @@
-import { mergeMaxOpenLevel } from "./unlock.js";
-import {
-  projectPlayerUnlock,
-  validateUnlockFrontier,
-  inferUnlockFrontier,
-} from "./player-unlock.js";
+import { deriveUnlockState, mergeMaxOpenLevel } from "./unlock.js";
+import { projectPlayerUnlock, validateUnlockFrontier } from "./player-unlock.js";
 import { readRecords, projectRecords } from "./records.js";
 import { CALIBRATION as C } from "./calibration.js";
 import { canonical } from "./random.js";
@@ -13,12 +9,12 @@ export const UNLOCK_KEY = "sudoku-bank-unlock-v1";
 /** @typedef {import('./player-unlock.js').UnlockFrontier} Frontier */
 /** @typedef {import('./player-unlock.js').CompletionCursor} Cursor */
 /** @typedef {{schema: 1, playerId: string, maxOpenLevel: number, frontier?: Frontier,
- * openings?: Record<number, Frontier>, observed?: Cursor}} UnlockSave */
+ * openings?: Record<number, Frontier>, policy?: import("./unlock.js").UnlockPolicy}} UnlockSave */
 /** @param {Frontier} boundary */
 function time(boundary) {
   return boundary.at ?? boundary.after.endedAt;
 }
-/** Clock cutoffs exclude their entire millisecond, after all same-time cursors.
+/** Clock boundaries exclude their entire millisecond, after all same-time cursors.
  * @param {Frontier} a @param {Frontier} b */
 function boundaryOrder(a, b) {
   const delta = time(a) - time(b);
@@ -42,7 +38,7 @@ function latest(attempts) {
   return a ? { endedAt: a.endedAt, attemptId: a.attemptId } : undefined;
 }
 /** @param {import('./types.js').Storage} storage @param {string} playerId
- * @returns {{status: 'missing'|'ok', state: UnlockSave|null}|{status: 'unreadable', detail: string}} */
+ * @returns {{status: 'missing'|'ignored'|'ok', state: UnlockSave|null}|{status: 'unreadable', detail: string}} */
 export function readUnlockState(storage, playerId) {
   try {
     if (typeof playerId !== "string" || !playerId) throw new Error("Player ID required");
@@ -53,11 +49,19 @@ export function readUnlockState(storage, playerId) {
       throw new Error("Unsupported unlock schema or player mismatch");
     mergeMaxOpenLevel(state.maxOpenLevel, state.maxOpenLevel);
     if (state.frontier !== undefined) validateUnlockFrontier(state.frontier, state.maxOpenLevel);
-    if (state.observed !== undefined)
-      validateUnlockFrontier(
-        { level: state.maxOpenLevel, after: state.observed },
-        state.maxOpenLevel
-      );
+    if (state.policy !== undefined) {
+      if (
+        !state.policy ||
+        typeof state.policy !== "object" ||
+        Array.isArray(state.policy) ||
+        !["unlockInitialLevels", "unlockRequiredHintFreeSolves", "unlockMaxLevel"].every((key) =>
+          Number.isSafeInteger(state.policy[key])
+        )
+      )
+        throw new Error("Invalid unlock policy");
+      if (deriveUnlockState([], state.policy).maxOpenLevel > state.maxOpenLevel)
+        throw new Error("Policy initial level exceeds stored access");
+    }
     if (state.openings !== undefined) {
       if (!state.openings || typeof state.openings !== "object" || Array.isArray(state.openings))
         throw new Error("Invalid unlock openings");
@@ -83,14 +87,14 @@ export function readUnlockState(storage, playerId) {
         throw new Error("Conflicting unlock boundary");
       state.frontier ??= state.openings[state.maxOpenLevel];
     }
-    return { status: "ok", state };
+    return state.frontier ? { status: "ok", state } : { status: "ignored", state: null };
   } catch (error) {
     return { status: "unreadable", detail: error instanceof Error ? error.message : "Read failed" };
   }
 }
 
 /** Every raised level receives an immutable boundary before the single verified write.
- * Legacy migration reads the authoritative bank event log under the same lock.
+ * Undated stored values are ignored. Solve-derived openings survive delayed writes.
  * now is invoked only inside the lock for non-solve/policy openings; inject it in tests.
  * @param {import('./types.js').Storage} storage @param {import('./types.js').Attempt[]} attempts
  * @param {{playerId: string, locks: Pick<LockManager, 'request'> | null,
@@ -106,41 +110,29 @@ export async function persistUnlockState(
       return { ok: false, code: "invalid_player" };
     const snapshot = structuredClone(attempts),
       savedPolicy = structuredClone(policy);
+    const activePolicy = {
+      unlockInitialLevels: savedPolicy?.unlockInitialLevels ?? C.unlockInitialLevels,
+      unlockRequiredHintFreeSolves:
+        savedPolicy?.unlockRequiredHintFreeSolves ?? C.unlockRequiredHintFreeSolves,
+      unlockMaxLevel: savedPolicy?.unlockMaxLevel ?? C.unlockMaxLevel,
+    };
+    deriveUnlockState([], activePolicy);
     if (openLevel !== undefined) mergeMaxOpenLevel(openLevel, openLevel);
     return await withBankLock(locks, () => {
       const current = readUnlockState(storage, playerId);
       if (current.status === "unreadable")
         return { ok: false, code: "unreadable_storage", detail: current.detail };
       const previous = current.state?.maxOpenLevel ?? C.unlockInitialLevels;
-      const requested = mergeMaxOpenLevel(
-        previous,
-        Math.max(openLevel ?? previous, savedPolicy?.unlockInitialLevels ?? C.unlockInitialLevels)
-      );
       const openings = { ...current.state?.openings };
-      let effectiveAttempts = snapshot;
       let frontier = current.state?.frontier ?? current.state?.openings?.[previous];
       if (frontier) openings[previous] ??= frontier;
-      // A missing canonical log cannot authorize migration from a tab snapshot.
-      if (
-        current.state &&
-        previous > C.unlockInitialLevels &&
-        !frontier &&
-        requested === previous
-      ) {
-        const records = readRecords(storage);
-        if (records.status === "unreadable")
-          return { ok: false, code: "unreadable_history", detail: records.detail };
-        if (records.status === "missing") {
-          if (!snapshot.some((a) => a.puzzle.level >= previous))
-            return { ok: true, state: current.state };
-          return { ok: false, code: "migration_history_required" };
-        }
-        const storedHistory = projectRecords(records.log).filter((a) => a.playerId === playerId);
-        effectiveAttempts = storedHistory;
-        frontier = inferUnlockFrontier(storedHistory, previous);
-        openings[previous] ??= frontier;
+      if (!current.state) {
+        // Signed-off initial access is available before any bank completion.
+        for (let level = 1; level <= C.unlockInitialLevels; level++)
+          openings[level] = { level, at: 0 };
+        frontier = openings[previous];
       }
-      const observed = latest(effectiveAttempts);
+      const latestCompletion = latest(snapshot);
       const stamp = () => {
         const at = now();
         if (!Number.isSafeInteger(at) || at <= 0)
@@ -152,42 +144,63 @@ export async function persistUnlockState(
         );
         return Math.max(
           at,
-          observed?.endedAt ?? 0,
-          current.state?.observed?.endedAt ?? 0,
+          latestCompletion?.endedAt ?? 0,
           canonicalEnd?.endedAt ?? 0,
           ...Object.values(openings).map(time)
         );
       };
-      let baseline = previous;
-      if (requested > previous) {
+      // First preserve every level already earned by recorded solves under the
+      // saved policy, even when several checkpoint writes were delayed or failed.
+      const priorPolicy = current.state?.policy ?? {
+        ...activePolicy,
+        unlockInitialLevels: Math.min(activePolicy.unlockInitialLevels, previous),
+      };
+      const earned = projectPlayerUnlock(
+        snapshot,
+        { maxOpenLevel: previous, frontier, openings },
+        priorPolicy
+      );
+      for (const [level, boundary] of Object.entries(earned.openings))
+        if (Number(level) > previous) openings[Number(level)] ??= boundary;
+      let baseline = earned.maxOpenLevel;
+      frontier = openings[baseline] ?? earned.frontier;
+      const requested = mergeMaxOpenLevel(
+        baseline,
+        Math.max(openLevel ?? baseline, activePolicy.unlockInitialLevels)
+      );
+      let derived = earned;
+      if (requested > baseline) {
         const at = stamp();
-        for (let level = previous + 1; level <= requested; level++)
+        for (let level = baseline + 1; level <= requested; level++)
           openings[level] ??= { level, at };
         baseline = requested;
         frontier = openings[baseline];
-      }
-      let derived = projectPlayerUnlock(
-        effectiveAttempts,
-        { maxOpenLevel: baseline, frontier, openings },
-        savedPolicy
-      );
-      // A recalibration can cross a threshold using previously observed solves.
-      // That level opens now, so old locked-level completions cannot cascade.
-      if (current.state && requested === previous && derived.maxOpenLevel > previous) {
-        const first = derived.openings[previous + 1];
-        if (
-          !current.state.observed ||
-          (first?.after && order(first.after, current.state.observed) <= 0)
-        ) {
-          const level = previous + 1,
+        derived = projectPlayerUnlock(
+          snapshot,
+          { maxOpenLevel: baseline, frontier, openings },
+          activePolicy
+        );
+      } else if (
+        current.state?.policy &&
+        Object.keys(activePolicy).some((key) => current.state.policy[key] !== activePolicy[key])
+      ) {
+        // Only an explicit policy transition can open an unearned next level.
+        // Existing solve-earned openings retain their actual completion cursors.
+        derived = projectPlayerUnlock(
+          snapshot,
+          { maxOpenLevel: baseline, frontier, openings },
+          activePolicy
+        );
+        if (derived.maxOpenLevel > baseline) {
+          const level = baseline + 1,
             at = stamp();
           openings[level] ??= { level, at };
           baseline = level;
           frontier = openings[level];
           derived = projectPlayerUnlock(
-            effectiveAttempts,
+            snapshot,
             { maxOpenLevel: baseline, frontier, openings },
-            savedPolicy
+            activePolicy
           );
         }
       }
@@ -198,18 +211,25 @@ export async function persistUnlockState(
         if (!openings[level]) throw new Error("Opening boundary required for every raised level");
         validateUnlockFrontier(openings[level], level);
       }
-      const state = { ...current.state, schema: /** @type {const} */ (1), playerId, maxOpenLevel };
+      const state = {
+        ...current.state,
+        schema: /** @type {const} */ (1),
+        playerId,
+        maxOpenLevel,
+        policy: { ...current.state?.policy, ...activePolicy },
+      };
       if (Object.keys(openings).length) {
         state.openings = openings;
         state.frontier = openings[maxOpenLevel];
       }
-      if (observed && (!state.observed || order(observed, state.observed) > 0))
-        state.observed = observed;
       if (canonical(current.state) === canonical(state)) return { ok: true, state };
       // Validate the complete payload before writing, including boundary monotonicity.
       const text = JSON.stringify(state);
       const checked = readUnlockState({ getItem: () => text, setItem: () => {} }, playerId);
-      if (checked.status === "unreadable") throw new Error(checked.detail);
+      if (checked.status !== "ok")
+        throw new Error(
+          checked.status === "unreadable" ? checked.detail : "Opening boundary required"
+        );
       storage.setItem(UNLOCK_KEY, text);
       if (storage.getItem(UNLOCK_KEY) !== text) return { ok: false, code: "write_not_verified" };
       return { ok: true, state };

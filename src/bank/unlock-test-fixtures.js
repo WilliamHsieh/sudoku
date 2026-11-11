@@ -1,6 +1,6 @@
 import { RECORDS_KEY } from "./records.js";
 /** Store synthetic completed attempts as their authoritative schema-1 event log.
- * Used to exercise migration's fresh stored-history read, not its caller snapshot.
+ * The event log remains available even when an unlock checkpoint write fails.
  * @param {import('./types.js').Storage} storage @param {import('./types.js').Attempt[]} attempts */
 export function storeCompletedAttempts(storage, attempts) {
   /** @type {import('./types.js').PlayEvent[]} */

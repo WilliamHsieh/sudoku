@@ -52,34 +52,14 @@ export function solveResult(attempts, attemptId, { previousMaxOpenLevel, frontie
         ? { ...a, outcome: /** @type {const} */ ("paused") }
         : a
     );
-  // Use the same opening boundary before and after this completion. Inference
-  // sees only the history preceding the target, so a lower-level target cannot
-  // move its own boundary or erase earlier frontier credit.
   const beforeAttempts = through.map((a) =>
     a.attemptId === attemptId
       ? { ...a, outcome: /** @type {const} */ ("paused"), endedAt: undefined }
       : a
   );
-  const before = projectPlayerUnlock(beforeAttempts, {
-    maxOpenLevel: previousMaxOpenLevel,
-    frontier,
-  });
-  const after = projectPlayerUnlock(through, {
-    maxOpenLevel: previousMaxOpenLevel,
-    frontier:
-      frontier ??
-      (before.frontier?.level === previousMaxOpenLevel &&
-      beforeAttempts.some(
-        (a) =>
-          a.puzzle.level < previousMaxOpenLevel &&
-          validEnd(a) &&
-          a.outcome !== "paused" &&
-          a.outcome !== "in_progress"
-      )
-        ? before.frontier
-        : undefined),
-    targetAttemptId: attemptId,
-  });
+  const context = { maxOpenLevel: previousMaxOpenLevel, frontier };
+  const before = projectPlayerUnlock(beforeAttempts, context);
+  const after = projectPlayerUnlock(through, context);
   const level = target.puzzle.level;
   const highest = before.maxOpenLevel;
   const atFrontier = level === highest && !target.replay;

@@ -1,4 +1,3 @@
-import { storeCompletedAttempts } from "./unlock-test-fixtures.js";
 import { describe, expect, it, vi } from "vitest";
 import { attempt, memoryStorage, puzzle } from "./test-fixtures.js";
 import { deriveUnlockState } from "./unlock.js";
@@ -41,9 +40,10 @@ describe("effective stored frontier", () => {
       const before = saved(storage),
         next = wins(1, 56, 20 + i)[0];
       history.push(next);
-      // Original public call shape, exactly as in the independent reproduction.
+      // A dated stored frontier supplies the effective opening time.
       const result = solveResult(history, next.attemptId, {
         previousMaxOpenLevel: before.maxOpenLevel,
+        frontier: before.frontier,
       });
       expect(result).toMatchObject({
         countsTowardUnlock: true,
@@ -83,11 +83,6 @@ describe("effective stored frontier", () => {
         hintFreeSolvesAtLevel: i,
         justUnlockedLevel: i === 10 ? 6 : null,
       });
-      // Bare high-water compatibility uses the same conservative lower-level cutoff.
-      expect(
-        solveResult(history, next.attemptId, { previousMaxOpenLevel: before.maxOpenLevel })
-          .hintFreeSolvesAtLevel
-      ).toBe(i);
       await persistUnlockState(storage, history, options);
       expect(saved(storage).maxOpenLevel).toBe(i === 10 ? 6 : 5);
     }
@@ -169,26 +164,6 @@ describe("effective stored frontier", () => {
     expect(result.credited.has("a")).toBe(false);
     expect(result.credited.has("c")).toBe(true);
     expect(result.perLevel[5].hintFreeSolves).toBe(1);
-  });
-
-  it("bootstraps old high-water values and keeps the inferred cutoff on later writes", async () => {
-    const storage = memoryStorage(),
-      history = original();
-    storage.setItem(
-      UNLOCK_KEY,
-      JSON.stringify({ schema: 1, playerId: "player", maxOpenLevel: 5, extra: "keep" })
-    );
-    history.push(...wins(3, 56, 21));
-    storeCompletedAttempts(storage, history);
-    await persistUnlockState(storage, history, options);
-    expect(saved(storage)).toMatchObject({
-      maxOpenLevel: 5,
-      extra: "keep",
-      frontier: { after: { endedAt: 1501 } },
-    });
-    history.push(...wins(1, 10, 30), ...wins(7, 56, 40));
-    await persistUnlockState(storage, history, options);
-    expect(saved(storage).maxOpenLevel).toBe(6);
   });
 
   it("fails closed on malformed opening metadata and preserves stored bytes", async () => {
@@ -288,22 +263,4 @@ it("does not retroactively credit a known locked period after a more permissive 
   expect(state.maxOpenLevel).toBe(5);
   expect(state.perLevel[5].hintFreeSolves).toBe(1);
   expect(locked.every((a) => !state.credited.has(a.attemptId))).toBe(true);
-});
-
-it("conservatively checkpoints undated stored access when no lower-level history exists", async () => {
-  const storage = memoryStorage(),
-    earlier = wins(10, 56, 1);
-  storage.setItem(UNLOCK_KEY, JSON.stringify({ schema: 1, playerId: "player", maxOpenLevel: 5 }));
-  storeCompletedAttempts(storage, earlier);
-  await persistUnlockState(storage, earlier, options);
-  expect(saved(storage).maxOpenLevel).toBe(5);
-  const before = saved(storage),
-    next = wins(1, 56, 20)[0];
-  const history = [...earlier, next];
-  expect(
-    solveResult(history, next.attemptId, { previousMaxOpenLevel: 5, frontier: before.frontier })
-  ).toMatchObject({ hintFreeSolvesAtLevel: 1, justUnlockedLevel: null });
-  history.push(...wins(9, 56, 21));
-  await persistUnlockState(storage, history, options);
-  expect(saved(storage).maxOpenLevel).toBe(6);
 });

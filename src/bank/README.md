@@ -359,58 +359,59 @@ remains local to the specified player and uses only `sudoku-bank-records-v1`.
 
 `unlock-storage.js` exports `UNLOCK_KEY`, `readUnlockState(storage, playerId)`, and
 `persistUnlockState(storage, attempts, { playerId, locks, policy?, now?, openLevel? })`. The only new storage key
-is `sudoku-bank-unlock-v1`, with `{ schema: 1, playerId, maxOpenLevel, frontier?, openings?, observed? }`.
-Existing schema-1 values remain readable. `frontier` is the highest level's boundary;
-`openings` retains one immutable boundary for each level opened by this API. A boundary is
-`{ level, after: { endedAt, attemptId } }` for a solve-triggered opening, or `{ level, at }`
-for a clock-stamped opening. A solve counts strictly after its boundary: completion time and
-then code-unit attempt ID for `after`, or strictly later milliseconds for `at`. Initial L1–L3
-are available from the bank history's origin; persisting that baseline does not open a new
-level. Each write that raises the maximum records every newly opened level before it writes.
+is `sudoku-bank-unlock-v1`, with `{ schema: 1, playerId, maxOpenLevel, frontier, openings, policy }`.
+`frontier` is the highest level's boundary; `openings` retains immutable per-level boundaries.
+A boundary is `{ level, after: { endedAt, attemptId } }` for a solve-earned opening, or
+`{ level, at }` for a non-solve opening. A completion counts strictly after its boundary:
+completion time and then code-unit attempt ID for `after`, or strictly later milliseconds
+for `at`. Initial L1–L3 receive fixed history-origin boundaries at 0, including empty initialization.
+Every write that raises access records each newly opened level before a single verified write.
 
-Round 3 boundary rule: normal unlocks retain the qualifying completion as their opening.
-An initial-level policy increase, an explicit `openLevel` increase (for a later non-unlock
-opening path), or a recalibration that crosses a threshold using already observed history
-opens the level at write time. The injected `now()` defaults to `Date.now` and is called inside
-`sudoku-bank-writes-v1`. It must return a positive safe-integer timestamp. The boundary is
-clamped to existing boundaries and already observed/stored completion times so a backward
-clock cannot admit earlier locked-level solves. An invalid or unavailable clock rejects the
-write. `observed` retains the latest completion cursor seen by a successful write, so changing
-a policy cannot backdate an opening and cascade through old locked-level completions. A
-normal newly qualifying solve still reports `justUnlockedLevel` for its unlock animation.
+**Undated stored values are ignored.** `readUnlockState` returns
+`{ status: "ignored", state: null }` for a valid schema-1 value with no boundary for its maximum.
+It grants no stored high-water mark or unlock credit. There is no compatibility conversion,
+cutoff inference, or recovery of an opening date from old history. Re-derive from projected
+solve history through `deriveUnlockState` instead. A subsequent write replaces the ignored
+value with that derived, dated state; its maximum can be lower than the ignored number.
+Monotonic access applies to accepted dated states. Malformed values, unreadable storage,
+wrong players, and unknown schemas still fail closed and are never treated as ignored data.
+
+Round 4 boundary rule: preserve **all levels earned by solves** before applying a non-solve
+opening request. Their boundaries are the actual qualifying completion cursors, including
+both the tenth L3 solve and the tenth L4 solve when checkpoint writes were delayed or failed.
+A retry can persist L5 directly with both dates; missing observations never convert a normal
+unlock to a write-time opening. An explicit `openLevel` request does not re-date a level that
+was already earned by solves. `justUnlockedLevel` remains the level this solve opened, or null,
+for the future UI's unlock animation.
+
+`policy` records the three applied unlock-policy values. On an explicit policy transition,
+the writer first preserves solve-earned progress under the previously saved policy, then
+applies the new policy. If that transition itself opens an unearned next level, its boundary
+is write time. Initial-level policy increases and explicit `openLevel` increases use the same
+locked clock for levels not already earned. This separates a real policy change from a delayed
+or failed checkpoint. Call the API when applying a policy change, before subsequent play.
+An accepted dated value without policy metadata is evaluated with the supplied current policy;
+missing metadata never implies a recalibration.
+
+The injected `now()` defaults to `Date.now` and runs inside `sudoku-bank-writes-v1` only for a
+non-solve opening. It must return a positive safe-integer timestamp. The boundary is clamped
+to existing dates and known completed history so a backward clock cannot admit older locked
+solves. An invalid or unavailable clock rejects that non-solve raise. Solve-earned openings
+need no clock. A higher non-solve jump dates each newly opened level. Previously written
+boundaries never move on retries, recalibration, or later lower-level play.
 
 `projectPlayerUnlock` is the shared pure replay for solve results and persistence. It honors
-all supplied per-level boundaries, first-attempt identity, hints, answers, replays, and the
-running highest open level. Previously written boundaries win and never move on later writes,
-retries, lower-level play, or recalibration. A jump to a higher level records each intervening
-new level at the same write-time boundary. `openLevel` can raise access but cannot lower it.
-Read and write validation rejects malformed, conflicting, or backwards boundary metadata.
-`deriveUnlockState` and `records.js` remain unchanged.
-
-Legacy migration uses **only the full bank event log freshly read from
-`sudoku-bank-records-v1` under the lock**, not a tab's supplied attempt snapshot. The pure
-`inferUnlockFrontier(storedAttempts, level)` chooses the latest finished lower-level attempt;
-if none exists, it chooses the latest finished attempt; an empty stored log uses `{ level,
-at: 0 }`, the history origin. That conservative cutoff excludes earlier ambiguous solves.
-During migration, replay and the observed cursor also use that stored log, rather than the
-caller snapshot.
-The same stored log always gives the same boundary regardless of stale/fresh tab order. Once
-written, the cutoff is retained. A missing authoritative log returns
-`migration_history_required` when migration is needed; unreadable history returns
-`unreadable_history`. Neither case overwrites the unlock value. A passive call with no
-frontier attempts and no stored log can leave the old value unchanged. Explicit higher
-openings can still receive a new clock boundary without inventing the old level's date.
-
-Pass the saved `frontier` to `solveResult`, especially after later lower-level play. Numeric-only
-calls remain a read-only compatibility view: without a saved date they conservatively infer
-from their supplied history, and with no lower-level history can credit only the current
-target. Persistence never uses this caller-snapshot fallback to migrate legacy values.
+dated boundaries, first-attempt identity, hints, answers, replays, and the running highest open
+level. Pass the saved `frontier` to `solveResult`; a maximum without a date is ignored there
+too and supplies only the history-derived result. No special numeric-only cutoff remains.
+`validateUnlockFrontier` checks boundary format; read/write validation also rejects conflicting
+or backwards dates. `deriveUnlockState` and `records.js` remain unchanged.
 
 Persistence returns `{ ok: true, state }` or `{ ok: false, code, detail? }`. Every write reads
-fresh, keeps the maximum monotonic with `mergeMaxOpenLevel`, validates the complete payload,
-and verifies the stored text. Retry a failed call with the same inputs. Unknown fields in
-valid values survive. Wrong players, unknown schemas, unreadable storage/history, and malformed
-metadata fail closed. Feedback and unlock stay separate writes. No new storage key is added.
+fresh, keeps accepted dated access monotonic with `mergeMaxOpenLevel`, validates the complete
+payload, and verifies stored text. Retry failures with the same inputs. Unknown fields in
+valid dated values survive. Feedback and unlock remain separate writes. No new storage key
+is added, and unlock persistence never writes the bank event log.
 
 Pass the host's Web Locks manager, or explicit `null` for the existing single-document
 fallback. `write-lock.js` shares `withBankLock(locks, work)` between persistence and the

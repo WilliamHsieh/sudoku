@@ -264,7 +264,14 @@ describe("persisted unlock high-water mark", () => {
     expect(readUnlockState(storage, "player")).toEqual({ status: "missing", state: null });
     expect(await persistUnlockState(storage, [], options)).toEqual({
       ok: true,
-      state: { schema: 1, playerId: "player", maxOpenLevel: 3 },
+      state: {
+        schema: 1,
+        playerId: "player",
+        maxOpenLevel: 3,
+        frontier: { level: 3, at: 0 },
+        openings: { 1: { level: 1, at: 0 }, 2: { level: 2, at: 0 }, 3: { level: 3, at: 0 } },
+        policy: { unlockInitialLevels: 3, unlockRequiredHintFreeSolves: 10, unlockMaxLevel: 8 },
+      },
     });
     const records = wins(),
       before = structuredClone(records);
@@ -282,7 +289,15 @@ describe("persisted unlock high-water mark", () => {
     const storage = memoryStorage();
     storage.setItem(
       UNLOCK_KEY,
-      JSON.stringify({ schema: 1, playerId: "player", maxOpenLevel: 5, extra: "preserved" })
+      JSON.stringify({
+        schema: 1,
+        playerId: "player",
+        maxOpenLevel: 5,
+        extra: "preserved",
+        frontier: { level: 5, at: 1 },
+        openings: { 5: { level: 5, at: 1 } },
+        policy: { unlockInitialLevels: 3, unlockRequiredHintFreeSolves: 20, unlockMaxLevel: 8 },
+      })
     );
     const before = storage.getItem(UNLOCK_KEY);
     for (const records of [[], wins()])
