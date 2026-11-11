@@ -4,11 +4,10 @@ import { fromSnapshot } from "../game/snapshot.js";
 import { freezeSnapshot } from "./catalog.js";
 import { canonical } from "./random.js";
 
+import { withBankLock } from "./write-lock.js";
+export { BANK_LOCK } from "./write-lock.js";
+
 export const BANK_GAME_KEY = "sudoku-bank-game-v1";
-export const BANK_LOCK = "sudoku-bank-writes-v1";
-// Same-document serialization also works without Web Locks. Other tabs require
-// Web Locks; the fallback promises single-tab behavior only.
-let fallback = Promise.resolve();
 /** @typedef {{schema: 1, meta: import('./types.js').BankGameMeta, snapshot: import('../game/snapshot.js').Snapshot, elapsed: number, effectiveMs: number}} BankSave */
 /** @param {BankSave} value */
 function validateSave(value) {
@@ -67,10 +66,7 @@ export function createRecorder(options = {}) {
   let draining = null;
 
   function locked(work) {
-    if (locks) return locks.request(BANK_LOCK, work);
-    const next = fallback.then(work);
-    fallback = next.catch(() => {});
-    return next;
+    return withBankLock(locks, work);
   }
   function readSave() {
     const raw = storage.getItem(BANK_GAME_KEY);
@@ -160,6 +156,61 @@ export function createRecorder(options = {}) {
       if (!result.ok) throw new Error(result.code);
     });
   }
+  /** Set, change, or clear local feedback. Explicit identity supports a finished
+   * attempt without opening its game. Policy rejection does not block the queue;
+   * storage failures retain the job and event ID for flush() retry.
+   * @param {import('./types.js').Feedback | undefined} feedback
+   * @param {{attemptId?: string, playerId?: string}} [identity]
+   * @returns {Promise<{ok: boolean, code?: string, eventId?: string}>} */
+  async function setFeedback(feedback, identity = {}) {
+    try {
+      const attemptId = identity.attemptId ?? meta?.attemptId;
+      const playerId = identity.playerId ?? meta?.playerId;
+      if (!attemptId || !playerId) return { ok: false, code: "identity_required" };
+      if (feedback !== undefined && !["light", "some_effort", "struggle"].includes(feedback))
+        return { ok: false, code: "invalid_feedback" };
+      const id = `${attemptId}:${uuid()}`;
+      /** @type {{ok: boolean, code?: string, eventId?: string}} */
+      let result = { ok: false, code: "retry_pending", eventId: id };
+      let originalAt;
+      enqueue(() => {
+        const log = records();
+        const attempt = projectRecords(log).find((a) => a.attemptId === attemptId);
+        const reject = (code) => {
+          result = { ok: false, code, eventId: id };
+        };
+        if (!attempt) return reject("attempt_not_found");
+        if (attempt.playerId !== playerId) return reject("player_mismatch");
+        // Check exact delivery before rebuilding timestamps. A later tab may
+        // already have changed feedback after our unverified write succeeded.
+        const delivered = log.events.find((e) => e.attemptId === attemptId && e.id === id);
+        if (delivered) {
+          if (canonical({ ...delivered, type: "feedback", feedback }) !== canonical(delivered))
+            return reject("conflicting_event_retry");
+          result = { ok: true, eventId: id };
+          return;
+        }
+        if (!isTerminal(attempt)) return reject("attempt_not_finished");
+        if (attempt.answerRevealed) return reject("answer_revealed");
+        if (attempt.hintCount !== 0 || attempt.hintUsed) return reject("hint_used");
+        originalAt ??= now();
+        const saved = saveEvent(storage, {
+          id,
+          attemptId,
+          type: "feedback",
+          feedback,
+          at: Math.max(1, originalAt, attempt.updatedAt),
+        });
+        if (!saved.ok) throw new Error(saved.code);
+        result = { ok: true, eventId: id };
+      });
+      await drain();
+      return result;
+    } catch (error) {
+      fail(error);
+      return { ok: false, code: "feedback_failed" };
+    }
+  }
   function time(elapsed) {
     if (!meta || finished || paused) return;
     const next = Math.max(effectiveMs, offset + elapsed * 1000);
@@ -238,6 +289,11 @@ export function createRecorder(options = {}) {
     },
     save,
     time,
+    setFeedback,
+    /** @param {{attemptId?: string, playerId?: string}} [identity] */
+    clearFeedback(identity) {
+      return setFeedback(undefined, identity);
+    },
     settings(mode) {
       if (settings === mode) return;
       settings = mode;
