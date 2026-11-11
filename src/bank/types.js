@@ -13,6 +13,7 @@
  * @typedef {{attemptId: string, playerId: string, puzzle: Puzzle, catalogVersion: string,
  * source: Source, mode: Mode, ruleVersion: string, reason: Reason, replay: boolean,
  * settings: Settings, recommendation?: Recommendation}} Start
+ * @typedef {Start & {puzzleId: string, level: Level, recommendation: Recommendation}} BankGameMeta
  * @typedef {Start & {startedAt: number, updatedAt: number, endedAt?: number,
  * effectiveMs: number, hintCount: number, hintUsed: boolean, answerRevealed: boolean, outcome: Outcome,
  * feedback?: Feedback, settingsHistory: {at: number, settings: Settings}[]}} Attempt

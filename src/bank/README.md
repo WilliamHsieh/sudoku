@@ -1,6 +1,6 @@
 # Issue #94: V1 logic
 
-This implements items 1–3 of [William's V1 design](https://github.com/WilliamHsieh/sudoku/issues/94#issuecomment-6704192826): catalog construction, records, and a pure selection engine. The sampled catalog is also published through the existing offline release flow. No UI calls its loader yet. The NYT catalog, Journal, existing saves, and offline stack are unchanged.
+This implements items 1–3 of [William's V1 design](https://github.com/WilliamHsieh/sudoku/issues/94#issuecomment-6704192826): catalog construction, records, and a pure selection engine. The sampled catalog is also published through the existing offline release flow. The game now has an explicit opt-in records adapter. It adds no UI or default bank launch, and no UI calls the catalog loader yet. The NYT catalog, Journal, existing saves, and offline stack are unchanged.
 
 ## Build a catalog
 
@@ -104,6 +104,112 @@ Evidence uses saved rating snapshots. When the current catalog contains the same
 Records use `sudoku-bank-records-v1`; recommendations use `sudoku-bank-recommendations-v1`. `saveEvent` and `saveRecommendation` read fresh before each write, reject unreadable storage, and verify the persisted text. They never merge stale memory after a read failure. The host must serialize writers across tabs, for example with one owner or a Web Lock. These synchronous adapters do not implement a cross-tab transaction or automatic UI persistence. Persist each issued recommendation with a stable event ID; `recentPicks` omits exhausted proposals. Preserve the snapshot in the attempt when a puzzle is started.
 
 `inspectLegacySaves` is migration V1: retain all four legacy keys, report missing/present/unreadable state, and create no inferred evidence. It never deletes or rewrites `sudoku-progress`, `sudoku-solved`, `sudoku-replay-progress`, or `sudoku-custom-progress`, and never maps NYT difficulty to L1–L8. Unsupported new storage schemas fail closed.
+
+## Opt-in game wiring (PR C)
+
+There is no bank button, URL parameter, automatic bank restore, or published-catalog dependency.
+The existing `game.load(...)` path stays a non-bank game. It does not read bank storage, emit
+bank events, or write bank keys. Legacy/NYT/daily/custom/replay saves retain their existing
+formats and behavior. Legacy records supply no evidence; there is no migration.
+
+A later host can call the programmatic API with an already selected puzzle:
+
+```js
+import { buildBankGameMeta } from "./bank/game-meta.js";
+import { game } from "./game/game.svelte.js";
+
+const meta = buildBankGameMeta(selection, {
+  attemptId: crypto.randomUUID(), // generate once for this attempt
+  playerId,
+  source: verifiedCatalog.source,
+});
+const started = await game.startBank(meta);
+// After reload, opt in explicitly; no selection and no second start:
+const resumed = await game.startBank();
+```
+
+`buildBankGameMeta` is pure and clones the selected puzzle, level, ID, mode, source, and full
+recommendation snapshot (range, reason, seed, rule/history/catalog versions and context).
+It rejects locked/exhausted proposals. It does not load a catalog, generate IDs, or write storage.
+`startBank` returns false for a missing resume, invalid data, or an existing unfinished bank save.
+It leaves the current game alone in those cases. Storage write failures after launch leave the
+board usable and the queued work available for retry. `createGame(options)` accepts recorder
+storage, Web Locks, clock, ID generator and `onError` dependencies for isolated tests.
+
+```text
+selectPuzzle result + caller identities/source
+  -> buildBankGameMeta -> game.startBank(meta)
+  -> recorder.begin -> start
+board edit / Notes mode / timer tick / star panel / lifecycle / solve
+  -> recorder queue -> Web Lock -> fresh read -> validate -> append/verify
+  -> same lock -> compare last bank checkpoint -> save/verify
+explicit game.startBank() after reload
+  -> validate checkpoint against start record -> restore board/time -> resume
+Update -> game.flushProgress(true) -> await queues -> activate worker -> reload
+```
+
+Events:
+
+| Event        | Trigger                                                                                                                                                           |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `start`      | Explicit `startBank(meta)`, once per new attempt ID.                                                                                                              |
+| `time`       | Existing foreground timer publishes a larger whole-second value; also flushed before pause, background, close and completion. Values are cumulative milliseconds. |
+| `settings`   | Existing Notes mode changes (`auto`, `tidy`, `manual`), stored as `candidateMode`. Initial mode is in `start`.                                                    |
+| `pause`      | Existing manual/automatic pause, or loading another game while a bank attempt is active.                                                                          |
+| `resume`     | Existing pause ends, or explicit restore of a bank checkpoint.                                                                                                    |
+| `background` | `visibilitychange` with hidden visibility.                                                                                                                        |
+| `close`      | `pagehide`.                                                                                                                                                       |
+| `hint`       | A closed star-key panel successfully opens, including its searching/unavailable/error states.                                                                     |
+| `complete`   | The board becomes solved, once per recorder session; terminal checkpoint restores do not start another attempt.                                                   |
+
+**One star-key use means one closed-to-open transition of the three-step hint panel.**
+Closing it, advancing its steps, applying its suggestion, and re-requesting an already open
+panel do not add uses. Opening is disabled in Manual mode. Opening again after closing is
+another use, even if it finds no hint. Fill and the 30-second single-cell hint dot never emit
+`hint`. `reveal` and `give_up` remain unused; no such features are added. The cue and tap-fill
+preferences are not recorded as new settings; this adapter records the existing schema's
+candidate mode only.
+
+Each action receives an attempt-prefixed UUID before it is queued. The queued event keeps
+that ID and its first write timestamp through retries, including a write that succeeded but
+failed verification. Records deduplicate `(attemptId, eventId)`. The timestamp is assigned
+under the lock and never precedes that attempt's latest accepted timestamp, even if a tab's
+wall clock moves backward. No elapsed wall time is inferred. Paused/background time and
+reload gaps add no effective time. Restarting an unfinished bank board keeps the attempt,
+hint evidence and cumulative effort while resetting the displayed clock. A completed bank
+attempt needs a new `startBank(meta)` with a new attempt ID, rather than `restart()`.
+
+Storage keys:
+
+- `sudoku-bank-records-v1`: existing schema-1 append-only log; schema unchanged.
+- `sudoku-bank-game-v1`: new schema-1 checkpoint containing board snapshot (answers, notes,
+  overrides and trusted eliminations), metadata, displayed elapsed seconds and cumulative
+  effective milliseconds. It is kept after completion and may be replaced only by an explicit
+  new attempt after the log confirms completion. Tests cover that replacement rule.
+- The recommendation key is unchanged; this adapter does not publish recommendations or
+  persist unlock state. The caller still owns recommendation issuance.
+
+Every record append and checkpoint write uses `navigator.locks.request("sudoku-bank-writes-v1")`.
+Both run after a fresh storage read. Checkpoints use the last confirmed raw value as an
+optimistic revision, following `persistence.js`'s stale-save protection. A stale tab cannot
+replace another tab's board. Its failed write remains queued and blocks a strict Update flush.
+Without Web Locks, an in-document promise queue provides **single-tab behavior only**;
+there is no cross-tab guarantee in that fallback. No localStorage spin lock is claimed.
+
+Unknown schemas, corrupt snapshots, missing/mismatched attempt identity, unreadable storage,
+and unverified writes fail closed. They do not repair or silently replace stored text.
+Normal game actions never receive storage exceptions: errors go to `onError` or `console.warn`.
+A strict flush rejects if work remains, so the existing Update error path prevents activation
+and reload. Successful queues can be retried without duplicate events. `pagehide` requests a
+final write but browsers can terminate before asynchronous locks finish; regular timer and
+board checkpoints limit this loss. Explicit Update waits for the queue for at most two seconds, then continues activation/reload;
+unpersisted events at that deadline are an accepted loss. The two keys are not a
+crash-atomic transaction; resume checks their identities and uses the log's cumulative time.
+
+Tests use small generated fixtures, never the published catalog. They drive the game API,
+hint session, cue clock, queue failures and two simulated lock-sharing contexts. The existing
+browser suites check default play/persistence/pause/hints/update. No new browser entry point
+or visible UI is added: **no visible UI change — skips designer review**.
 
 ## Rule values
 

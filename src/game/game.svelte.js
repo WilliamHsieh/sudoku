@@ -34,6 +34,8 @@ import {
 } from "./history.js";
 import { bit, popcount } from "./board.js";
 import { solvedState } from "./solved-state.js";
+import { createRecorder } from "../bank/recorder.js";
+import { toSnapshot } from "./snapshot.js";
 import { fromSnapshot } from "./snapshot.js";
 import { done, timer, timerRunning, resetTimer, solvedPuzzles } from "../store.js";
 import {
@@ -54,7 +56,12 @@ export const DEMO_PUZZLE =
  * @property {string | null} [difficulty]
  */
 
-export function createGame() {
+/** @param {Parameters<typeof createRecorder>[0]} [bankOptions] */
+export function createGame(bankOptions) {
+  /** @type {ReturnType<typeof createRecorder> | null} */
+  let bank = $state.raw(null);
+  let stopBankTimer = () => {};
+  const pendingBank = [];
   let history = $state(createHistory(newGame(DEMO_PUZZLE, { notesMode: "auto" })));
   let selected = $state(-1);
   let lastPlaced = $state(-1);
@@ -127,6 +134,12 @@ export function createGame() {
   }
 
   function persistProgress(force = false, strict = false) {
+    if (bank) {
+      bank.time(get(timer));
+      bank.settings(history.present.notesMode);
+      bank.save(toSnapshot(history.present), get(timer));
+      return;
+    }
     const store = customKey ? customProgress : replaying ? replayProgress : puzzleProgress;
     const date = customKey ? "puzzles" : meta.dateStr;
     const difficulty = customKey || meta.difficulty;
@@ -193,6 +206,7 @@ export function createGame() {
   function syncSolved() {
     if (isSolved(history.present)) {
       done.set(true);
+      if (bank) bank.complete(get(timer));
       if (!marked && meta.dateStr && meta.difficulty) {
         marked = solvedPuzzles.markSolved(
           meta.dateStr,
@@ -210,6 +224,52 @@ export function createGame() {
   }
 
   return {
+    get bankMeta() {
+      return bank?.meta ?? null;
+    },
+    /** Explicit opt-in only. null resumes the saved bank attempt after reload.
+     * @param {import('../bank/types.js').BankGameMeta | null} [bankMeta]
+     */
+    async startBank(bankMeta = null) {
+      // Complete the previous queue before reading its checkpoint for a new session.
+      if (pendingBank.length) {
+        try {
+          await this.flushProgress(true);
+        } catch {
+          return false;
+        }
+      }
+      const recorder = createRecorder(bankOptions);
+      const saved = await recorder.open(bankMeta);
+      if (!saved) return false;
+      this.load(
+        saved.meta.puzzle.digits,
+        "snapshot" in saved
+          ? {
+              snapshot: saved.snapshot,
+              elapsed: saved.elapsed,
+            }
+          : {}
+      );
+      bank = recorder;
+      pendingBank.push(recorder);
+      recorder.begin(!bankMeta);
+      syncSolved();
+      persistProgress();
+      stopBankTimer = timer.subscribe(() => persistProgress());
+      await recorder.flush();
+      return true;
+    },
+    /** App lifecycle adapter; no-op for every non-bank game.
+     * @param {'pause'|'resume'|'background'|'close'} type
+     */
+    bankLifecycle(type) {
+      bank?.lifecycle(type, get(timer));
+      if (bank) persistProgress();
+    },
+    bankHint() {
+      bank?.hint();
+    },
     get journalView() {
       return journalView;
     },
@@ -483,7 +543,7 @@ export function createGame() {
 
     /** Clear answers, notes and undo/redo. Keeps the puzzle and the notes mode. */
     restart() {
-      if (replaying || journalView) return;
+      if (replaying || journalView || (bank && isSolved(history.present))) return;
       prepareMutation();
       const next = restartState(state);
       const changed = changedCells(state, next).length > 0;
@@ -492,7 +552,9 @@ export function createGame() {
       lastBlockers = [];
       marked = false;
       done.set(false);
+      bank?.restartClock(get(timer));
       resetTimer();
+      if (bank) persistProgress();
       if (meta.dateStr && meta.difficulty) puzzleProgress.clear(meta.dateStr, meta.difficulty);
       if (next.notesMode !== "auto") persistProgress(true);
       if (changed) activity();
@@ -505,6 +567,10 @@ export function createGame() {
     load(puzzle, info = {}) {
       prepareMutation();
       persistProgress();
+      stopBankTimer();
+      stopBankTimer = () => {};
+      bank?.lifecycle("pause", get(timer));
+      bank = null;
       customKey = info.custom ? puzzle : "";
       const record =
         info.dateStr && info.difficulty
@@ -548,6 +614,8 @@ export function createGame() {
      */
     flushProgress(strict = false) {
       persistProgress(false, strict);
+      if (pendingBank.length)
+        return Promise.all(pendingBank.map((recorder) => recorder.flush(strict))).then(() => {});
     },
   };
 }
