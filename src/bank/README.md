@@ -1,6 +1,6 @@
 # Issue #94: V1 logic
 
-This implements items 1–3 of [William's V1 design](https://github.com/WilliamHsieh/sudoku/issues/94#issuecomment-6704192826): catalog construction, records, and a pure selection engine. It does not add UI or connect the new bank to the running app. The NYT catalog, Journal, existing saves, and offline stack are unchanged.
+This implements items 1–3 of [William's V1 design](https://github.com/WilliamHsieh/sudoku/issues/94#issuecomment-6704192826): catalog construction, records, and a pure selection engine. The sampled catalog is also published through the existing offline release flow. No UI calls its loader yet. The NYT catalog, Journal, existing saves, and offline stack are unchanged.
 
 ## Build a catalog
 
@@ -18,7 +18,7 @@ node scripts/import-bank.mjs \
   /path/to/pinned-bank/diabolical.txt
 ```
 
-The source SHA defaults to that pin. The CLI rejects a different SHA or repository because its trusted verification metadata applies only to this source. It reads disk files; it does not download them. The caller is responsible for supplying the pinned files. No upstream bank or generated publication artifact is committed here.
+The source SHA defaults to that pin. The CLI rejects a different SHA or repository because its trusted verification metadata applies only to this source. It reads disk files; it does not download them. The caller is responsible for supplying the pinned files. The full upstream inputs are not committed. The sampled publication is committed separately; use the verified publication command below to regenerate it.
 
 The importer checks the board format, legal givens, source SHA-1 prefix, and integer-tenths rating. `0.0`, nonnumeric values, and Sukaku Explainer's `20.0` “Beyond solver” marker are rejected before grading. Other valid finite integer tenths at or above 85 map to L8. The [grader implementation](https://github.com/SudokuMonster/SukakuExplainer/blob/master/diuf/sudoku/solver/Solver.java) documents that failure marker.
 
@@ -45,7 +45,7 @@ const result = selectPuzzle({
 });
 ```
 
-These exports live in `catalog.js`, `select.js`, `records.js`, `recommendations.js`, and `ability.js`. `validateCatalog` and `openCatalog` clone caller input before any await. All checks, hashing, indexing, freezing, and verification use that private snapshot. `openCatalog` checks full IDs and indexes and creates the launch-local verification capability required by selection. Passing a raw, mutated, or schema-incompatible catalog fails closed. The later release integration must call it only after the existing release verifier accepts the asset. No boolean `ready` field bypasses that boundary.
+These exports live in `catalog.js`, `select.js`, `records.js`, `recommendations.js`, and `ability.js`. `validateCatalog` and `openCatalog` clone caller input before any await. All checks, hashing, indexing, freezing, and verification use that private snapshot. `openCatalog` checks full IDs and indexes and creates the launch-local verification capability required by selection. Passing a raw, mutated, or schema-incompatible catalog fails closed. The published loader calls it only after checking the prepared release and asset hash. No boolean `ready` field bypasses that boundary.
 
 `setColdStart({ kind: "experience", mapsToLevel })` also accepts an injected level. This module has no experience labels or experience-to-level table. Manual mode requires `level`; it selects only that level's actual ratings. Starting a manual recommendation does not change ability. Its eventual attempt supplies local evidence but cannot bypass the mode-specific promotion rules.
 
@@ -100,9 +100,17 @@ All tuning values live in `calibration.js`:
 
 The 4-of-5 rule is a candidate signal, not an Easy classifier or a future success probability. Missing feedback is not light feedback. Cold-start bands are priors, not mastery evidence. Synthetic player sequences verify these rules only; actual experience still needs play testing.
 
-## Offline hand-off
+## Publish and read the sampled catalog
 
-Item 4 is a later integration PR. Publish this JSON catalog through the existing full release prepare/verify path in `offline/client.js`, `offline/worker.js`, and `offline/releases.js`, as a content-addressed `banks/<sha256>.json` asset. The catalog version is independent of the app version. Adapt the existing JSON bank consumer in that integration; this module does not claim the current NYT bank reader already accepts the new schema.
+Run `npm run bank:publish` from the repository root. It downloads the four source files into a temporary directory outside the repo, verifies their Git blob hashes against the tree at `SOURCE_SHA`, and runs the existing importer. It writes only `src/bank/published/catalog-v1.json` into the repo. Temporary inputs are removed on completion. With existing pinned inputs, use `npm run bank:publish -- --input-dir /path/outside/repo`; the same remote tree verification still applies.
+
+The default cap comes from `CALIBRATION.maxPerLevel` (500, 待校準 / 未簽核). `--max-per-level` and `--out` support measurements outside the repo. Output includes source provenance, catalog version, actual input/published counts by rating and level, and the calibration status. Serialization has no wall-clock fields; the same inputs and cap produce identical bytes. Unique-solution provenance remains the upstream claim described above.
+
+The build validates the committed catalog and emits its bytes as `banks/<sha256>.json` in `release.assets`. The unchanged offline PREPARE/STAGE/ACTIVATE flow downloads, hashes, caches, repairs, and activates this asset with the complete release. A failed catalog download keeps the old release active. This additional asset is downloaded on an app update; only the existing NYT `release.bank` has cross-release reuse in the current offline implementation.
+
+The build injects `globalThis.__sudokuBankCatalog`, a descriptor with the asset path, SHA-256, and document release identity. `await loadPublished()` from `loadPublished.js` reads that exact prepared release from Cache API, checks the bytes and catalog semantics, and returns the immutable verified catalog accepted by selection. It makes no network request and has no fallback to another release. Call it after successful offline preparation. The NYT `__sudokuPuzzleBank` global and reader keep their current contract; App and Journal do not call the new loader.
+
+For cold download measurements, run `node scripts/measure-bank-release.mjs /path/to/baseline-build /path/to/new-build`. It uses fresh Chromium contexts and a local server with a shared bandwidth limit of 1.5 or 10 Mbps, 40 ms response latency, and raw or gzip (level 6) responses. The limit covers service-worker traffic. It reports release bytes, bytes including manifest/worker, total transferred bytes, and actual PREPARE completion time. The existing limits remain 60 s per download transaction and 125 s per command.
 
 Manifest hashes prove that a file matches the manifest. They do not replace semantic Sudoku validation at build time. First launch must prepare the **complete published bank**, not one level at a time, before selection. Warm launch uses the verified local release without waiting for a background update. Keep existing staging, verification, activation, bound-version, and failed-update retention behavior. Do not swap catalog or puzzle snapshots during an active game.
 

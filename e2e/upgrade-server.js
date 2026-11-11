@@ -49,6 +49,15 @@ export async function upgradeServer(buildDirectory = buildRoot) {
       }
     }
     if (relative.startsWith("banks/")) {
+      if (fault === "catalog-corrupt") {
+        const manifest = JSON.parse(
+          await readFile(join(buildDirectory, version, "version.json"), "utf8")
+        );
+        if (relative !== manifest.release.bank.path) {
+          res.writeHead(200).end("corrupt catalog");
+          return;
+        }
+      }
       bankRequested = true;
       await bankGate;
       if (fault === "bank-delay") await new Promise((resolve) => setTimeout(resolve, 2000));

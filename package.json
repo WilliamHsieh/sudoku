@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "bank:publish": "node scripts/publish-bank.mjs",
     "mock:hint": "node scripts/hint-ui.mjs --open",
     "mock:hint:capture": "node scripts/hint-ui.mjs",
     "mock:hint:check": "node scripts/hint-ui.mjs --check",

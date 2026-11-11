@@ -4,3 +4,5 @@
 declare const __SUDOKU_BUILD__: { version: string; builtAt: number };
 
 declare var __sudokuPuzzleBank: Record<string, Record<string, string>>;
+declare var __sudokuBankCatalog:
+  { path: string; hash: string; version: string; builtAt: number } | undefined;
