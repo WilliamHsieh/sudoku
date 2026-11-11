@@ -175,10 +175,8 @@ export function createRecorder(options = {}) {
       draining = locked(() => {
         failureCode = null;
         while (jobs.length) {
-          if (meta) {
-            const current = readSaves(records());
-            if (current.migration) writeSaves(current);
-          }
+          const current = readSaves(records());
+          if (current.migration) writeSaves(current);
           jobs[0]();
           jobs.shift();
         }

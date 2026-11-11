@@ -232,13 +232,13 @@ fresh slots; same-attempt stale boards are rejected. Completion removes only its
 the log confirms a terminal outcome. If deletion fails, the log still prevents resume.
 
 An unfinished, consistent old checkpoint appears as a read-through slot when no new slot or
-abandonment marker exists for its ID. Reading/opening does not migrate it. The next queued
-game write, checkpoint write, or explicit abandon persists the new store under the lock.
-Feedback-only calls without an open game retain their records-only path. The old key's exact
-text is kept even after verification, so a crash cannot discard the only copy. New slots take
-precedence and concurrent migration is idempotent. The old format has no checkpoint date;
-its migrated `updatedAt` uses stable attempt start time. Corrupt, unknown-schema, or unreadable
-old/new storage blocks slot operations without repair.
+abandonment marker exists for its ID. Reading/opening does not migrate it. Every queued
+recorder write checks for pending migration under the same lock, including feedback writes
+without an open game, checkpoint writes, and explicit abandon. Migration is verified before
+the queued operation runs. The old key's exact text is kept even after verification, so a crash
+cannot discard the only copy. New slots take precedence and concurrent migration is idempotent.
+The old format has no checkpoint date; its migrated `updatedAt` uses stable attempt start time.
+Corrupt, unknown-schema, or unreadable old/new storage blocks slot operations without repair.
 
 Both list methods return `{ ok, items, count, code? }`. `listSlots` includes only resumable
 slots, with `attemptId`, `updatedAt`, `mode`, `level`, and `effectiveMs`. `unfinishedSlots`

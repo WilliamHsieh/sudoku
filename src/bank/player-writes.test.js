@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createRecorder, BANK_LOCK, BANK_GAME_KEY } from "./recorder.js";
+import { createRecorder, BANK_LOCK, BANK_GAME_KEY, BANK_SAVES_KEY } from "./recorder.js";
 import { persistUnlockState, readUnlockState, UNLOCK_KEY } from "./unlock-storage.js";
 import { projectRecords, RECORDS_KEY, readRecords } from "./records.js";
 import { attempt, catalogWith, memoryStorage, puzzle, start } from "./test-fixtures.js";
@@ -428,7 +428,11 @@ it("does no work before opt-in and reads/writes only its bank keys after opt-in"
   expect(write).not.toHaveBeenCalled();
   await r.setFeedback("light", identity);
   await persistUnlockState(storage, wins(), { playerId: "player", locks: null });
-  expect(read.mock.calls.every(([key]) => [RECORDS_KEY, UNLOCK_KEY].includes(key))).toBe(true);
+  expect(
+    read.mock.calls.every(([key]) =>
+      [RECORDS_KEY, UNLOCK_KEY, BANK_GAME_KEY, BANK_SAVES_KEY].includes(key)
+    )
+  ).toBe(true);
   expect(write.mock.calls.every(([key]) => [RECORDS_KEY, UNLOCK_KEY].includes(key))).toBe(true);
   expect(storage.data.get("unrelated-key")).toBe("keep verbatim");
   expect(storedLog(storage).events.slice(0, 2)).toEqual(JSON.parse(original).events);

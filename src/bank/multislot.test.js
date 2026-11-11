@@ -74,6 +74,120 @@ async function oldSave(storage, id = "old") {
   return { raw, value };
 }
 
+async function feedbackTarget(storage) {
+  const meta = await metadata("done");
+  expect(
+    saveEvent(storage, {
+      type: "start",
+      id: "done-start",
+      attemptId: "done",
+      at: 3,
+      start: meta,
+    }).ok
+  ).toBe(true);
+  expect(
+    saveEvent(storage, {
+      type: "complete",
+      id: "done-complete",
+      attemptId: "done",
+      at: 4,
+    }).ok
+  ).toBe(true);
+  return { attemptId: "done", playerId: "player" };
+}
+
+it.each([false, true])(
+  "fresh recorder feedback (clear=%s) migrates the old save under the same lock",
+  async (clear) => {
+    const { storage, lock } = setup();
+    const { raw, value } = await oldSave(storage);
+    const identity = await feedbackTarget(storage);
+    let inside = false;
+    const onError = vi.fn();
+    const r = createRecorder({
+      storage,
+      onError,
+      now: () => 100,
+      locks: {
+        request(name, work) {
+          return lock.request(name, () => {
+            inside = true;
+            try {
+              return work();
+            } finally {
+              inside = false;
+            }
+          });
+        },
+      },
+    });
+    const write = storage.setItem;
+    storage.setItem = (key, text) => {
+      expect(inside).toBe(true);
+      if (key === RECORDS_KEY) expect(slots(storage).old).toBeDefined();
+      expect(key).not.toBe(BANK_GAME_KEY);
+      write(key, text);
+    };
+    expect(r.meta).toBe(null);
+    const result = clear ? await r.clearFeedback(identity) : await r.setFeedback("light", identity);
+    expect(result.ok).toBe(true);
+    expect(r.meta).toBe(null);
+    expect(JSON.parse(slots(storage).old)).toMatchObject({ ...value, playerId: "player" });
+    expect(storage.getItem(BANK_GAME_KEY)).toBe(raw);
+    expect(projectRecords(recordLog(storage)).find((a) => a.attemptId === "done").feedback).toBe(
+      clear ? undefined : "light"
+    );
+    expect(onError).not.toHaveBeenCalled();
+  }
+);
+
+it.each([BANK_GAME_KEY, BANK_SAVES_KEY])(
+  "fresh recorder feedback fails closed on corrupt %s",
+  async (key) => {
+    const { storage, recorder } = setup();
+    await oldSave(storage);
+    const identity = await feedbackTarget(storage);
+    storage.setItem(key, '{"schema":99}');
+    const before = [...storage.data.entries()];
+    const r = recorder();
+    expect((await r.setFeedback("light", identity)).ok).toBe(false);
+    expect((await r.flush()).ok).toBe(false);
+    expect([...storage.data.entries()]).toEqual(before);
+  }
+);
+
+it.each(["before", "after"])(
+  "fresh feedback retries migration failing %s the slot write",
+  async (when) => {
+    const { storage, recorder } = setup();
+    const { raw } = await oldSave(storage);
+    const identity = await feedbackTarget(storage);
+    const r = recorder();
+    const read = storage.getItem,
+      write = storage.setItem;
+    let failRead = false;
+    storage.setItem = (key, text) => {
+      if (key === BANK_SAVES_KEY && when === "before") throw Error("slot write blocked");
+      write(key, text);
+      if (key === BANK_SAVES_KEY) failRead = true;
+    };
+    storage.getItem = (key) => {
+      if (key === BANK_SAVES_KEY && failRead) {
+        failRead = false;
+        throw Error("verification blocked");
+      }
+      return read(key);
+    };
+    expect((await r.setFeedback("light", identity)).ok).toBe(false);
+    expect(storage.getItem(BANK_GAME_KEY)).toBe(raw);
+    storage.setItem = write;
+    await r.flush(true);
+    expect(Object.keys(slots(storage))).toEqual(["old"]);
+    expect(recordLog(storage).events.filter((e) => e.type === "feedback")).toHaveLength(1);
+    expect(storage.getItem(BANK_GAME_KEY)).toBe(raw);
+  }
+);
+
 it("keeps two boards, resumes an exact slot, and uses recorded cumulative time", async () => {
   const { storage, recorder } = setup();
   const a = recorder(),
