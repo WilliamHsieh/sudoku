@@ -231,6 +231,68 @@ describe("hint counts and fail-closed completion timestamps", () => {
     ]);
     expect(projectRecords(startedLog())[0]).toMatchObject({ hintCount: 0, hintUsed: false });
   });
+  it("counts explicit star-key uses once per event ID and keeps omitted sources compatible", () => {
+    const hint = {
+      id: "star",
+      attemptId: "attempt-1",
+      at: 11,
+      type: /** @type {const} */ ("hint"),
+      source: "star",
+    };
+    let log = applyEvent(startedLog(), hint);
+    log = applyEvent(log, hint);
+    const { source, ...unlabelled } = hint;
+    expect(source).toBe("star");
+    log = applyEvent(log, { ...unlabelled, id: "second-star", at: 12 });
+    log = applyEvent(log, { id: "end", attemptId: "attempt-1", at: 13, type: "complete" });
+    expect(log.schema).toBe(1);
+    expect(projectRecords(log)[0]).toMatchObject({
+      hintCount: 2,
+      hintUsed: true,
+      outcome: "hinted_complete",
+    });
+    expect(projectRecords(JSON.parse(JSON.stringify(log)))).toEqual(projectRecords(log));
+  });
+  it.each(["fill", "hint_dot", "other"])(
+    "ignores explicit non-star source %s without changing projection",
+    (source) => {
+      let log = startedLog();
+      const initial = projectRecords(log);
+      const assist = {
+        id: "assist",
+        attemptId: "attempt-1",
+        at: 11,
+        type: /** @type {const} */ ("hint"),
+        source,
+      };
+      log = applyEvent(log, assist);
+      expect(log.events).toHaveLength(2);
+      expect(projectRecords(log)).toEqual(initial);
+      expect(applyEvent(log, assist)).toEqual(log);
+      expect(() => applyEvent(log, { ...assist, source: "star" })).toThrow("Conflicting");
+      expect(() => applyEvent(log, { ...assist, id: "backdated", at: 9 })).toThrow("Out-of-order");
+      log = applyEvent(log, { id: "end", attemptId: "attempt-1", at: 12, type: "complete" });
+      const completed = projectRecords(log);
+      expect(completed[0]).toMatchObject({
+        hintCount: 0,
+        hintUsed: false,
+        outcome: "independent_complete",
+      });
+      log = applyEvent(log, { ...assist, id: "after-complete", at: 13 });
+      expect(projectRecords(JSON.parse(JSON.stringify(log)))).toEqual(completed);
+    }
+  );
+  it.each([null, 1, {}, ""])("rejects malformed hint source %j", (source) => {
+    expect(() =>
+      applyEvent(startedLog(), {
+        id: "hint",
+        attemptId: "attempt-1",
+        at: 11,
+        type: "hint",
+        source: /** @type {never} */ (source),
+      })
+    ).toThrow("Invalid event");
+  });
   it.each([0, -1, 9, 19, NaN, Infinity, 20.5])(
     "rejects invalid/backdated complete at %s before the terminal retry exception",
     (at) => {

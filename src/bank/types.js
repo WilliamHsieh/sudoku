@@ -16,12 +16,16 @@
  * @typedef {Start & {startedAt: number, updatedAt: number, endedAt?: number,
  * effectiveMs: number, hintCount: number, hintUsed: boolean, answerRevealed: boolean, outcome: Outcome,
  * feedback?: Feedback, settingsHistory: {at: number, settings: Settings}[]}} Attempt
+ * A hint event is one star-key (3-step hint panel) use. Omitted source means star.
+ * Fill and the 30-second single-cell hint dot must not emit hint events; explicit
+ * non-star sources are retained in the log but ignored by the projection.
  * @typedef {{id: string, attemptId: string, at: number} & (
  * {type: 'start', start: Start} |
  * {type: 'time', effectiveMs: number} |
  * {type: 'settings', settings: Settings} |
  * {type: 'feedback', feedback?: Feedback} |
- * {type: 'pause'|'background'|'close'|'resume'|'hint'|'reveal'|'complete'|'give_up'}
+ * {type: 'hint', source?: string} |
+ * {type: 'pause'|'background'|'close'|'resume'|'reveal'|'complete'|'give_up'}
  * )} PlayEvent
  * @typedef {{schema: 1, events: PlayEvent[]}} RecordLog
  * @typedef {{getItem: (key: string) => string|null, setItem: (key: string, value: string) => void}} Storage

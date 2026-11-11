@@ -86,7 +86,8 @@ export function projectRecords(log) {
       !nonempty(event.attemptId) ||
       !Number.isSafeInteger(event.at) ||
       event.at <= 0 ||
-      !types.includes(event.type)
+      !types.includes(event.type) ||
+      (event.type === "hint" && event.source !== undefined && !nonempty(event.source))
     )
       throw new Error("Invalid event");
     const key = JSON.stringify([event.attemptId, event.id]);
@@ -135,6 +136,11 @@ export function projectRecords(log) {
     // safe integers and new events cannot predate the latest accepted event.
     // Exact same-ID retries were already checked above and remain idempotent.
     if (event.at < attempt.updatedAt) throw new Error("Out-of-order event");
+    // Only the star key (3-step hint panel) is a hint. An omitted source keeps
+    // existing hint events compatible. Fill and the 30-second hint dot must not
+    // emit hint events; ignore explicit non-star sources without changing state.
+    // Timestamp and retry validation still apply to these append-only entries.
+    if (event.type === "hint" && event.source !== undefined && event.source !== "star") continue;
     // Re-sending completion under a new event ID must not create new evidence.
     if (isTerminal(attempt) && event.type === "complete") continue;
     if (isTerminal(attempt) && event.type !== "feedback") throw new Error("Attempt is finished");

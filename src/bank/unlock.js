@@ -3,7 +3,10 @@ import { CALIBRATION as C } from "./calibration.js";
 import { levelBand } from "./grade.js";
 
 /** @typedef {{unlockInitialLevels?: number, unlockRequiredHintFreeSolves?: number, unlockMaxLevel?: number}} UnlockPolicy */
-/** Derive one player's unlock evidence. Callers must scope attempts to one player.
+/** Derive one player's unlock evidence from projected bank records only.
+ * This function never reads storage or imports legacy saves; everyone starts at
+ * the signed-off initial levels without credit for legacy play.
+ * Callers must scope attempts to one player.
  * First attempts reserve a board even when unfinished or unsuccessful. Unknown hint
  * counts fail closed; derive them from the event log before using older snapshots.
  * @param {import('./types.js').Attempt[]} attempts
