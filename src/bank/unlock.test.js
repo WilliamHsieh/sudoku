@@ -25,14 +25,85 @@ describe("opt-in progressive unlock", () => {
     expect(state.maxOpenLevel).toBe(4);
     expect(state.perLevel[3]).toEqual({ independentSolves: 10, hintFreeSolves: 10, required: 10 });
   });
-  it("cannot skip a missing frontier, even with lower and higher level wins", () => {
-    const records = [...wins(10, 20), ...wins(45, 10, 200)];
-    expect(deriveUnlockState(records).maxOpenLevel).toBe(3);
-    expect(deriveUnlockState([...records, ...wins(32, 10, 300)]).maxOpenLevel).toBe(5);
+  it("opens only L4 when the tenth L3 solve follows ten earlier L4 solves", () => {
+    const earlierL4 = wins(45, 10, 100);
+    const nineL3 = wins(32, 9, 200);
+    expect(deriveUnlockState([...earlierL4, ...nineL3]).maxOpenLevel).toBe(3);
+    const tenthL3 = wins(32, 1, 209)[0];
+    const state = deriveUnlockState([...earlierL4, ...nineL3, tenthL3]);
+    expect(state.maxOpenLevel).toBe(4);
+    expect(state.perLevel[3].hintFreeSolves).toBe(10);
+    expect(state.perLevel[4]).toEqual({ independentSolves: 0, hintFreeSolves: 0, required: 10 });
+  });
+  it("never credits solves completed before their level opened or below the current frontier", () => {
+    const records = [...wins(10, 20), ...wins(45, 10, 200), ...wins(32, 10, 300)];
+    const nineNewL4 = [...records, ...wins(45, 9, 400)];
+    expect(deriveUnlockState(nineNewL4).maxOpenLevel).toBe(4);
+    expect(deriveUnlockState(nineNewL4).perLevel[4].hintFreeSolves).toBe(9);
+    const tenthNewL4 = wins(45, 1, 409)[0];
+    expect(deriveUnlockState([...nineNewL4, tenthNewL4]).maxOpenLevel).toBe(5);
+    const moreL3 = [...nineNewL4, ...wins(32, 20, 500)];
+    expect(deriveUnlockState(moreL3).maxOpenLevel).toBe(4);
+    expect(deriveUnlockState(moreL3).perLevel[3].hintFreeSolves).toBe(10);
+  });
+  it("orders solves by completion time, not start time or later feedback time", () => {
+    const l3 = wins(32, 10, 300);
+    const l4 = wins(45, 10, 100);
+    const finishedLater = l4.map((a, i) => ({ ...a, endedAt: 40000 + i, updatedAt: 40000 + i }));
+    expect(deriveUnlockState([...finishedLater, ...l3]).maxOpenLevel).toBe(5);
+    const feedbackLater = l4.map((a) => ({ ...a, updatedAt: 50000 }));
+    expect(deriveUnlockState([...feedbackLater, ...l3]).maxOpenLevel).toBe(4);
+  });
+  it.each([
+    { l3Id: "a-l3", l4Id: "b-l4", expectedL4: 1 },
+    { l3Id: "b-l3", l4Id: "a-l4", expectedL4: 0 },
+  ])(
+    "breaks equal completion times by attempt ID ($l3Id / $l4Id)",
+    ({ l3Id, l4Id, expectedL4 }) => {
+      const l3 = { ...wins(32, 1, 200)[0], attemptId: l3Id, endedAt: 25000, updatedAt: 25000 };
+      const l4 = { ...wins(45, 1, 201)[0], attemptId: l4Id, endedAt: 25000, updatedAt: 25000 };
+      const records = [...wins(32, 9), l3, l4];
+      const state = deriveUnlockState(records);
+      expect(state.maxOpenLevel).toBe(4);
+      expect(state.perLevel[4].hintFreeSolves).toBe(expectedL4);
+      expect(deriveUnlockState([...records].reverse())).toEqual(state);
+      expect(deriveUnlockState([l4, ...records.slice(0, -1)])).toEqual(state);
+    }
+  );
+  it("cannot reuse a pre-open board through a later replay or duplicate attempt", () => {
+    const early = wins(45, 1, 100)[0];
+    const retry = {
+      ...early,
+      attemptId: "later",
+      startedAt: 40000,
+      endedAt: 40001,
+      updatedAt: 40001,
+    };
+    const records = [early, ...wins(32, 10, 200), ...wins(45, 9, 300)];
+    for (const replay of [false, true]) {
+      const state = deriveUnlockState([...records, { ...retry, replay }]);
+      expect(state.maxOpenLevel).toBe(4);
+      expect(state.perLevel[4].hintFreeSolves).toBe(9);
+    }
+    expect(deriveUnlockState([...records, retry, ...wins(45, 1, 500)]).maxOpenLevel).toBe(5);
+  });
+  it("fails closed when a completed snapshot has no valid completion timestamp", () => {
+    const nine = wins(32, 9);
+    const tenth = wins(32, 1, 200)[0];
+    for (const endedAt of [undefined, 0, NaN, Infinity, tenth.startedAt - 1])
+      expect(deriveUnlockState([...nine, { ...tenth, endedAt }]).maxOpenLevel).toBe(3);
   });
   it("caps progression at L8 and supports injected policy without persistence", () => {
     const records = [32, 45, 56, 65, 70, 85].flatMap((rating, i) => wins(rating, 10, 100 + i * 10));
-    expect(deriveUnlockState(records).maxOpenLevel).toBe(8);
+    let previous = 3;
+    for (let count = 1; count <= records.length; count++) {
+      const state = deriveUnlockState(records.slice(0, count));
+      expect(state.maxOpenLevel - previous).toBeLessThanOrEqual(1);
+      expect(state.maxOpenLevel).toBeLessThanOrEqual(8);
+      previous = state.maxOpenLevel;
+    }
+    expect(previous).toBe(8);
+    expect(deriveUnlockState([...records, ...wins(85, 20, 300)]).maxOpenLevel).toBe(8);
     expect(
       deriveUnlockState(wins(26, 2), {
         unlockInitialLevels: 2,

@@ -25,16 +25,34 @@ export function deriveUnlockState(attempts, policy = {}) {
   const perLevel = {};
   for (let level = 1; level <= maximum; level++)
     perLevel[level] = { independentSolves: 0, hintFreeSolves: 0, required };
-  for (const attempt of firstAttempts(attempts, attempts[0]?.playerId)) {
-    const counts = perLevel[attempt.puzzle.level];
-    if (!counts || attempt.outcome !== "independent_complete" || attempt.answerRevealed) continue;
-    counts.independentSolves++;
-    if (attempt.hintCount === 0 && !attempt.hintUsed) counts.hintFreeSolves++;
-  }
+  // Keep the existing first-attempt/board qualifiers, then replay completions.
+  // updatedAt may be later feedback and must never move a solve past an unlock.
+  const completions = firstAttempts(attempts, attempts[0]?.playerId)
+    .filter(
+      (a) =>
+        a.outcome === "independent_complete" &&
+        !a.answerRevealed &&
+        Number.isSafeInteger(a.endedAt) &&
+        a.endedAt > 0 &&
+        a.endedAt >= a.startedAt
+    )
+    .sort(
+      (a, b) =>
+        a.endedAt - b.endedAt ||
+        (a.attemptId < b.attemptId ? -1 : a.attemptId > b.attemptId ? 1 : 0)
+    );
   let maxOpenLevel = initial;
-  // Each frontier needs its own evidence; lower-level wins cannot skip a level.
-  while (maxOpenLevel < maximum && perLevel[maxOpenLevel].hintFreeSolves >= required)
-    maxOpenLevel++;
+  for (const attempt of completions) {
+    // Evidence completed before this frontier opened is never banked for later.
+    if (attempt.puzzle.level !== maxOpenLevel) continue;
+    const counts = perLevel[maxOpenLevel];
+    counts.independentSolves++;
+    if (attempt.hintCount !== 0 || attempt.hintUsed) continue;
+    counts.hintFreeSolves++;
+    // One completion can open only the next level. Its counter is still zero;
+    // no earlier solve at that level can be credited retroactively.
+    if (maxOpenLevel < maximum && counts.hintFreeSolves >= required) maxOpenLevel++;
+  }
   return { maxOpenLevel, perLevel };
 }
 
