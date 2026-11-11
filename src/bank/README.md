@@ -202,7 +202,8 @@ Normal game actions never receive storage exceptions: errors go to `onError` or 
 A strict flush rejects if work remains, so the existing Update error path prevents activation
 and reload. Successful queues can be retried without duplicate events. `pagehide` requests a
 final write but browsers can terminate before asynchronous locks finish; regular timer and
-board checkpoints limit this loss. Explicit Update awaits the queue. The two keys are not a
+board checkpoints limit this loss. Explicit Update waits for the queue for at most two seconds, then continues activation/reload;
+unpersisted events at that deadline are an accepted loss. The two keys are not a
 crash-atomic transaction; resume checks their identities and uses the log's cumulative time.
 
 Tests use small generated fixtures, never the published catalog. They drive the game API,

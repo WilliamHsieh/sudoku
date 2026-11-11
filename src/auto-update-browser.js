@@ -2,6 +2,7 @@ import { stageUpdate, activateUpdate } from "../offline/client.js";
 import { createUpdater } from "./auto-update.js";
 
 export const UPDATE_PARAM = "_sudoku_update";
+export const UPDATE_FLUSH_TIMEOUT_MS = 2000;
 
 /** Remove the navigation marker even if the check fails or storage is blocked. */
 export function stripUpdateParam() {
@@ -28,11 +29,15 @@ export async function reloadForUpdate(version) {
  */
 export function createUpdateAction({ flush, reload, setUpdating, onError = () => {} }) {
   let busy = false;
+  // A successful async update stays in flight until navigation leaves this page.
+  let pending = false;
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   let timer;
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let flushTimer;
   return {
     run() {
-      if (busy) return;
+      if (busy || pending) return;
       busy = true;
       setUpdating(true);
       timer = setTimeout(() => {
@@ -42,15 +47,27 @@ export function createUpdateAction({ flush, reload, setUpdating, onError = () =>
       try {
         const saved = flush();
         const navigate = () =>
-          Promise.resolve(reload()).catch((error) =>
-            onError(error.message || "Could not update. Please retry.")
-          );
+          Promise.resolve(reload()).catch((error) => {
+            pending = false;
+            onError(error.message || "Could not update. Please retry.");
+          });
         // Preserve the synchronous legacy path. Bank writes can wait on a Web Lock.
-        if (saved)
-          saved
-            .then(navigate)
-            .catch((error) => onError(error.message || "Could not save progress. Please retry."));
-        else void navigate();
+        if (saved) {
+          pending = true;
+          const deadline = new Promise((resolve) => {
+            flushTimer = setTimeout(() => resolve(undefined), UPDATE_FLUSH_TIMEOUT_MS);
+          });
+          Promise.race([saved, deadline])
+            .then(() => {
+              clearTimeout(flushTimer);
+              return navigate();
+            })
+            .catch((error) => {
+              clearTimeout(flushTimer);
+              pending = false;
+              onError(error.message || "Could not save progress. Please retry.");
+            });
+        } else void navigate();
       } catch (error) {
         onError(error.message || "Could not save progress. Please retry.");
         // Keep Updating… until the same three-second recovery deadline.
@@ -58,6 +75,7 @@ export function createUpdateAction({ flush, reload, setUpdating, onError = () =>
     },
     stop() {
       clearTimeout(timer);
+      clearTimeout(flushTimer);
     },
   };
 }

@@ -109,16 +109,47 @@ export function createRecorder(options = {}) {
   function event(type, extra = {}) {
     if (!meta || finished) return;
     const attemptId = meta.attemptId;
-    // Assigned once per action, before the first write; retries reuse this object.
+    // Keep the action ID, but rebuild unpersisted events against fresh shared state.
     const id = `${attemptId}:${uuid()}`;
-    let payload;
+    const running = !paused && ["time", "hint", "settings", "complete"].includes(type);
+    let originalAt;
     enqueue(() => {
       const log = records();
-      const attempt = projectRecords(log).find((a) => a.attemptId === attemptId);
-      payload ??= {
+      // A prior write may have succeeded before its verification read failed.
+      // Its exact stored payload is already accepted; do not rewrite its timestamp.
+      const delivered = log.events.find(
+        (event) => event.attemptId === attemptId && event.id === id
+      );
+      if (delivered) {
+        const retry = {
+          ...delivered,
+          type,
+          ...extra,
+          ...(type === "time" && delivered.type === "time"
+            ? { effectiveMs: Math.max(extra.effectiveMs, delivered.effectiveMs) }
+            : {}),
+        };
+        if (canonical(retry) !== canonical(delivered)) throw new Error("Conflicting event retry");
+        return;
+      }
+      let attempt = projectRecords(log).find((a) => a.attemptId === attemptId);
+      originalAt ??= now();
+      const at = Math.max(1, originalAt, attempt?.updatedAt ?? 0);
+      if (running && attempt?.outcome === "paused") {
+        const last = log.events.filter((event) => event.attemptId === attemptId).at(-1);
+        const resumed = saveEvent(storage, {
+          id: `${id}:resume:${last.id}`,
+          attemptId,
+          at,
+          type: "resume",
+        });
+        if (!resumed.ok) throw new Error(resumed.code);
+        attempt = projectRecords(resumed.log).find((a) => a.attemptId === attemptId);
+      }
+      const payload = {
         id,
         attemptId,
-        at: Math.max(1, now(), attempt?.updatedAt ?? 0),
+        at,
         type,
         ...extra,
         ...(type === "time"
