@@ -121,7 +121,7 @@ export function createCustomRecorder(options = {}) {
   };
 }
 /** One record per board (its givens), numbered in first-opened order.
- * The saved solve is the earliest one, as in the level lists. A replay in progress is not solved.
+ * The saved solve is the earliest one, as in the level lists.
  * @param {CustomSlot[]} slots */
 export function customPuzzles(slots) {
   const opened = (/** @type {CustomSlot} */ s) => s.createdAt ?? s.updatedAt;
@@ -135,14 +135,29 @@ export function customPuzzles(slots) {
     const solves = group.filter((s) => s.completed).sort((a, b) => a.updatedAt - b.updatedAt);
     const active = group.filter((s) => !s.completed).sort((a, b) => b.updatedAt - a.updatedAt)[0];
     const label = group[0].label ?? CUSTOM_LABEL;
+    const saved = solves[0];
     return {
       puzzle: { digits: group[0].puzzle },
+      index: i + 1,
       name: `Custom ${i + 1}`,
       label,
       title: label === CUSTOM_LABEL ? `Custom ${i + 1}` : label,
-      status: active ? (solves.length ? "replaying" : "in_progress") : "solved",
+      source: label === CUSTOM_LABEL ? null : label.replace(/ \d{4}-\d{2}-\d{2} ·/, ""),
+      openedAt: opened(group[0]),
+      playedAt: Math.max(...group.map((s) => s.updatedAt)),
+      state: active ? (saved ? "replaying" : "in_progress") : "solved",
       solves,
-      active: active ? { attemptId: active.attemptId, effectiveMs: active.elapsed * 1000 } : null,
+      solvedAt: saved?.updatedAt ?? null,
+      solveMs: saved ? saved.elapsed * 1000 : null,
+      ...(active && saved ? { bestMs: saved.elapsed * 1000 } : {}),
+      active: active
+        ? {
+            attemptId: active.attemptId,
+            effectiveMs: active.elapsed * 1000,
+            updatedAt: active.updatedAt,
+            answers: active.snapshot.answers,
+          }
+        : null,
     };
   });
 }

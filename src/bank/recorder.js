@@ -405,6 +405,7 @@ export function createRecorder(options = {}) {
           const resumable = !!slot && consistent(slot, log);
           return {
             ...item,
+            answers: slot?.snapshot.answers ?? null,
             resumable,
             reason: resumable
               ? null
@@ -449,12 +450,13 @@ export function createRecorder(options = {}) {
       const result = await unfinishedSlots(playerId);
       const items = result.items
         .filter((item) => item.resumable)
-        .map(({ attemptId, updatedAt, mode, level, effectiveMs }) => ({
+        .map(({ attemptId, updatedAt, mode, level, effectiveMs, answers }) => ({
           attemptId,
           updatedAt,
           mode,
           level,
           effectiveMs,
+          answers,
         }));
       return { ...result, items, count: items.length };
     },
