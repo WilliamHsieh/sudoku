@@ -20,6 +20,7 @@ export function createBankUI() {
     /** @type {Awaited<ReturnType<ReturnType<typeof createRecorder>['listSlots']>>['items']} */ ([])
   );
   let error = $state("");
+  let loaded = false;
   const recorder = createRecorder();
   const custom = createCustomRecorder();
   let customSlots = $state.raw(/** @type {import("./custom-recorder.js").CustomSlot[]} */ ([]));
@@ -40,6 +41,7 @@ export function createBankUI() {
     if (!list.ok) throw new Error("Could not read unfinished games.");
     slots = list.items;
     customSlots = await custom.all();
+    loaded = true;
   }
   return {
     get catalog() {
@@ -71,6 +73,9 @@ export function createBankUI() {
     },
     get custom() {
       return customList;
+    },
+    get loaded() {
+      return loaded;
     },
     get error() {
       return error;

@@ -413,9 +413,9 @@
     returnRoute = "custom";
     handleLoadPuzzle();
   }
-  /** A board played before reopens its record instead of starting a duplicate.
-   * The editor opens through navigate() or init(), which already refreshed the records. */
+  /** A board played before reopens its record instead of starting a duplicate. */
   async function openKnownCustom(puzzle) {
+    if (!bank.loaded) await bank.refresh();
     const item = bank.customItems.find((i) => i.puzzle.digits === puzzle);
     if (!item) return false;
     const solved = item.state === "solved";
