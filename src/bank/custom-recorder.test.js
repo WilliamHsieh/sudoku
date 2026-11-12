@@ -132,6 +132,7 @@ describe("customPuzzles", () => {
       ["Custom 2", "Custom 2"],
       ["Custom 3", "NYT 2026-11-10 · Hard"],
     ]);
+    expect(items.map((i) => i.status)).toEqual(["in_progress", "replaying", "solved"]);
     expect(items[1].solves.map((s) => s.attemptId)).toEqual(["first"]);
     expect(items[1].active).toEqual({ attemptId: "replay", effectiveMs: 100000 });
     expect(items[0]).toMatchObject({ solves: [], active: { attemptId: "start" } });
