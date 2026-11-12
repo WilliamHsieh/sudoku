@@ -2,8 +2,8 @@
   import { onMount } from "svelte";
   import Icon from "../journal/Icon.svelte";
   import { formatTime } from "../store.js";
-  /** @type {{attempt: import('./types.js').Attempt, level: number, delta: number | null, replay: {effectiveMs:number,attemptId:string} | null, onback: () => void, onreplay: () => void, onresume: () => void}} */
-  let { attempt, level, delta, replay, onback, onreplay, onresume } = $props();
+  /** @type {{attempt: Pick<import('./types.js').Attempt, 'endedAt'|'effectiveMs'>, name: string, listName: string, delta: number | null, replay: {effectiveMs:number,attemptId:string} | null, onback: () => void, onreplay: () => void, onresume: () => void}} */
+  let { attempt, name, listName, delta, replay, onback, onreplay, onresume } = $props();
   const stamp = $derived(new Date(attempt.endedAt));
   const date = $derived(stamp.toLocaleDateString("en-US", { month: "short", day: "numeric" }));
   const time = $derived(
@@ -22,13 +22,12 @@
         {formatTime(Math.floor(attempt.effectiveMs / 1000))}
       </p>
       <span class="summary"
-        >L{level}{#if delta !== null}
+        >{name}{#if delta !== null}
           · {formatTime(Math.abs(delta))} {delta > 0 ? "slower" : "faster"} than average{/if}</span
       >
     </div>
     <div class="actions">
-      <button class="quiet level-back" onclick={onback}
-        ><Icon name="arrow-left" />L{level} puzzles</button
+      <button class="quiet level-back" onclick={onback}><Icon name="arrow-left" />{listName}</button
       ><button
         class="primary replay"
         id="sv-replay"

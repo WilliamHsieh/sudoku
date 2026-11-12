@@ -268,7 +268,14 @@ it("old saves are read-through only, then migrate with the next normal write", a
   const r = recorder();
   const write = vi.spyOn(storage, "setItem");
   expect((await r.listSlots("player")).items).toEqual([
-    { attemptId: "old", updatedAt: 2, mode: "manual", level: 1, effectiveMs: 7000 },
+    {
+      attemptId: "old",
+      updatedAt: 2,
+      mode: "manual",
+      level: 1,
+      effectiveMs: 7000,
+      answers: value.snapshot.answers,
+    },
   ]);
   expect(await r.resume("old")).toMatchObject(value);
   expect(write).not.toHaveBeenCalled();

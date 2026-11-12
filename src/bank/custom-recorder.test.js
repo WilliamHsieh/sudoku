@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { createCustomRecorder, CUSTOM_SAVES_KEY } from "./custom-recorder.js";
+import { describe, expect, it, vi } from "vitest";
+import { createCustomRecorder, customPuzzles, CUSTOM_SAVES_KEY } from "./custom-recorder.js";
 import { memoryStorage, puzzle } from "./test-fixtures.js";
 import { newGame } from "../game/game.js";
 import { toSnapshot } from "../game/snapshot.js";
@@ -81,5 +81,155 @@ describe("custom multi-slot saves", () => {
     b.save(board(), 30, false);
     await expect(b.flush(true)).rejects.toThrow();
     expect(await recorder(clean).open("a")).toMatchObject({ elapsed: 20 });
+  });
+  it("writes createdAt on a new save and keeps it through resumes; a replay slot gets its own", async () => {
+    const storage = memoryStorage();
+    const now = vi.spyOn(Date, "now").mockReturnValue(5000);
+    const a = recorder(storage);
+    await a.open("a");
+    a.save(board(), 12, false);
+    await a.flush(true);
+    expect(await recorder(storage).open("a")).toMatchObject({ createdAt: 5000, updatedAt: 5000 });
+    now.mockReturnValue(9000);
+    const resumed = recorder(storage);
+    await resumed.open("a");
+    resumed.save(board(), 20, false);
+    await resumed.flush(true);
+    resumed.save(board(), 21, false);
+    await resumed.flush(true);
+    now.mockReturnValue(12000);
+    const replay = recorder(storage);
+    await replay.open("b");
+    replay.save(board(), 0, false);
+    await replay.flush(true);
+    const slots = await recorder(storage).all();
+    expect(slots.find((s) => s.attemptId === "a")).toMatchObject({
+      elapsed: 21,
+      createdAt: 5000,
+      updatedAt: 9000,
+    });
+    expect(slots.find((s) => s.attemptId === "b")).toMatchObject({ createdAt: 12000 });
+    now.mockRestore();
+  });
+  it("numbers an old save without createdAt by its updatedAt, and freezes that on its next save", async () => {
+    const storage = memoryStorage();
+    const old = (attemptId, digits, updatedAt, completed) => ({
+      attemptId,
+      puzzle: digits,
+      snapshot: toSnapshot(newGame(digits)),
+      elapsed: 5,
+      updatedAt,
+      completed,
+      label: "Custom puzzle",
+    });
+    storage.setItem(
+      CUSTOM_SAVES_KEY,
+      JSON.stringify({
+        schema: 1,
+        slots: {
+          a: old("a", board().puzzle, 2000, false),
+          b: old("b", puzzle(2).digits, 1000, true),
+        },
+      })
+    );
+    const numbered = async () =>
+      customPuzzles(await recorder(storage).all()).map((i) => [i.name, i.openedAt]);
+    expect(await numbered()).toEqual([
+      ["Custom 1", 1000],
+      ["Custom 2", 2000],
+    ]);
+    const now = vi.spyOn(Date, "now").mockReturnValue(9000);
+    const a = recorder(storage);
+    await a.open("a");
+    a.save(board(), 9, false);
+    await a.flush(true);
+    now.mockRestore();
+    expect(await recorder(storage).open("a")).toMatchObject({ createdAt: 2000, updatedAt: 9000 });
+    expect(await numbered()).toEqual([
+      ["Custom 1", 1000],
+      ["Custom 2", 2000],
+    ]);
+  });
+});
+describe("customPuzzles", () => {
+  const slot = (attemptId, digits, createdAt, updatedAt, elapsed, completed, label) => ({
+    attemptId,
+    puzzle: digits,
+    snapshot: toSnapshot(newGame(digits)),
+    elapsed,
+    createdAt,
+    updatedAt,
+    completed,
+    ...(label ? { label } : {}),
+  });
+  const [p1, p2, p3] = [1, 2, 3].map((n) => puzzle(n).digits);
+  it("keeps one record per board, numbered by first open; NYT keeps its label", () => {
+    const items = customPuzzles([
+      slot("replay", p2, 50, 60, 100, false, "Custom puzzle"),
+      slot("first", p2, 20, 30, 442, true, "Custom puzzle"),
+      slot("nyt", p3, 40, 41, 300, true, "NYT 2026-11-10 · Hard"),
+      slot("start", p1, 10, 11, 12, false),
+    ]);
+    expect(items.map((i) => [i.name, i.title])).toEqual([
+      ["Custom 1", "Custom 1"],
+      ["Custom 2", "Custom 2"],
+      ["Custom 3", "NYT 2026-11-10 · Hard"],
+    ]);
+    expect(items.map((i) => i.state)).toEqual(["in_progress", "replaying", "solved"]);
+    expect(items[1].solves.map((s) => s.attemptId)).toEqual(["first"]);
+    expect(items[1]).toMatchObject({
+      active: { attemptId: "replay", effectiveMs: 100000, updatedAt: 60 },
+      solvedAt: 30,
+      bestMs: 442000,
+      playedAt: 60,
+      openedAt: 20,
+    });
+    expect(items[2]).toMatchObject({ source: "NYT Hard", solvedAt: 41, active: null });
+    expect(items[0]).toMatchObject({ solves: [], active: { attemptId: "start" } });
+  });
+});
+describe("Custom N numbering", () => {
+  it("gives each board one number that replays never change, and leaves other boards' numbers alone", async () => {
+    const storage = memoryStorage();
+    const [p1, p2, p3, p4] = [1, 2, 3, 4].map((n) => puzzle(n).digits);
+    const now = vi.spyOn(Date, "now");
+    let clock = 1000;
+    const play = async (attemptId, digits, completed) => {
+      now.mockReturnValue((clock += 1000));
+      const r = recorder(storage);
+      await r.open(attemptId);
+      r.save(toSnapshot(newGame(digits)), 7, completed);
+      await r.flush(true);
+    };
+    const numbers = async () =>
+      Object.fromEntries(
+        customPuzzles(await recorder(storage).all()).map((i) => [i.puzzle.digits, i.name])
+      );
+    await play("b1", p2, true);
+    await play("a1", p1, true);
+    await play("c1", p3, false);
+    const before = { [p2]: "Custom 1", [p1]: "Custom 2", [p3]: "Custom 3" };
+    expect(await numbers()).toEqual(before);
+    for (const [i, completed] of [true, true, false].entries()) {
+      await play(`a-replay-${i}`, p1, completed);
+      expect(await numbers()).toEqual(before);
+    }
+    await play("b-replay", p2, false);
+    await play("c1", p3, true);
+    expect(await numbers()).toEqual(before);
+    await play("d1", p4, false);
+    expect(await numbers()).toEqual({ ...before, [p4]: "Custom 4" });
+    const slots = await recorder(storage).all();
+    expect(slots).toHaveLength(8);
+    const items = customPuzzles(slots);
+    expect(items).toHaveLength(4);
+    expect(items[1]).toMatchObject({
+      name: "Custom 2",
+      state: "replaying",
+      solvedAt: 3000,
+      active: { attemptId: "a-replay-2" },
+    });
+    expect(items[1].solves.map((s) => s.attemptId)).toEqual(["a1", "a-replay-0", "a-replay-1"]);
+    now.mockRestore();
   });
 });

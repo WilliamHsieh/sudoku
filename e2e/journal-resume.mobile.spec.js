@@ -37,8 +37,8 @@ test("custom games are separate resumable slots and legacy saves remain untouche
   await seed(page, { custom: true });
   await expect(page.getByRole("button", { name: /Unfinished/ })).toContainText("1");
   await page.getByRole("button", { name: /Unfinished/ }).click();
-  await page.getByRole("button", { name: /Resume .*Custom puzzle/ }).click();
-  await expect(page.locator(".header .t1")).toHaveText("Custom puzzle");
+  await page.getByRole("button", { name: /Resume .* · Custom 1/ }).click();
+  await expect(page.locator(".header .t1")).toHaveText("Custom 1");
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await page.reload();
   expect(await page.evaluate(() => localStorage.getItem("sudoku-progress"))).toBe('{"legacy":{}}');

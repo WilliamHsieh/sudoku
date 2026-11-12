@@ -2,7 +2,7 @@ import { loadPublished } from "./loadPublished.js";
 import { readRecords, projectRecords } from "./records.js";
 import { readUnlockState, persistUnlockState } from "./unlock-storage.js";
 import { projectPlayerUnlock } from "./player-unlock.js";
-import { createCustomRecorder } from "./custom-recorder.js";
+import { createCustomRecorder, customPuzzles } from "./custom-recorder.js";
 import { createRecorder } from "./recorder.js";
 import { selectPuzzle } from "./select.js";
 import { buildBankGameMeta } from "./game-meta.js";
@@ -20,9 +20,12 @@ export function createBankUI() {
     /** @type {Awaited<ReturnType<ReturnType<typeof createRecorder>['listSlots']>>['items']} */ ([])
   );
   let error = $state("");
+  let loaded = false;
   const recorder = createRecorder();
   const custom = createCustomRecorder();
   let customSlots = $state.raw(/** @type {import("./custom-recorder.js").CustomSlot[]} */ ([]));
+  const customItems = $derived(customPuzzles(customSlots));
+  const customList = $derived({ items: customItems, nextIndex: null });
   async function refresh() {
     const read = readRecords(localStorage);
     if (read.status === "unreadable") throw new Error("Could not read saved games.");
@@ -37,7 +40,8 @@ export function createBankUI() {
     const list = await recorder.listSlots(PLAYER_ID);
     if (!list.ok) throw new Error("Could not read unfinished games.");
     slots = list.items;
-    customSlots = await custom.list();
+    customSlots = await custom.all();
+    loaded = true;
   }
   return {
     get catalog() {
@@ -52,15 +56,26 @@ export function createBankUI() {
     get slots() {
       return [
         ...slots,
-        ...customSlots.map((s) => ({
-          attemptId: s.attemptId,
-          updatedAt: s.updatedAt,
-          mode: "custom",
-          label: s.label,
-          level: 0,
-          effectiveMs: s.elapsed * 1000,
-        })),
+        ...customSlots
+          .filter((s) => !s.completed)
+          .map((s) => ({
+            attemptId: s.attemptId,
+            updatedAt: s.updatedAt,
+            mode: "custom",
+            label: customItems.find((i) => i.puzzle.digits === s.puzzle)?.title,
+            level: 0,
+            effectiveMs: s.elapsed * 1000,
+          })),
       ].sort((a, b) => b.updatedAt - a.updatedAt);
+    },
+    get customItems() {
+      return customItems;
+    },
+    get custom() {
+      return customList;
+    },
+    get loaded() {
+      return loaded;
     },
     get error() {
       return error;
@@ -84,7 +99,30 @@ export function createBankUI() {
     },
     /** @param {import('./types.js').Level} level */
     list(level) {
-      return levelList(catalog, attempts, level, { playerId: PLAYER_ID });
+      const list = levelList(catalog, attempts, level, { playerId: PLAYER_ID });
+      const items = list.items.map((item) => {
+        const attempt = attempts
+          .filter(
+            (a) =>
+              a.puzzle.digits === item.puzzle.digits &&
+              ["in_progress", "paused"].includes(a.outcome)
+          )
+          .sort((a, b) => b.updatedAt - a.updatedAt)[0];
+        const slot = attempt && slots.find((s) => s.attemptId === attempt.attemptId);
+        return {
+          ...item,
+          name: `第 ${item.index} 題`,
+          active: attempt
+            ? {
+                attemptId: attempt.attemptId,
+                effectiveMs: attempt.effectiveMs,
+                updatedAt: attempt.updatedAt,
+                answers: slot?.answers ?? null,
+              }
+            : null,
+        };
+      });
+      return { ...list, items };
     },
     /** @param {import('./types.js').Mode} mode @param {import('./types.js').Level} [level] @param {import('./types.js').Puzzle} [puzzle] */
     async choose(mode, level, puzzle) {

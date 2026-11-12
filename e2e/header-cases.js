@@ -28,7 +28,7 @@ export function headerCases(mobile) {
   });
   test("custom header and pause keep existing controls", async ({ page }) => {
     await openBoard(page);
-    await expect(page.locator(".t1")).toHaveText("Custom puzzle");
+    await expect(page.locator(".t1")).toHaveText("Custom 1");
     await expect(page.locator(".t2")).toHaveCount(0);
     await page.keyboard.press("p");
     await expect(page.locator("#resume")).toBeVisible();

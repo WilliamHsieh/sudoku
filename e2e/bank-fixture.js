@@ -3,7 +3,7 @@ import { openCatalog } from "../src/bank/catalog.js";
 import { fixedLevelOrder, selectPuzzle } from "../src/bank/select.js";
 import { buildBankGameMeta } from "../src/bank/game-meta.js";
 import { createRecorder } from "../src/bank/recorder.js";
-import { createCustomRecorder } from "../src/bank/custom-recorder.js";
+import { createCustomRecorder, CUSTOM_SAVES_KEY } from "../src/bank/custom-recorder.js";
 import { memoryStorage } from "../src/bank/test-fixtures.js";
 import { solvedState } from "../src/game/solved-state.js";
 import { clearCell, newGame } from "../src/game/game.js";
@@ -29,6 +29,7 @@ export async function fixture({
   priorTime = 490,
   extra = false,
   complete = false,
+  customBoards = [],
 } = {}) {
   const { catalog } = await opened;
   const storage = memoryStorage();
@@ -86,8 +87,14 @@ export async function fixture({
   const last = board.givens.findLastIndex((d) => !d);
   const digit = board.answers[last];
   board = clearCell(board, last).state;
-  if (replay) await record(puzzle, "original", priorTime, true);
+  if (replay && !custom) await record(puzzle, "original", priorTime, true);
   if (custom) {
+    if (replay) {
+      const original = createCustomRecorder({ storage, locks: null });
+      await original.open("original");
+      original.save(toSnapshot(solvedState(puzzle.digits)), priorTime, true);
+      await original.flush(true);
+    }
     const recorder = createCustomRecorder({ storage, locks: null });
     await recorder.open("target");
     recorder.save(toSnapshot(board), time, complete);
@@ -96,6 +103,40 @@ export async function fixture({
   if (extra) {
     clock = NOW - 2000;
     await record(order[count + 1], "other", 123, false);
+  }
+  // Custom N is the Nth entry: opened N days before NOW, played on later. Each uses its own
+  // level board after the ones above. state: "solved" | "in_progress" | "replaying".
+  if (customBoards.length) {
+    const slots = JSON.parse(storage.getItem(CUSTOM_SAVES_KEY) ?? '{"slots":{}}').slots;
+    customBoards.forEach(({ state, time = 125, solved = 442, label = "Custom puzzle" }, i) => {
+      const digits = order[count + 2 + i].digits;
+      const opened = NOW - 86400000 * (customBoards.length - i);
+      let partial = solvedState(digits);
+      for (let c = 0; c < 81; c++)
+        if (!partial.givens[c] && c % 2) partial = clearCell(partial, c).state;
+      const add = (attemptId, completed, elapsed, updatedAt, snapshot) =>
+        (slots[attemptId] = {
+          attemptId,
+          puzzle: digits,
+          snapshot,
+          elapsed,
+          updatedAt,
+          completed,
+          label,
+          createdAt: opened,
+        });
+      if (state !== "in_progress")
+        add(
+          `custom-${i + 1}-solve`,
+          true,
+          solved,
+          opened + 3600000,
+          toSnapshot(solvedState(digits))
+        );
+      if (state !== "solved")
+        add(`custom-${i + 1}`, false, time, opened + 7200000, toSnapshot(partial));
+    });
+    storage.setItem(CUSTOM_SAVES_KEY, JSON.stringify({ schema: 1, slots }));
   }
   if (highest > 3)
     storage.setItem(
@@ -131,7 +172,7 @@ export async function resumeTarget(page, options = {}) {
   await page.getByRole("button", { name: /Unfinished/ }).click();
   await expect(page.getByRole("heading", { name: "Unfinished" })).toBeVisible();
   const mode = options.custom
-    ? "Custom puzzle"
+    ? "Custom 1"
     : ["easy", "medium", "hard"].includes(options.mode)
       ? options.mode[0].toUpperCase() + options.mode.slice(1)
       : `L${options.level ?? 3}`;
@@ -155,5 +196,13 @@ export async function solved(page, options = {}) {
 export async function openList(page, level = 3) {
   await page.getByRole("button", { name: "Choose L1–L8" }).click();
   await page.getByRole("button", { name: new RegExp(`^L${level} `) }).click();
-  await expect(page.getByRole("group", { name: "篩選" })).toBeVisible();
+  await expect(page.getByRole("tablist", { name: "篩選" })).toBeVisible();
+}
+/** Wall tiles open the info bar; its button performs the row action. */
+export async function openTile(page, name) {
+  await page.getByRole("button", { name }).click();
+  await page
+    .locator(".pv")
+    .getByRole("button", { name: /看已解盤面|開始|繼續/ })
+    .click();
 }
