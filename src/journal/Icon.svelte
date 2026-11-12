@@ -1,5 +1,5 @@
 <script>
-  /** @typedef {'lock' | 'lock-open' | 'circle' | 'circle-play' | 'rotate-ccw' | 'circle-check' | 'check' | 'play' | 'chevron-left' | 'chevron-right' | 'calendar-days' | 'grid-3x3' | 'flame' | 'trophy' | 'x' | 'history' | 'info' | 'arrow-left' | 'ellipsis'} IconName */
+  /** @typedef {'lock' | 'lock-open' | 'circle' | 'circle-play' | 'rotate-ccw' | 'circle-check' | 'check' | 'play' | 'chevron-left' | 'chevron-right' | 'calendar-days' | 'grid-3x3' | 'flame' | 'trophy' | 'x' | 'history' | 'info' | 'arrow-left' | 'ellipsis' | 'plus'} IconName */
 
   /** @type {{ name: IconName }} */
   let { name } = $props();
@@ -70,6 +70,9 @@
   {:else if name === "arrow-left"}
     <path d="m12 19-7-7 7-7"></path>
     <path d="M19 12H5"></path>
+  {:else if name === "plus"}
+    <path d="M5 12h14"></path>
+    <path d="M12 5v14"></path>
   {/if}
 </svg>
 

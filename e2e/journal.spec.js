@@ -17,7 +17,7 @@ for (const width of [390, 1280]) {
     await page.getByRole("button", { name: "Choose L1–L8" }).click();
     await page.getByRole("button", { name: /^L4 / }).click({ force: true });
     await expect(page.locator(".toast")).toHaveText("再解 3 題 L3，解鎖 L4");
-    await expect(page.getByRole("group", { name: "篩選" })).toHaveCount(0);
+    await expect(page.getByRole("tablist", { name: "篩選" })).toHaveCount(0);
     await page.getByRole("button", { name: /^L6 / }).click({ force: true });
     await expect(page.locator(".toast")).toHaveText("先解鎖 L4 和 L5，才能玩 L6");
   });
@@ -26,13 +26,14 @@ for (const width of [390, 1280]) {
     await seed(page, { count: 2 });
     await openList(page);
     await expect(page.getByRole("button", { name: "Next: 第 4 題" })).toBeVisible();
-    await page.getByRole("button", { name: "已解", exact: true }).click();
-    await expect(page.locator(".puzzles li")).toHaveCount(2);
-    await page.getByRole("button", { name: "進行中", exact: true }).click();
-    await expect(page.locator(".puzzles li")).toHaveCount(1);
-    await expect(page.locator(".puzzles li")).toContainText("進行中 · 6:42");
-    await page.getByRole("button", { name: "未解", exact: true }).click();
-    await expect(page.locator(".puzzles li").first()).toContainText("未解");
+    await page.getByRole("tab", { name: "Solved 2" }).click();
+    await expect(page.locator(".cd")).toHaveCount(2);
+    await page.getByRole("tab", { name: "In progress 1" }).click();
+    await expect(page.locator(".cd")).toHaveCount(1);
+    await expect(page.locator(".cd")).toContainText("進行中 · 6:42");
+    await page.getByRole("tab", { name: /^Unsolved / }).click();
+    await expect(page.locator(".t").first()).toHaveText("4");
+    await expect(page.locator(".t.done, .t.prog")).toHaveCount(0);
   });
 }
 
@@ -45,15 +46,23 @@ test("cold start and all-open chooser show the signed status copy", async ({ pag
   await expect(page.locator(".status")).toHaveText("L1–L8 都解鎖了");
   await expect(page.locator(".levels [aria-disabled=true]")).toHaveCount(0);
 });
-test("opening a long level list keeps Next's row below the fixed filters", async ({ page }) => {
-  await seed(page, { count: 35 });
-  await openList(page);
-  const next = page.getByRole("button", { name: /^第 37 題/ });
-  const row = await next.boundingBox();
-  const filters = await page.locator(".stick").boundingBox();
-  expect(row.y).toBeGreaterThanOrEqual(filters.y + filters.height);
-  expect(row.y + row.height).toBeLessThan(700);
-});
+for (const count of [35, 120])
+  test(`opening a level keeps the Next tile between the tabs and the dock (${count})`, async ({
+    page,
+  }) => {
+    test.setTimeout(120000);
+    await page.setViewportSize({ width: 390, height: 667 });
+    await seed(page, { count });
+    await openList(page);
+    await expect(page.locator(".t.next")).toHaveText(String(count + 2));
+    await expect(async () => {
+      const next = await page.locator(".t.next").boundingBox();
+      const tabs = await page.locator(".d-top").boundingBox();
+      const dock = await page.locator(".dock").boundingBox();
+      expect(next.y).toBeGreaterThanOrEqual(tabs.y + tabs.height);
+      expect(next.y + next.height).toBeLessThanOrEqual(dock.y);
+    }).toPass();
+  });
 test("home has no NYT daily puzzles entry", async ({ page }) => {
   await page.goto("./");
   await expect(page.getByRole("heading", { name: "Sudoku" })).toBeVisible();
@@ -61,16 +70,14 @@ test("home has no NYT daily puzzles entry", async ({ page }) => {
   await expect(page.getByText("NYT daily puzzles")).toHaveCount(0);
 });
 
-test("a fresh level uses the signed solved-empty state only for the solved filter", async ({
-  page,
-}) => {
+test("a fresh level shows the signed empty states on Solved and In progress", async ({ page }) => {
   await seed(page, { highest: 4 });
   await openList(page, 4);
-  await expect(page.locator(".stick .status")).toHaveText("剛解鎖");
   await expect(page.getByRole("button", { name: "Next: 第 1 題" })).toBeVisible();
-  await page.getByRole("button", { name: "已解", exact: true }).click();
-  await expect(page.locator(".empty")).toContainText("這一級還沒有解完的題");
-  await page.getByRole("button", { name: "進行中", exact: true }).click();
-  await expect(page.locator(".puzzles li")).toHaveCount(0);
   await expect(page.locator(".empty")).toHaveCount(0);
+  await page.getByRole("tab", { name: "Solved 0" }).click();
+  await expect(page.locator(".empty")).toContainText("這一級還沒有解完的題");
+  await page.getByRole("tab", { name: "In progress 0" }).click();
+  await expect(page.locator(".cd")).toHaveCount(0);
+  await expect(page.locator(".empty")).toContainText("這一級還沒有進行中的題");
 });
