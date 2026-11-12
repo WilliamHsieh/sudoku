@@ -291,7 +291,8 @@
   }
   .t:focus-visible,
   .t.picked,
-  .cd:focus-visible {
+  .cd:focus-visible,
+  .go:focus-visible {
     outline: 2px solid var(--focus);
     outline-offset: 2px;
   }
