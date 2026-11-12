@@ -413,9 +413,9 @@
     returnRoute = "custom";
     handleLoadPuzzle();
   }
-  /** A board played before reopens its record instead of starting a duplicate. */
+  /** A board played before reopens its record instead of starting a duplicate.
+   * The editor opens through navigate() or init(), which already refreshed the records. */
   async function openKnownCustom(puzzle) {
-    await bank.refresh();
     const item = bank.customItems.find((i) => i.puzzle.digits === puzzle);
     if (!item) return false;
     const solved = item.state === "solved";
@@ -432,8 +432,8 @@
     try {
       if (!(await openKnownCustom(parsed.puzzle))) {
         if (!(await game.startCustom(parsed.puzzle))) return;
-        await bank.refresh();
         handleLoadPuzzle();
+        void bank.refresh().catch(() => {});
       }
     } catch (e) {
       showToast(e.message, false, 3500);
@@ -507,7 +507,6 @@
       if (savedCustom) {
         if (!(await game.startCustom(savedCustom.puzzle.digits, undefined, savedCustom.label)))
           throw new Error("Could not start replay.");
-        await bank.refresh();
       } else {
         const selection = await bank.choose("manual", chosenLevel, savedItem.puzzle);
         if (!(await game.startBank({ ...bank.meta(selection), replay: true })))
