@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createCustomRecorder, customPuzzles, CUSTOM_SAVES_KEY } from "./custom-recorder.js";
 import { memoryStorage, puzzle } from "./test-fixtures.js";
 import { newGame } from "../game/game.js";
@@ -82,30 +82,73 @@ describe("custom multi-slot saves", () => {
     await expect(b.flush(true)).rejects.toThrow();
     expect(await recorder(clean).open("a")).toMatchObject({ elapsed: 20 });
   });
-  it("keeps the first-opened time across saves, and adopts it for older slots", async () => {
+  it("writes createdAt on a new save and keeps it through resumes; a replay slot gets its own", async () => {
     const storage = memoryStorage();
+    const now = vi.spyOn(Date, "now").mockReturnValue(5000);
+    const a = recorder(storage);
+    await a.open("a");
+    a.save(board(), 12, false);
+    await a.flush(true);
+    expect(await recorder(storage).open("a")).toMatchObject({ createdAt: 5000, updatedAt: 5000 });
+    now.mockReturnValue(9000);
+    const resumed = recorder(storage);
+    await resumed.open("a");
+    resumed.save(board(), 20, false);
+    await resumed.flush(true);
+    resumed.save(board(), 21, false);
+    await resumed.flush(true);
+    now.mockReturnValue(12000);
+    const replay = recorder(storage);
+    await replay.open("b");
+    replay.save(board(), 0, false);
+    await replay.flush(true);
+    const slots = await recorder(storage).all();
+    expect(slots.find((s) => s.attemptId === "a")).toMatchObject({
+      elapsed: 21,
+      createdAt: 5000,
+      updatedAt: 9000,
+    });
+    expect(slots.find((s) => s.attemptId === "b")).toMatchObject({ createdAt: 12000 });
+    now.mockRestore();
+  });
+  it("numbers an old save without createdAt by its updatedAt, and freezes that on its next save", async () => {
+    const storage = memoryStorage();
+    const old = (attemptId, digits, updatedAt, completed) => ({
+      attemptId,
+      puzzle: digits,
+      snapshot: toSnapshot(newGame(digits)),
+      elapsed: 5,
+      updatedAt,
+      completed,
+      label: "Custom puzzle",
+    });
     storage.setItem(
       CUSTOM_SAVES_KEY,
       JSON.stringify({
         schema: 1,
         slots: {
-          old: {
-            attemptId: "old",
-            puzzle: board().puzzle,
-            snapshot: board(),
-            elapsed: 5,
-            updatedAt: 1000,
-            completed: false,
-            label: "Custom puzzle",
-          },
+          a: old("a", board().puzzle, 2000, false),
+          b: old("b", puzzle(2).digits, 1000, true),
         },
       })
     );
+    const numbered = async () =>
+      customPuzzles(await recorder(storage).all()).map((i) => [i.name, i.openedAt]);
+    expect(await numbered()).toEqual([
+      ["Custom 1", 1000],
+      ["Custom 2", 2000],
+    ]);
+    const now = vi.spyOn(Date, "now").mockReturnValue(9000);
     const a = recorder(storage);
-    await a.open("old");
+    await a.open("a");
     a.save(board(), 9, false);
     await a.flush(true);
-    expect(await recorder(storage).open("old")).toMatchObject({ elapsed: 9, createdAt: 1000 });
+    now.mockRestore();
+    expect(await recorder(storage).open("a")).toMatchObject({ createdAt: 2000, updatedAt: 9000 });
+    expect(await numbered()).toEqual([
+      ["Custom 1", 1000],
+      ["Custom 2", 2000],
+    ]);
   });
 });
 describe("customPuzzles", () => {
