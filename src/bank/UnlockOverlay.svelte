@@ -198,9 +198,11 @@
     outline: 2px solid var(--focus);
     outline-offset: 3px;
   }
+  /* Signed d25-dark-390: the dark-theme accent button keeps contrast on the scrim. */
   :global(:root[data-theme="dark"]) button,
   :global(:root[data-theme="dim"]) button {
-    background: var(--primary);
+    background: #1d514e;
+    color: #ceeae8;
   }
   .closing {
     animation: overlay-out 220ms ease-out both;

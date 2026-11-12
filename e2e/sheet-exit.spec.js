@@ -197,6 +197,14 @@ test("More keeps the header clear after view navigation", async ({ page }, testI
     const clockTime = Date.now();
     await page.clock.pauseAt(clockTime + 1000);
     await page.clock.setFixedTime(new Date(await page.evaluate(() => Date.now())));
+    // The header timer is in the clip. Land just past one of its ticks so the
+    // later 400 ms run cannot reach the next displayed second.
+    const time = page.locator(".header [data-time]");
+    const shown = await time.textContent();
+    for (let ms = 0; ms < 1000 && (await time.textContent()) === shown; ms += 20) {
+      await page.clock.runFor(20);
+    }
+    expect(await time.textContent()).not.toBe(shown);
     const reference = await page.screenshot({ clip });
     await testInfo.attach(`${kind}-header-reference`, {
       body: reference,
