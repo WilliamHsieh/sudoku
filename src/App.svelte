@@ -245,14 +245,23 @@
     /** @type {ReturnType<typeof bank.list>['items'][number] | null} */ (null)
   );
   let savedAttempt = $state.raw(/** @type {import('./bank/types.js').Attempt | null} */ (null));
+  let savedCustom = $state.raw(/** @type {(typeof bank.customItems)[number] | null} */ (null));
+  const customItem = $derived(
+    game.bankMeta
+      ? null
+      : bank.customItems.find((i) => i.puzzle.digits === game.state.givens.join(""))
+  );
   const savedReplay = $derived(
-    savedItem
-      ? (bank.attempts.find(
-          (a) =>
-            a.puzzle.digits === savedItem.puzzle.digits &&
-            ["in_progress", "paused"].includes(a.outcome)
-        ) ?? null)
-      : null
+    savedCustom
+      ? (bank.customItems.find((i) => i.puzzle.digits === savedCustom.puzzle.digits)?.active ??
+          null)
+      : savedItem
+        ? (bank.attempts.find(
+            (a) =>
+              a.puzzle.digits === savedItem.puzzle.digits &&
+              ["in_progress", "paused"].includes(a.outcome)
+          ) ?? null)
+        : null
   );
   async function navigate(next) {
     try {
@@ -339,6 +348,7 @@
       return;
     }
     if (item.state !== "unsolved") {
+      savedCustom = null;
       savedItem = item;
       savedAttempt = bank.attempts
         .filter(
@@ -391,12 +401,34 @@
       showToast(e.message, false, 3500);
     }
   }
+  function viewCustomSolve(item) {
+    savedItem = null;
+    savedCustom = item;
+    game.viewBankSolve(item.puzzle.digits, item.solves[0].elapsed);
+    returnRoute = "home";
+    handleLoadPuzzle();
+  }
+  /** A board played before reopens its record instead of starting a duplicate. */
+  async function openKnownCustom(puzzle) {
+    await bank.refresh();
+    const item = bank.customItems.find((i) => i.puzzle.digits === puzzle);
+    if (!item) return false;
+    if (item.solves.length) viewCustomSolve(item);
+    else await resumeBank(item.active.attemptId);
+    await tick();
+    showToast(item.solves.length ? "這題之前解過" : "這題之前玩過，已幫你接著玩", false, 2600);
+    return true;
+  }
   async function startCustomPuzzle() {
     if (!customReady) return;
     const parsed = parsePuzzleInput(customRaw);
     if (!parsed.ok) return;
     try {
-      if (!(await game.startCustom(parsed.puzzle))) return;
+      if (!(await openKnownCustom(parsed.puzzle))) {
+        if (!(await game.startCustom(parsed.puzzle))) return;
+        await bank.refresh();
+        handleLoadPuzzle();
+      }
     } catch (e) {
       showToast(e.message, false, 3500);
       return;
@@ -409,7 +441,6 @@
     }
     customOpen = false;
     customPreview = false;
-    handleLoadPuzzle();
   }
   let viewMotion = $state(false);
   let isNarrow = $state(typeof window !== "undefined" && window.matchMedia(NARROW_MQ).matches);
@@ -464,13 +495,19 @@
     document.getElementById("sv-replay")?.focus({ preventScroll: true });
   }
   async function confirmReplay() {
-    if (!savedItem || busy) return;
+    if (!(savedItem || savedCustom) || busy) return;
     busy = true;
     try {
-      const selection = await bank.choose("manual", chosenLevel, savedItem.puzzle);
-      if (!(await game.startBank({ ...bank.meta(selection), replay: true })))
-        throw new Error("Could not start replay.");
-      clearCustomLink();
+      if (savedCustom) {
+        if (!(await game.startCustom(savedCustom.puzzle.digits, undefined, savedCustom.label)))
+          throw new Error("Could not start replay.");
+        await bank.refresh();
+      } else {
+        const selection = await bank.choose("manual", chosenLevel, savedItem.puzzle);
+        if (!(await game.startBank({ ...bank.meta(selection), replay: true })))
+          throw new Error("Could not start replay.");
+        clearCustomLink();
+      }
       replayConfirm = false;
       handleLoadPuzzle();
       await tick();
@@ -534,7 +571,11 @@
       } else {
         await game.flushProgress(true);
         await bank.refresh();
-        resultModel = customSolvedModel(get(timer));
+        const before = customItem?.solves.filter((s) => s.attemptId !== game.customAttemptId);
+        resultModel = customSolvedModel(
+          get(timer),
+          before?.length ? get(timer) - before.at(-1).elapsed : null
+        );
       }
     } catch (e) {
       showToast(e.message, false, 3500);
@@ -570,7 +611,8 @@
   });
   function nextSolved() {
     if (!resultModel) return;
-    void startBank(resultModel.nextMode, resultModel.nextLevel);
+    if (!resultModel.result) void navigate("home");
+    else void startBank(resultModel.nextMode, resultModel.nextLevel);
   }
   async function saveFeeling(feedback) {
     if (!resultModel?.attemptId) return false;
@@ -1160,8 +1202,10 @@
     <CustomDraftHeader preview={customPreview} onback={closeCustomPuzzle} />
   {:else if !showPages}
     <PlayHeader
-      title={game.journalView && savedItem ? `L${chosenLevel} · 第 ${savedItem.index} 題` : ""}
-      subtitle={game.journalView ? levelName(chosenLevel) : ""}
+      title={game.journalView && savedItem
+        ? `L${chosenLevel} · 第 ${savedItem.index} 題`
+        : (customItem?.title ?? "")}
+      subtitle={game.journalView && savedItem ? levelName(chosenLevel) : ""}
       inert={replayConfirm}
       narrow={isNarrow}
       ondate={() => leavePlay()}
@@ -1292,9 +1336,22 @@
         class:hint-replaced={hints.isOpen}
         inert={hints.isOpen}
       >
-        {#if game.journalView && savedAttempt}<SavedSolve
+        {#if game.journalView && savedCustom}<SavedSolve
+            attempt={{
+              endedAt: savedCustom.solves[0].updatedAt,
+              effectiveMs: savedCustom.solves[0].elapsed * 1000,
+            }}
+            name={savedCustom.name}
+            listName="Custom puzzles"
+            delta={null}
+            replay={savedReplay}
+            onback={() => navigate("home")}
+            onresume={resumeReplay}
+            onreplay={() => (replayConfirm = true)}
+          />{:else if game.journalView && savedAttempt}<SavedSolve
             attempt={savedAttempt}
-            level={chosenLevel}
+            name={`L${chosenLevel}`}
+            listName={`L${chosenLevel} puzzles`}
             delta={bankSolvedModel(bank.attempts, savedAttempt.attemptId, bank.unlock).delta}
             replay={savedReplay}
             onback={() => navigate("list")}
@@ -1307,7 +1364,7 @@
             onnext={nextSolved}
             onfeedback={saveFeeling}
             resumeLabel={resumeTarget
-              ? `Resume · ${modeName(resumeTarget.mode, resumeTarget.level)}`
+              ? `Resume · ${("label" in resumeTarget && resumeTarget.label) || modeName(resumeTarget.mode, resumeTarget.level)}`
               : ""}
             onresume={() => resumeTarget && resumeBank(resumeTarget.attemptId)}
           />{/if}
@@ -1538,7 +1595,12 @@
 
 {#if replayConfirm}<ReplayConfirm
     bank
-    time={savedAttempt ? Math.floor(savedAttempt.effectiveMs / 1000) : get(timer)}
+    unlockNote={!savedCustom}
+    time={savedCustom
+      ? savedCustom.solves[0].elapsed
+      : savedAttempt
+        ? Math.floor(savedAttempt.effectiveMs / 1000)
+        : get(timer)}
     replayTime={null}
     oncancel={cancelReplay}
     onconfirm={confirmReplay}

@@ -41,6 +41,13 @@
     <div class="sv-time" aria-label={`Time ${formatTime(model.time)}`}>
       {formatTime(model.time)}
     </div>
+    {#if "lastDelta" in model && model.lastDelta !== null}<div
+        class="sv-last"
+        class:slower={model.lastDelta > 0}
+      >
+        比上次{model.lastDelta > 0 ? "慢" : "快"}
+        {formatTime(Math.abs(model.lastDelta))}
+      </div>{/if}
     {#if model.third}<dl>
         {#if model.delta !== null}<div>
             <dt>vs average</dt>
@@ -128,10 +135,14 @@
     font-weight: 500;
     gap: 7px;
   }
-  .sv-best {
+  .sv-best,
+  .sv-last {
     margin-top: 6px;
     font: 600 15px/1.3 var(--ui-font);
     color: var(--cue-ink);
+  }
+  .sv-last.slower {
+    color: var(--ui-soft);
   }
   .sv-time {
     margin-top: 6px;
@@ -286,7 +297,8 @@
       font-size: 14px;
       --ic: 17px;
     }
-    .sv-best {
+    .sv-best,
+    .sv-last {
       font-size: 14px;
       margin-top: 10px;
     }

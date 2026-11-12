@@ -36,5 +36,5 @@ test("custom solved panel has no stats, feelings or More custom row", async ({ p
   await solved(page, { custom: true });
   await expect(page.locator(".sv-panel dl")).toHaveCount(0);
   await expect(page.locator(".sv-feel")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Next: L3" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Custom puzzles" })).toBeVisible();
 });
