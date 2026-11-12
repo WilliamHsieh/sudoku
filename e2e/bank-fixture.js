@@ -86,8 +86,14 @@ export async function fixture({
   const last = board.givens.findLastIndex((d) => !d);
   const digit = board.answers[last];
   board = clearCell(board, last).state;
-  if (replay) await record(puzzle, "original", priorTime, true);
+  if (replay && !custom) await record(puzzle, "original", priorTime, true);
   if (custom) {
+    if (replay) {
+      const original = createCustomRecorder({ storage, locks: null });
+      await original.open("original");
+      original.save(toSnapshot(solvedState(puzzle.digits)), priorTime, true);
+      await original.flush(true);
+    }
     const recorder = createCustomRecorder({ storage, locks: null });
     await recorder.open("target");
     recorder.save(toSnapshot(board), time, complete);
@@ -131,7 +137,7 @@ export async function resumeTarget(page, options = {}) {
   await page.getByRole("button", { name: /Unfinished/ }).click();
   await expect(page.getByRole("heading", { name: "Unfinished" })).toBeVisible();
   const mode = options.custom
-    ? "Custom puzzle"
+    ? "Custom 1"
     : ["easy", "medium", "hard"].includes(options.mode)
       ? options.mode[0].toUpperCase() + options.mode.slice(1)
       : `L${options.level ?? 3}`;

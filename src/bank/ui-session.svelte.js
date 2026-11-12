@@ -2,7 +2,7 @@ import { loadPublished } from "./loadPublished.js";
 import { readRecords, projectRecords } from "./records.js";
 import { readUnlockState, persistUnlockState } from "./unlock-storage.js";
 import { projectPlayerUnlock } from "./player-unlock.js";
-import { createCustomRecorder } from "./custom-recorder.js";
+import { createCustomRecorder, customPuzzles } from "./custom-recorder.js";
 import { createRecorder } from "./recorder.js";
 import { selectPuzzle } from "./select.js";
 import { buildBankGameMeta } from "./game-meta.js";
@@ -23,6 +23,7 @@ export function createBankUI() {
   const recorder = createRecorder();
   const custom = createCustomRecorder();
   let customSlots = $state.raw(/** @type {import("./custom-recorder.js").CustomSlot[]} */ ([]));
+  const customItems = $derived(customPuzzles(customSlots));
   async function refresh() {
     const read = readRecords(localStorage);
     if (read.status === "unreadable") throw new Error("Could not read saved games.");
@@ -37,7 +38,7 @@ export function createBankUI() {
     const list = await recorder.listSlots(PLAYER_ID);
     if (!list.ok) throw new Error("Could not read unfinished games.");
     slots = list.items;
-    customSlots = await custom.list();
+    customSlots = await custom.all();
   }
   return {
     get catalog() {
@@ -52,15 +53,20 @@ export function createBankUI() {
     get slots() {
       return [
         ...slots,
-        ...customSlots.map((s) => ({
-          attemptId: s.attemptId,
-          updatedAt: s.updatedAt,
-          mode: "custom",
-          label: s.label,
-          level: 0,
-          effectiveMs: s.elapsed * 1000,
-        })),
+        ...customSlots
+          .filter((s) => !s.completed)
+          .map((s) => ({
+            attemptId: s.attemptId,
+            updatedAt: s.updatedAt,
+            mode: "custom",
+            label: customItems.find((i) => i.puzzle.digits === s.puzzle)?.title,
+            level: 0,
+            effectiveMs: s.elapsed * 1000,
+          })),
       ].sort((a, b) => b.updatedAt - a.updatedAt);
+    },
+    get customItems() {
+      return customItems;
     },
     get error() {
       return error;

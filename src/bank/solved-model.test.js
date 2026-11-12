@@ -60,13 +60,15 @@ describe("signed solved variants", () => {
     expect(m.newBest).toBe(false);
     expect(m.third.value).toBe("1");
   });
-  it("S5 custom has no stats or feedback", () => {
+  it("S5 custom has no stats or feedback and returns to Custom puzzles", () => {
     expect(customSolvedModel(402)).toMatchObject({
       third: null,
       feeling: false,
       streak: 0,
-      label: "Next: L3",
+      lastDelta: null,
+      label: "Custom puzzles",
     });
+    expect(customSolvedModel(402, -42).lastDelta).toBe(-42);
   });
   it("a replay leaves the displayed frontier counter unchanged", () => {
     const earlier = [win(1), win(2)];

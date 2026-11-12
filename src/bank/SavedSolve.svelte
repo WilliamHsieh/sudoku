@@ -3,8 +3,8 @@
   import Icon from "../journal/Icon.svelte";
   import { formatTime } from "../store.js";
   /** `attempt` is the latest completion (its time is saved); `solvedAt` is the first.
-   * @type {{attempt: import('./types.js').Attempt, solvedAt?: number, level: number, delta: number | null, replay: {effectiveMs:number,attemptId:string} | null, onback: () => void, onreplay: () => void, onresume: () => void}} */
-  let { attempt, solvedAt, level, delta, replay, onback, onreplay, onresume } = $props();
+   * @type {{attempt: Pick<import('./types.js').Attempt, 'endedAt'|'effectiveMs'>, solvedAt?: number, name: string, listName: string, delta: number | null, replay: {effectiveMs:number,attemptId:string} | null, onback: () => void, onreplay: () => void, onresume: () => void}} */
+  let { attempt, solvedAt, name, listName, delta, replay, onback, onreplay, onresume } = $props();
   const stamp = $derived(new Date(solvedAt ?? attempt.endedAt));
   const date = $derived(stamp.toLocaleDateString("en-US", { month: "short", day: "numeric" }));
   const time = $derived(
@@ -23,13 +23,12 @@
         {formatTime(Math.floor(attempt.effectiveMs / 1000))}
       </p>
       <span class="summary"
-        >L{level}{#if delta !== null}
+        >{name}{#if delta !== null}
           · {formatTime(Math.abs(delta))} {delta > 0 ? "slower" : "faster"} than average{/if}</span
       >
     </div>
     <div class="actions">
-      <button class="quiet level-back" onclick={onback}
-        ><Icon name="arrow-left" />L{level} puzzles</button
+      <button class="quiet level-back" onclick={onback}><Icon name="arrow-left" />{listName}</button
       ><button
         class="primary replay"
         id="sv-replay"

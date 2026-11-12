@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createCustomRecorder, CUSTOM_SAVES_KEY } from "./custom-recorder.js";
+import { createCustomRecorder, customPuzzles, CUSTOM_SAVES_KEY } from "./custom-recorder.js";
 import { memoryStorage, puzzle } from "./test-fixtures.js";
 import { newGame } from "../game/game.js";
 import { toSnapshot } from "../game/snapshot.js";
@@ -81,5 +81,59 @@ describe("custom multi-slot saves", () => {
     b.save(board(), 30, false);
     await expect(b.flush(true)).rejects.toThrow();
     expect(await recorder(clean).open("a")).toMatchObject({ elapsed: 20 });
+  });
+  it("keeps the first-opened time across saves, and adopts it for older slots", async () => {
+    const storage = memoryStorage();
+    storage.setItem(
+      CUSTOM_SAVES_KEY,
+      JSON.stringify({
+        schema: 1,
+        slots: {
+          old: {
+            attemptId: "old",
+            puzzle: board().puzzle,
+            snapshot: board(),
+            elapsed: 5,
+            updatedAt: 1000,
+            completed: false,
+            label: "Custom puzzle",
+          },
+        },
+      })
+    );
+    const a = recorder(storage);
+    await a.open("old");
+    a.save(board(), 9, false);
+    await a.flush(true);
+    expect(await recorder(storage).open("old")).toMatchObject({ elapsed: 9, createdAt: 1000 });
+  });
+});
+describe("customPuzzles", () => {
+  const slot = (attemptId, digits, createdAt, updatedAt, elapsed, completed, label) => ({
+    attemptId,
+    puzzle: digits,
+    snapshot: toSnapshot(newGame(digits)),
+    elapsed,
+    createdAt,
+    updatedAt,
+    completed,
+    ...(label ? { label } : {}),
+  });
+  const [p1, p2, p3] = [1, 2, 3].map((n) => puzzle(n).digits);
+  it("keeps one record per board, numbered by first open; NYT keeps its label", () => {
+    const items = customPuzzles([
+      slot("replay", p2, 50, 60, 100, false, "Custom puzzle"),
+      slot("first", p2, 20, 30, 442, true, "Custom puzzle"),
+      slot("nyt", p3, 40, 41, 300, true, "NYT 2026-11-10 · Hard"),
+      slot("start", p1, 10, 11, 12, false),
+    ]);
+    expect(items.map((i) => [i.name, i.title])).toEqual([
+      ["Custom 1", "Custom 1"],
+      ["Custom 2", "Custom 2"],
+      ["Custom 3", "NYT 2026-11-10 · Hard"],
+    ]);
+    expect(items[1].solves.map((s) => s.attemptId)).toEqual(["first"]);
+    expect(items[1].active).toEqual({ attemptId: "replay", effectiveMs: 100000 });
+    expect(items[0]).toMatchObject({ solves: [], active: { attemptId: "start" } });
   });
 });

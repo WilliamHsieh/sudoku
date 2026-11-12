@@ -2,9 +2,10 @@ import { withBankLock } from "./write-lock.js";
 import { fromSnapshot } from "../game/snapshot.js";
 
 export const CUSTOM_SAVES_KEY = "sudoku-bank-custom-v1";
+export const CUSTOM_LABEL = "Custom puzzle";
 /** Custom boards have no rating or unlock evidence. They use the shared bank lock,
  * but never enter the rated attempt log.
- * @typedef {{attemptId:string, puzzle:string, snapshot:import('../game/snapshot.js').Snapshot, elapsed:number, updatedAt:number, completed:boolean, label?:string}} CustomSlot
+ * @typedef {{attemptId:string, puzzle:string, snapshot:import('../game/snapshot.js').Snapshot, elapsed:number, updatedAt:number, completed:boolean, label?:string, createdAt?:number}} CustomSlot
  */
 /** @param {import('./types.js').Storage} storage @returns {Record<string,CustomSlot>} */
 function read(storage) {
@@ -38,7 +39,8 @@ export function createCustomRecorder(options = {}) {
   const storage = options.storage ?? localStorage;
   const locks = options.locks === undefined ? navigator.locks : options.locks;
   let id = "";
-  let label = "Custom puzzle";
+  let label = CUSTOM_LABEL;
+  let createdAt = 0;
   let expected = null;
   let last = "";
   let draining = null;
@@ -75,12 +77,13 @@ export function createCustomRecorder(options = {}) {
       return id;
     },
     /** @param {string} [attemptId] @param {string} [name] */
-    async open(attemptId = crypto.randomUUID(), name = "Custom puzzle") {
+    async open(attemptId = crypto.randomUUID(), name = CUSTOM_LABEL) {
       return withBankLock(locks, () => {
         const slots = read(storage);
         id = attemptId;
         last = "";
         label = slots[id]?.label ?? name;
+        createdAt = slots[id]?.createdAt ?? slots[id]?.updatedAt ?? Date.now();
         expected = JSON.stringify(slots[id] ?? null);
         return slots[id] ?? null;
       });
@@ -97,6 +100,7 @@ export function createCustomRecorder(options = {}) {
         snapshot: structuredClone(snapshot),
         elapsed,
         completed,
+        createdAt,
         updatedAt: Date.now(),
       });
       void drain();
@@ -107,11 +111,37 @@ export function createCustomRecorder(options = {}) {
       return { ok: !jobs.length };
     },
     async list() {
+      return (await this.all()).filter((s) => !s.completed);
+    },
+    async all() {
       return withBankLock(locks, () =>
-        Object.values(read(storage))
-          .filter((s) => !s.completed)
-          .sort((a, b) => b.updatedAt - a.updatedAt)
+        Object.values(read(storage)).sort((a, b) => b.updatedAt - a.updatedAt)
       );
     },
   };
+}
+/** One record per board (its givens), numbered in first-opened order.
+ * The saved solve is the earliest one, as in the level lists.
+ * @param {CustomSlot[]} slots */
+export function customPuzzles(slots) {
+  const opened = (/** @type {CustomSlot} */ s) => s.createdAt ?? s.updatedAt;
+  /** @type {Map<string, CustomSlot[]>} */
+  const boards = new Map();
+  for (const s of [...slots].sort(
+    (a, b) => opened(a) - opened(b) || a.attemptId.localeCompare(b.attemptId)
+  ))
+    boards.set(s.puzzle, [...(boards.get(s.puzzle) ?? []), s]);
+  return [...boards.values()].map((group, i) => {
+    const solves = group.filter((s) => s.completed).sort((a, b) => a.updatedAt - b.updatedAt);
+    const active = group.filter((s) => !s.completed).sort((a, b) => b.updatedAt - a.updatedAt)[0];
+    const label = group[0].label ?? CUSTOM_LABEL;
+    return {
+      puzzle: { digits: group[0].puzzle },
+      name: `Custom ${i + 1}`,
+      label,
+      title: label === CUSTOM_LABEL ? `Custom ${i + 1}` : label,
+      solves,
+      active: active ? { attemptId: active.attemptId, effectiveMs: active.elapsed * 1000 } : null,
+    };
+  });
 }
