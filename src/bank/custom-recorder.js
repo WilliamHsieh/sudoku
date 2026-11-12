@@ -121,7 +121,7 @@ export function createCustomRecorder(options = {}) {
   };
 }
 /** One record per board (its givens), numbered in first-opened order.
- * The saved solve is the earliest one, as in the level lists.
+ * The saved solve is the earliest one, as in the level lists. A replay in progress is not solved.
  * @param {CustomSlot[]} slots */
 export function customPuzzles(slots) {
   const opened = (/** @type {CustomSlot} */ s) => s.createdAt ?? s.updatedAt;
@@ -140,6 +140,7 @@ export function customPuzzles(slots) {
       name: `Custom ${i + 1}`,
       label,
       title: label === CUSTOM_LABEL ? `Custom ${i + 1}` : label,
+      status: active ? (solves.length ? "replaying" : "in_progress") : "solved",
       solves,
       active: active ? { attemptId: active.attemptId, effectiveMs: active.elapsed * 1000 } : null,
     };

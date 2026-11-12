@@ -53,6 +53,15 @@ test("pasting a solved custom board opens its saved solve and replays it", async
   await expect(page.locator(".header .t1")).toHaveText("Custom 1");
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await paste(page, data.puzzle.digits);
-  await expect(page.getByRole("button", { name: "Resume replay" })).toBeVisible();
-  await expect(page.locator(".sv-view-panel .hero")).toHaveText("7:22");
+  await expect(page.locator(".toast")).toHaveText("這題之前玩過，已幫你接著玩");
+  await expect(page.locator(".sv-view-panel")).toHaveCount(0);
+});
+
+test("pasting a board mid-replay resumes the replay", async ({ page }) => {
+  const data = await seed(page, { custom: true, replay: true, priorTime: 490, time: 125 });
+  await paste(page, data.puzzle.digits);
+  await expect(page.locator(".toast")).toHaveText("這題之前玩過，已幫你接著玩");
+  await expect(page.locator(".sv-view-panel")).toHaveCount(0);
+  await expect(page.locator(".header .t1")).toHaveText("Custom 1");
+  await expect(page.locator("#header-time")).toHaveText("2:05");
 });

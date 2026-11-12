@@ -252,16 +252,13 @@
       : bank.customItems.find((i) => i.puzzle.digits === game.state.givens.join(""))
   );
   const savedReplay = $derived(
-    savedCustom
-      ? (bank.customItems.find((i) => i.puzzle.digits === savedCustom.puzzle.digits)?.active ??
-          null)
-      : savedItem
-        ? (bank.attempts.find(
-            (a) =>
-              a.puzzle.digits === savedItem.puzzle.digits &&
-              ["in_progress", "paused"].includes(a.outcome)
-          ) ?? null)
-        : null
+    savedItem
+      ? (bank.attempts.find(
+          (a) =>
+            a.puzzle.digits === savedItem.puzzle.digits &&
+            ["in_progress", "paused"].includes(a.outcome)
+        ) ?? null)
+      : null
   );
   async function navigate(next) {
     try {
@@ -413,10 +410,11 @@
     await bank.refresh();
     const item = bank.customItems.find((i) => i.puzzle.digits === puzzle);
     if (!item) return false;
-    if (item.solves.length) viewCustomSolve(item);
+    const solved = item.status === "solved";
+    if (solved) viewCustomSolve(item);
     else await resumeBank(item.active.attemptId);
     await tick();
-    showToast(item.solves.length ? "這題之前解過" : "這題之前玩過，已幫你接著玩", false, 2600);
+    showToast(solved ? "這題之前解過" : "這題之前玩過，已幫你接著玩", false, 2600);
     return true;
   }
   async function startCustomPuzzle() {
@@ -1344,7 +1342,7 @@
             name={savedCustom.name}
             listName="Custom puzzles"
             delta={null}
-            replay={savedReplay}
+            replay={null}
             onback={() => navigate("home")}
             onresume={resumeReplay}
             onreplay={() => (replayConfirm = true)}
