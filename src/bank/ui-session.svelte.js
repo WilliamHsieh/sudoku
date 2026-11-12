@@ -90,7 +90,30 @@ export function createBankUI() {
     },
     /** @param {import('./types.js').Level} level */
     list(level) {
-      return levelList(catalog, attempts, level, { playerId: PLAYER_ID });
+      const list = levelList(catalog, attempts, level, { playerId: PLAYER_ID });
+      const items = list.items.map((item) => {
+        const attempt = attempts
+          .filter(
+            (a) =>
+              a.puzzle.digits === item.puzzle.digits &&
+              ["in_progress", "paused"].includes(a.outcome)
+          )
+          .sort((a, b) => b.updatedAt - a.updatedAt)[0];
+        const slot = attempt && slots.find((s) => s.attemptId === attempt.attemptId);
+        return {
+          ...item,
+          name: `第 ${item.index} 題`,
+          active: attempt
+            ? {
+                attemptId: attempt.attemptId,
+                effectiveMs: attempt.effectiveMs,
+                updatedAt: attempt.updatedAt,
+                answers: slot?.answers ?? null,
+              }
+            : null,
+        };
+      });
+      return { ...list, items };
     },
     /** @param {import('./types.js').Mode} mode @param {import('./types.js').Level} [level] @param {import('./types.js').Puzzle} [puzzle] */
     async choose(mode, level, puzzle) {
