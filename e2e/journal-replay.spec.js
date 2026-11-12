@@ -1,6 +1,6 @@
 // Saved-board/replay coverage formerly reached through Journal.
 import { test, expect } from "@playwright/test";
-import { seed, openList, finish, resumeTarget } from "./bank-fixture.js";
+import { seed, openList, openTile, finish, resumeTarget } from "./bank-fixture.js";
 import { switchNotesMode, resumeFromHome } from "./helpers.js";
 for (const width of [390, 1280]) {
   test(`saved board is read-only; Replay confirmation cancels and restores focus (${width})`, async ({
@@ -9,7 +9,7 @@ for (const width of [390, 1280]) {
     await page.setViewportSize({ width, height: 844 });
     await seed(page, { count: 1 });
     await openList(page);
-    await page.getByRole("button", { name: /第 1 題，已解/ }).click();
+    await openTile(page, /第 1 題，已解/);
     await expect(page.locator(".sv-view-panel .hero")).toHaveText("8:10");
     const before = await page.locator(".board").innerText();
     await page.keyboard.press("1");
@@ -27,7 +27,7 @@ for (const width of [390, 1280]) {
     await page.setViewportSize({ width, height: 844 });
     await seed(page, { count: 1 });
     await openList(page);
-    await page.getByRole("button", { name: /第 1 題，已解/ }).click();
+    await openTile(page, /第 1 題，已解/);
     await page.getByRole("button", { name: "Replay", exact: true }).click();
     await page
       .getByRole("alertdialog")
@@ -42,7 +42,7 @@ for (const width of [390, 1280]) {
     await expect(page.getByRole("button", { name: /第 1 題，重玩中/ })).toBeVisible();
     await page.reload();
     await openList(page);
-    await page.getByRole("button", { name: /第 1 題，重玩中/ }).click();
+    await openTile(page, /第 1 題，重玩中/);
     await expect(page.locator(".hero")).toHaveText("8:10");
     await page.getByRole("button", { name: "Resume replay", exact: true }).click();
     await expect(page.locator(`.cell[data-i="${id}"]`)).toHaveAttribute("data-value", "1");
@@ -60,7 +60,7 @@ for (const width of [390, 1280]) {
     await page.locator(".bank-pages .back").click();
     await expect(page.getByRole("button", { name: /Unfinished/ })).toHaveCount(0);
     await openList(page);
-    await page.getByRole("button", { name: /第 1 題，已解/ }).click();
+    await openTile(page, /第 1 題，已解/);
     await expect(page.locator(".hero")).toHaveText("8:10");
   });
 }
@@ -118,6 +118,6 @@ for (const width of [390, 1280])
     await reopened.getByRole("button", { name: "Back", exact: true }).click();
     await reopened.locator(".bank-pages .back").click();
     await openList(reopened);
-    await reopened.getByRole("button", { name: /第 1 題，重玩中/ }).click();
+    await openTile(reopened, /第 1 題，重玩中/);
     await expect(reopened.locator(".hero")).toHaveText("8:10");
   });

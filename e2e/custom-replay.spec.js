@@ -3,8 +3,11 @@ import { seed, solved } from "./bank-fixture.js";
 
 test.use({ viewport: { width: 390, height: 844 }, reducedMotion: "reduce" });
 
+/** With saved custom boards the home card opens the Custom list; its dock opens the editor. */
 async function paste(page, digits) {
-  await page.getByRole("button", { name: "Custom puzzle", exact: true }).click();
+  const card = page.getByRole("button", { name: "Custom puzzle", exact: true });
+  if (await card.isVisible()) await card.click();
+  await page.getByRole("button", { name: "New custom puzzle" }).click();
   await page.getByRole("button", { name: "Paste puzzle", exact: true }).click();
   await page.getByRole("textbox", { name: "Puzzle link or 81 digits" }).fill(digits);
   await page.getByRole("button", { name: "Start puzzle" }).click();
@@ -15,7 +18,8 @@ test("first custom solve returns to Custom puzzles without a comparison line", a
   await expect(page.locator(".header .t1")).toHaveText("Custom 1");
   await expect(page.locator(".sv-last")).toHaveCount(0);
   await page.getByRole("button", { name: "Custom puzzles" }).click();
-  await expect(page.getByRole("heading", { name: "Sudoku" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Custom puzzles" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Custom 1，已解 · / })).toBeVisible();
 });
 
 for (const [time, line] of [
@@ -33,6 +37,8 @@ test("pasting an unfinished custom board resumes that game", async ({ page }) =>
   await expect(page.locator(".toast")).toHaveText("這題之前玩過，已幫你接著玩");
   await expect(page.locator(".header .t1")).toHaveText("Custom 1");
   await expect(page.locator("#header-time")).toHaveText("2:05");
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Custom puzzles" })).toBeVisible();
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await page.getByRole("button", { name: /Unfinished/ }).click();
   await expect(page.getByRole("button", { name: /Resume .* · Custom/ })).toHaveCount(1);

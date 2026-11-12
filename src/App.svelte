@@ -252,13 +252,16 @@
       : bank.customItems.find((i) => i.puzzle.digits === game.state.givens.join(""))
   );
   const savedReplay = $derived(
-    savedItem
-      ? (bank.attempts.find(
-          (a) =>
-            a.puzzle.digits === savedItem.puzzle.digits &&
-            ["in_progress", "paused"].includes(a.outcome)
-        ) ?? null)
-      : null
+    savedCustom
+      ? (bank.customItems.find((i) => i.puzzle.digits === savedCustom.puzzle.digits)?.active ??
+          null)
+      : savedItem
+        ? (bank.attempts.find(
+            (a) =>
+              a.puzzle.digits === savedItem.puzzle.digits &&
+              ["in_progress", "paused"].includes(a.outcome)
+          ) ?? null)
+        : null
   );
   async function navigate(next) {
     try {
@@ -336,6 +339,11 @@
     void navigate("list");
   }
   async function openPuzzle(item) {
+    if (route === "custom") {
+      if (item.state === "in_progress") await resumeBank(item.active.attemptId);
+      else viewCustomSolve(item);
+      return;
+    }
     if (item.state === "in_progress") {
       const attempt = bank.attempts.find(
         (a) =>
@@ -402,7 +410,7 @@
     savedItem = null;
     savedCustom = item;
     game.viewBankSolve(item.puzzle.digits, item.solves[0].elapsed);
-    returnRoute = "home";
+    returnRoute = "custom";
     handleLoadPuzzle();
   }
   /** A board played before reopens its record instead of starting a duplicate. */
@@ -410,7 +418,7 @@
     await bank.refresh();
     const item = bank.customItems.find((i) => i.puzzle.digits === puzzle);
     if (!item) return false;
-    const solved = item.status === "solved";
+    const solved = item.state === "solved";
     if (solved) viewCustomSolve(item);
     else await resumeBank(item.active.attemptId);
     await tick();
@@ -431,7 +439,7 @@
       showToast(e.message, false, 3500);
       return;
     }
-    returnRoute = "home";
+    returnRoute = route;
     const url = new URL(window.location.href);
     if (url.searchParams.get("q") !== parsed.puzzle) {
       url.searchParams.set("q", parsed.puzzle);
@@ -609,7 +617,7 @@
   });
   function nextSolved() {
     if (!resultModel) return;
-    if (!resultModel.result) void navigate("home");
+    if (!resultModel.result) void navigate("custom");
     else void startBank(resultModel.nextMode, resultModel.nextLevel);
   }
   async function saveFeeling(feedback) {
@@ -871,7 +879,7 @@
 
   async function openCustomPuzzle() {
     customOpen = true;
-    await navigate("home");
+    await navigate(route === "custom" ? route : "home");
     resumeStatus = "Custom puzzle. Enter the given numbers or paste a puzzle.";
     const cell = document.querySelector(".custom-editor .input-cell[tabindex='0']");
     if (cell instanceof HTMLElement) cell.focus({ preventScroll: true });
@@ -1342,8 +1350,8 @@
             name={savedCustom.name}
             listName="Custom puzzles"
             delta={null}
-            replay={null}
-            onback={() => navigate("home")}
+            replay={savedReplay}
+            onback={() => navigate("custom")}
             onresume={resumeReplay}
             onreplay={() => (replayConfirm = true)}
           />{:else if game.journalView && savedAttempt}<SavedSolve

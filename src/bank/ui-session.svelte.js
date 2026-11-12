@@ -24,6 +24,7 @@ export function createBankUI() {
   const custom = createCustomRecorder();
   let customSlots = $state.raw(/** @type {import("./custom-recorder.js").CustomSlot[]} */ ([]));
   const customItems = $derived(customPuzzles(customSlots));
+  const customList = $derived({ items: customItems, nextIndex: null });
   async function refresh() {
     const read = readRecords(localStorage);
     if (read.status === "unreadable") throw new Error("Could not read saved games.");
@@ -67,6 +68,9 @@ export function createBankUI() {
     },
     get customItems() {
       return customItems;
+    },
+    get custom() {
+      return customList;
     },
     get error() {
       return error;

@@ -5,65 +5,26 @@
   import { formatTime } from "../store.js";
   import { LEVELS, levelName, ratingRange, modeName, lockedMessage } from "./ui-copy.js";
   import { showToast } from "../keypad-actions.js";
-  import { tick } from "svelte";
+  import PuzzleList from "./PuzzleList.svelte";
   /** @type {{bank: ReturnType<typeof import('./ui-session.svelte.js').createBankUI>, route: string, level: import('./types.js').Level, onnavigate: (route: string) => void, onlevel: (level: import('./types.js').Level) => void, onstart: (mode: import('./types.js').Mode, level?: import('./types.js').Level) => void, onresume: (id: string) => void, oncustom: () => void, ondaily: (puzzle: string, label:string) => void, onpuzzle: (item: ReturnType<ReturnType<typeof import('./ui-session.svelte.js').createBankUI>['list']>['items'][number]) => void}} */
   let { bank, route, level, onnavigate, onlevel, onstart, onresume, oncustom, ondaily, onpuzzle } =
     $props();
   let dailyDate = $state(latestPuzzleDay(puzzleData, formatDay(new Date())));
   const highest = $derived(bank.unlock.maxOpenLevel);
   const count = $derived(Math.min(10, bank.unlock.perLevel[highest].hintFreeSolves));
-  const list = $derived(route === "list" && bank.catalog ? bank.list(level) : null);
-  let filter = $state("全部");
-  let listEl = $state(/** @type {HTMLOListElement} */ (undefined));
-  const filtered = $derived(
-    list?.items.filter(
-      (i) =>
-        filter === "全部" ||
-        (filter === "未解" && i.state === "unsolved") ||
-        (filter === "已解" && i.solvedAt !== null) ||
-        (filter === "進行中" && ["in_progress", "replaying"].includes(i.state))
-    ) ?? []
+  const custom = $derived(route === "custom");
+  const list = $derived(
+    custom ? bank.custom : route === "list" && bank.catalog ? bank.list(level) : null
   );
+  const saved = $derived(bank.custom.items.length);
   const date = (at) => new Date(at).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  const active = (item) =>
-    bank.attempts
-      .filter(
-        (a) =>
-          a.puzzle.digits === item.puzzle.digits && ["in_progress", "paused"].includes(a.outcome)
-      )
-      .sort((a, b) => b.updatedAt - a.updatedAt)[0];
-  const status = (item) =>
-    ({
-      unsolved: "未解",
-      solved: `已解 · ${formatTime(Math.floor(item.solveMs / 1000))}`,
-      in_progress: `進行中 · ${formatTime(Math.floor((active(item)?.effectiveMs ?? 0) / 1000))}`,
-      replaying: `重玩中 · ${formatTime(Math.floor((active(item)?.effectiveMs ?? 0) / 1000))}`,
-    })[item.state];
-  $effect(() => {
-    void level;
-    void route;
-    filter = "全部";
-  });
-  $effect(() => {
-    if (listEl && list?.nextIndex) {
-      const index = list.nextIndex;
-      void tick().then(() => {
-        const page = listEl?.closest(".bank-pages");
-        const target = listEl?.querySelector(`[data-index="${Math.max(1, index - 2)}"]`);
-        const stick = page?.querySelector(".stick");
-        if (page && target && stick)
-          page.scrollTop +=
-            target.getBoundingClientRect().top - stick.getBoundingClientRect().bottom;
-      });
-    }
-  });
   function choose(level) {
     if (level > highest) showToast(lockedMessage(level, highest, count), false, 2600);
     else onlevel(level);
   }
 </script>
 
-<div lang="zh-Hant" class="bank-pages" class:puzzle-list={route === "list"}>
+<div lang="zh-Hant" class="bank-pages">
   <header class="bar">
     {#if route !== "home"}<button
         class="back"
@@ -80,8 +41,9 @@
             ? "Unfinished"
             : route === "daily"
               ? "NYT daily puzzles"
-              : `L${level}`}{#if route === "list"}
-        <span>{levelName(level)}</span>{/if}
+              : custom
+                ? "Custom puzzles"
+                : `Level ${level}`}
     </h1>
   </header>
   {#if bank.error}<p role="alert">{bank.error}</p>{/if}
@@ -111,9 +73,16 @@
               ></button
             >{/if}
         </div>
-        <button class="custom-entry" aria-label="Custom puzzle" onclick={oncustom}
+        <button
+          class="custom-entry"
+          aria-label="Custom puzzle"
+          onclick={() => (saved ? onnavigate("custom") : oncustom())}
           ><span class="symbol"><Icon name="grid-3x3" /></span><span class="copy"
-            ><b>Custom puzzle</b><span>Enter a board or paste a puzzle</span></span
+            ><b>Custom puzzle</b><span
+              >{saved
+                ? `${saved} ${saved === 1 ? "puzzle" : "puzzles"} · Enter or paste a new one`
+                : "Enter a board or paste a puzzle"}</span
+            ></span
           ><Icon name="chevron-right" /></button
         >
         <button class="daily-link" onclick={() => onnavigate("daily")}>NYT daily puzzles</button>
@@ -184,59 +153,8 @@
           </li>{/each}
       </ul>
     </div>
-  {:else if route === "list" && list}
-    <div class="stick">
-      <p class="status">
-        {#if level > 3 && !list.totals.solved && !list.totals.inProgress}剛解鎖{:else}已解 <b
-            >{list.totals.solved}</b
-          >／{list.totals.total} · 進行中 <b>{list.totals.inProgress}</b>{/if}
-      </p>
-      <div class="chips" role="group" aria-label="篩選">
-        {#each ["全部", "未解", "已解", "進行中"] as name (name)}<button
-            class="chip"
-            class:on={filter === name}
-            aria-pressed={filter === name}
-            onclick={() => (filter = name)}>{name}</button
-          >{/each}
-      </div>
-    </div>
-    <div class="page">
-      <ol class="puzzles" bind:this={listEl}>
-        {#each filtered as item (item.index)}<li
-            class="lv pz"
-            data-index={item.index}
-            class:unsolved={item.state === "unsolved"}
-            class:active={["in_progress", "replaying"].includes(item.state)}
-          >
-            <button
-              aria-label={`第 ${item.index} 題，${status(item)}`}
-              onclick={() => onpuzzle(item)}
-              ><span class="n">{item.index}</span><span class="copy"
-                ><span class="name">{status(item)}</span>{#if item.state === "replaying"}<span
-                    class="range">最佳 {formatTime(Math.floor(item.bestMs / 1000))}</span
-                  >{:else if item.solvedAt}<span class="range">{date(item.solvedAt)}</span
-                  >{/if}</span
-              ><span class="state-icon" class:solved={item.solvedAt !== null}
-                ><Icon
-                  name={item.solvedAt !== null
-                    ? "circle-check"
-                    : item.state === "in_progress"
-                      ? "circle-play"
-                      : "circle"}
-                /></span
-              ></button
-            >
-          </li>{/each}
-      </ol>
-      {#if !filtered.length && filter === "已解"}<p class="empty">
-          <b>這一級還沒有解完的題</b>解完的題會出現在這裡，之後可以重玩。
-        </p>{/if}
-    </div>
-    {#if list.nextIndex}<div class="dock">
-        <button class="go" onclick={() => onpuzzle(list.items[list.nextIndex - 1])}
-          ><Icon name="play" />Next: 第 {list.nextIndex} 題</button
-        >
-      </div>{/if}
+  {:else if list}
+    <PuzzleList {list} {custom} {onpuzzle} onnew={oncustom} />
   {/if}
 </div>
 
@@ -291,12 +209,6 @@
     font-weight: 700;
     letter-spacing: -0.01em;
     line-height: 1;
-  }
-  h1 span {
-    font-weight: 500;
-    color: var(--ink2);
-    font-size: 17px;
-    margin-left: 10px;
   }
   .back {
     width: 36px;
@@ -570,100 +482,6 @@
     fill: currentColor;
     stroke: none;
   }
-  .stick {
-    position: sticky;
-    top: 44px;
-    z-index: 4;
-    background: var(--page);
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--hair);
-  }
-  .stick .status {
-    margin-bottom: 10px;
-  }
-  .chips {
-    display: flex;
-    gap: 8px;
-  }
-  .chip {
-    height: 36px;
-    padding: 0 14px;
-    border-radius: 999px;
-    background: var(--card);
-    box-shadow: inset 0 0 0 1px var(--hair);
-    font: 600 13px/1 var(--ui-font);
-  }
-  .chip.on {
-    background: var(--sel);
-    box-shadow: inset 0 0 0 1.5px var(--blue);
-    color: var(--blue-d);
-  }
-  .puzzle-list .page {
-    padding-top: 0;
-    padding-bottom: 120px;
-  }
-  .pz button {
-    grid-template-columns: 64px minmax(0, 1fr) 30px;
-    min-height: 64px;
-    padding: 11px 0;
-  }
-  .pz .n {
-    font-size: 26px;
-  }
-  .pz.unsolved .name {
-    color: var(--ink2);
-    font-weight: 500;
-  }
-  .pz.active .name {
-    color: var(--blue-d);
-  }
-  .state-icon {
-    --ic: 24px;
-    justify-self: end;
-    margin-right: 4px;
-    color: var(--sv-sep);
-  }
-  .pz.active .state-icon:not(.solved) {
-    color: var(--blue);
-  }
-  .state-icon.solved {
-    color: var(--cue-ink);
-  }
-  .dock {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 7;
-    background: var(--page);
-    border-top: 1px solid var(--hair);
-    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-  }
-  .go {
-    width: 100%;
-    height: 48px;
-    border-radius: 12px;
-    background: var(--blue);
-    color: var(--on-accent);
-    font: 600 16px/1 var(--ui-font);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    --ic: 17px;
-  }
-  .empty {
-    margin: 56px 4px 0;
-    font-size: 17px;
-    line-height: 1.5;
-    color: var(--ink2);
-  }
-  .empty b {
-    display: block;
-    margin-bottom: 6px;
-    font-size: 20px;
-    color: var(--ink);
-  }
   @media (min-width: 600px) {
     .bank-pages {
       width: 100%;
@@ -749,28 +567,6 @@
     }
     .uf-title {
       font-size: 17px;
-    }
-    .stick {
-      top: 64px;
-      padding: 16px 32px;
-    }
-    .puzzles {
-      max-width: 680px;
-    }
-    .pz button {
-      column-gap: 0;
-      grid-template-columns: 80px minmax(0, 1fr) 40px;
-      padding: 14px 8px 14px 0;
-      min-height: 72px;
-    }
-    .pz .n {
-      font-size: 28px;
-    }
-    .dock {
-      padding: 14px 32px;
-    }
-    .go {
-      max-width: 360px;
     }
   }
 </style>
