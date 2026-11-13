@@ -1,12 +1,12 @@
 import { expect } from "@playwright/test";
-import fixture from "../src/hints/fixtures/finned-fish.json" with { type: "json" };
+import { fishCases } from "../src/hints/fixtures/finned-fish-cases.js";
 import { legalMasks } from "../src/hints/proof-verifier.js";
 import { maskDigits } from "../src/game/board.js";
 import { cell, openBoard } from "./helpers.js";
 
 // A consistent candidate exercise with a known completion. Recreate its
 // assumptions with normal Auto-note controls; use the real hint Worker.
-export async function openFishCase(page) {
+export async function openFishCase(page, fixture = fishCases[0]) {
   await openBoard(page, `./?q=${fixture.values}`);
   const legal = legalMasks([...fixture.values].map(Number));
   for (let digit = 1; digit <= 9; digit++) {

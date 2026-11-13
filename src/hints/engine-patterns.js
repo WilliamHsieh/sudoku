@@ -251,6 +251,15 @@ function fish(masks, id, n, finned, effectMasks) {
           const baseLines = `第 ${bases.map((b) => b + 1).join("、")} ${baseName}`;
           const coverLines = `第 ${covers.map((c) => c + 1).join("、")} ${coverName}`;
           const targetCells = coordinates(eliminated.map((e) => e.cell));
+          const finTrue =
+            fins.length === 1
+              ? `${coordinates(fins)} 填入 ${digit}`
+              : `${coordinates(fins)} 中至少一格填入 ${digit}`;
+          const finsFalse =
+            fins.length === 1
+              ? `${coordinates(fins)} 不填 ${digit}`
+              : `${coordinates(fins)} 都不填 ${digit}`;
+          const targetNoun = eliminated.length === 1 ? "這個目標格" : "這些目標格";
           const requirement = `${baseLines}都還沒填入 ${digit}，而每個${baseName}都必須有一個 ${digit}。這些${baseName}的 ${digit} 只剩魚形本體的位置，全部位於${coverLines}。`;
           const counting = `同一${coverName}不能有兩個 ${digit}，所以這 ${n} 個 ${digit} 必須分別占用這 ${n} 個${coverName}。也就是說，這些${coverName}中的 ${digit} 都在${baseLines}內。${targetCells} 位於${coverLines}，卻不在${baseLines}內，因此不能再填 ${digit}。`;
           // Keep the first sentence factual: firstObservation uses it for stage 1.
@@ -259,10 +268,10 @@ function fish(masks, id, n, finned, effectMasks) {
             finned
               ? [
                   `候選數 ${digit} 的魚形本體為 ${coordinates(core)}，鰭是額外的候選位置 ${coordinates(fins)}。`,
-                  `情況一：若 ${coordinates(fins)} 中有一格填入 ${digit}，${targetCells} 與鰭在同一宮；同一宮不能有兩個 ${digit}，所以這些目標格不能填 ${digit}。`,
-                  `情況二：若 ${coordinates(fins)} 全都不是 ${digit}，${requirement}`,
+                  `情況一：若 ${finTrue}，${targetCells} 與鰭在同一宮；同一宮不能有兩個 ${digit}，所以${targetNoun}不能填 ${digit}。`,
+                  `情況二：若 ${finsFalse}，${requirement}`,
                   counting,
-                  `兩種情況下，${targetCells} 都不能是 ${digit}，因此可刪除候選數 ${digit}。`,
+                  `兩種情況下，${targetCells} ${eliminated.length === 1 ? "" : "都"}不能是 ${digit}，因此可刪除候選數 ${digit}。`,
                 ]
               : [
                   `候選數 ${digit} 在${baseLines}只出現在 ${coordinates(core)}，這些格組成魚形本體。`,

@@ -4,7 +4,7 @@ import { detectPattern } from "./engine-patterns.js";
 import { findHint, findStep } from "./engine.js";
 import { newGame } from "../game/game.js";
 import { legalMasks, verifyStep } from "./proof-verifier.js";
-import fixture from "./fixtures/finned-fish.json";
+import { fishCases } from "./fixtures/finned-fish-cases.js";
 import { firstObservation } from "./engine-observations.js";
 
 const ids = [
@@ -50,9 +50,17 @@ describe("fish explanations", () => {
           }
           expect(reason).toContain("可刪除候選數 7");
           if (finCount) {
-            expect(reason).toContain(`若 ${fins.map(coord).join("、")} 中有一格填入 7`);
+            expect(reason).toContain(
+              finCount === 1
+                ? `若 ${coord(fins[0])} 填入 7`
+                : `若 ${fins.map(coord).join("、")} 中至少一格填入 7`
+            );
             expect(reason).toContain("同一宮不能有兩個 7");
-            expect(reason).toContain(`若 ${fins.map(coord).join("、")} 全都不是 7`);
+            expect(reason).toContain(
+              finCount === 1
+                ? `若 ${coord(fins[0])} 不填 7`
+                : `若 ${fins.map(coord).join("、")} 都不填 7`
+            );
             expect(reason).toContain("兩種情況下");
             expect(step.eliminations.map((e) => e.cell)).toEqual([at(1, 0), at(2, 0)]);
           }
@@ -111,7 +119,7 @@ it("explains the issue's column-oriented 9 pattern with its actual coordinates",
   masks[24] |= bit(9);
   const step = detectPattern(Array(81).fill(0), masks, "finned-x-wing");
   expect(step.reason).toContain("r1c3、r8c3、r1c7、r8c7");
-  expect(step.reason).toContain("若 r3c7 全都不是 9");
+  expect(step.reason).toContain("若 r3c7 不填 9");
   expect(step.reason).toContain("第 3、7 直行都還沒填入 9");
   expect(step.reason).toContain("全部位於第 1、8 橫列");
   expect(step.reason).toContain("同一橫列不能有兩個 9");
@@ -122,31 +130,46 @@ it("explains the issue's column-oriented 9 pattern with its actual coordinates",
   expect(step.reason).toContain("r1c8、r1c9 都不能是 9");
 });
 
-it("uses separate paragraphs in the real hint and keeps the candidate exercise valid", () => {
-  const values = [...fixture.values].map(Number);
-  const solution = [...fixture.solution].map(Number);
-  const legal = legalMasks(values);
-  fixture.masks.forEach((mask, cell) => {
-    expect(values[cell] || solution[cell]).toBe(solution[cell]);
-    expect(mask & ~legal[cell]).toBe(0);
-    if (!values[cell]) expect(mask & bit(solution[cell])).not.toBe(0);
+for (const fixture of fishCases)
+  it(`${fixture.name}: real hint keeps the proof, candidates and exact cell references`, () => {
+    const values = [...fixture.values].map(Number);
+    const solution = [...fixture.solution].map(Number);
+    const legal = legalMasks(values);
+    fixture.masks.forEach((mask, cell) => {
+      expect(values[cell] || solution[cell]).toBe(solution[cell]);
+      expect(mask & ~legal[cell]).toBe(0);
+      if (!values[cell]) expect(mask & bit(solution[cell])).not.toBe(0);
+    });
+    const step = findStep(values, fixture.masks);
+    expect(step.techniqueId).toBe("finned-x-wing");
+    expect(() => verifyStep(values, fixture.masks, step)).not.toThrow();
+    const state = {
+      ...newGame(fixture.values, { notesMode: "auto" }),
+      autoRemoved: legal.map((mask, cell) => mask & ~fixture.masks[cell]),
+    };
+    const before = JSON.stringify(state);
+    const hint = findHint(state);
+    expect(hint.stages[0].description).toHaveLength(1);
+    expect(hint.stages[1].description).toHaveLength(5);
+    expect(hint.stages[1].description).toEqual(step.reason.split("\n"));
+    expect(hint.eliminations).toEqual(fixture.targetCells.map((cell) => ({ cell, digit: 7 })));
+    expect(step.premiseCells).toEqual([5, 6, ...fixture.finCells, 32, 33]);
+    const reason = hint.stages[1].description;
+    const fins = fixture.finCells.map(coord).join("、");
+    const targets = fixture.targetCells.map(coord).join("、");
+    expect(reason[1]).toContain(
+      fixture.finCells.length === 1 ? `若 ${fins} 填入 7` : `若 ${fins} 中至少一格填入 7`
+    );
+    expect(reason[2]).toContain(
+      fixture.finCells.length === 1 ? `若 ${fins} 不填 7` : `若 ${fins} 都不填 7`
+    );
+    expect(reason[1]).toContain(
+      fixture.targetCells.length === 1 ? "所以這個目標格不能填 7" : "所以這些目標格不能填 7"
+    );
+    expect(reason[4]).toBe(
+      `兩種情況下，${targets} ${fixture.targetCells.length === 1 ? "" : "都"}不能是 7，因此可刪除候選數 7。`
+    );
+    expect(reason.join("")).not.toMatch(/r1c8 (?:中有一格|全都)/);
+    expect(hint.proof.step).toEqual(step);
+    expect(JSON.stringify(state)).toBe(before);
   });
-  const step = findStep(values, fixture.masks);
-  expect(step.techniqueId).toBe("finned-x-wing");
-  expect(() => verifyStep(values, fixture.masks, step)).not.toThrow();
-  const state = {
-    ...newGame(fixture.values, { notesMode: "auto" }),
-    autoRemoved: legal.map((mask, cell) => mask & ~fixture.masks[cell]),
-  };
-  const before = JSON.stringify(state);
-  const hint = findHint(state);
-  expect(hint.stages[0].description).toHaveLength(1);
-  expect(hint.stages[1].description).toHaveLength(5);
-  expect(hint.stages[1].description).toEqual(step.reason.split("\n"));
-  expect(hint.eliminations).toEqual([
-    { cell: 15, digit: 7 },
-    { cell: 24, digit: 7 },
-  ]);
-  expect(hint.proof.step).toEqual(step);
-  expect(JSON.stringify(state)).toBe(before);
-});
