@@ -2,9 +2,10 @@
   import { onMount } from "svelte";
   import Icon from "../journal/Icon.svelte";
   import { formatTime } from "../store.js";
-  /** @type {{attempt: import('./types.js').Attempt, level: number, delta: number | null, replay: {effectiveMs:number,attemptId:string} | null, onback: () => void, onreplay: () => void, onresume: () => void}} */
-  let { attempt, level, delta, replay, onback, onreplay, onresume } = $props();
-  const stamp = $derived(new Date(attempt.endedAt));
+  /** `attempt` is the latest completion (its time is saved); `solvedAt` is the first.
+   * @type {{attempt: import('./types.js').Attempt, solvedAt?: number, level: number, delta: number | null, replay: {effectiveMs:number,attemptId:string} | null, onback: () => void, onreplay: () => void, onresume: () => void}} */
+  let { attempt, solvedAt, level, delta, replay, onback, onreplay, onresume } = $props();
+  const stamp = $derived(new Date(solvedAt ?? attempt.endedAt));
   const date = $derived(stamp.toLocaleDateString("en-US", { month: "short", day: "numeric" }));
   const time = $derived(
     stamp.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })

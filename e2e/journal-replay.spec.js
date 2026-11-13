@@ -47,22 +47,41 @@ for (const width of [390, 1280]) {
     await page.getByRole("button", { name: "Resume replay", exact: true }).click();
     await expect(page.locator(`.cell[data-i="${id}"]`)).toHaveAttribute("data-value", "1");
   });
-  test(`completed replay removes Unfinished and retains saved original (${width})`, async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width, height: 844 });
-    const data = await seed(page, { replay: true });
-    await page.getByRole("button", { name: /Unfinished/ }).click();
-    await page.getByRole("button", { name: /Resume/ }).click();
-    await finish(page, data);
-    await expect(page.locator(".unlock-overlay")).toHaveCount(0);
-    await page.getByRole("button", { name: "Back", exact: true }).click();
-    await page.locator(".bank-pages .back").click();
-    await expect(page.getByRole("button", { name: /Unfinished/ })).toHaveCount(0);
-    await openList(page);
-    await page.getByRole("button", { name: /第 1 題，已解/ }).click();
-    await expect(page.locator(".hero")).toHaveText("8:10");
-  });
+  // The original solve is 8:10; a finished replay's time replaces it either way.
+  for (const [kind, time, shown] of [
+    ["faster", 402, "6:42"],
+    ["slower", 600, "10:00"],
+  ])
+    test(`completed ${kind} replay removes Unfinished and replaces the saved time (${width})`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 844 });
+      const data = await seed(page, { replay: true, time });
+      await openList(page);
+      await expect(page.getByRole("button", { name: /第 1 題，重玩中/ })).toContainText(
+        "最佳 8:10"
+      );
+      await page.getByRole("button", { name: /第 1 題，重玩中/ }).click();
+      await expect(page.locator(".sv-view-panel .hero")).toHaveText("8:10");
+      // The first-solve date stays; only the time is replaced.
+      const solvedOn = await page.locator("#sv-h").innerText();
+      await page.getByRole("button", { name: "Resume replay", exact: true }).click();
+      await finish(page, data);
+      await expect(page.locator(".unlock-overlay")).toHaveCount(0);
+      // Back returns to the level list this replay was opened from.
+      await page.getByRole("button", { name: "Back", exact: true }).click();
+      await page.getByRole("button", { name: `第 1 題，已解 · ${shown}` }).click();
+      await expect(page.locator(".sv-view-panel .hero")).toHaveText(shown);
+      await expect(page.locator("#sv-h")).toHaveText(solvedOn);
+      await page.getByRole("button", { name: "Replay", exact: true }).click();
+      await expect(page.getByRole("alertdialog")).toContainText(shown);
+      await page.keyboard.press("Escape");
+      await page.reload();
+      await expect(page.getByRole("button", { name: "Choose L1–L8" })).toBeVisible();
+      await expect(page.getByRole("button", { name: /Unfinished/ })).toHaveCount(0);
+      await openList(page);
+      await expect(page.getByRole("button", { name: `第 1 題，已解 · ${shown}` })).toBeVisible();
+    });
 }
 
 for (const width of [390, 1280])

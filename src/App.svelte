@@ -15,6 +15,7 @@
   import UnlockOverlay from "./bank/UnlockOverlay.svelte";
   import BankSolved from "./bank/BankSolved.svelte";
   import { bankSolvedModel, customSolvedModel } from "./bank/solved-model.js";
+  import { savedSolve } from "./bank/player-api.js";
 
   import "./solved.css";
   import UpdateNotice from "./UpdateNotice.svelte";
@@ -244,7 +245,10 @@
   let savedItem = $state.raw(
     /** @type {ReturnType<typeof bank.list>['items'][number] | null} */ (null)
   );
+  // Latest completion: its time (and delta) is the saved one, replays included.
   let savedAttempt = $state.raw(/** @type {import('./bank/types.js').Attempt | null} */ (null));
+  // Earliest completion date, matching the level list's solvedAt.
+  let savedSolvedAt = $state(/** @type {number | null} */ (null));
   const savedReplay = $derived(
     savedItem
       ? (bank.attempts.find(
@@ -340,13 +344,9 @@
     }
     if (item.state !== "unsolved") {
       savedItem = item;
-      savedAttempt = bank.attempts
-        .filter(
-          (a) =>
-            a.puzzle.digits === item.puzzle.digits &&
-            ["independent_complete", "hinted_complete"].includes(a.outcome)
-        )
-        .sort((a, b) => a.endedAt - b.endedAt || a.attemptId.localeCompare(b.attemptId))[0];
+      const saved = savedSolve(bank.attempts, item.puzzle);
+      savedAttempt = saved?.latest ?? null;
+      savedSolvedAt = saved?.first.endedAt ?? null;
       if (!savedAttempt) return;
       game.viewBankSolve(item.puzzle.digits, Math.floor(savedAttempt.effectiveMs / 1000));
       returnRoute = "list";
@@ -1294,6 +1294,7 @@
       >
         {#if game.journalView && savedAttempt}<SavedSolve
             attempt={savedAttempt}
+            solvedAt={savedSolvedAt ?? savedAttempt.endedAt}
             level={chosenLevel}
             delta={bankSolvedModel(bank.attempts, savedAttempt.attemptId, bank.unlock).delta}
             replay={savedReplay}

@@ -83,9 +83,30 @@ export function solveResult(attempts, attemptId, { previousMaxOpenLevel, frontie
   };
 }
 
-/** Bank boards in the same fixed order used by manual selection. A saved solve
- * is the earliest completion by endedAt / attemptId, including hinted solves.
- * Later replay times never replace it. No snapshot is required in this layer.
+/** Valid completions of one board (hinted solves included) in completion order.
+ * `first` dates the board as solved; `latest` holds the saved time, because a
+ * finished replay replaces the time even when slower. Unfinished, revealed and
+ * abandoned replays never complete, so they leave both untouched. Records stay
+ * append-only: this only selects among them.
+ * @param {Attempt[]} history
+ * @returns {{first: Attempt, latest: Attempt} | null} */
+function solves(history) {
+  const done = history.filter((a) => completed(a) && validEnd(a)).sort(completionOrder);
+  return done.length ? { first: done[0], latest: done[done.length - 1] } : null;
+}
+
+/** The saved solve for one bank board, matched by exact ID or digits.
+ * @param {Attempt[]} attempts @param {{id: string, digits: string}} puzzle */
+export function savedSolve(attempts, puzzle) {
+  return solves(
+    attempts.filter((a) => a.puzzle.id === puzzle.id || a.puzzle.digits === puzzle.digits)
+  );
+}
+
+/** Bank boards in the same fixed order used by manual selection. solvedAt is the
+ * earliest completion by endedAt / attemptId; solveMs (and bestMs while a replay
+ * is active) is the latest completion's time, so a finished replay replaces it.
+ * No snapshot is required in this layer.
  * @param {import('./types.js').Catalog} catalog @param {Attempt[]} attempts
  * @param {import('./types.js').Level} level @param {{playerId: string}} options */
 export function levelList(catalog, attempts, level, { playerId }) {
@@ -106,16 +127,16 @@ export function levelList(catalog, attempts, level, { playerId }) {
     const history = [
       ...new Set([...(byBoard.get(puzzle.id) ?? []), ...(byBoard.get(puzzle.digits) ?? [])]),
     ];
-    const saved = history.filter((a) => completed(a) && validEnd(a)).sort(completionOrder)[0];
+    const saved = solves(history);
     const active = history.some(unfinished);
     const state = saved ? (active ? "replaying" : "solved") : active ? "in_progress" : "unsolved";
     return {
       puzzle,
       index: i + 1,
       state,
-      solvedAt: saved?.endedAt ?? null,
-      solveMs: saved?.effectiveMs ?? null,
-      ...(state === "replaying" ? { bestMs: saved.effectiveMs } : {}),
+      solvedAt: saved?.first.endedAt ?? null,
+      solveMs: saved?.latest.effectiveMs ?? null,
+      ...(state === "replaying" ? { bestMs: saved.latest.effectiveMs } : {}),
     };
   });
   const next = selectPuzzle({
