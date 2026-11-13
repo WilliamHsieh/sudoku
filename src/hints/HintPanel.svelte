@@ -1,14 +1,27 @@
 <script>
   import { tick } from "svelte";
   import { supplementalCoordinates, tokenizeCoordinates } from "./coordinate-text.js";
+  import { conclusionRationale } from "./conclusion.js";
   import { createHintStoryGesture } from "./story-navigation.js";
   /** @type {{session: ReturnType<typeof import('./session.svelte.js').createHintSession>, onclose: () => void, oncoordinate: (cell: number) => void, docked: boolean}} */
   let { session, onclose, oncoordinate, docked } = $props();
   let body = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   const storyGesture = createHintStoryGesture();
   const step = $derived(session.status === "ready" ? session.hint?.stages[session.stage] : null);
+  const description = $derived(
+    !step
+      ? []
+      : session.stage === 2
+        ? conclusionRationale(step.description, session.hint?.effect ?? "")
+        : step.description
+  );
   const supplemental = $derived(
-    step ? supplementalCoordinates(step, session.stage === 2 ? session.hint?.effect : "") : ""
+    step
+      ? supplementalCoordinates(
+          { ...step, description },
+          session.stage === 2 ? session.hint?.effect : ""
+        )
+      : ""
   );
   const messages = {
     unavailable: ["提示功能準備中", "目前尚未開放提示，請先繼續解題。"],
@@ -143,7 +156,7 @@
     {#if step}
       {#if session.stage === 1}<div class="technique">{session.hint?.name}</div>{/if}
       <h2>{@render coordinateText(step.title)}</h2>
-      {#each step.description as text, index (index)}<p>{@render coordinateText(text)}</p>{/each}
+      {#each description as text, index (index)}<p>{@render coordinateText(text)}</p>{/each}
       {#if supplemental}<p>{@render coordinateText(supplemental)}</p>{/if}
       {#if session.stage === 2}
         <div

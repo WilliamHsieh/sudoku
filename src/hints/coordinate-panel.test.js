@@ -82,3 +82,40 @@ describe("hint coordinates without duplicate chips", () => {
     }
   });
 });
+
+// These assertions inspect rendered output: changing the engine payload alone
+// must not leave a second operation summary in the visible panel.
+describe("one operation summary in the final hint stage", () => {
+  it("renders the real fallback placement once and keeps Apply available", () => {
+    const hint = findHint(newGame("0" + completed.slice(1), { notesMode: "auto" }));
+    expect(hint.stages[2].description).toEqual([hint.effect]);
+    const html = panel(hint, 2);
+    expect(html.match(/填入 5/g)).toHaveLength(1);
+    expect(references(html)).toEqual([0]);
+    expect(html.match(/class="hint-effect /g)).toHaveLength(1);
+    expect(html).toContain('data-action="apply"');
+    expect(html).toContain("套用這一步");
+  });
+
+  it("keeps distinct rationale, missing coordinates, and exactly one effect", () => {
+    const hint = findHint(newGame("0" + completed.slice(1), { notesMode: "auto" }));
+    hint.stages[2].description = ["r1c2 與 r1c3 的數字已經確定。", hint.effect];
+    hint.stages[2].coordinates = [0, 1, 2, 8];
+    const before = JSON.stringify(hint);
+    const html = panel(hint, 2);
+    expect(html).toContain("的數字已經確定。");
+    expect(html.match(/填入 5/g)).toHaveLength(1);
+    expect(references(html)).toEqual([1, 2, 8, 0]);
+    expect(html).not.toContain("hint-coordinate");
+    expect(html).toContain("在棋盤上查看 r1c9（第 1 橫列、第 9 直行）");
+    expect(JSON.stringify(hint)).toBe(before);
+  });
+
+  it("does not suppress matching text on observation or reasoning pages", () => {
+    const hint = findHint(newGame("0" + completed.slice(1), { notesMode: "auto" }));
+    for (const stage of [0, 1]) {
+      hint.stages[stage].description = [hint.effect];
+      expect(panel(hint, stage).match(/填入 5/g)).toHaveLength(1);
+    }
+  });
+});
