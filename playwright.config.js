@@ -27,7 +27,7 @@ export default defineConfig({
     {
       name: "webkit",
       testMatch:
-        /(?:hint-coordinates|offline|solved(?:-decisions)?|autofill|board-lines|theme|custom-puzzle|options-(input-)?focus|sheet-exit|background-(?:cover|blur-policy)|keypad-layout\.mobile)\.spec\.js/,
+        /(?:hint-coordinates|fish-hints|offline|solved(?:-decisions)?|autofill|board-lines|theme|custom-puzzle|options-(input-)?focus|sheet-exit|background-(?:cover|blur-policy)|keypad-layout\.mobile)\.spec\.js/,
       teardown: "paint-timing",
       use: { browserName: "webkit" },
     },
