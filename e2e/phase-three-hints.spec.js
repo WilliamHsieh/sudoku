@@ -31,15 +31,28 @@ for (const example of phaseThreeCases) {
       await expect(panel.locator(".hint-position")).toHaveText("1/3");
       await expect(panel.locator("h2")).toHaveText(step.teaching.observeTitle);
       const paragraphs = panel.locator(".hint-body > p");
-      await expect(paragraphs).toHaveCount(step.teaching.observe.length);
-      for (const [index, observation] of step.teaching.observe.entries())
+      // This archived Medusa proof has premises previously reachable only via chips.
+      // Keep the complete proof text and explicitly check the added inline references.
+      const observations = [
+        ...step.teaching.observe,
+        ...(example.id === "3d-medusa"
+          ? ["另請查看 r1c1、r6c1、r6c5、r5c1、r2c5、r6c8、r4c5、r2c8、r4c8、r3c8。"]
+          : []),
+      ];
+      await expect(paragraphs).toHaveCount(observations.length);
+      for (const [index, observation] of observations.entries())
         await expect(paragraphs.nth(index)).toHaveText(observation);
       await info.attach("observation", { body: await page.screenshot(), contentType: "image/png" });
       await page.waitForTimeout(1000);
       await panel.locator('[data-action="next"]').click();
       await expect(panel.locator(".technique")).toHaveText(example.technique);
       await expect(panel.locator("h2")).toHaveText(step.teaching.reasonTitle);
-      await expect(paragraphs).toHaveText(step.teaching.reasoning);
+      await expect(paragraphs).toHaveText([
+        ...step.teaching.reasoning,
+        ...(example.id === "3d-medusa"
+          ? ["另請查看 r1c1、r6c5、r2c5、r6c8、r4c5、r2c8、r4c8、r3c8。"]
+          : []),
+      ]);
       await info.attach("reasoning", { body: await page.screenshot(), contentType: "image/png" });
       // Long proofs remain complete and keyboard/scroll reachable, including
       // the final causal bridge. The footer controls stay outside this region.
