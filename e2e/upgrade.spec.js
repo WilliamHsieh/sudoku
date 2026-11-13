@@ -92,9 +92,15 @@ test("failed Update restores the buttons after three seconds", async ({ page, de
   );
   await page.clock.install();
   await page.clock.pauseAt(new Date(Date.now() + 65_000));
+  const navigationFailed = page.waitForEvent(
+    "requestfailed",
+    (request) => request.isNavigationRequest() && request.url().includes("_sudoku_update=")
+  );
   await notice(page).getByRole("button", { name: "Update", exact: true }).tap();
   await expect(notice(page)).toHaveAttribute("aria-busy", "true");
   await expect(notice(page)).toHaveText("Updating…");
+  // A pending reload can interrupt Playwright's clock advance in the current page.
+  await navigationFailed;
   await page.clock.fastForward(2999);
   await expect(notice(page)).toHaveAttribute("aria-busy", "true");
   await page.clock.fastForward(1);
