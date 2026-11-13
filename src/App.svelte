@@ -135,10 +135,15 @@
     hints.reconcile(game.state);
   });
   $effect(() => {
-    if (game.notesMode === "manual" || showCalendar || playUi.paused || playUi.modal) {
-      hints.close();
-      hintFrame = null;
-    }
+    const manual = game.notesMode === "manual";
+    const suspended = showCalendar || playUi.paused || playUi.modal;
+    void game.loadId;
+    untrack(() => {
+      if (manual) hints.close();
+      else if (suspended) hints.suspend();
+      else void hints.resume();
+      if (manual || suspended) hintFrame = null;
+    });
   });
   $effect(() => {
     if (!wrapEl || !hints.isOpen) return;
@@ -855,7 +860,7 @@
         if (event?.type === "pagehide") game.bankLifecycle("close");
         else if (event?.type === "visibilitychange" && isHidden()) game.bankLifecycle("background");
       };
-      hints.close();
+      hints.suspend();
       hintFrame = null;
       if (game.replaying) game.flushProgress();
       if (showCalendar || game.solved) {
@@ -940,7 +945,7 @@
       window.removeEventListener("pointerdown", releaseViewFocus, true);
       mq.removeEventListener("change", onNarrow);
       reduceMq.removeEventListener("change", onReduce);
-      hints.close();
+      hints.suspend();
       document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("blur", onWindowBlur);
       window.removeEventListener("focus", onReturn);

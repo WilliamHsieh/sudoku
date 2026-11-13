@@ -5,6 +5,7 @@ import { digitsMask, maskDigits, parsePuzzle } from "./board.js";
  * Plain JSON. Note sets are digit strings per cell ('' = none, '139' = 1, 3, 9).
  * @typedef {Object} Snapshot
  * @property {import("./game.js").GameState["trustedEliminations"]} [trustedEliminations]
+ * @property {import('../hints/progress.js').HintProgress} [hintProgress] optional reading position
  * @property {1} version
  * @property {string} puzzle  the givens, 81 digits
  * @property {string} answers 81 digits, '0' = no answer
