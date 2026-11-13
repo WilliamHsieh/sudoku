@@ -1,12 +1,15 @@
 <script>
   import { tick } from "svelte";
-  import { tokenizeCoordinates } from "./coordinate-text.js";
+  import { supplementalCoordinates, tokenizeCoordinates } from "./coordinate-text.js";
   import { createHintStoryGesture } from "./story-navigation.js";
   /** @type {{session: ReturnType<typeof import('./session.svelte.js').createHintSession>, onclose: () => void, oncoordinate: (cell: number) => void, docked: boolean}} */
   let { session, onclose, oncoordinate, docked } = $props();
   let body = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   const storyGesture = createHintStoryGesture();
   const step = $derived(session.status === "ready" ? session.hint?.stages[session.stage] : null);
+  const supplemental = $derived(
+    step ? supplementalCoordinates(step, session.stage === 2 ? session.hint?.effect : "") : ""
+  );
   const messages = {
     unavailable: ["提示功能準備中", "目前尚未開放提示，請先繼續解題。"],
     searching: ["正在尋找提示…", "先從簡單技巧開始尋找。"],
@@ -141,20 +144,7 @@
       {#if session.stage === 1}<div class="technique">{session.hint?.name}</div>{/if}
       <h2>{@render coordinateText(step.title)}</h2>
       {#each step.description as text, index (index)}<p>{@render coordinateText(text)}</p>{/each}
-      {#if step.coordinates.length}
-        <div class="hint-coordinates">
-          {#each step.coordinates as cell (cell)}
-            <button
-              type="button"
-              class="hint-coordinate"
-              data-cell={cell}
-              aria-label={`查看第 ${Math.floor(cell / 9) + 1} 橫列、第 ${(cell % 9) + 1} 直行`}
-              onclick={() => oncoordinate(cell)}
-              >r{Math.floor(cell / 9) + 1}c{(cell % 9) + 1}</button
-            >
-          {/each}
-        </div>
-      {/if}
+      {#if supplemental}<p>{@render coordinateText(supplemental)}</p>{/if}
       {#if session.stage === 2}
         <div
           class="hint-effect"
@@ -336,20 +326,6 @@
     border-color: var(--hair);
     background: transparent;
     color: var(--ui-ink);
-  }
-  .hint-coordinates {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-top: 12px;
-  }
-  .hint-coordinate {
-    padding: 6px 9px;
-    border: 1px solid var(--hair);
-    border-radius: 6px;
-    background: var(--sel-bg);
-    color: var(--blue);
-    font-size: 12px;
   }
   .hint-reference {
     display: inline-block;
