@@ -136,12 +136,13 @@
   });
   $effect(() => {
     const manual = game.notesMode === "manual";
-    const suspended = showCalendar || playUi.paused || playUi.modal;
+    const suspended = showCalendar || playUi.modal;
+    const paused = playUi.paused;
     void game.loadId;
     untrack(() => {
       if (manual) hints.close();
       else if (suspended) hints.suspend();
-      else void hints.resume();
+      else if (!paused) void hints.resume();
       if (manual || suspended) hintFrame = null;
     });
   });
@@ -616,7 +617,7 @@
       e.target.closest("input, textarea, select, [contenteditable]")
     )
       return;
-    if (hints.isOpen && e.key === "Escape") {
+    if (hints.isOpen && !playUi.paused && e.key === "Escape") {
       e.preventDefault();
       void closeHint();
       return;
@@ -860,8 +861,6 @@
         if (event?.type === "pagehide") game.bankLifecycle("close");
         else if (event?.type === "visibilitychange" && isHidden()) game.bankLifecycle("background");
       };
-      hints.suspend();
-      hintFrame = null;
       if (game.replaying) game.flushProgress();
       if (showCalendar || game.solved) {
         // Clear #58's view/entry announcement without pausing these views.
@@ -1380,6 +1379,7 @@
   >
     <HintPanel
       session={hints}
+      paused={playUi.paused}
       onclose={() => void closeHint()}
       oncoordinate={(cell) => hintFocus.flash(cell)}
       docked={hintFrame.mode === "docked"}

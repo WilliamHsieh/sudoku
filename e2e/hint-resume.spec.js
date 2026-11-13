@@ -21,7 +21,8 @@ for (const mobile of [false, true]) {
           await page.locator('#hint-panel [data-action="next-stage"]').click();
         const title = await page.locator("#hint-panel .hint-body").innerText();
         await page.locator("#time-control").click();
-        await expect(page.locator("#hint-panel")).toHaveCount(0);
+        await expect(page.locator("#hint-panel")).toHaveAttribute("inert", "");
+        await expect(page.locator("#hint-panel")).toHaveAttribute("aria-hidden", "true");
         await page.locator("#resume").click();
         await expect(position).toHaveText(`${stage + 1}/3`);
         await expect(page.locator("#hint-panel .hint-body")).toHaveText(title);
