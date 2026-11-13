@@ -46,6 +46,9 @@ for (const mobile of [true, false]) {
         await expect(paragraphs.nth(2)).toContainText("第 1、4 橫列都還沒填入 7");
         await expect(paragraphs.nth(2)).toContainText("每個橫列都必須有一個 7");
         await expect(paragraphs.nth(3)).toContainText("同一直行不能有兩個 7");
+        await expect(paragraphs.nth(3)).toContainText(
+          fixture.targetCells.length === 1 ? "r2c7 位於第 7 直行" : "r2c7、r3c7 位於第 7 直行"
+        );
         await expect(paragraphs.nth(4)).toContainText(
           fixture.targetCells.length === 1 ? "r2c7 不能是 7" : "r2c7、r3c7 都不能是 7"
         );

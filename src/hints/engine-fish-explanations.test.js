@@ -62,6 +62,9 @@ describe("fish explanations", () => {
                 : `若 ${fins.map(coord).join("、")} 都不填 7`
             );
             expect(reason).toContain("兩種情況下");
+            expect(reason).toContain(
+              `${[at(1, 0), at(2, 0)].map(coord).join("、")} 位於第 1 ${coverName}`
+            );
             expect(step.eliminations.map((e) => e.cell)).toEqual([at(1, 0), at(2, 0)]);
           }
           const observation = firstObservation(step, Array(81).fill(0), masks);
@@ -163,6 +166,7 @@ for (const fixture of fishCases)
     expect(reason[2]).toContain(
       fixture.finCells.length === 1 ? `若 ${fins} 不填 7` : `若 ${fins} 都不填 7`
     );
+    expect(reason[3]).toContain(`${targets} 位於第 7 直行，卻不在第 1、4 橫列內`);
     expect(reason[1]).toContain(
       fixture.targetCells.length === 1 ? "所以這個目標格不能填 7" : "所以這些目標格不能填 7"
     );
