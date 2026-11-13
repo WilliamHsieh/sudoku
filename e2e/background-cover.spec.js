@@ -360,13 +360,14 @@ for (const awayMs of [999, 1_000, 1_100]) {
 }
 
 for (const signal of ["blur", "visibilitychange", "pagehide", "freeze"]) {
-  for (const view of ["fresh calendar", "loaded calendar", "finished puzzle"]) {
+  for (const view of ["fresh home", "loaded home", "finished puzzle"]) {
     test(`${signal} does not pause a ${view}`, async ({ page }) => {
       await stopClock(page);
-      if (view === "fresh calendar") await page.goto("./");
-      else if (view === "loaded calendar") {
+      if (view === "fresh home") await page.goto("./");
+      else if (view === "loaded home") {
         await openBoard(page);
         await page.locator(".dbtn").click();
+        await expect(page.locator(".bank-pages")).toBeVisible();
       } else {
         const solution = solve(DEMO_PUZZLE);
         await openBoard(page, `./?q=0${solution.slice(1)}`);
@@ -388,8 +389,15 @@ for (const signal of ["blur", "visibilitychange", "pagehide", "freeze"]) {
       await page.clock.runFor(2_000);
       if (view !== "finished puzzle") {
         // Enter Play before the return signal to expose a latent pause created
-        // in the calendar even though no cover could mount there.
-        await page.locator("#time-control").click();
+        // on Home even though no cover could mount there.
+        if (view === "fresh home") await page.getByRole("button", { name: /^Easy/ }).click();
+        else {
+          await page.getByRole("button", { name: /Unfinished/ }).click();
+          await page
+            .getByRole("button", { name: /^Resume / })
+            .first()
+            .click();
+        }
       } else {
         await page.clock.runFor(900);
         await expect(page.locator(".sv-panel")).toBeVisible();

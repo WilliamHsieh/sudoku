@@ -30,6 +30,7 @@ export function deriveUnlockState(attempts, policy = {}) {
   const completions = firstAttempts(attempts, attempts[0]?.playerId)
     .filter(
       (a) =>
+        ["manual", "sequential"].includes(a.mode) &&
         a.outcome === "independent_complete" &&
         !a.answerRevealed &&
         Number.isSafeInteger(a.endedAt) &&

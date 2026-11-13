@@ -1,6 +1,13 @@
 import { test as base, expect } from "@playwright/test";
 import { upgradeServer } from "./upgrade-server.js";
-import { cell, expectValue, DEMO_PUZZLE, solve, switchNotesMode } from "./helpers.js";
+import {
+  cell,
+  expectValue,
+  DEMO_PUZZLE,
+  solve,
+  switchNotesMode,
+  resumeFromHome,
+} from "./helpers.js";
 
 const test = base.extend({
   deployment: async ({ page }, use) => {
@@ -58,19 +65,14 @@ async function state(page) {
   }));
 }
 
-async function openDaily(page, deployment, date = "2026-10-22") {
+async function openDaily(page, deployment) {
   await page.clock.setSystemTime(new Date("2026-10-23T12:00:00Z"));
   await page.addInitScript(() => {
     localStorage.setItem("sudoku-keypad-coach", "1");
     localStorage.setItem("sudoku-cue", "0");
   });
   await page.goto(deployment.url);
-  await page.locator(`button.day[data-d="${date}"]:visible`).click();
-  await page
-    .locator(".prow:visible")
-    .filter({ hasText: "Easy" })
-    .getByRole("button", { name: "Start", exact: true })
-    .click();
+  await page.getByRole("button", { name: /^Easy / }).click();
   await expect(page.locator(".board > .cell")).toHaveCount(81);
   await settle(page);
   return page
@@ -84,7 +86,7 @@ function seconds(text) {
 
 for (const mode of ["Manual", "Auto"]) {
   for (const delay of [100, 4500]) {
-    test(`daily ${mode} game survives Update navigation delayed ${delay}ms`, async ({
+    test(`bank ${mode} game survives Update navigation delayed ${delay}ms`, async ({
       page,
       deployment,
     }) => {
@@ -106,17 +108,15 @@ for (const mode of ["Manual", "Auto"]) {
       else await expect(cell(page, note)).not.toHaveAttribute("data-notes", /3/);
       await publish(page, deployment);
       const before = await state(page);
-      const puzzle = await page
-        .getByRole("button", { name: /Open Journal/ })
-        .getAttribute("aria-label");
+      const puzzle = await page.getByRole("button", { name: "Back", exact: true }).textContent();
       let saved;
       await page.exposeFunction("recordProgress", (value) => {
-        saved = JSON.parse(value);
+        saved = JSON.parse(Object.values(JSON.parse(value).slots)[0]);
       });
       await page.evaluate(() => {
         const write = Storage.prototype.setItem;
         Storage.prototype.setItem = function (key, value) {
-          if (key === "sudoku-progress") window.recordProgress(value);
+          if (key === "sudoku-bank-saves-v1") window.recordProgress(value);
           return write.call(this, key, value);
         };
       });
@@ -130,33 +130,32 @@ for (const mode of ["Manual", "Auto"]) {
       });
       await notice(page).getByRole("button", { name: "Update", exact: true }).tap();
       await expect(build(page)).toHaveAttribute("content", "new");
-      await expect(
-        page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true })
-      ).toBeVisible();
-      await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).tap();
+      await expect(page.locator(".bank-pages, .draft-header")).toBeVisible();
+      await resumeFromHome(page);
       await expect(cell(page, answer)).toBeVisible();
       const after = await state(page);
       expect(after.cells).toEqual(before.cells);
       expect(after.mode).toBe(`Notes mode: ${mode}`);
-      expect(
-        await page.getByRole("button", { name: /Open Journal/ }).getAttribute("aria-label")
-      ).toBe(puzzle);
-      expect(Math.abs(seconds(after.time) - saved["2026-10-22"].easy.elapsed)).toBeLessThanOrEqual(
-        1
+      expect(await page.getByRole("button", { name: "Back", exact: true }).textContent()).toBe(
+        puzzle
       );
-      expect(Math.abs(seconds(after.time) - seconds(before.time))).toBeLessThanOrEqual(1);
+      expect(Math.abs(seconds(after.time) - saved.elapsed)).toBeLessThanOrEqual(1);
+      // The bank checkpoints the running clock while delayed navigation keeps Play usable.
+      // Resume must restore that final checkpoint, including this active interval.
+      expect(seconds(after.time)).toBeGreaterThanOrEqual(seconds(before.time) - 1);
+      expect(seconds(after.time) - seconds(before.time)).toBeLessThanOrEqual(
+        Math.ceil(delay / 1000) + 1
+      );
       expect(await page.evaluate(() => Object.keys(sessionStorage))).toEqual([]);
       expect(attempts(deployment)).toHaveLength(1);
       // An ordinary later reload also uses the normal start screen.
       await page.reload();
-      await expect(
-        page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true })
-      ).toBeVisible();
+      await expect(page.locator(".bank-pages, .draft-header")).toBeVisible();
     });
   }
 }
 
-test("Update from Journal opens the start screen; Play resumes the daily autosave", async ({
+test("Update from Home opens Home; Unfinished resumes the bank autosave", async ({
   page,
   deployment,
 }) => {
@@ -164,25 +163,19 @@ test("Update from Journal opens the start screen; Play resumes the daily autosav
   await cell(page, answer).click();
   await page.keyboard.press("1");
   const before = await state(page);
-  const puzzle = await page
-    .getByRole("button", { name: /Open Journal/ })
-    .getAttribute("aria-label");
-  await page.getByRole("button", { name: /Open Journal/ }).click();
+  const puzzle = await page.getByRole("button", { name: "Back", exact: true }).textContent();
+  await page.getByRole("button", { name: "Back", exact: true }).click();
   await publish(page, deployment);
   await notice(page).getByRole("button", { name: "Update", exact: true }).tap();
   await expect(build(page)).toHaveAttribute("content", "new");
-  await expect(
-    page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true })
-  ).toBeVisible();
-  await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).tap();
+  await expect(page.locator(".bank-pages, .draft-header")).toBeVisible();
+  await resumeFromHome(page);
   await expectValue(page, answer, 1);
   const after = await state(page);
   expect(after.cells).toEqual(before.cells);
   expect(after.mode).toBe(before.mode);
   expect(Math.abs(seconds(after.time) - seconds(before.time))).toBeLessThanOrEqual(1);
-  expect(await page.getByRole("button", { name: /Open Journal/ }).getAttribute("aria-label")).toBe(
-    puzzle
-  );
+  expect(await page.getByRole("button", { name: "Back", exact: true }).textContent()).toBe(puzzle);
   expect(await page.evaluate(() => Object.keys(sessionStorage))).toEqual([]);
 });
 
@@ -219,12 +212,10 @@ for (const failure of ["aborted", "failed"]) {
     }
     await page.unrouteAll({ behavior: "wait" });
     await page.reload();
-    await expect(
-      page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true })
-    ).toBeVisible();
+    await expect(page.locator(".bank-pages, .draft-header")).toBeVisible();
     await expect(page.locator(".play")).not.toBeVisible();
     expect(await page.evaluate(() => Object.keys(sessionStorage))).toEqual([]);
-    await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).tap();
+    await resumeFromHome(page);
     await expectValue(page, first, 1);
     if (failure === "aborted") await expectValue(page, second, 2);
     expect((await state(page)).cells).toEqual(newest.cells);
@@ -246,13 +237,13 @@ test("moves made during a slow Update survive the eventual navigation", async ({
     updateStarted = resolve;
   });
   await page.exposeFunction("progressSaved", (value) => {
-    newest = JSON.parse(value)["2026-10-22"].easy;
+    newest = JSON.parse(Object.values(JSON.parse(value).slots)[0]);
   });
   await page.evaluate(() => {
     const write = Storage.prototype.setItem;
     Storage.prototype.setItem = function (key, value) {
       const result = write.call(this, key, value);
-      if (key === "sudoku-progress") window.progressSaved(value);
+      if (key === "sudoku-bank-saves-v1") window.progressSaved(value);
       return result;
     };
   });
@@ -273,16 +264,16 @@ test("moves made during a slow Update survive the eventual navigation", async ({
   await page.keyboard.press("2");
   await tap;
   await expect(build(page)).toHaveAttribute("content", "new");
-  await expect(
-    page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true })
-  ).toBeVisible();
-  await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).tap();
+  await expect(page.locator(".bank-pages, .draft-header")).toBeVisible();
+  await resumeFromHome(page);
   await expectValue(page, first, 1);
   await expectValue(page, second, 2);
   expect(newest.snapshot.answers[second]).toBe("2");
   expect(
     await page.evaluate(
-      () => JSON.parse(localStorage.getItem("sudoku-progress"))["2026-10-22"].easy.snapshot
+      () =>
+        JSON.parse(Object.values(JSON.parse(localStorage.getItem("sudoku-bank-saves-v1")).slots)[0])
+          .snapshot
     )
   ).toEqual(newest.snapshot);
   expect(await page.evaluate(() => Object.keys(sessionStorage))).toEqual([]);
@@ -303,18 +294,16 @@ test("Update after finishing today's Easy stays on the normal start screen", asy
     await cell(page, index).click();
     await page.keyboard.press(solution[index]);
   }
-  await expect(page.getByRole("heading", { name: "Solved" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Solved/ })).toBeVisible();
 
-  const solved = await page.evaluate(() => localStorage.getItem("sudoku-solved"));
-  expect(JSON.parse(solved)["2026-10-23"].easy.completed).toBe(true);
+  const solved = await page.evaluate(() => localStorage.getItem("sudoku-bank-records-v1"));
+  expect(JSON.parse(solved).events.some((e) => e.type === "complete")).toBe(true);
   await publish(page, deployment);
   await notice(page).getByRole("button", { name: "Update", exact: true }).tap();
   await expect(build(page)).toHaveAttribute("content", "new");
-  await expect(
-    page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true })
-  ).toBeVisible();
+  await expect(page.locator(".bank-pages, .draft-header")).toBeVisible();
   await expect(page.locator(".play")).not.toBeVisible();
-  expect(await page.evaluate(() => localStorage.getItem("sudoku-solved"))).toBe(solved);
+  expect(await page.evaluate(() => localStorage.getItem("sudoku-bank-records-v1"))).toBe(solved);
   expect(await page.evaluate(() => Object.keys(sessionStorage))).toEqual([]);
 });
 
@@ -334,9 +323,7 @@ test("Update writes no return marker to either storage area", async ({ page, dep
   await publish(page, deployment);
   await notice(page).getByRole("button", { name: "Update", exact: true }).tap();
   await expect(build(page)).toHaveAttribute("content", "new");
-  await expect(
-    page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true })
-  ).toBeVisible();
+  await expect(page.locator(".bank-pages, .draft-header")).toBeVisible();
   expect(writes.filter(([area, key]) => area === "session" || /update/i.test(key))).toEqual([]);
   expect(await page.evaluate(() => Object.keys(sessionStorage))).toEqual([]);
   expect(
@@ -355,10 +342,10 @@ test("share-link Update preserves the givens and locally saved answers", async (
   await publish(page, deployment);
   await notice(page).getByRole("button", { name: "Update", exact: true }).tap();
   await expect(build(page)).toHaveAttribute("content", "new");
-  await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).click();
+  await resumeFromHome(page);
   await expectValue(page, 0, 4);
   expect(new URL(page.url()).searchParams.get("q")).toBe(DEMO_PUZZLE);
-  expect(await page.evaluate(() => localStorage.getItem("sudoku-progress"))).toBeNull();
+  expect(await page.evaluate(() => localStorage.getItem("sudoku-bank-records-v1"))).toBeNull();
   expect(await page.evaluate(() => Object.keys(sessionStorage))).toEqual([]);
 });
 
@@ -501,7 +488,7 @@ test("cold launch keeps the newer shell when the server offers an older deployme
   deployment.publish();
   const url = `${deployment.url}?q=${DEMO_PUZZLE}&keep=yes#board`;
   await page.goto(url);
-  await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).click();
+  await page.getByRole("button", { name: "Start puzzle", exact: true }).click();
   deployment.publish("old");
   await page.clock.setSystemTime(new Date(Date.now() + 60_000));
   await page.evaluate(() =>
@@ -623,17 +610,17 @@ for (const mode of ["Auto", "Tidy"]) {
 }
 
 for (const width of [390, 1280]) {
-  for (const view of ["Play", "Journal"]) {
+  for (const view of ["Play", "Home"]) {
     for (const motion of ["normal", "media", "query"]) {
       test(`visible notice matrix ${width} ${view} ${motion}`, async ({ page, deployment }) => {
         await page.setViewportSize({ width, height: 844 });
         await page.emulateMedia({ reducedMotion: motion === "media" ? "reduce" : "no-preference" });
         await open(page, deployment, `?q=${DEMO_PUZZLE}${motion === "query" ? "&rm=1" : ""}`);
-        if (view === "Journal") await page.getByRole("button", { name: /Open Journal/ }).click();
+        if (view === "Home") await page.getByRole("button", { name: "Back", exact: true }).click();
         await settle(page);
         const region = await live(page).elementHandle();
         const identity = await page.evaluateHandle(() => window.documentIdentity);
-        const control = page.locator("#time-control");
+        const control = page.locator(view === "Home" ? ".bank-pages h1" : "#time-control");
         await control.focus();
         const focus = await page.evaluateHandle(() => document.activeElement);
         const geometry = () =>
@@ -674,8 +661,8 @@ for (const width of [390, 1280]) {
         expect(await region.evaluate((el) => el === document.querySelector(".update-live"))).toBe(
           true
         );
-        if (view === "Play") await page.getByRole("button", { name: /Open Journal/ }).click();
-        else await page.getByRole("button", { name: "Back to game", exact: true }).click();
+        if (view === "Play") await page.getByRole("button", { name: "Back", exact: true }).click();
+        else await resumeFromHome(page);
         expect(await region.evaluate((el) => el === document.querySelector(".update-live"))).toBe(
           true
         );

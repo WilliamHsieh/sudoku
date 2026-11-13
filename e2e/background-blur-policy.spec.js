@@ -3,7 +3,7 @@ import { createServer } from "vite";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { openBoard } from "./helpers.js";
+import { openBoard, DEMO_PUZZLE } from "./helpers.js";
 
 // Exercise the real app with its one policy flag flipped, without editing the
 // worktree or adding a runtime product setting. Preview bundles inline constants,
@@ -37,7 +37,7 @@ test("disabling PAUSE_ON_WINDOW_BLUR leaves blur-only absences running; explicit
   // Leave headroom for the protocol round trip while the installed clock runs.
   await page.clock.install({ time: new Date(start.getTime() - 60_000) });
   await page.clock.pauseAt(start);
-  await openBoard(page, url);
+  await openBoard(page, `${url}?q=${DEMO_PUZZLE}`);
   expect(flagOverridden).toBe(true);
   await page.clock.runFor(1_000);
   await page.evaluate(() => window.dispatchEvent(new Event("blur")));

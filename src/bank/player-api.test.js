@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { dayStreak, levelList, solveResult, unfinishedList } from "./player-api.js";
-import { attempt, catalogWith, puzzle, start } from "./test-fixtures.js";
+import { attempt as makeAttempt, catalogWith, puzzle, start } from "./test-fixtures.js";
 import { openCatalog } from "./catalog.js";
 import { fixedLevelOrder, selectPuzzle } from "./select.js";
 import { projectRecords } from "./records.js";
 import { deriveUnlockState } from "./unlock.js";
+const attempt = (number, overrides = {}, ...rest) =>
+  makeAttempt(number, { mode: "manual", ...overrides }, ...rest);
 
 const wins = (count = 10, rating = 32, offset = 1) =>
   Array.from({ length: count }, (_, i) =>
@@ -14,7 +16,7 @@ const result = (attempts, target = attempts.at(-1), previousMaxOpenLevel = 3) =>
   solveResult(attempts, target.attemptId, { previousMaxOpenLevel });
 
 function resumed() {
-  const data = start(1, { puzzle: puzzle(1, 32) });
+  const data = start(1, { mode: "manual", puzzle: puzzle(1, 32) });
   const events = [
     { id: "start", at: 100, type: "start", start: data },
     { id: "time", at: 101, type: "time", effectiveMs: 1234 },
@@ -29,7 +31,7 @@ describe("solve result", () => {
   it("reports the tenth frontier solve and the next opened level", () => {
     expect(result(wins())).toEqual({
       level: 3,
-      mode: "medium",
+      mode: "manual",
       countsTowardUnlock: true,
       hintFreeSolvesAtLevel: 10,
       required: 10,
@@ -324,7 +326,7 @@ describe("unfinished bank attempts", () => {
 function onDay(iso, number = 1, overrides = {}, outcome = "complete") {
   const at = Date.parse(iso);
   return {
-    ...attempt(number, overrides, outcome),
+    ...attempt(number, { mode: "medium", ...overrides }, outcome),
     startedAt: at - 100,
     endedAt: at,
     updatedAt: at,
@@ -448,7 +450,12 @@ it("streak counts a resumed completion only when it has ended", () => {
     longest: 0,
     todayDone: false,
   });
-  expect(dayStreak(projectRecords(log), options)).toEqual({
+  expect(
+    dayStreak(
+      projectRecords(log).map((a) => ({ ...a, mode: "medium" })),
+      options
+    )
+  ).toEqual({
     current: 1,
     longest: 1,
     todayDone: true,

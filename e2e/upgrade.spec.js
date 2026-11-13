@@ -1,6 +1,6 @@
 import { test as base, expect } from "@playwright/test";
 import { upgradeServer } from "./upgrade-server.js";
-import { cell, expectValue, DEMO_PUZZLE } from "./helpers.js";
+import { cell, expectValue, DEMO_PUZZLE, resumeFromHome } from "./helpers.js";
 
 const test = base.extend({
   // eslint-disable-next-line no-empty-pattern
@@ -95,9 +95,10 @@ test("failed Update restores the buttons after three seconds", async ({ page, de
   await notice(page).getByRole("button", { name: "Update", exact: true }).tap();
   await expect(notice(page)).toHaveAttribute("aria-busy", "true");
   await expect(notice(page)).toHaveText("Updating…");
-  await page.clock.fastForward(2999);
+  // Run the async bank-flush deadline and aborted navigation in timer order.
+  await page.clock.runFor(2999);
   await expect(notice(page)).toHaveAttribute("aria-busy", "true");
-  await page.clock.fastForward(1);
+  await page.clock.runFor(1);
   await expect(notice(page).getByRole("button", { name: "Update", exact: true })).toBeVisible();
 });
 
@@ -122,13 +123,13 @@ test("new notice waits until automatic resume reveal finishes", async ({ page, d
   await expect(notice(page)).toHaveCSS("opacity", "1");
 });
 
-for (const view of ["Play", "Journal"]) {
+for (const view of ["Play", "Home"]) {
   test(`${view}: approved geometry, hit areas, pressed paint, keyboard focus and reduced motion`, async ({
     page,
     deployment,
   }) => {
     await open(page, deployment);
-    if (view === "Journal") await page.getByRole("button", { name: /Open Journal/ }).tap();
+    if (view === "Home") await page.getByRole("button", { name: "Back", exact: true }).tap();
     const geometry = async () =>
       page
         .locator(".board, .hint-line, .keypad")
@@ -138,7 +139,7 @@ for (const view of ["Play", "Journal"]) {
     expect(await geometry()).toEqual(before);
     const n = notice(page);
     const rect = await n.boundingBox();
-    if (view === "Journal") {
+    if (view === "Home") {
       expect(rect.height).toBe(44);
       expect(rect.x + rect.width / 2).toBeCloseTo(195, 0);
     } else {
@@ -209,7 +210,7 @@ test("verified cached modules survive missing network assets during Update", asy
   await notice(page).getByRole("button", { name: "Update", exact: true }).tap();
   await expect(build(page)).toHaveAttribute("content", "new");
   expect(page.url()).not.toContain("_sudoku_update");
-  await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).tap();
+  await resumeFromHome(page);
   await expect(cell(page, 0)).toBeVisible();
   await expectValue(page, 0, 4);
 });

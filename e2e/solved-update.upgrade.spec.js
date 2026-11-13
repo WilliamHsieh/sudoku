@@ -1,9 +1,6 @@
 import { test as base, expect } from "@playwright/test";
 import { upgradeServer } from "./upgrade-server.js";
-import { puzzleData } from "../src/puzzles.js";
-import { newGame, setAnswer } from "../src/game/game.js";
-import { toSnapshot } from "../src/game/snapshot.js";
-import { solve } from "./helpers.js";
+import { fixture } from "./bank-fixture.js";
 
 const test = base.extend({
   // eslint-disable-next-line no-empty-pattern
@@ -24,31 +21,19 @@ for (const width of [390, 1280]) {
       }, testInfo) => {
         await page.setViewportSize({ width, height: width === 390 ? 844 : 800 });
         await page.emulateMedia({ colorScheme: theme });
-        const date = "2026-11-01";
-        const puzzle = puzzleData[date].easy;
-        const solution = solve(puzzle);
-        const empty = [...puzzle].flatMap((d, i) => (d === "0" ? [i] : []));
-        const last = empty.at(-1);
-        let state = newGame(puzzle, { notesMode: "auto" });
-        for (const i of empty)
-          if (i !== last) state = setAnswer(state, i, Number(solution[i])).state;
+        const data = await fixture({ mode: "easy" });
         await page.addInitScript(
-          ({ date, snapshot, count, theme }) => {
-            localStorage.setItem(
-              "sudoku-progress",
-              JSON.stringify({
-                [date]: {
-                  easy: { snapshot, elapsed: 402, filled: count - 1, empty: count, updatedAt: 100 },
-                },
-              })
-            );
+          ({ storage, theme }) => {
+            if (!localStorage.getItem("sudoku-bank-records-v1"))
+              for (const [k, v] of Object.entries(storage)) localStorage.setItem(k, v);
             localStorage.setItem("sudoku-keypad-coach", "1");
             localStorage.setItem("sudoku-theme", theme);
           },
-          { date, snapshot: toSnapshot(state), count: empty.length, theme }
+          { storage: data.storage, theme }
         );
         await page.goto(deployment.url);
-        await page.getByRole("button", { name: "Play", exact: true }).click();
+        await page.getByRole("button", { name: /Unfinished/ }).click();
+        await page.getByRole("button", { name: /^Resume / }).click();
         await page
           .locator(".play")
           .evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
@@ -59,8 +44,8 @@ for (const width of [390, 1280]) {
         );
         const notice = page.locator(".update-notice.active");
         await expect(notice).toHaveCSS("opacity", "1");
-        await page.locator(`.cell[data-i="${last}"]`).click();
-        await page.keyboard.press(solution[last]);
+        await page.locator(`.cell[data-i="${data.last}"]`).click();
+        await page.keyboard.press(String(data.digit));
         await expect(page.locator("#sv-h")).toBeFocused();
         await expect(page.locator(".game-controls")).toHaveCount(0);
         await expect(notice).toHaveCount(1);
@@ -80,7 +65,7 @@ for (const width of [390, 1280]) {
           )
         ).toBe(true);
         await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
-        const saved = await page.evaluate(() => localStorage.getItem("sudoku-solved"));
+        const saved = await page.evaluate(() => localStorage.getItem("sudoku-bank-records-v1"));
         await page
           .locator(".sv-panel")
           .evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
@@ -92,10 +77,12 @@ for (const width of [390, 1280]) {
           if (width === 390) await button.tap();
           else await button.click();
           await expect(page.locator('meta[name="sudoku-build"]')).toHaveAttribute("content", "new");
-          await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible();
-          expect(await page.evaluate(() => localStorage.getItem("sudoku-solved"))).toBe(saved);
+          await expect(page.getByRole("heading", { name: "Sudoku", exact: true })).toBeVisible();
+          expect(await page.evaluate(() => localStorage.getItem("sudoku-bank-records-v1"))).toBe(
+            saved
+          );
         } else {
-          // More no longer exists after solve; dismissal must restore heading focus.
+          // Dismissal restores the solved heading, with More still available.
           const dismiss = notice.getByRole("button", { name: "Dismiss", exact: true });
           await dismiss.focus();
           await page.keyboard.press("Enter");

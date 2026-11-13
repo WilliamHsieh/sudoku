@@ -34,6 +34,7 @@ import {
 } from "./history.js";
 import { bit, popcount } from "./board.js";
 import { solvedState } from "./solved-state.js";
+import { createCustomRecorder } from "../bank/custom-recorder.js";
 import { createRecorder } from "../bank/recorder.js";
 import { toSnapshot } from "./snapshot.js";
 import { fromSnapshot } from "./snapshot.js";
@@ -60,6 +61,7 @@ export const DEMO_PUZZLE =
 export function createGame(bankOptions) {
   /** @type {ReturnType<typeof createRecorder> | null} */
   let bank = $state.raw(null);
+  let customBank = $state.raw(/** @type {ReturnType<typeof createCustomRecorder> | null} */ (null));
   let stopBankTimer = () => {};
   const pendingBank = [];
   let history = $state(createHistory(newGame(DEMO_PUZZLE, { notesMode: "auto" })));
@@ -134,6 +136,10 @@ export function createGame(bankOptions) {
   }
 
   function persistProgress(force = false, strict = false) {
+    if (customBank) {
+      customBank.save(toSnapshot(history.present), get(timer), isSolved(history.present));
+      return;
+    }
     if (bank) {
       bank.time(get(timer));
       bank.settings(history.present.notesMode);
@@ -227,10 +233,11 @@ export function createGame(bankOptions) {
     get bankMeta() {
       return bank?.meta ?? null;
     },
-    /** Explicit opt-in only. null resumes the saved bank attempt after reload.
+    /** Start a bank game. null resumes the selected saved attempt after reload.
      * @param {import('../bank/types.js').BankGameMeta | null} [bankMeta]
+     * @param {string} [attemptId]
      */
-    async startBank(bankMeta = null) {
+    async startBank(bankMeta = null, attemptId) {
       // Complete the previous queue before reading its checkpoint for a new session.
       if (pendingBank.length) {
         try {
@@ -240,7 +247,7 @@ export function createGame(bankOptions) {
         }
       }
       const recorder = createRecorder(bankOptions);
-      const saved = await recorder.open(bankMeta);
+      const saved = await recorder.open(bankMeta, attemptId);
       if (!saved) return false;
       this.load(
         saved.meta.puzzle.digits,
@@ -257,8 +264,42 @@ export function createGame(bankOptions) {
       syncSolved();
       persistProgress();
       stopBankTimer = timer.subscribe(() => persistProgress());
-      await recorder.flush();
+      await recorder.flush(true);
       return true;
+    },
+    get customTitle() {
+      return customBank?.label ?? "Custom puzzle";
+    },
+    get customAttemptId() {
+      return customBank?.attemptId ?? null;
+    },
+    /** Every Start makes a separate custom slot; Resume selects its exact ID.
+     * @param {string} puzzle @param {string} [attemptId] @param {string} [label] */
+    async startCustom(puzzle, attemptId, label) {
+      await this.flushProgress(true);
+      const recorder = createCustomRecorder(bankOptions);
+      const saved = await recorder.open(attemptId, label);
+      if (attemptId && (!saved || saved.completed)) return false;
+      this.load(
+        saved?.puzzle ?? puzzle,
+        saved ? { snapshot: saved.snapshot, elapsed: saved.elapsed } : {}
+      );
+      customBank = recorder;
+      pendingBank.push(recorder);
+      persistProgress();
+      stopBankTimer = timer.subscribe(() => persistProgress());
+      await recorder.flush(true);
+      return true;
+    },
+    /** Read-only saved solve; deriving the board must never create a new attempt.
+     * @param {string} puzzle @param {number} time */
+    viewBankSolve(puzzle, time) {
+      this.load(puzzle);
+      history = createHistory(solvedState(puzzle));
+      journalView = true;
+      marked = true;
+      timer.set(time);
+      done.set(true);
     },
     /** App lifecycle adapter; no-op for every non-bank game.
      * @param {'pause'|'resume'|'background'|'close'} type
@@ -571,6 +612,7 @@ export function createGame(bankOptions) {
       stopBankTimer = () => {};
       bank?.lifecycle("pause", get(timer));
       bank = null;
+      customBank = null;
       customKey = info.custom ? puzzle : "";
       const record =
         info.dateStr && info.difficulty

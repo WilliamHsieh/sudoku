@@ -279,7 +279,7 @@ test("a slightly wider fallback fits with tighter tracking at the normal size", 
   await expect(value).toHaveCSS("transform", "none");
 });
 
-test("Tidy cleanup, undo rings, reload, Journal return, restart, and new puzzle default", async ({
+test("Tidy cleanup, undo rings, reload, Unfinished return, restart, and new puzzle default", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -289,13 +289,21 @@ test("Tidy cleanup, undo rings, reload, Journal return, restart, and new puzzle 
   state.manualNotes = Array.from({ length: 81 }, (_, i) => computedCandidates(state, i));
   const snapshot = toSnapshot(state);
   await page.addInitScript(
-    ({ date, difficulty, snapshot }) => {
-      if (!localStorage.getItem("sudoku-progress"))
+    ({ snapshot }) => {
+      if (!localStorage.getItem("sudoku-bank-custom-v1"))
         localStorage.setItem(
-          "sudoku-progress",
+          "sudoku-bank-custom-v1",
           JSON.stringify({
-            [date]: {
-              [difficulty]: { elapsed: 10, filled: 0, empty: 50, updatedAt: Date.now(), snapshot },
+            schema: 1,
+            slots: {
+              tidy: {
+                attemptId: "tidy",
+                puzzle: snapshot.puzzle,
+                snapshot,
+                elapsed: 10,
+                updatedAt: Date.now(),
+                completed: false,
+              },
             },
           })
         );
@@ -304,7 +312,8 @@ test("Tidy cleanup, undo rings, reload, Journal return, restart, and new puzzle 
     { date, difficulty, snapshot }
   );
   await page.goto("./");
-  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await page.getByRole("button", { name: /Unfinished/ }).click();
+  await page.getByRole("button", { name: /^Resume .* · / }).click();
   await expect(trigger(page)).toHaveAccessibleName("Notes mode: Tidy");
   // r1c7 has 4 and shares a row with r1c8.
   const target = 6;
@@ -328,13 +337,16 @@ test("Tidy cleanup, undo rings, reload, Journal return, restart, and new puzzle 
   await expect(pencil(page, peer, digit)).not.toHaveClass(/invisible/);
   await choose(page, "Manual");
   await choose(page, "Tidy");
-  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("sudoku-progress")));
-  expect(saved[date][difficulty].snapshot.notesMode).toBe("tidy");
+  const saved = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("sudoku-bank-custom-v1"))
+  );
+  expect(saved.slots.tidy.snapshot.notesMode).toBe("tidy");
   await page.reload();
-  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await page.getByRole("button", { name: /Unfinished/ }).click();
+  await page.getByRole("button", { name: /^Resume .* · / }).click();
   await expect(trigger(page)).toHaveAccessibleName("Notes mode: Tidy");
   await page.locator(".dbtn").click();
-  await page.locator("#time-control").click();
+  await page.getByRole("button", { name: /^Resume .* · / }).click();
   await expect(trigger(page)).toHaveAccessibleName("Notes mode: Tidy");
   await page.locator("[data-more]").filter({ visible: true }).click();
   await page.locator("#opt-restart").click();

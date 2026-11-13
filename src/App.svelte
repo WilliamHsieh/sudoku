@@ -10,15 +10,19 @@
     resetAutofill,
     syncAutofill,
   } from "./autofill.svelte.js";
-  import JournalSolved from "./JournalSolved.svelte";
+  import SavedSolve from "./bank/SavedSolve.svelte";
   import ReplayConfirm from "./ReplayConfirm.svelte";
-  import SolvedPanel from "./SolvedPanel.svelte";
-  import { solvedModel } from "./solved.js";
+  import UnlockOverlay from "./bank/UnlockOverlay.svelte";
+  import BankSolved from "./bank/BankSolved.svelte";
+  import { bankSolvedModel, customSolvedModel } from "./bank/solved-model.js";
+
   import "./solved.css";
   import UpdateNotice from "./UpdateNotice.svelte";
   import Cell from "./Cell.svelte";
   import PlayHeader from "./PlayHeader.svelte";
-  import Journal from "./Journal.svelte";
+  import BankPages from "./bank/BankPages.svelte";
+  import { createBankUI } from "./bank/ui-session.svelte.js";
+  import { modeName, levelName } from "./bank/ui-copy.js";
   import CustomPuzzleEditor from "./custom/CustomPuzzleEditor.svelte";
   import CustomDraftHeader from "./custom/CustomDraftHeader.svelte";
   import { parsePuzzleInput } from "./custom/puzzle-input.js";
@@ -26,13 +30,9 @@
   import Keypad from "./Keypad.svelte";
   import { fitKeypad } from "./fit-keypad.js";
   import { get } from "svelte/store";
-  import { done, puzzleProgress, solvedPuzzles, timer, formatTime } from "./store";
+  import { done, timer } from "./store";
   import { game } from "./game/game.svelte.js";
-  import { replayProgress } from "./journal/progress.js";
-  import { firstUnsolvedLatest } from "./game/daily.js";
-  import { customProgress } from "./journal/progress.js";
-  import { puzzleData } from "./puzzles.js";
-  import { unfinishedList } from "./journal/stats.js";
+
   import { ring } from "./ring.js";
   import { padUi } from "./pad-ui.svelte.js";
   import { installIosZoomGuards } from "./ios-zoom.js";
@@ -66,7 +66,6 @@
   import { createHintFocus } from "./hints/focus.svelte.js";
   import { hintFrameFor } from "./hints/layout.js";
   import { flushSync, onDestroy, onMount, tick, untrack } from "svelte";
-  import { longDate } from "./journal/format.js";
 
   /** @type {{hintProvider?: import('./hints/hint.js').HintProvider | null}} */
   let { hintProvider = null } = $props();
@@ -135,7 +134,7 @@
     hints.reconcile(game.state);
   });
   $effect(() => {
-    if (game.notesMode === "manual" || showCalendar || playUi.paused || playUi.modal) {
+    if (game.notesMode === "manual" || showPages || playUi.paused || playUi.modal) {
       hints.close();
       hintFrame = null;
     }
@@ -210,11 +209,7 @@
   }
 
   function onPauseClick() {
-    if (game.solved && !showCalendar) return;
-    if (showCalendar) {
-      playFromJournal();
-      return;
-    }
+    if (game.solved && !showPages) return;
     const result = playUi.toggle();
     if (result === "paused") focusAfterPause(true);
     else if (result === "resumed") focusAfterPause(false);
@@ -241,22 +236,172 @@
   const CELL_IDS = Array.from({ length: 81 }, (_, i) => i);
   const NARROW_MQ = "(max-width: 599px)";
 
-  let showCalendar = $state(true);
+  const bank = createBankUI();
+  let route = $state("home");
+  let returnRoute = "home";
+  let chosenLevel = $state(/** @type {import('./bank/types.js').Level} */ (3));
+  let busy = $state(false);
+  let savedItem = $state.raw(
+    /** @type {ReturnType<typeof bank.list>['items'][number] | null} */ (null)
+  );
+  let savedAttempt = $state.raw(/** @type {import('./bank/types.js').Attempt | null} */ (null));
+  const savedReplay = $derived(
+    savedItem
+      ? (bank.attempts.find(
+          (a) =>
+            a.puzzle.digits === savedItem.puzzle.digits &&
+            ["in_progress", "paused"].includes(a.outcome)
+        ) ?? null)
+      : null
+  );
+  async function navigate(next) {
+    try {
+      game.select(-1);
+      playUi.pause();
+      game.bankLifecycle("pause");
+      await game.flushProgress(true);
+      await bank.refresh();
+      route = next;
+      showPages = true;
+      await tick();
+      document.querySelector(".bank-pages h1")?.setAttribute("tabindex", "-1");
+      const heading = document.querySelector(".bank-pages h1");
+      if (heading instanceof HTMLElement) heading.focus();
+    } catch (e) {
+      showToast(e.message, false, 3500);
+    }
+  }
+  function clearCustomLink() {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("q")) return;
+    url.searchParams.delete("q");
+    history.replaceState(history.state, "", url);
+  }
+  async function startBank(mode, level) {
+    if (busy) return;
+    busy = true;
+    try {
+      game.bankLifecycle("pause");
+      await game.flushProgress(true);
+      const selection = await bank.choose(mode, level);
+      if (selection.status !== "selected") {
+        showToast("No new puzzles in this range. Choose a solved puzzle to replay.", false, 3500);
+        return;
+      }
+      if (!(await game.startBank(bank.meta(selection))))
+        throw new Error("Could not start this puzzle.");
+      clearCustomLink();
+      returnRoute = showPages ? route : returnRoute;
+      handleLoadPuzzle();
+    } catch (e) {
+      showToast(e.message, false, 3500);
+    } finally {
+      busy = false;
+    }
+  }
+  async function resumeBank(id) {
+    if (busy) return;
+    busy = true;
+    try {
+      game.bankLifecycle("pause");
+      await game.flushProgress(true);
+      const slot = bank.slots.find((s) => s.attemptId === id);
+      const current = id === game.bankMeta?.attemptId || id === game.customAttemptId;
+      const resumed =
+        current && !game.solved
+          ? (playUi.resume(), true)
+          : slot?.mode === "custom"
+            ? await game.startCustom("", id)
+            : await game.startBank(null, id);
+      if (!resumed) throw new Error("Could not resume this game.");
+      if (slot?.mode !== "custom") clearCustomLink();
+      returnRoute = showPages ? route : returnRoute;
+      handleLoadPuzzle();
+      await tick();
+      focusId("time-control");
+    } catch (e) {
+      showToast(e.message, false, 3500);
+    } finally {
+      busy = false;
+    }
+  }
+  function openLevel(level) {
+    chosenLevel = level;
+    void navigate("list");
+  }
+  async function openPuzzle(item) {
+    if (item.state === "in_progress") {
+      const attempt = bank.attempts.find(
+        (a) =>
+          a.puzzle.digits === item.puzzle.digits && ["in_progress", "paused"].includes(a.outcome)
+      );
+      if (attempt) await resumeBank(attempt.attemptId);
+      return;
+    }
+    if (item.state !== "unsolved") {
+      savedItem = item;
+      savedAttempt = bank.attempts
+        .filter(
+          (a) =>
+            a.puzzle.digits === item.puzzle.digits &&
+            ["independent_complete", "hinted_complete"].includes(a.outcome)
+        )
+        .sort((a, b) => a.endedAt - b.endedAt || a.attemptId.localeCompare(b.attemptId))[0];
+      if (!savedAttempt) return;
+      game.viewBankSolve(item.puzzle.digits, Math.floor(savedAttempt.effectiveMs / 1000));
+      returnRoute = "list";
+      handleLoadPuzzle();
+      return;
+    }
+    if (busy) return;
+    busy = true;
+    try {
+      const selection = await bank.choose("manual", chosenLevel, item.puzzle);
+      if (!(await game.startBank(bank.meta(selection))))
+        throw new Error("Could not start this puzzle.");
+      clearCustomLink();
+      returnRoute = "list";
+      handleLoadPuzzle();
+    } catch (e) {
+      showToast(e.message, false, 3500);
+    } finally {
+      busy = false;
+    }
+  }
+  let showPages = $state(true);
   const customParams = new URLSearchParams(window.location.search);
   const incomingPuzzle = customParams.has("q");
   let customOpen = $state(incomingPuzzle);
+  $effect(() => {
+    document.documentElement.lang = showPages && !customOpen ? "zh-Hant" : "en";
+  });
   let customReady = $state(false);
   let customPreview = $state(false);
   let customRaw = $state("0".repeat(81));
   let customIncoming = $state(
     /** @type {string | null} */ (incomingPuzzle ? window.location.href : null)
   );
-  function startCustomPuzzle() {
+  async function startDaily(puzzle, label) {
+    try {
+      if (await game.startCustom(puzzle, undefined, label)) {
+        returnRoute = "daily";
+        handleLoadPuzzle();
+      }
+    } catch (e) {
+      showToast(e.message, false, 3500);
+    }
+  }
+  async function startCustomPuzzle() {
     if (!customReady) return;
     const parsed = parsePuzzleInput(customRaw);
     if (!parsed.ok) return;
-    const saved = get(customProgress).puzzles?.[parsed.puzzle];
-    game.load(parsed.puzzle, { custom: true, snapshot: saved?.snapshot, elapsed: saved?.elapsed });
+    try {
+      if (!(await game.startCustom(parsed.puzzle))) return;
+    } catch (e) {
+      showToast(e.message, false, 3500);
+      return;
+    }
+    returnRoute = "home";
     const url = new URL(window.location.href);
     if (url.searchParams.get("q") !== parsed.puzzle) {
       url.searchParams.set("q", parsed.puzzle);
@@ -266,12 +411,7 @@
     customPreview = false;
     handleLoadPuzzle();
   }
-  let hasPlayed = $state(false);
-  let frozenElapsed = $state(0);
   let viewMotion = $state(false);
-  /** @type {{date: string, highlight?: boolean} | null} */
-  let journalEntry = $state(null);
-  const freshTarget = $derived(unfinishedList($puzzleProgress, $solvedPuzzles)[0] ?? null);
   let isNarrow = $state(typeof window !== "undefined" && window.matchMedia(NARROW_MQ).matches);
   /** Cover stays mounted through the fade-out. */
   let showCover = $state(false);
@@ -314,7 +454,7 @@
   /** `?reveal=mid` freezes the reveal at 120ms, about 49% visible under the ease. */
   let revealMid = $state(false);
   let playViewport = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
-  let journalViewport = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
+  let pagesViewport = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   let wrapEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   let ringEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   let replayConfirm = $state(false);
@@ -323,24 +463,44 @@
     await tick();
     document.getElementById("sv-replay")?.focus({ preventScroll: true });
   }
-  function confirmReplay() {
-    replayConfirm = false;
-    game.startReplay(!!$replayProgress[game.dateStr]?.[game.difficulty]);
-    handleLoadPuzzle();
-    void tick().then(() => focusId("time-control"));
+  async function confirmReplay() {
+    if (!savedItem || busy) return;
+    busy = true;
+    try {
+      const selection = await bank.choose("manual", chosenLevel, savedItem.puzzle);
+      if (!(await game.startBank({ ...bank.meta(selection), replay: true })))
+        throw new Error("Could not start replay.");
+      clearCustomLink();
+      replayConfirm = false;
+      handleLoadPuzzle();
+      await tick();
+      focusId("time-control");
+    } catch (e) {
+      showToast(e.message, false, 3500);
+    } finally {
+      busy = false;
+    }
   }
   function resumeReplay() {
-    if (!game.resumeReplay()) return;
-    handleLoadPuzzle();
-    void tick().then(() => focusId("time-control"));
+    if (savedReplay) void resumeBank(savedReplay.attemptId);
   }
   let solvedScreen = $state(false);
+  let unlockedLevel = $state(/** @type {number | null} */ (null));
+  async function closeUnlock() {
+    unlockedLevel = null;
+    await tick();
+    focusId("sv-h");
+  }
   let autoFinishing = false;
   let controlsGone = $state(false);
   let solveOrigin = $state(80);
   let boardSize = $state(650);
   let spread = $state({ x: 0, y: 0, radius: 0 });
-  let resultModel = $state(/** @type {ReturnType<typeof solvedModel> | null} */ (null));
+  let resultModel = $state(
+    /** @type {ReturnType<typeof bankSolvedModel> | ReturnType<typeof customSolvedModel> | null} */ (
+      null
+    )
+  );
   $effect(() => {
     const element = wrapEl;
     if (!element) return;
@@ -348,7 +508,7 @@
     observer.observe(element);
     return () => observer.disconnect();
   });
-  function showSolved() {
+  async function showSolved() {
     const rect = wrapEl?.getBoundingClientRect();
     boardSize = rect?.width ?? 650;
     const cell = wrapEl?.querySelector(`[data-i="${solveOrigin}"]`)?.getBoundingClientRect();
@@ -362,15 +522,24 @@
     game.select(-1);
     resetKeypad();
     releaseShiftHover();
-    resultModel = solvedModel({
-      date: game.dateStr,
-      difficulty: game.difficulty,
-      time: get(timer),
-      solved: get(solvedPuzzles),
-      progress: get(puzzleProgress),
-      puzzles: puzzleData,
-      previousRecord: game.previousRecord,
-    });
+    try {
+      if (game.bankMeta) {
+        const id = game.bankMeta.attemptId;
+        const previous = bank.unlock;
+        await game.flushProgress(true);
+        await bank.refresh();
+        resultModel = bankSolvedModel(bank.attempts, id, previous);
+        await bank.checkpoint();
+        unlockedLevel = resultModel.result.justUnlockedLevel;
+      } else {
+        await game.flushProgress(true);
+        await bank.refresh();
+        resultModel = customSolvedModel(get(timer));
+      }
+    } catch (e) {
+      showToast(e.message, false, 3500);
+      return;
+    }
     solvedScreen = true;
   }
   $effect(() => {
@@ -400,30 +569,29 @@
     return () => clearTimeout(id);
   });
   function nextSolved() {
-    const target = resultModel?.target;
-    if (!target) {
-      void solvedJournal();
-      return;
+    if (!resultModel) return;
+    void startBank(resultModel.nextMode, resultModel.nextLevel);
+  }
+  async function saveFeeling(feedback) {
+    if (!resultModel?.attemptId) return false;
+    try {
+      await bank.feedback(feedback, resultModel.attemptId);
+      return true;
+    } catch (e) {
+      showToast(e.message, false, 3500);
+      return false;
     }
-    const saved = get(puzzleProgress)[target.dateStr]?.[target.difficulty];
-    game.load(target.puzzle, {
-      dateStr: target.dateStr,
-      difficulty: target.difficulty,
-      snapshot: saved?.snapshot,
-      elapsed: saved?.elapsed,
-    });
-    handleLoadPuzzle();
   }
-  async function solvedJournal() {
-    await openJournal(true, true);
-  }
+  const resumeTarget = $derived(
+    bank.slots.find((slot) => slot.attemptId !== resultModel?.attemptId)
+  );
   let solvedDelay = /** @type {ReturnType<typeof setTimeout> | undefined} */ (undefined);
   const singlesCount = $derived(game.singles.length);
 
   function fillAvailable() {
     return (
       game.notesMode === "auto" &&
-      !showCalendar &&
+      !showPages &&
       !playUi.paused &&
       !playUi.modal &&
       !$done &&
@@ -588,16 +756,17 @@
 
   function handleGlobalKeydown(e) {
     if (e.key !== " " && e.key !== "Escape") endSpaceHold(true);
-    if (customOpen && showCalendar) return;
-    if (playUi.modal || replayConfirm) return;
+    if (showPages) return;
+    if (playUi.modal || replayConfirm || unlockedLevel) return;
     // Every game binding below is off once complete: digits (including modified
     // digits), arrows, Backspace/Delete/0, undo/redo (Ctrl/Cmd Z, Shift Z, Ctrl Y),
     // Tab autofill, Shift digit lock, Space/Enter locked input, Escape and P.
-    if (game.solved && !showCalendar) {
+    if (game.solved && !showPages) {
       if (
         solvedScreen &&
         !game.journalView &&
         e.key === "Enter" &&
+        !e.repeat &&
         (document.activeElement === document.body || document.activeElement?.id === "sv-h")
       ) {
         e.preventDefault();
@@ -626,9 +795,9 @@
       return;
     }
     if (playUi.paused) return;
-    if (showCalendar && !isNarrow) return;
+    if (showPages && !isNarrow) return;
     if (e.key === "Escape") {
-      if (showCalendar) return;
+      if (showPages) return;
       if (padUi.spaceHold) {
         e.preventDefault();
         endSpaceHold(true);
@@ -656,25 +825,13 @@
     if (active instanceof HTMLElement && active.closest(".tp, .dbtn, .notes-mode")) active.blur();
   }
 
-  function removeFocus() {
-    game.select(-1);
-  }
-
-  async function openJournal(scrollToDay = true, highlight = false) {
-    endSpaceHold(true);
-    game.flushProgress();
-    frozenElapsed = get(timer);
-    journalEntry = scrollToDay && game.dateStr ? { date: game.dateStr, highlight } : null;
-    viewMotion = true;
-    showCalendar = true;
-    resumeStatus = `Journal${game.dateStr ? ", " + longDate(game.dateStr) : ""}. Game paused at ${formatTime(frozenElapsed)}.`;
-    await tick();
-    if (isNarrow || !journalEntry) focusId("time-control");
+  async function leavePlay() {
+    await navigate(returnRoute);
   }
 
   async function openCustomPuzzle() {
     customOpen = true;
-    await openJournal();
+    await navigate("home");
     resumeStatus = "Custom puzzle. Enter the given numbers or paste a puzzle.";
     const cell = document.querySelector(".custom-editor .input-cell[tabindex='0']");
     if (cell instanceof HTMLElement) cell.focus({ preventScroll: true });
@@ -693,54 +850,14 @@
     if (entry instanceof HTMLElement) entry.focus({ preventScroll: true });
   }
 
-  function playFromJournal() {
-    if (!hasPlayed) {
-      const list = unfinishedList(get(puzzleProgress), get(solvedPuzzles));
-      const recent = list[0];
-      const puzzle = recent ? puzzleData[recent.date]?.[recent.diff] : null;
-      if (recent && puzzle) {
-        game.load(puzzle, {
-          dateStr: recent.date,
-          difficulty: recent.diff,
-          snapshot: recent.snapshot,
-          elapsed: recent.elapsed,
-        });
-      } else {
-        const pick = firstUnsolvedLatest(puzzleData, get(solvedPuzzles));
-        if (pick) {
-          game.load(pick.puzzle, { dateStr: pick.dateStr, difficulty: pick.difficulty });
-        }
-      }
-    }
-    backToGame();
-  }
-
-  /** Shared by C, P, and Resume for the current puzzle. Never reload history. */
-  function backToGame(fromSheet = false) {
-    if (
-      game.dateStr &&
-      game.difficulty &&
-      get(solvedPuzzles)[game.dateStr]?.[game.difficulty]?.completed
-    ) {
-      game.load(game.state.givens.join(""), { dateStr: game.dateStr, difficulty: game.difficulty });
-    }
-    playUi.start();
-    playUi.resume();
-    if (!playUi.paused) {
-      showCover = false;
-      coverLeaving = false;
-    }
-    viewMotion = !fromSheet;
-    hasPlayed = true;
-    showCalendar = false;
-    void announceResumed();
-  }
-
   function handleLoadPuzzle() {
+    showCover = false;
+    coverLeaving = false;
+    concealBoard = false;
+    backgroundCover = false;
     playUi.start();
-    hasPlayed = true;
     viewMotion = true;
-    showCalendar = false;
+    showPages = false;
   }
 
   const UPDATE_COPY = "New version ready. Update available.";
@@ -771,8 +888,13 @@
   }
 
   function focusAfterNotice() {
-    if (showCalendar) focusId("time-control");
-    else if (game.solved) focusId("sv-h");
+    if (showPages) {
+      const heading = document.querySelector(".bank-pages h1");
+      if (heading instanceof HTMLElement) {
+        heading.tabIndex = -1;
+        heading.focus();
+      }
+    } else if (game.solved) focusId("sv-h");
     else focusMore();
   }
 
@@ -800,6 +922,7 @@
   }
 
   onMount(() => {
+    void bank.init();
     window.addEventListener("pointerdown", releaseViewFocus, true);
     const mq = window.matchMedia(NARROW_MQ);
     isNarrow = mq.matches;
@@ -858,7 +981,7 @@
       hints.close();
       hintFrame = null;
       if (game.replaying) game.flushProgress();
-      if (showCalendar || game.solved) {
+      if (showPages || game.solved) {
         // Clear #58's view/entry announcement without pausing these views.
         resumeStatus = "";
         recordDeparture();
@@ -883,7 +1006,7 @@
       if (isHidden() || hiddenAt === null) return;
       const away = Date.now() - hiddenAt;
       hiddenAt = null;
-      const silent = showCalendar;
+      const silent = showPages;
       let result;
       flushSync(() => {
         result = playUi.noteVisible(away, { silent });
@@ -912,14 +1035,12 @@
     const shot = shotParams.get("shot");
     if (shot) {
       applyShot(game, shot === "manual");
-      hasPlayed = true;
-      showCalendar = false;
+      showPages = false;
     }
     const kp = shotParams.get("kp");
     if (kp) {
       applyKeypadShot(game, kp);
-      hasPlayed = true;
-      showCalendar = false;
+      showPages = false;
     }
     const stopUpdates =
       typeof __SUDOKU_BUILD__ === "undefined"
@@ -992,12 +1113,12 @@
   });
 
   $effect(() => {
-    if (showCalendar) return;
+    if (showPages) return;
     playUi.start();
   });
 
   $effect(() => {
-    if (showCalendar) return;
+    if (showPages) return;
     if (wrapEl && ringEl) ring.bind(wrapEl, ringEl);
     const mobile = window.matchMedia("(max-width: 599px)").matches;
     const stopZoom = mobile ? installIosZoomGuards() : () => {};
@@ -1029,34 +1150,33 @@
 <div class="top-strip" aria-hidden="true"></div>
 
 <main
-  class:on-journal={showCalendar && !customOpen}
+  inert={!!unlockedLevel}
+  class:on-pages={showPages && !customOpen}
+  class:bank-home={showPages && !customOpen}
   class:background-hiding={backgroundCover && playUi.paused && playUi.resumePhase !== "reveal"}
 >
   <p id="resume-status" class="sr-only" aria-live="polite">{resumeStatus}</p>
-  {#if customOpen && showCalendar}
+  {#if customOpen && showPages}
     <CustomDraftHeader preview={customPreview} onback={closeCustomPuzzle} />
-  {:else}
+  {:else if !showPages}
     <PlayHeader
+      title={game.journalView && savedItem ? `L${chosenLevel} · 第 ${savedItem.index} 題` : ""}
+      subtitle={game.journalView ? levelName(chosenLevel) : ""}
       inert={replayConfirm}
-      journal={showCalendar}
       narrow={isNarrow}
-      {hasPlayed}
-      {frozenElapsed}
-      {freshTarget}
-      ondate={() => openJournal()}
+      ondate={() => leavePlay()}
       ontime={onPauseClick}
-      onbrand={removeFocus}
       onhint={openHint}
       hintOpen={hints.isOpen}
     />
   {/if}
 
-  {#if showCalendar}
+  {#if showPages}
     <div
-      bind:this={journalViewport}
-      class="journal-view"
+      bind:this={pagesViewport}
+      class="pages-view"
       class:custom-editor-host={customOpen}
-      class:enter-journal={viewMotion && !playUi.reduced}
+      class:enter-pages={viewMotion && !playUi.reduced}
     >
       <CustomPuzzleEditor
         onstart={startCustomPuzzle}
@@ -1066,14 +1186,17 @@
         bind:raw={customRaw}
         bind:incoming={customIncoming}
       >
-        <Journal
-          viewport={journalViewport}
+        <BankPages
+          {bank}
+          {route}
+          level={chosenLevel}
+          onnavigate={navigate}
+          onlevel={openLevel}
+          onstart={startBank}
+          onresume={resumeBank}
           oncustom={openCustomPuzzle}
-          openOn={journalEntry}
-          current={hasPlayed
-            ? { date: game.dateStr, diff: game.difficulty, elapsed: frozenElapsed }
-            : null}
-          onback={backToGame}
+          ondaily={startDaily}
+          onpuzzle={openPuzzle}
         />
       </CustomPuzzleEditor>
     </div>
@@ -1169,16 +1292,24 @@
         class:hint-replaced={hints.isOpen}
         inert={hints.isOpen}
       >
-        {#if game.journalView}<JournalSolved
-            onjournal={solvedJournal}
+        {#if game.journalView && savedAttempt}<SavedSolve
+            attempt={savedAttempt}
+            level={chosenLevel}
+            delta={bankSolvedModel(bank.attempts, savedAttempt.attemptId, bank.unlock).delta}
+            replay={savedReplay}
+            onback={() => navigate("list")}
             onresume={resumeReplay}
             onreplay={() => (replayConfirm = true)}
           />
-        {:else if solvedScreen && resultModel}<SolvedPanel
+        {:else if solvedScreen && resultModel}<BankSolved
             model={resultModel}
             reduced={playUi.reduced}
             onnext={nextSolved}
-            onjournal={solvedJournal}
+            onfeedback={saveFeeling}
+            resumeLabel={resumeTarget
+              ? `Resume · ${modeName(resumeTarget.mode, resumeTarget.level)}`
+              : ""}
+            onresume={() => resumeTarget && resumeBank(resumeTarget.attemptId)}
           />{/if}
         {#if !controlsGone}
           <div
@@ -1350,7 +1481,6 @@
     <OptionsSheet
       canRestart={!game.solved && !game.replaying}
       viewport={playViewport}
-      oncustom={openCustomPuzzle}
       onclosed={focusMore}
       onrestart={() => {
         if (game.solved || game.replaying) return;
@@ -1361,6 +1491,8 @@
     />
   {/if}
 </main>
+
+{#if showPages && padUi.toast}<div class="toast" role="status">{padUi.toast}</div>{/if}
 
 <!-- Fixed surfaces live outside the animated play view, whose transform would
      otherwise turn the view into their positioning container. -->
@@ -1392,7 +1524,7 @@
   {noticeActive ? (updating ? "Updating…" : UPDATE_COPY) : ""}
 </div>
 <!-- App updates outlive the game controls, including their inert/fade interval. -->
-{#if !isNarrow || showCalendar || game.solved}
+{#if !isNarrow || showPages || game.solved}
   <UpdateNotice
     active={noticeActive}
     reduced={playUi.reduced}
@@ -1402,14 +1534,24 @@
   />
 {/if}
 
+{#if unlockedLevel}<UnlockOverlay level={unlockedLevel} onclose={closeUnlock} />{/if}
+
 {#if replayConfirm}<ReplayConfirm
-    time={get(timer)}
-    replayTime={$replayProgress[game.dateStr]?.[game.difficulty]?.elapsed ?? null}
+    bank
+    time={savedAttempt ? Math.floor(savedAttempt.effectiveMs / 1000) : get(timer)}
+    replayTime={null}
     oncancel={cancelReplay}
     onconfirm={confirmReplay}
   />{/if}
 
 <style>
+  main.bank-home {
+    padding: 0;
+    gap: 0;
+  }
+  main.bank-home .pages-view {
+    overflow: auto;
+  }
   .sr-only {
     position: absolute;
     width: 1px;
@@ -1473,22 +1615,6 @@
   /* Desktop: no box, so the board wrap stays in normal flow. Phone: see 599px. */
   .board-slot {
     display: contents;
-  }
-
-  main :global(.journal) {
-    flex: 1 1 auto;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  main :global(.journal) :global(.mobile),
-  main :global(.journal) :global(.page.desktop) {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow-y: auto;
-    overscroll-behavior: contain;
   }
 
   .board-wrap {
@@ -1805,7 +1931,7 @@
       visibility: hidden;
     }
 
-    main.on-journal {
+    main.on-pages {
       gap: 18px;
       /* The list scrolls to the screen edge. The safe area is padding inside .mobile. */
       padding-bottom: 0;
@@ -1902,27 +2028,27 @@
     main {
       padding: 0;
     }
-    main:not(.on-journal) > .play {
+    main:not(.on-pages) > .play {
       padding: 0 16px 16px;
     }
   }
-  .journal-view {
+  .pages-view {
     display: flex;
     flex: 1 1 auto;
     min-height: 0;
     overflow: hidden;
   }
-  .enter-journal {
-    animation: enter-journal 260ms var(--ease-out) both;
+  .enter-pages {
+    animation: enter-pages 260ms var(--ease-out) both;
   }
-  .journal-view.custom-editor-host {
+  .pages-view.custom-editor-host {
     flex-direction: column;
     overflow-y: auto;
   }
   .enter-play {
     animation: enter-play 260ms var(--ease-out) both;
   }
-  @keyframes enter-journal {
+  @keyframes enter-pages {
     from {
       opacity: 0;
       transform: translateX(-24px);
@@ -1943,7 +2069,7 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .enter-journal,
+    .enter-pages,
     .enter-play {
       animation: none;
     }

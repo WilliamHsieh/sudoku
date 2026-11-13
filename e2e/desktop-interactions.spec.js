@@ -149,15 +149,16 @@ test("keyboard undo and redo return selection and highlight to the edited cell",
   await expect(page.locator("#keypad")).toHaveAttribute("data-shown", "4");
 });
 
-test("game shortcuts in Journal cannot change the saved game or digit lock", async ({ page }) => {
+test("game shortcuts on Home cannot change the saved game or digit lock", async ({ page }) => {
   await cell(page, 0).click();
   await page.keyboard.press("Digit4");
   await page.locator(".dbtn").click();
-  await expect(page.locator(".journal")).toBeVisible();
+  await expect(page.locator(".bank-pages")).toBeVisible();
   for (const key of ["Digit7", "Control+z", "Shift+Digit2", "Delete"]) {
     await page.keyboard.press(key);
   }
-  await page.locator("#time-control").click();
+  await page.getByRole("button", { name: /Unfinished/ }).click();
+  await page.getByRole("button", { name: /Resume/ }).click();
   await expectValue(page, 0, 4);
   await expect(page.locator("#keypad")).toHaveAttribute("data-locked", "0");
 });
