@@ -2,8 +2,8 @@
   import { tick } from "svelte";
   import { tokenizeCoordinates } from "./coordinate-text.js";
   import { createHintStoryGesture } from "./story-navigation.js";
-  /** @type {{session: ReturnType<typeof import('./session.svelte.js').createHintSession>, onclose: () => void, oncoordinate: (cell: number) => void, docked: boolean}} */
-  let { session, onclose, oncoordinate, docked } = $props();
+  /** @type {{session: ReturnType<typeof import('./session.svelte.js').createHintSession>, onclose: () => void, oncoordinate: (cell: number) => void, docked: boolean, paused?: boolean}} */
+  let { session, onclose, oncoordinate, docked, paused = false } = $props();
   let body = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   const storyGesture = createHintStoryGesture();
   const step = $derived(session.status === "ready" ? session.hint?.stages[session.stage] : null);
@@ -42,6 +42,7 @@
       time: event.timeStamp,
       stage: session.stage,
       allowed:
+        !paused &&
         !!step &&
         event.isPrimary &&
         event.button === 0 &&
@@ -64,6 +65,10 @@
     else if (direction > 0) session.next();
   }
   $effect(() => {
+    // Pause cancels a pending tap without resetting the reader's scroll position.
+    if (paused) storyGesture.cancel();
+  });
+  $effect(() => {
     session.stage;
     session.status;
     storyGesture.cancel();
@@ -85,6 +90,9 @@
   id="hint-panel"
   class="hint-panel"
   class:docked
+  class:paused
+  inert={paused}
+  aria-hidden={paused ? "true" : undefined}
   aria-label="提示"
   aria-busy={session.status === "searching"}
 >
@@ -208,6 +216,13 @@
 </aside>
 
 <style>
+  /* Keep the layout mounted. Mask immediately while the timer is stopped. */
+  .paused > * {
+    filter: blur(8px);
+    opacity: 0.25;
+    pointer-events: none;
+    user-select: none;
+  }
   .hint-panel {
     box-sizing: border-box;
     width: 100%;

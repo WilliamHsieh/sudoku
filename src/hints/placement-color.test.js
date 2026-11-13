@@ -14,6 +14,8 @@ function effectHtml(placements, eliminations) {
         undoAvailable: false,
         async open() {},
         close() {},
+        suspend() {},
+        async resume() {},
         reconcile() {},
         apply() {},
         undo() {},

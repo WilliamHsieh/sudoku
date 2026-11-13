@@ -36,6 +36,7 @@ import { bit, popcount } from "./board.js";
 import { solvedState } from "./solved-state.js";
 import { createRecorder } from "../bank/recorder.js";
 import { toSnapshot } from "./snapshot.js";
+import { readHintProgress } from "../hints/progress.js";
 import { fromSnapshot } from "./snapshot.js";
 import { done, timer, timerRunning, resetTimer, solvedPuzzles } from "../store.js";
 import {
@@ -71,6 +72,9 @@ export function createGame(bankOptions) {
   /** @type {{ dateStr: string | null, difficulty: string | null }} */
   let meta = $state({ dateStr: null, difficulty: null });
   let customKey = "";
+  let loadId = $state(0);
+  /** @type {import('../hints/progress.js').HintProgress | null} */
+  let hintProgress = null;
   let marked = $state(false);
   let journalView = $state(false);
   let replaying = $state(false);
@@ -133,11 +137,25 @@ export function createGame(bankOptions) {
     return result;
   }
 
+  function savedSnapshot() {
+    // Board changes discard the old reading position before any save is queued.
+    hintProgress = readHintProgress(hintProgress, history.present);
+    return {
+      ...toSnapshot(history.present),
+      ...(hintProgress ? { hintProgress } : {}),
+    };
+  }
+
+  function progress() {
+    return { ...progressPayload(history.present, get(timer)), snapshot: savedSnapshot() };
+  }
+
   function persistProgress(force = false, strict = false) {
+    hintProgress = readHintProgress(hintProgress, history.present);
     if (bank) {
       bank.time(get(timer));
       bank.settings(history.present.notesMode);
-      bank.save(toSnapshot(history.present), get(timer));
+      bank.save(savedSnapshot(), get(timer));
       return;
     }
     const store = customKey ? customProgress : replaying ? replayProgress : puzzleProgress;
@@ -152,7 +170,7 @@ export function createGame(bankOptions) {
       return;
     }
     if (customKey) {
-      const saved = store.save(date, difficulty, progressPayload(history.present, get(timer)));
+      const saved = store.save(date, difficulty, progress());
       if (strict && !saved)
         throw new Error(
           "Could not verify saved progress. Storage may be unavailable or this puzzle changed in another tab."
@@ -177,7 +195,7 @@ export function createGame(bankOptions) {
       return;
     }
     const elapsed = get(timer);
-    const payload = progressPayload(history.present, elapsed);
+    const payload = progress();
     const saved = get(store)[meta.dateStr]?.[meta.difficulty]?.snapshot;
     const autoProgress =
       history.present.autoAdded.some(Boolean) || history.present.autoRemoved.some(Boolean);
@@ -187,6 +205,8 @@ export function createGame(bankOptions) {
     // their saved overrides/ledger rather than revive them after reload.
     if (
       !force &&
+      !hintProgress &&
+      !saved?.hintProgress &&
       payload.filled === 0 &&
       elapsed === 0 &&
       history.present.notesMode === "auto" &&
@@ -224,6 +244,19 @@ export function createGame(bankOptions) {
   }
 
   return {
+    get loadId() {
+      return loadId;
+    },
+    get hintProgress() {
+      return readHintProgress(hintProgress, state);
+    },
+    /** @param {import('../hints/progress.js').HintProgress | null} value */
+    setHintProgress(value) {
+      const next = readHintProgress(value, state);
+      if (JSON.stringify(next) === JSON.stringify(hintProgress)) return;
+      hintProgress = next;
+      persistProgress(true);
+    },
     get bankMeta() {
       return bank?.meta ?? null;
     },
@@ -545,6 +578,7 @@ export function createGame(bankOptions) {
     restart() {
       if (replaying || journalView || (bank && isSolved(history.present))) return;
       prepareMutation();
+      hintProgress = null;
       const next = restartState(state);
       const changed = changedCells(state, next).length > 0;
       history = createHistory(next);
@@ -554,7 +588,7 @@ export function createGame(bankOptions) {
       done.set(false);
       bank?.restartClock(get(timer));
       resetTimer();
-      if (bank) persistProgress();
+      if (bank || customKey) persistProgress();
       if (meta.dateStr && meta.difficulty) puzzleProgress.clear(meta.dateStr, meta.difficulty);
       if (next.notesMode !== "auto") persistProgress(true);
       if (changed) activity();
@@ -586,6 +620,10 @@ export function createGame(bankOptions) {
       } else {
         history = createHistory(newGame(puzzle, { notesMode: "auto" }));
       }
+      hintProgress = journalView
+        ? null
+        : readHintProgress(info.snapshot?.hintProgress, history.present);
+      loadId++;
       selected = -1;
       lastPlaced = -1;
       placement = null;

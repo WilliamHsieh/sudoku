@@ -1,4 +1,5 @@
 import { applyHint, hintSnapshot, hintStateKey } from "./hint.js";
+import { hintIdentity } from "./progress.js";
 
 /** @param {{game: ReturnType<typeof import('../game/game.svelte.js').createGame>, provider?: import('./hint.js').HintProvider | null, beforeOpen?: () => void}} options */
 export function createHintSession({ game, provider = null, beforeOpen = () => {} }) {
@@ -7,6 +8,7 @@ export function createHintSession({ game, provider = null, beforeOpen = () => {}
   let stage = $state(0);
   let hint = $state.raw(/** @type {import('./hint.js').Hint | null} */ (null));
   let key = "";
+  let loadId = game.loadId;
   let generation = 0;
   let controller = /** @type {AbortController | null} */ (null);
   let applied = /** @type {import('../game/game.js').GameState | null} */ (null);
@@ -17,7 +19,7 @@ export function createHintSession({ game, provider = null, beforeOpen = () => {}
     controller?.abort();
     controller = null;
   }
-  function close() {
+  function reset() {
     cancel();
     status = "closed";
     hint = null;
@@ -27,26 +29,50 @@ export function createHintSession({ game, provider = null, beforeOpen = () => {}
     undoAvailable = false;
     didApply = false;
   }
+  function close() {
+    reset();
+    // A late lifecycle callback must not clear a newly loaded slot.
+    if (loadId === game.loadId) game.setHintProgress(null);
+    loadId = game.loadId;
+  }
+  function suspend() {
+    reset();
+    loadId = game.loadId;
+  }
+  function remember() {
+    if (status === "ready" && hint && loadId === game.loadId)
+      game.setHintProgress({ version: 1, key, identity: hintIdentity(hint), stage });
+  }
+  async function resume() {
+    if (loadId !== game.loadId) suspend();
+    if (status !== "closed") return;
+    const saved = game.hintProgress;
+    if (saved) await open(saved);
+  }
   const isManual = () => game.notesMode === "manual";
-  async function open() {
+  /** @param {import('./progress.js').HintProgress | null} [saved] */
+  async function open(saved = null) {
     const wasClosed = status === "closed";
-    close();
+    reset();
+    loadId = game.loadId;
+    if (!saved) game.setHintProgress(null);
     if (game.notesMode === "manual") return;
     beforeOpen();
     // Settling an already requested history action may change the notes mode.
     if (isManual()) return;
-    if (wasClosed) game.bankHint();
+    if (wasClosed && !saved) game.bankHint();
     if (!provider) {
       status = "unavailable";
       return;
     }
     key = hintStateKey(game.state);
     const request = generation;
+    const requestedLoad = game.loadId;
     controller = new AbortController();
     status = "searching";
     try {
       const result = await provider(hintSnapshot(game.state), { signal: controller.signal });
-      if (request !== generation) return;
+      if (request !== generation || requestedLoad !== game.loadId) return;
       if (game.state.notesMode === "manual") {
         close();
         return;
@@ -57,12 +83,20 @@ export function createHintSession({ game, provider = null, beforeOpen = () => {}
       }
       hint = result;
       status = result ? "ready" : "empty";
+      if (result) {
+        if (saved?.key === key && saved.identity === hintIdentity(result)) stage = saved.stage;
+        remember();
+      } else game.setHintProgress(null);
     } catch {
-      if (request === generation) status = "error";
+      if (request === generation && requestedLoad === game.loadId) status = "error";
     }
   }
   /** @param {import('../game/game.js').GameState} state */
   function reconcile(state) {
+    if (loadId !== game.loadId) {
+      suspend();
+      return;
+    }
     if (state.notesMode === "manual") {
       if (status !== "closed") close();
       return;
@@ -70,6 +104,7 @@ export function createHintSession({ game, provider = null, beforeOpen = () => {}
     if ((status === "ready" || status === "searching") && hintStateKey(state) !== key) {
       cancel();
       status = "stale";
+      game.setHintProgress(null);
     } else if (status === "applied" && state !== applied) {
       applied = null;
       undoAvailable = false;
@@ -78,6 +113,10 @@ export function createHintSession({ game, provider = null, beforeOpen = () => {}
     }
   }
   function apply() {
+    if (loadId !== game.loadId) {
+      suspend();
+      return;
+    }
     if (game.notesMode === "manual") {
       close();
       return;
@@ -102,6 +141,7 @@ export function createHintSession({ game, provider = null, beforeOpen = () => {}
       didApply = next !== before;
       undoAvailable = didApply && game.canUndo;
       status = "applied";
+      game.setHintProgress(null);
     } catch {
       status = "error";
     }
@@ -167,15 +207,23 @@ export function createHintSession({ game, provider = null, beforeOpen = () => {}
     },
     open,
     close,
+    suspend,
+    resume,
     reconcile,
     apply,
     undo,
     evidence,
     previous() {
-      if (status === "ready" && stage > 0) stage--;
+      if (status === "ready" && stage > 0) {
+        stage--;
+        remember();
+      }
     },
     next() {
-      if (status === "ready" && stage < 2) stage++;
+      if (status === "ready" && stage < 2) {
+        stage++;
+        remember();
+      }
     },
   };
 }

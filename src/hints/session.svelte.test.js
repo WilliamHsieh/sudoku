@@ -397,3 +397,89 @@ describe("hint reading navigation and presentation preparation", () => {
     expect(session.status).toBe("closed");
   });
 });
+
+describe("resuming hint reading", () => {
+  it.each([0, 1, 2])(
+    "restores stage %i after suspension and a saved-board reload",
+    async (stage) => {
+      const { game, fixture, session } = setup();
+      await session.open();
+      for (let n = 0; n < stage; n++) session.next();
+      const progress = JSON.parse(JSON.stringify(game.hintProgress));
+      session.suspend();
+      expect(session.isOpen).toBe(false);
+      await session.resume();
+      expect(session.status).toBe("ready");
+      expect(session.stage).toBe(stage);
+      const { toSnapshot } = await import("../game/snapshot.js");
+      game.load(fixture.state.givens.join(""), {
+        snapshot: { ...toSnapshot(game.state), hintProgress: progress },
+      });
+      await session.resume();
+      expect(session.stage).toBe(stage);
+      expect(session.hint).toEqual(fixture.hint);
+    }
+  );
+
+  it("keeps explicit close closed and starts a later request at observation", async () => {
+    const { game, session } = setup();
+    await session.open();
+    session.next();
+    session.close();
+    expect(game.hintProgress).toBeNull();
+    session.suspend();
+    await session.resume();
+    expect(session.isOpen).toBe(false);
+    await session.open();
+    expect(session.stage).toBe(0);
+  });
+
+  it("does not restore a stage if the provider returns a different hint", async () => {
+    const { game, fixture, session } = setup();
+    await session.open();
+    session.next();
+    session.next();
+    session.suspend();
+    const changed = createHintSession({
+      game,
+      provider: async () => ({ ...fixture.hint, techniqueId: "different" }),
+    });
+    await changed.resume();
+    expect(changed.status).toBe("ready");
+    expect(changed.stage).toBe(0);
+  });
+
+  it("resets changed boards and never restores another puzzle's hint", async () => {
+    const { game, session } = setup();
+    await session.open();
+    session.next();
+    session.suspend();
+    game.enter(1, 3);
+    await session.resume();
+    expect(session.isOpen).toBe(false);
+    expect(game.hintProgress).toBeNull();
+    game.load("0".repeat(81));
+    await session.resume();
+    expect(session.isOpen).toBe(false);
+  });
+
+  it("rejects an old async response after loading even the same board into a new slot", async () => {
+    const { game, fixture } = setup();
+    const wait = gate();
+    const session = createHintSession({
+      game,
+      provider: async () => {
+        await wait.promise;
+        return fixture.hint;
+      },
+    });
+    const request = session.open();
+    game.load(fixture.state.givens.join(""));
+    game.commitStroke(fixture.state);
+    wait.finish();
+    await request;
+    expect(game.hintProgress).toBeNull();
+    session.reconcile(game.state);
+    expect(session.isOpen).toBe(false);
+  });
+});

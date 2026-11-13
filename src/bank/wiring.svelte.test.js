@@ -290,3 +290,67 @@ it("new metadata after completion starts a new attempt without reusing the old I
   expect(game.solved).toBe(false);
   expect(projectRecords(log(storage)).map((a) => a.attemptId)).toEqual(["first", "second"]);
 });
+
+it("persists hint stages per bank slot without counting Resume as another hint", async () => {
+  const { findHint } = await import("../hints/engine.js");
+  const { game, storage, onError } = setup();
+  const hints = createHintSession({ game, provider: async (state) => findHint(state) });
+  await game.startBank(await meta("hint-first"));
+  await hints.open();
+  hints.next();
+  await game.flushProgress(true);
+  const first = JSON.parse(JSON.parse(storage.getItem(BANK_SAVES_KEY)).slots["hint-first"]);
+  expect(first.snapshot.hintProgress.stage).toBe(1);
+  hints.suspend();
+  await hints.resume();
+  expect(hints.stage).toBe(1);
+  await game.startBank(await meta("hint-second"));
+  await hints.resume();
+  expect(hints.isOpen).toBe(false);
+  await hints.open();
+  hints.next();
+  hints.next();
+  await game.flushProgress(true);
+  game.load(DEMO_PUZZLE);
+  await game.flushProgress(true);
+  const slots = JSON.parse(storage.getItem(BANK_SAVES_KEY)).slots;
+  expect(JSON.parse(slots["hint-first"]).snapshot.hintProgress.stage).toBe(1);
+  expect(JSON.parse(slots["hint-second"]).snapshot.hintProgress.stage).toBe(2);
+  const reopened = setup(storage).game;
+  expect(await reopened.startBank()).toBe(true);
+  const reading = createHintSession({ game: reopened, provider: async (state) => findHint(state) });
+  await reading.resume();
+  expect(reading.stage).toBe(2);
+  await reopened.flushProgress(true);
+  for (const attempt of projectRecords(log(storage))) expect(attempt.hintCount).toBe(1);
+  reading.close();
+  await reopened.flushProgress(true);
+  expect(
+    JSON.parse(JSON.parse(storage.getItem(BANK_SAVES_KEY)).slots["hint-second"]).snapshot
+      .hintProgress
+  ).toBeUndefined();
+  expect(onError).not.toHaveBeenCalled();
+});
+
+it("a stale bank writer cannot replace a newer hint stage", async () => {
+  const { findHint } = await import("../hints/engine.js");
+  const { game, storage } = setup();
+  await game.startBank(await meta("hint-race"));
+  const first = createHintSession({ game, provider: async (state) => findHint(state) });
+  await first.open();
+  await game.flushProgress(true);
+  const secondGame = setup(storage).game;
+  await secondGame.startBank();
+  const second = createHintSession({
+    game: secondGame,
+    provider: async (state) => findHint(state),
+  });
+  await second.resume();
+  second.next();
+  second.next();
+  await secondGame.flushProgress(true);
+  const saved = storage.getItem(BANK_SAVES_KEY);
+  first.close();
+  await expect(game.flushProgress(true)).rejects.toThrow();
+  expect(storage.getItem(BANK_SAVES_KEY)).toBe(saved);
+});
