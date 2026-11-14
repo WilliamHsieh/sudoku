@@ -38,7 +38,7 @@ Hints are hidden in Manual mode. Auto reasons from the current board and visible
 
 Tidy's trusted eliminations are saved separately from player notes. They are structurally validated on load and independently re-proved before search, follow undo/redo, and reset on manual answer edits. Auto progress stays in its candidate overrides and never promotes player assumptions into Tidy's trusted ledger. Re-adding an eliminated candidate makes that deduction eligible again. Applying an already absent elimination creates no hidden ledger-only move or undo entry. Hint highlights preserve the player's visible notes rather than replacing them with proof candidates. Closing, changing the board, pausing, or hiding the page cancels pending work. The hint engine searches on request only. The offline shell includes its worker so hints remain available without a network connection.
 
-Puzzles come from `scraper.py`, which a GitHub Action runs daily at 04:00 UTC (`uv run python scraper.py` to run it yourself). Every push to `master` deploys to GitHub Pages.
+Puzzles come from `scraper.py`, which a GitHub Action runs only when started by hand from the Actions tab; its daily schedule is off (`uv run python scraper.py` to run it yourself). Every push to `master` deploys to GitHub Pages.
 
 ## License
 
