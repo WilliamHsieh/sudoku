@@ -305,6 +305,10 @@
     :global(:root:has(.dock)) .update-notice.pill {
       bottom: calc(88px + env(safe-area-inset-bottom, 0px));
     }
+    /* A puzzle's info bar adds its 118px preview and 12px gap to the dock. */
+    :global(:root:has(.dock.side)) .update-notice.pill {
+      bottom: calc(218px + env(safe-area-inset-bottom, 0px));
+    }
   }
 
   .reduced,

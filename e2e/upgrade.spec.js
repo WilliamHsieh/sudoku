@@ -277,6 +277,25 @@ test("on a phone list, the update notice sits above Next and Next stays tappable
   expect(before).toMatch(/^Next:/);
 });
 
+test("on a phone list, the update notice also clears the taller dock of an open info bar", async ({
+  page,
+  deployment,
+}) => {
+  const width = page.viewportSize()?.width ?? 0;
+  test.skip(width >= 600, "phone layout only");
+  await openListWithNotice(page, deployment);
+  await page.locator(".t.done").first().tap();
+  const dock = page.locator(".dock");
+  await expect(dock.locator(".pv")).toBeVisible();
+  await expect(async () => {
+    const noticeBox = await notice(page).boundingBox();
+    const dockBox = await dock.boundingBox();
+    expect(noticeBox.y + noticeBox.height).toBeLessThanOrEqual(dockBox.y);
+  }).toPass();
+  await dock.getByRole("button", { name: "看已解盤面" }).tap();
+  await expect(page.locator(".sv-view-panel")).toBeVisible();
+});
+
 test("on a wide list, the update notice stays beside Next at the bottom", async ({
   page,
   deployment,
