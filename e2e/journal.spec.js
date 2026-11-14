@@ -9,6 +9,7 @@ for (const width of [390, 1280]) {
     await expect(page.getByRole("button", { name: /Unfinished/ })).toHaveCount(0);
     await expect(page.getByText("Journal", { exact: true })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Custom puzzle" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "NYT daily puzzles" })).toHaveCount(0);
   });
   test(`locked levels keep the chooser and give signed toasts (${width})`, async ({ page }) => {
     await page.setViewportSize({ width, height: 844 });
@@ -53,16 +54,11 @@ test("opening a long level list keeps Next's row below the fixed filters", async
   expect(row.y).toBeGreaterThanOrEqual(filters.y + filters.height);
   expect(row.y + row.height).toBeLessThan(700);
 });
-test("NYT remains playable and leaves a separate unfinished save", async ({ page }) => {
+test("home has no NYT daily puzzles entry", async ({ page }) => {
   await page.goto("./");
-  await page.getByRole("button", { name: "NYT daily puzzles", exact: true }).click();
-  await page.getByLabel("Puzzle date").fill("2026-11-11");
-  await page.getByRole("button", { name: "Easy", exact: true }).click();
-  await expect(page.locator(".header .t1")).toHaveText("NYT 2026-11-11 · Easy");
-  await page.getByRole("button", { name: "Back", exact: true }).click();
-  await page.locator(".bank-pages .back").click();
-  await page.getByRole("button", { name: /Unfinished/ }).click();
-  await expect(page.locator(".uf")).toContainText("NYT 2026-11-11 · Easy");
+  await expect(page.getByRole("heading", { name: "Sudoku" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "NYT daily puzzles" })).toHaveCount(0);
+  await expect(page.getByText("NYT daily puzzles")).toHaveCount(0);
 });
 
 test("a fresh level uses the signed solved-empty state only for the solved filter", async ({

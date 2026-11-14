@@ -116,7 +116,6 @@
             ><b>Custom puzzle</b><span>Enter a board or paste a puzzle</span></span
           ><Icon name="chevron-right" /></button
         >
-        <button class="daily-link" onclick={() => onnavigate("daily")}>NYT daily puzzles</button>
       </div>
     </div>
   {:else if route === "daily"}
@@ -241,12 +240,6 @@
 </div>
 
 <style>
-  .daily-link {
-    align-self: flex-start;
-    color: var(--ink2);
-    font-size: 13px;
-    padding: 4px 0;
-  }
   .bank-pages {
     width: 100%;
     flex: 1;
@@ -601,6 +594,12 @@
   .puzzle-list .page {
     padding-top: 0;
     padding-bottom: 120px;
+  }
+  /* Phone: the raised update pill sits above the dock; keep the last rows clear of it. */
+  @media (max-width: 599px) {
+    :global(:root:has(.update-notice.pill.active)) .puzzle-list .page {
+      padding-bottom: 180px;
+    }
   }
   .pz button {
     grid-template-columns: 64px minmax(0, 1fr) 30px;
