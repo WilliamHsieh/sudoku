@@ -75,15 +75,13 @@ export function selectPuzzle({
     );
   const openBand = maxOpenLevel === undefined ? undefined : levelBand(maxOpenLevel);
   const locked = fixedLevel && maxOpenLevel !== undefined && level > maxOpenLevel;
-  let ability = deriveAbility({ catalog, records, playerId, coldStart });
+  // Without an explicit caller anchor, each mode always starts from its own level,
+  // before and after play history; the ability rules then adjust from that anchor.
   /** @type {import('./types.js').ColdStart} */
-  let effectiveColdStart = coldStart ?? { kind: "level", level: 1 };
-  // Provisional alone means no promotion yet, not necessarily no evidence.
-  // Keep ability derivation and explicit caller anchors unchanged once evidence exists.
-  if (!fixedLevel && coldStart === undefined && ability.evidenceCount === 0) {
-    effectiveColdStart = { kind: "level", level: C.coldStartLevels[mode] };
-    ability = deriveAbility({ catalog, records, playerId, coldStart: effectiveColdStart });
-  }
+  const effectiveColdStart =
+    coldStart ??
+    (fixedLevel ? { kind: "level", level: 1 } : { kind: "level", level: C.coldStartLevels[mode] });
+  const ability = deriveAbility({ catalog, records, playerId, coldStart: effectiveColdStart });
   const originalBand = fixedLevel ? levelBand(level) : ability.bands[mode];
   const band = { ...originalBand, max: Math.min(originalBand.max, openBand?.max ?? Infinity) };
   const index = catalogIndex(catalog);
