@@ -246,9 +246,43 @@ function fish(masks, id, n, finned, effectMasks) {
             .filter((c) => !finned || boxOf(c) === boxOf(fins[0]));
           const eliminated = removals(effectMasks, targets, bit(digit));
           if (!eliminated.length) continue;
-          const reason = finned
-            ? `候選數 ${digit} 的魚形本體為 ${coordinates(core)}，鰭為同宮的 ${coordinates(fins)}。若鰭成立，同宮目標不能是 ${digit}；若鰭全部不成立，${n} 個來源線必須占用 ${n} 個覆蓋線，目標仍不能是 ${digit}。`
-            : `候選數 ${digit} 在 ${n} 個來源線中只落在 ${n} 個覆蓋線，位置是 ${coordinates(core)}。這些來源線必須各放一個 ${digit}，因此覆蓋線中其餘格可刪除 ${digit}。`;
+          const baseName = transposed ? "直行" : "橫列";
+          const coverName = transposed ? "橫列" : "直行";
+          const baseLines = `第 ${bases.map((b) => b + 1).join("、")} ${baseName}`;
+          const coverLines = `第 ${covers.map((c) => c + 1).join("、")} ${coverName}`;
+          const targetCells = coordinates(eliminated.map((e) => e.cell));
+          const targetLines = finned
+            ? `第 ${[...new Set(eliminated.map(({ cell }) => (transposed ? rowOf(cell) : colOf(cell)) + 1))].sort((a, b) => a - b).join("、")} ${coverName}`
+            : coverLines;
+          const finTrue =
+            fins.length === 1
+              ? `${coordinates(fins)} 填入 ${digit}`
+              : `${coordinates(fins)} 中至少一格填入 ${digit}`;
+          const finsFalse =
+            fins.length === 1
+              ? `${coordinates(fins)} 不填 ${digit}`
+              : `${coordinates(fins)} 都不填 ${digit}`;
+          const targetNoun = eliminated.length === 1 ? "這個目標格" : "這些目標格";
+          const requirement = `${baseLines}都還沒填入 ${digit}，而每個${baseName}都必須有一個 ${digit}。這些${baseName}的 ${digit} 只剩魚形本體的位置，全部位於${coverLines}。`;
+          const counting = `同一${coverName}不能有兩個 ${digit}，所以這 ${n} 個 ${digit} 必須分別占用這 ${n} 個${coverName}。也就是說，這些${coverName}中的 ${digit} 都在${baseLines}內。${targetCells} 位於${targetLines}，卻不在${baseLines}內，因此不能再填 ${digit}。`;
+          // Keep the first sentence factual: firstObservation uses it for stage 1.
+          // Newlines become separate reading paragraphs without changing the proof.
+          const reason = (
+            finned
+              ? [
+                  `候選數 ${digit} 的魚形本體為 ${coordinates(core)}，鰭是額外的候選位置 ${coordinates(fins)}。`,
+                  `情況一：若 ${finTrue}，${targetCells} 與鰭在同一宮；同一宮不能有兩個 ${digit}，所以${targetNoun}不能填 ${digit}。`,
+                  `情況二：若 ${finsFalse}，${requirement}`,
+                  counting,
+                  `兩種情況下，${targetCells} ${eliminated.length === 1 ? "" : "都"}不能是 ${digit}，因此可刪除候選數 ${digit}。`,
+                ]
+              : [
+                  `候選數 ${digit} 在${baseLines}只出現在 ${coordinates(core)}，這些格組成魚形本體。`,
+                  requirement,
+                  counting,
+                  `因此 ${targetCells} 可刪除候選數 ${digit}。`,
+                ]
+          ).join("\n");
           return result(id, [...core, ...fins], [], eliminated, reason);
         }
       }

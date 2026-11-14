@@ -60,7 +60,7 @@ for (const width of [390, 1280]) {
         await storyTap(page, position);
         await expect(panel.locator(".hint-position")).toHaveText(`${stage + 1}/3`);
       }
-      const ref = panel.locator(".hint-body :is(.hint-reference, .hint-coordinate)").first();
+      const ref = panel.locator(".hint-body .hint-reference").first();
       await expect(ref).toBeVisible();
       const cell = page.locator(`.board > .cell[data-i="${await ref.getAttribute("data-cell")}"]`);
       await ref.click();
@@ -119,7 +119,7 @@ test("reduced-motion coordinate focus stays still, and selection/dragging do not
   await openBoard(page, undefined);
   await page.locator("#hint-trigger").click();
   const panel = page.locator("#hint-panel");
-  const ref = panel.locator(".hint-body :is(.hint-reference, .hint-coordinate)").first();
+  const ref = panel.locator(".hint-body .hint-reference").first();
   await ref.click();
   const focus = page.locator(".board .hint-focus");
   await expect(focus).toHaveCount(1);

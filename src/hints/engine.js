@@ -136,7 +136,7 @@ export function findHint(state) {
       },
       {
         title: teaching?.reasonTitle ?? name,
-        description: teaching?.reasoning ?? [step.reason],
+        description: teaching?.reasoning ?? step.reason.split("\n"),
         coordinates: premiseCells,
       },
       {
