@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { dayStreak, levelList, solveResult, unfinishedList } from "./player-api.js";
-import { attempt, catalogWith, puzzle, start } from "./test-fixtures.js";
+import { dayStreak, levelList, savedSolve, solveResult, unfinishedList } from "./player-api.js";
+import { attempt as makeAttempt, catalogWith, puzzle, start } from "./test-fixtures.js";
 import { openCatalog } from "./catalog.js";
 import { fixedLevelOrder, selectPuzzle } from "./select.js";
 import { projectRecords } from "./records.js";
 import { deriveUnlockState } from "./unlock.js";
+const attempt = (number, overrides = {}, ...rest) =>
+  makeAttempt(number, { mode: "manual", ...overrides }, ...rest);
 
 const wins = (count = 10, rating = 32, offset = 1) =>
   Array.from({ length: count }, (_, i) =>
@@ -14,7 +16,7 @@ const result = (attempts, target = attempts.at(-1), previousMaxOpenLevel = 3) =>
   solveResult(attempts, target.attemptId, { previousMaxOpenLevel });
 
 function resumed() {
-  const data = start(1, { puzzle: puzzle(1, 32) });
+  const data = start(1, { mode: "manual", puzzle: puzzle(1, 32) });
   const events = [
     { id: "start", at: 100, type: "start", start: data },
     { id: "time", at: 101, type: "time", effectiveMs: 1234 },
@@ -29,7 +31,7 @@ describe("solve result", () => {
   it("reports the tenth frontier solve and the next opened level", () => {
     expect(result(wins())).toEqual({
       level: 3,
-      mode: "medium",
+      mode: "manual",
       countsTowardUnlock: true,
       hintFreeSolvesAtLevel: 10,
       required: 10,
@@ -167,7 +169,7 @@ describe("level list and real manual Next", () => {
     expect(list.totals).toEqual({ total: 3, solved: 3, inProgress: 0 });
     expect(list.nextIndex).toBe(1);
   });
-  it("retains the saved solve through faster and slower replays", async () => {
+  it("replaces the saved time with each finished replay, keeping the first solve date", async () => {
     const { catalog } = await openCatalog(catalogWith([32]));
     const original = {
       ...attempt(1, { puzzle: catalog.puzzles[0] }, "hint"),
@@ -176,19 +178,58 @@ describe("level list and real manual Next", () => {
     const fast = { ...attempt(2, { puzzle: original.puzzle, replay: true }), effectiveMs: 12_000 };
     const slow = { ...attempt(3, { puzzle: original.puzzle, replay: true }), effectiveMs: 900_000 };
     const active = attempt(4, { puzzle: original.puzzle, replay: true }, "pause");
-    const history = [slow, active, fast, original];
-    const list = levelList(catalog, history, 3, { playerId: "player" });
+    const item = (history) => levelList(catalog, history, 3, { playerId: "player" }).items[0];
+    // Faster replay replaces the slower original.
+    expect(item([fast, original])).toMatchObject({
+      state: "solved",
+      solvedAt: original.endedAt,
+      solveMs: 12_000,
+    });
+    // A slower replay still replaces the faster time before it.
+    expect(item([slow, fast, original])).toMatchObject({
+      state: "solved",
+      solvedAt: original.endedAt,
+      solveMs: 900_000,
+    });
+    const list = levelList(catalog, [slow, active, fast, original], 3, { playerId: "player" });
     expect(list.items[0]).toMatchObject({
       state: "replaying",
       solvedAt: original.endedAt,
+      solveMs: 900_000,
+      bestMs: 900_000,
+    });
+    expect(list.totals).toEqual({ total: 1, solved: 1, inProgress: 1 });
+  });
+  it("keeps the saved time through unfinished, abandoned, revealed and given-up replays", async () => {
+    const { catalog } = await openCatalog(catalogWith([32]));
+    const original = { ...attempt(1, { puzzle: catalog.puzzles[0] }), effectiveMs: 420_000 };
+    const replay = (n, outcome) => ({
+      ...attempt(n, { puzzle: original.puzzle, replay: true }, outcome),
+      effectiveMs: 5_000,
+    });
+    // An abandoned replay stays in the records as a paused attempt.
+    for (const outcome of /** @type {const} */ (["pause", "reveal", "give_up"])) {
+      const item = levelList(catalog, [original, replay(2, outcome)], 3, {
+        playerId: "player",
+      }).items[0];
+      expect(item).toMatchObject({ solvedAt: original.endedAt, solveMs: 420_000 });
+    }
+    const history = [original, replay(2, "reveal"), replay(3, "give_up"), replay(4, "pause")];
+    expect(levelList(catalog, history, 3, { playerId: "player" }).items[0]).toMatchObject({
+      state: "replaying",
       solveMs: 420_000,
       bestMs: 420_000,
     });
-    expect(list.totals).toEqual({ total: 1, solved: 1, inProgress: 1 });
-    expect(levelList(catalog, [fast, original], 3, { playerId: "player" }).items[0]).toMatchObject({
-      state: "solved",
-      solveMs: 420_000,
-    });
+  });
+  it("savedSolve matches levelList: first completion date, latest completion time", async () => {
+    const { catalog } = await openCatalog(catalogWith([32]));
+    const original = { ...attempt(1, { puzzle: catalog.puzzles[0] }), effectiveMs: 420_000 };
+    const slow = { ...attempt(2, { puzzle: original.puzzle, replay: true }), effectiveMs: 900_000 };
+    const quit = attempt(3, { puzzle: original.puzzle, replay: true }, "give_up");
+    const saved = savedSolve([quit, slow, original], catalog.puzzles[0]);
+    expect(saved?.first.attemptId).toBe(original.attemptId);
+    expect(saved?.latest.attemptId).toBe(slow.attemptId);
+    expect(savedSolve([quit], catalog.puzzles[0])).toBeNull();
   });
   it("allows a replay-only completion as solved, but not a revealed answer", async () => {
     const { catalog } = await openCatalog(catalogWith([10, 10]));
@@ -213,9 +254,10 @@ describe("level list and real manual Next", () => {
       endedAt: 1000,
       effectiveMs: 100,
     };
-    expect(levelList(catalog, [replay, original], 3, { playerId: "player" }).items[0].solveMs).toBe(
-      500
-    );
+    // Equal endedAt: attemptId breaks the tie, so "b" is the later completion.
+    expect(
+      levelList(catalog, [replay, original], 3, { playerId: "player" }).items[0]
+    ).toMatchObject({ solvedAt: 1000, solveMs: 100 });
   });
   it("agrees with manual selection over several histories without changing order", async () => {
     const { catalog } = await openCatalog(catalogWith(Array(8).fill(32)));
@@ -324,7 +366,7 @@ describe("unfinished bank attempts", () => {
 function onDay(iso, number = 1, overrides = {}, outcome = "complete") {
   const at = Date.parse(iso);
   return {
-    ...attempt(number, overrides, outcome),
+    ...attempt(number, { mode: "medium", ...overrides }, outcome),
     startedAt: at - 100,
     endedAt: at,
     updatedAt: at,
@@ -448,7 +490,12 @@ it("streak counts a resumed completion only when it has ended", () => {
     longest: 0,
     todayDone: false,
   });
-  expect(dayStreak(projectRecords(log), options)).toEqual({
+  expect(
+    dayStreak(
+      projectRecords(log).map((a) => ({ ...a, mode: "medium" })),
+      options
+    )
+  ).toEqual({
     current: 1,
     longest: 1,
     todayDone: true,

@@ -1,4 +1,5 @@
 import "./app.css";
+import "./themes.css";
 import { stripUpdateParam } from "./auto-update-browser.js";
 import { mount } from "svelte";
 import { prepareOffline } from "../offline/client.js";

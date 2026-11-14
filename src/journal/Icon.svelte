@@ -1,12 +1,18 @@
 <script>
-  /** @typedef {'rotate-ccw' | 'circle-check' | 'check' | 'play' | 'chevron-left' | 'chevron-right' | 'calendar-days' | 'grid-3x3' | 'flame' | 'trophy' | 'x' | 'history' | 'info' | 'arrow-left' | 'ellipsis'} IconName */
+  /** @typedef {'lock' | 'lock-open' | 'circle' | 'circle-play' | 'rotate-ccw' | 'circle-check' | 'check' | 'play' | 'chevron-left' | 'chevron-right' | 'calendar-days' | 'grid-3x3' | 'flame' | 'trophy' | 'x' | 'history' | 'info' | 'arrow-left' | 'ellipsis'} IconName */
 
   /** @type {{ name: IconName }} */
   let { name } = $props();
 </script>
 
 <svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-  {#if name === "circle-check"}
+  {#if name === "lock" || name === "lock-open"}
+    <rect x="3" y="11" width="18" height="11" rx="2" /><path
+      d={name === "lock" ? "M7 11V7a5 5 0 0 1 10 0v4" : "M7 11V7a5 5 0 0 1 9-3"}
+    />
+  {:else if name === "circle" || name === "circle-play"}
+    <circle cx="12" cy="12" r="10" />{#if name === "circle-play"}<path d="m10 8 6 4-6 4z" />{/if}
+  {:else if name === "circle-check"}
     <circle cx="12" cy="12" r="10" /><path d="m9 12 2 2 4-4" />
   {:else if name === "check"}
     <path d="M20 6 9 17l-5-5"></path>

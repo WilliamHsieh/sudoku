@@ -137,7 +137,7 @@ test("starts with no selection; givens are shaded", async ({ page }) => {
   await expectValue(page, 0, 0);
 });
 
-test("click selects a cell; the Journal brand clears the selection", async ({ page }) => {
+test("click selects a cell; the Back and Resume clears the selection", async ({ page }) => {
   await cell(page, 0).click();
   await expect(cell(page, 0)).toHaveCSS("background-color", SELECTED_BG);
   await cell(page, 10).click();

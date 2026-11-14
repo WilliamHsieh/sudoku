@@ -2,11 +2,19 @@ import { describe, expect, it, vi } from "vitest";
 import { createRecorder, BANK_LOCK, BANK_GAME_KEY, BANK_SAVES_KEY } from "./recorder.js";
 import { persistUnlockState, readUnlockState, UNLOCK_KEY } from "./unlock-storage.js";
 import { projectRecords, RECORDS_KEY, readRecords } from "./records.js";
-import { attempt, catalogWith, memoryStorage, puzzle, start } from "./test-fixtures.js";
+import {
+  attempt as makeAttempt,
+  catalogWith,
+  memoryStorage,
+  puzzle,
+  start,
+} from "./test-fixtures.js";
 import { buildBankGameMeta } from "./game-meta.js";
 import { openCatalog } from "./catalog.js";
 import { selectPuzzle } from "./select.js";
 import { storeAttempts, storeCompletedAttempts } from "./unlock-test-fixtures.js";
+const attempt = (number, overrides = {}, ...rest) =>
+  makeAttempt(number, { mode: "manual", ...overrides }, ...rest);
 
 function locks() {
   let tail = Promise.resolve();
@@ -455,7 +463,7 @@ it("empty records reject feedback without creating any storage", async () => {
 
 it("persists unlock after an unfinished first attempt resumes and completes", async () => {
   const storage = memoryStorage(),
-    data = start(20, { puzzle: puzzle(20, 32) });
+    data = start(20, { mode: "manual", puzzle: puzzle(20, 32) });
   /** @type {import("./types.js").RecordLog} */
   const log = {
     schema: 1,

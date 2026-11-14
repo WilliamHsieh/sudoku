@@ -217,38 +217,18 @@ test("Shift+digit locks without sticking shift-hover; Space toggles; digits stil
   await expectValue(page, 0, 4);
 });
 
-for (const selected of [true, false]) {
-  test(`Escape in Journal ${selected ? "deselects a day" : "with no day selected"} keeps the Play digit lock`, async ({
-    page,
-  }) => {
-    await page.clock.install({ time: new Date("2026-10-18T12:00:00") });
-    await openBoard(page);
-    await page.keyboard.press("Shift+Digit5");
-    const pad = page.locator("#keypad");
-    const five = page.locator('.key[data-d="5"]');
-    await expect(pad).toHaveAttribute("data-locked", "5");
-    await expect(five).toHaveAttribute("aria-pressed", "true");
-
-    await page.locator(".dbtn").click();
-    const day = page.locator('.dgrid .day[data-d="2026-10-15"]');
-    await day.click();
-    await expect(page.locator(".dgrid .day.sel")).toHaveAttribute("data-d", "2026-10-15");
-    if (!selected) await day.click();
-    await expect(day).toHaveAttribute("aria-pressed", String(selected));
-    if (!selected) await expect(page.locator(".ctx .kicker")).toHaveText("Latest puzzles");
-    await page.keyboard.press("Escape");
-    await expect(day).toHaveAttribute("aria-pressed", "false");
-    await expect(page.locator(".ctx .kicker")).toHaveText("Latest puzzles");
-
-    await page.locator("#time-control").click();
-    await expect(pad).toHaveAttribute("data-locked", "5");
-    await expect(five).toHaveAttribute("aria-pressed", "true");
-    await page.keyboard.press("Escape");
-    await expect(pad).toHaveAttribute("data-locked", "0");
-    await expect(five).toHaveAttribute("aria-pressed", "false");
-    await expect(pad).toHaveAttribute("data-shown", "5");
-  });
-}
+test("Escape on Home cannot edit the paused game", async ({ page }) => {
+  await openBoard(page);
+  await cell(page, 0).click();
+  await page.keyboard.press("4");
+  await page.locator(".dbtn").click();
+  await expect(page.locator(".bank-pages")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("7");
+  await page.getByRole("button", { name: /Unfinished/ }).click();
+  await page.getByRole("button", { name: /Resume/ }).click();
+  await expectValue(page, 0, 4);
+});
 
 for (const target of ["board", "keypad"]) {
   test(`390px: ${target} input releases header focus before keyboard lock`, async ({ page }) => {

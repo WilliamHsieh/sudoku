@@ -13,7 +13,7 @@ test("custom editor preserves safe-area clearance and stable geometry in both di
   await page.goto("./");
   await page.getByRole("button", { name: "Custom puzzle", exact: true }).click();
   await page
-    .locator(".journal-view")
+    .locator(".pages-view")
     .evaluate((el) => Promise.all(el.getAnimations().map((animation) => animation.finished)));
   await expect(page.locator("main")).toHaveCSS("padding-top", "62px");
   await expect(page.locator("main")).toHaveCSS("padding-bottom", "34px");

@@ -4,7 +4,15 @@ import { deriveUnlockState, mergeMaxOpenLevel } from "./unlock.js";
 import { deriveAbility } from "./ability.js";
 import { LEGACY_KEYS } from "./migration.js";
 import { projectRecords, readRecords, RECORDS_KEY } from "./records.js";
-import { attempt, catalogWith, memoryStorage, puzzle, start } from "./test-fixtures.js";
+import {
+  attempt as makeAttempt,
+  catalogWith,
+  memoryStorage,
+  puzzle,
+  start,
+} from "./test-fixtures.js";
+const attempt = (number, overrides = {}, ...rest) =>
+  makeAttempt(number, { mode: "manual", ...overrides }, ...rest);
 
 /** @param {number} rating @param {number} [count] @param {number} [offset] */
 const wins = (rating, count = C.unlockRequiredHintFreeSolves, offset = 100) =>
@@ -159,7 +167,7 @@ describe("opt-in progressive unlock", () => {
   it.each(["star", "fill", "hint_dot"])(
     "uses only star-key hints to qualify the tenth solve (%s)",
     (source) => {
-      const data = start(200, { puzzle: puzzle(200, 32) });
+      const data = start(200, { mode: "manual", puzzle: puzzle(200, 32) });
       const records = projectRecords({
         schema: 1,
         events: [
@@ -193,14 +201,14 @@ describe("opt-in progressive unlock", () => {
     expect([...storage.data]).toEqual(before);
     reads.mockRestore();
   });
-  it("keeps Easy-only ability ceilings unchanged even when unlock evidence grows", () => {
+  it("keeps Easy-only ability ceilings and unlocked levels unchanged", () => {
     const records = wins(32, 20).map((a) => ({
       ...a,
       mode: /** @type {const} */ ("easy"),
       feedback: /** @type {const} */ ("light"),
     }));
     const options = { catalog: catalogWith([10, 12, 13, 15, 32, 35, 45]), playerId: "player" };
-    expect(deriveUnlockState(records).maxOpenLevel).toBe(4);
+    expect(deriveUnlockState(records).maxOpenLevel).toBe(3);
     expect(deriveAbility({ ...options, records }).bands).toEqual(deriveAbility(options).bands);
   });
   it("keeps earned levels when calibration changes", () => {

@@ -1,5 +1,5 @@
 import { test, expect, chromium, webkit } from "@playwright/test";
-import { DEMO_PUZZLE, cell, expectValue } from "./helpers.js";
+import { DEMO_PUZZLE, cell, expectValue, resumeFromHome } from "./helpers.js";
 
 test("a verified complete bank supports offline reload and a new page", async ({
   page,
@@ -34,7 +34,7 @@ test("a verified complete bank supports offline reload and a new page", async ({
   await page.close();
   const restarted = await context.newPage();
   await restarted.goto(url);
-  await restarted.getByRole("button", { name: "Start puzzle", exact: true }).click();
+  await resumeFromHome(restarted);
   await expectValue(restarted, 0, 4);
   expect(new URL(restarted.url()).searchParams.get("keep")).toBe("yes");
   expect(new URL(restarted.url()).hash).toBe("#board");
@@ -61,7 +61,11 @@ test("a closed browser restarts offline with the complete release and saved cust
 }, testInfo) => {
   const browserType = browserName === "webkit" ? webkit : chromium;
   const profile = testInfo.outputPath("offline-profile");
-  let context = await browserType.launchPersistentContext(profile, { headless: true });
+  const launchOptions = testInfo.project.use.launchOptions;
+  let context = await browserType.launchPersistentContext(profile, {
+    ...launchOptions,
+    headless: true,
+  });
   try {
     let page = await context.newPage();
     const url = `${baseURL}?q=${DEMO_PUZZLE}`;
@@ -71,10 +75,14 @@ test("a closed browser restarts offline with the complete release and saved cust
     await page.keyboard.press("4");
     await expectValue(page, 0, 4);
     await context.close();
-    context = await browserType.launchPersistentContext(profile, { headless: true, offline: true });
+    context = await browserType.launchPersistentContext(profile, {
+      ...launchOptions,
+      headless: true,
+      offline: true,
+    });
     page = await context.newPage();
     await page.goto(url);
-    await page.getByRole("button", { name: "Start puzzle", exact: true }).click();
+    await resumeFromHome(page);
     await expectValue(page, 0, 4);
     expect(await page.evaluate(() => navigator.serviceWorker.controller?.scriptURL)).toContain(
       "/sudoku/sw.js"
@@ -82,4 +90,30 @@ test("a closed browser restarts offline with the complete release and saved cust
   } finally {
     await context.close();
   }
+});
+
+test("bank slots resume and new personalized puzzles start fully offline", async ({
+  page,
+  context,
+}) => {
+  await page.goto("./");
+  await page.getByRole("button", { name: /^Easy / }).click();
+  const blank = page.locator(".board > .cell:not(.given)").first();
+  const id = await blank.getAttribute("data-i");
+  await blank.click();
+  await page.keyboard.press("1");
+  await expect(blank).toHaveAttribute("data-value", "1");
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Sudoku", exact: true })).toBeVisible();
+  await context.setOffline(true);
+  await page.reload();
+  await resumeFromHome(page);
+  await expect(page.locator(`.cell[data-i="${id}"]`)).toHaveAttribute("data-value", "1");
+  await expect(page.locator(".header .t1")).toHaveText("Easy");
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await page.locator(".bank-pages .back").click();
+  await page.getByRole("button", { name: /^Easy / }).click();
+  await expect(page.locator(".board > .cell")).toHaveCount(81);
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page.getByRole("button", { name: /Unfinished/ })).toContainText("2");
 });

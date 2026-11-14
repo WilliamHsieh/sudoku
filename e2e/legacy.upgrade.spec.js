@@ -12,7 +12,7 @@ const test = base.extend({
   },
 });
 
-test("deployed schema-1 app discovers and migrates to the offline release", async ({
+test("deployed schema-1 app updates to the bank Home without migrating legacy saves", async ({
   page,
   context,
   deployment,
@@ -60,7 +60,7 @@ test("deployed schema-1 app discovers and migrates to the offline release", asyn
   const saved = await page.evaluate(() => localStorage.getItem("sudoku-progress"));
   expect(JSON.parse(saved)["2026-10-22"].easy.snapshot.answers[answer]).toBe("1");
   release();
-  const play = page.getByRole("button", { name: "Play", exact: true });
+  const play = page.getByRole("button", { name: /^Easy / });
   await expect(play).toBeVisible();
   expect(await page.evaluate(() => localStorage.getItem("sudoku-progress"))).toBe(saved);
   expect(await page.evaluate(() => navigator.serviceWorker.controller.scriptURL)).toBe(
@@ -73,7 +73,8 @@ test("deployed schema-1 app discovers and migrates to the offline release", asyn
   await context.setOffline(true);
   await page.reload();
   await play.click();
-  await expectValue(page, answer, 1);
+  await expect(page.locator(".board > .cell")).toHaveCount(81);
+  expect(await page.evaluate(() => localStorage.getItem("sudoku-progress"))).toBe(saved);
   expect(new URL(page.url()).searchParams.get("keep")).toBe("yes");
   expect(new URL(page.url()).hash).toBe("#board");
   await page.screenshot({ path: test.info().outputPath("legacy-migrated-offline.png") });

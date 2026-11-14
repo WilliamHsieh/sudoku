@@ -1,6 +1,6 @@
 import { writable } from "svelte/store";
 
-/** @typedef {"system" | "light" | "dark"} ThemePreference */
+/** @typedef {"system" | "light" | "dark" | "paper" | "dim" | "sage"} ThemePreference */
 const STORAGE_KEY = "sudoku-theme";
 /** @type {ThemePreference} */
 let preference = "system";
@@ -12,15 +12,24 @@ export const themePreference = writable(preference);
 
 /** @param {string | null} value @returns {ThemePreference} */
 function normalize(value) {
-  return value === "light" || value === "dark" ? value : "system";
+  return ["light", "dark", "paper", "dim", "sage"].includes(value)
+    ? /** @type {ThemePreference} */ (value)
+    : "system";
 }
 
 function applyTheme() {
-  const dark = preference === "dark" || (preference === "system" && systemTheme?.matches);
-  const resolved = dark ? "dark" : "light";
-  const background = dark ? "#191b1f" : "#f5f4f0";
+  const dark =
+    ["dark", "dim"].includes(preference) || (preference === "system" && systemTheme?.matches);
+  const resolved = preference === "system" ? (dark ? "dark" : "light") : preference;
+  const background = {
+    light: "#f5f4f0",
+    dark: "#191b1f",
+    paper: "#f5e9d3",
+    dim: "#120d09",
+    sage: "#dce8dc",
+  }[resolved];
   document.documentElement.dataset.theme = resolved;
-  document.documentElement.style.colorScheme = resolved;
+  document.documentElement.style.colorScheme = dark ? "dark" : "light";
   document.documentElement.style.backgroundColor = background;
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", background);
   document

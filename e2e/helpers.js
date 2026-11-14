@@ -256,11 +256,14 @@ export async function aimFirstNoteIn(page, want) {
   return hit;
 }
 
-/** Clear the board selection through the brand, now shown in Journal. */
+/** Leave and Resume through the bank list; the selected cell clears on leaving. */
 export async function clearSelection(page) {
   await page.locator(".dbtn").click();
-  await page.locator(".header h1").click();
-  await page.locator("#time-control").click();
+  await page.getByRole("button", { name: /Unfinished/ }).click();
+  await page
+    .getByRole("button", { name: /Resume/ })
+    .first()
+    .click();
   await page
     .locator(".play")
     .evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
@@ -636,4 +639,19 @@ export async function switchNotesMode(page, mode) {
         els.flatMap((el) => el.getAnimations().map((animation) => animation.finished))
       )
     );
+}
+
+/** Reload/update starts on Home (or the incoming custom preview), never auto-resumes. */
+export async function resumeFromHome(page) {
+  await expect(page.locator(".bank-pages, .draft-header")).toBeVisible();
+  const editing = page.getByRole("button", { name: "Back to editing", exact: true });
+  if (await editing.isVisible()) await editing.click();
+  const home = page.getByRole("button", { name: "Back to home", exact: true });
+  if (await home.isVisible()) await home.click();
+  await page.getByRole("button", { name: /Unfinished/ }).click();
+  await page
+    .getByRole("button", { name: /^Resume / })
+    .first()
+    .click();
+  await expect(page.locator(".board > .cell")).toHaveCount(81);
 }

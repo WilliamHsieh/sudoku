@@ -5,8 +5,8 @@
   import { OPT_TAP_SUB, OPT_TAP_TITLE } from "./keypad-copy.js";
   import { themePreference, setThemePreference } from "./theme.js";
 
-  /** @type {{ onclosed?: () => void, onrestart: () => void, oncustom?: () => void, viewport?: HTMLElement, canRestart?: boolean }} */
-  let { onclosed, onrestart, oncustom, viewport, canRestart = true } = $props();
+  /** @type {{ onclosed?: () => void, onrestart: () => void, viewport?: HTMLElement, canRestart?: boolean }} */
+  let { onclosed, onrestart, viewport, canRestart = true } = $props();
 
   let scrimEl = $state(/** @type {HTMLDivElement | undefined} */ (undefined));
   let optsEl = $state(/** @type {HTMLDialogElement | undefined} */ (undefined));
@@ -323,12 +323,6 @@
     beginConfirmExit("restart");
   }
 
-  function openCustomPuzzle() {
-    closeOpts();
-    playUi.closeModal();
-    oncustom?.();
-  }
-
   const scrimOn = $derived(playUi.modal === "options" || playUi.modal === "confirm");
 </script>
 
@@ -415,16 +409,6 @@
           <span class="tx"><b>Restart puzzle</b></span>
         </button>
       {/if}
-      {#if oncustom}
-        <button type="button" class="row" id="opt-custom" onclick={openCustomPuzzle}>
-          <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"
-            ><rect x="3" y="3" width="18" height="18" rx="2" /><path
-              d="M3 9h18M3 15h18M9 3v18M15 3v18"
-            /></svg
-          >
-          <span class="tx"><b>Custom puzzle</b><small>Enter a puzzle or paste a link</small></span>
-        </button>
-      {/if}
     </div>
     <div class="appearance-row">
       <label class="tx" for="opt-theme">
@@ -439,6 +423,9 @@
         <option value="system">System</option>
         <option value="light">Light</option>
         <option value="dark">Dark</option>
+        <option value="paper">Paper</option>
+        <option value="dim">Dim</option>
+        <option value="sage">Sage</option>
       </select>
     </div>
     <button type="button" class="btn btn-primary btn-done" id="opts-done" onclick={onDone}

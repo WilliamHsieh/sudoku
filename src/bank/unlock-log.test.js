@@ -1,9 +1,11 @@
 import { expect, it, vi } from "vitest";
-import { attempt, puzzle, memoryStorage } from "./test-fixtures.js";
+import { attempt as makeAttempt, puzzle, memoryStorage } from "./test-fixtures.js";
 import { persistUnlockState, readUnlockState, UNLOCK_KEY } from "./unlock-storage.js";
 import { projectRecords, RECORDS_KEY } from "./records.js";
 import { projectPlayerUnlock } from "./player-unlock.js";
 import { BANK_LOCK } from "./write-lock.js";
+const attempt = (number, overrides = {}, ...rest) =>
+  makeAttempt(number, { mode: "manual", ...overrides }, ...rest);
 
 const options = { playerId: "player", locks: null, now: () => 99999 };
 const wins = (first, count, rating) =>

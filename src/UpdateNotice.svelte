@@ -298,6 +298,14 @@
   .update-notice.pill.updating {
     padding-right: 12px;
   }
+  /* Phone only: sit above the fixed Next dock (12 + 48 + 12 padding/button, plus a 16px gap)
+     so the pill and its 9px hit-area extension do not cover Next. 600px+ keeps the
+     existing bottom pill, which sits beside the narrower desktop Next button. */
+  @media (max-width: 599px) {
+    :global(:root:has(.dock)) .update-notice.pill {
+      bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+    }
+  }
 
   .reduced,
   .reduced * {

@@ -1,6 +1,19 @@
 # Issue #94: V1 logic
 
-This implements items 1–3 of [William's V1 design](https://github.com/WilliamHsieh/sudoku/issues/94#issuecomment-6704192826): catalog construction, records, and a pure selection engine. The sampled catalog is also published through the existing offline release flow. The game now has an explicit opt-in records adapter. It adds no UI or default bank launch, and no UI calls the catalog loader yet. The NYT catalog, Journal, existing saves, and offline stack are unchanged.
+The default app uses the published bank directly. Home, level lists, Unfinished,
+Play, solved results and Replay use the shared player API and recorder. There is
+no bank switch. The offline release still prepares and verifies both catalogs.
+Legacy NYT and custom save keys are left intact and ignored by this UI.
+
+`ui-session.svelte.js` owns catalog loading, player projections and recommendations.
+All writes use the bank recorder or the shared `sudoku-bank-writes-v1` lock.
+`custom-recorder.js` stores separate custom/NYT board slots under
+`sudoku-bank-custom-v1`; unrated boards do not enter bank statistics or unlocks.
+Only manual/sequential, independent first solves at the frontier earn unlock credit;
+E/M/H solves contribute to the bank day streak but never unlock levels.
+
+The API sections below retain their original implementation context; references
+to the former Journal/opt-in host describe the compatibility engine, not the current UI.
 
 ## Build a catalog
 
@@ -314,7 +327,7 @@ The default cap comes from `CALIBRATION.maxPerLevel` (500, 待校準 / 未簽核
 
 The build validates the committed catalog and emits its bytes as `banks/<sha256>.json` in `release.assets`. The unchanged offline PREPARE/STAGE/ACTIVATE flow downloads, hashes, caches, repairs, and activates this asset with the complete release. A failed catalog download keeps the old release active. This additional asset is downloaded on an app update; only the existing NYT `release.bank` has cross-release reuse in the current offline implementation.
 
-The build injects `globalThis.__sudokuBankCatalog`, a descriptor with the asset path, SHA-256, and document release identity. `await loadPublished()` from `loadPublished.js` reads that exact prepared release from Cache API, checks the bytes and catalog semantics, and returns the immutable verified catalog accepted by selection. It makes no network request and has no fallback to another release. Call it after successful offline preparation. The NYT `__sudokuPuzzleBank` global and reader keep their current contract; App and Journal do not call the new loader.
+The build injects `globalThis.__sudokuBankCatalog`, a descriptor with the asset path, SHA-256, and document release identity. `await loadPublished()` from `loadPublished.js` reads that exact prepared release from Cache API, checks the bytes and catalog semantics, and returns the immutable verified catalog accepted by selection. It makes no network request and has no fallback to another release. Call it after successful offline preparation. The NYT `__sudokuPuzzleBank` global and reader keep their current contract. The bank UI calls the new loader after offline preparation.
 
 For cold download measurements, run `node scripts/measure-bank-release.mjs /path/to/baseline-build /path/to/new-build`. It uses fresh Chromium contexts and a local server with a shared bandwidth limit of 1.5 or 10 Mbps, 40 ms response latency, and raw or gzip (level 6) responses. The limit covers service-worker traffic. It reports release bytes, bytes including manifest/worker, total transferred bytes, and actual PREPARE completion time. The existing limits remain 60 s per download transaction and 125 s per command.
 
@@ -330,11 +343,11 @@ Manual selection takes the first board in that order whose exact digits the play
 
 For a player with no ability evidence and no explicit `coldStart`, `selectPuzzle` uses Lizzy's reading of William's signed-off “1 2 3”: Easy starts at L1, Medium at L2, and Hard at L3. The mapping lives only in `CALIBRATION.coldStartLevels`. The existing formulas give these inclusive ranges before catalog gaps or the optional level clamp:
 
-| Mode | Anchor | Rating tenths | In plain words |
-| --- | --- | --- | --- |
-| Easy | L1 | 10–12 | Ratings from 1.0 through 1.2 |
-| Medium | L2 | 26–29 | Ratings from 2.6 through 2.9 |
-| Hard | L3 | 35–38 | Ratings from 3.5 through 3.8 |
+| Mode   | Anchor | Rating tenths | In plain words               |
+| ------ | ------ | ------------- | ---------------------------- |
+| Easy   | L1     | 10–12         | Ratings from 1.0 through 1.2 |
+| Medium | L2     | 26–29         | Ratings from 2.6 through 2.9 |
+| Hard   | L3     | 35–38         | Ratings from 3.5 through 3.8 |
 
 The recommendation context records the anchor used. Explicit `setColdStart(...)` level and experience settings keep their existing behavior for all modes. After any eligible ability evidence exists, selection uses the existing ability rules; these new defaults no longer apply. The ability API itself is unchanged. Its `provisional` flag means no promotion yet, so selection also checks for zero evidence. Legacy/NYT history supplies no ability evidence. There is no extra exclusion for NYT boards.
 
@@ -480,7 +493,7 @@ dated boundaries, first-attempt identity, hints, answers, replays, and the runni
 level. Pass the saved `frontier` to `solveResult`; a maximum without a date is ignored there
 too and supplies only the history-derived result. No special numeric-only cutoff remains.
 `validateUnlockFrontier` checks boundary format; read/write validation also rejects conflicting
-or backwards dates. `deriveUnlockState` and `records.js` remain unchanged.
+or backwards dates. `deriveUnlockState` and `projectPlayerUnlock` both restrict unlock credit to manual/sequential first solves; E/M/H never earns unlock credit. `records.js` remains unchanged.
 
 Persistence returns `{ ok: true, state }` or `{ ok: false, code, detail? }`. Every write reads
 fresh, keeps accepted dated access monotonic with `mergeMaxOpenLevel`, validates the complete

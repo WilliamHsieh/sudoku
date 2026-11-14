@@ -3,152 +3,100 @@
   import { game } from "./game/game.svelte.js";
   import { playUi } from "./play/session.svelte.js";
   import { formatTime, timer } from "./store.js";
-  import { DIFF_LABEL, longDate, shortDate } from "./journal/format.js";
-  import DiffLabel from "./journal/DiffLabel.svelte";
+  import { modeName, levelName } from "./bank/ui-copy.js";
   import Icon from "./journal/Icon.svelte";
   import Timer from "./Timer.svelte";
   import NotesMode from "./NotesMode.svelte";
-
-  /** @type {{inert?: boolean, journal: boolean, narrow: boolean, hasPlayed: boolean, frozenElapsed: number,
-   * freshTarget: {date: string, diff: string, elapsed: number} | null,
-   * ondate: () => void, ontime: () => void, onbrand: () => void,
-   * onhint: () => void, hintOpen: boolean}} */
+  /** @type {{inert?:boolean,narrow:boolean,ondate:()=>void,ontime:()=>void,onhint:()=>void,hintOpen:boolean,title?:string,subtitle?:string}} */
   let {
     inert = false,
-    journal,
     narrow,
-    hasPlayed,
-    frozenElapsed,
-    freshTarget,
     ondate,
     ontime,
-    onbrand,
     onhint,
     hintOpen,
+    title = "",
+    subtitle = "",
   } = $props();
-  const fresh = $derived(journal && !hasPlayed);
-  const name = $derived(
-    journal ? (fresh ? "Play" : "Back to game") : playUi.paused ? "Resume" : "Pause"
-  );
-  const showPlay = $derived(journal || playUi.paused);
-  const difficulty = $derived(
-    game.difficulty === "easy" || game.difficulty === "medium" || game.difficulty === "hard"
-      ? game.difficulty
-      : null
-  );
-  const date = $derived(game.dateStr ? shortDate(game.dateStr) : "");
-  const dateName = $derived(
-    game.dateStr
-      ? `${longDate(game.dateStr)}, ${DIFF_LABEL[game.difficulty]}. Open Journal on this day`
-      : "Custom puzzle. Open Journal"
-  );
+  const name = $derived(playUi.paused ? "Resume" : "Pause");
 </script>
 
-<header
-  {inert}
-  class="header"
-  class:on-journal={journal}
-  class:reduced={playUi.reduced}
-  class:solved={game.solved && !journal}
->
+<header {inert} class="header" class:reduced={playUi.reduced} class:solved={game.solved}>
   <div class="left">
-    {#if journal}
-      <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
-      <h1 transition:fade={{ duration: playUi.reduced ? 0 : 160 }} onclick={onbrand}>Sudoku</h1>
-    {:else}
-      <button
-        transition:fade={{ duration: playUi.reduced ? 0 : 160 }}
-        class="dbtn"
-        type="button"
-        aria-label={dateName}
-        onclick={ondate}
-      >
-        <span class="tile"><Icon name="calendar-days" /></span>
-        <span class="stk">
-          <span class="t1">
-            {#if game.dateStr}
-              <span class="full-date">{longDate(game.dateStr)}</span>
-              <span class="short-date"
-                ><span class="wk">{date.split(", ")[0] + ", "}</span>{date.split(", ")[1]}</span
-              >
-            {:else}Custom puzzle{/if}
-          </span>
-          {#if difficulty}
-            <span class="t2"><DiffLabel diff={difficulty} size={12} /></span>
-          {/if}
-        </span>
-      </button>
-    {/if}
+    <button
+      transition:fade={{ duration: playUi.reduced ? 0 : 160 }}
+      class="dbtn"
+      type="button"
+      aria-label="Back"
+      onclick={ondate}
+      ><span class="tile"><Icon name="chevron-left" /></span><span class="stk"
+        ><span class="t1"
+          >{title ||
+            (game.bankMeta
+              ? modeName(game.bankMeta.mode, game.bankMeta.level)
+              : game.customTitle)}</span
+        >{#if subtitle || game.bankMeta}<span class="t2"
+            >{subtitle ||
+              `${game.bankMeta.mode === "manual" ? "" : `L${game.bankMeta.level} · `}${levelName(game.bankMeta.level)}`}</span
+          >{/if}</span
+      ></button
+    >
   </div>
   <div class="right">
-    {#if !journal}
-      {#if !narrow && !game.solved}
-        <div class="auto-slot" transition:fade={{ duration: playUi.reduced ? 0 : 160 }}>
-          <NotesMode desktop />
-        </div>
-      {/if}
-      {#if !game.solved && game.notesMode !== "manual"}
-        <button
-          class="hint-trigger"
-          id="hint-trigger"
-          type="button"
-          aria-label="Hint"
-          title="提示"
-          aria-controls={hintOpen ? "hint-panel" : undefined}
-          aria-expanded={hintOpen}
-          disabled={playUi.paused}
-          onclick={onhint}
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true"
-            ><path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4Z" /></svg
-          >
-        </button>
-      {/if}
-      <button
+    {#if !narrow && !game.solved}<div
+        class="auto-slot"
         transition:fade={{ duration: playUi.reduced ? 0 : 160 }}
-        class="more"
-        type="button"
-        data-more
-        aria-label="More"
-        title="More options"
-        aria-haspopup="dialog"
-        disabled={playUi.paused}
-        onclick={() => playUi.openOptions()}
       >
-        <Icon name="ellipsis" />
-      </button>
-    {/if}
+        <NotesMode desktop />
+      </div>{/if}
+    {#if !game.solved && game.notesMode !== "manual"}<button
+        class="hint-trigger"
+        id="hint-trigger"
+        type="button"
+        aria-label="Hint"
+        title="提示"
+        aria-controls={hintOpen ? "hint-panel" : undefined}
+        aria-expanded={hintOpen}
+        disabled={playUi.paused}
+        onclick={onhint}
+        ><svg viewBox="0 0 24 24" aria-hidden="true"
+          ><path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4Z" /></svg
+        ></button
+      >{/if}
+    <button
+      transition:fade={{ duration: playUi.reduced ? 0 : 160 }}
+      class="more"
+      type="button"
+      data-more
+      aria-label="More"
+      title="More options"
+      aria-haspopup="dialog"
+      disabled={playUi.paused}
+      onclick={() => playUi.openOptions()}><Icon name="ellipsis" /></button
+    >
     <button
       class="tp pc"
       id="time-control"
       type="button"
-      class:is-paused={showPlay}
-      aria-label={game.solved && !journal
-        ? `Solved in ${formatTime($timer)}${game.journalView && game.dateStr ? " on " + longDate(game.dateStr).split(", ").slice(1).join(", ") : ""}`
-        : name}
-      aria-disabled={game.solved && !journal ? "true" : undefined}
-      aria-pressed={journal || game.solved ? undefined : playUi.paused}
-      aria-describedby={fresh ? "header-time fresh-target" : "header-time"}
-      title={game.solved && !journal ? undefined : `${name} (P)`}
+      class:is-paused={playUi.paused}
+      aria-label={game.solved ? `Solved in ${formatTime($timer)}` : name}
+      aria-disabled={game.solved ? "true" : undefined}
+      aria-pressed={game.solved ? undefined : playUi.paused}
+      aria-describedby="header-time"
+      title={game.solved ? undefined : `${name} (P)`}
       onclick={() => {
-        if (!game.solved || journal) ontime();
+        if (!game.solved) ontime();
       }}
-    >
-      <span class="face">
-        <span class="ts" id="header-time">
-          {#if journal}
-            {fresh
-              ? freshTarget
-                ? formatTime(freshTarget.elapsed)
-                : "Play"
-              : formatTime(frozenElapsed)}
-          {:else if game.solved}<span class="time" data-time>{formatTime($timer)}</span
-            >{:else}<Timer />{/if}
-        </span>
-        <span class="well">
-          {#if game.solved && !journal}<span class="solved-check"><Icon name="check" /></span
-            >{:else}<span class="gm" class:is-play={showPlay} aria-hidden="true">
-              <span class="g gp"
+      ><span class="face"
+        ><span class="ts" id="header-time"
+          >{#if game.solved}<span class="time" data-time>{formatTime($timer)}</span>{:else}<Timer
+            />{/if}</span
+        ><span class="well"
+          >{#if game.solved}<span class="solved-check"><Icon name="check" /></span>{:else}<span
+              class="gm"
+              class:is-play={playUi.paused}
+              aria-hidden="true"
+              ><span class="g gp"
                 ><svg viewBox="0 0 24 24"
                   ><rect x="14" y="3" width="5" height="18" rx="1" /><rect
                     x="5"
@@ -158,40 +106,21 @@
                     rx="1"
                   /></svg
                 ></span
-              >
-              <span class="g gy"
+              ><span class="g gy"
                 ><svg viewBox="0 0 24 24"
                   ><path
                     d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"
                   /></svg
                 ></span
-              >
-            </span>{/if}</span
-        >
-      </span>
-    </button>
-    {#if fresh}
-      <span id="fresh-target" class="sr-only"
-        >{freshTarget
-          ? `Resumes ${longDate(freshTarget.date)}, ${DIFF_LABEL[freshTarget.diff]}`
-          : "Starts the first unsolved puzzle on the latest day"}</span
-      >
-    {/if}
+              ></span
+            >{/if}</span
+        ></span
+      ></button
+    >
   </div>
 </header>
 
 <style>
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-    border: 0;
-  }
   .header {
     display: flex;
     align-items: center;
@@ -205,9 +134,6 @@
     box-sizing: border-box;
     font-family: var(--ui-font);
   }
-  .header.on-journal {
-    margin-bottom: 0;
-  }
   .left {
     flex: none;
     display: grid;
@@ -215,15 +141,6 @@
   }
   .left > * {
     grid-area: 1/1;
-  }
-  h1 {
-    margin: 0;
-    font-size: 24px;
-    font-weight: 700;
-    letter-spacing: -0.01em;
-    line-height: 1;
-    color: var(--ink);
-    cursor: pointer;
   }
   .right {
     display: flex;
@@ -283,9 +200,6 @@
   .t2 :global(.diff) {
     gap: 6px;
     font-weight: 500;
-  }
-  .short-date {
-    display: none;
   }
   .dbtn:active {
     background: var(--neutral);
@@ -475,12 +389,6 @@
     }
   }
   @media (max-width: 719px) {
-    .full-date {
-      display: none;
-    }
-    .short-date {
-      display: inline;
-    }
   }
   @media (max-width: 599px) {
     .header {
@@ -488,12 +396,6 @@
       padding: 0 clamp(8px, calc(8px + (100vw - 320px) * 8 / 69), 16px);
       margin: -3px -8px -7px;
       border: 0;
-    }
-    .header.on-journal {
-      margin-bottom: -7px;
-    }
-    h1 {
-      font-size: 22px;
     }
     .t1 {
       font-size: 17px;
@@ -515,9 +417,6 @@
     }
   }
   @media (max-width: 359px) {
-    .wk {
-      display: none;
-    }
   }
   .reduced .g {
     transition: none;

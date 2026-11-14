@@ -20,15 +20,21 @@
         let preference = "system";
         try {
           const saved = localStorage.getItem("sudoku-theme");
-          if (saved === "light" || saved === "dark") preference = saved;
+          if (["light", "dark", "paper", "dim", "sage"].includes(saved)) preference = saved;
         } catch {}
         const dark =
-          preference === "dark" ||
+          ["dark", "dim"].includes(preference) ||
           (preference === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
-        const resolved = dark ? "dark" : "light";
-        const background = dark ? "#191b1f" : "#f5f4f0";
+        const resolved = preference === "system" ? (dark ? "dark" : "light") : preference;
+        const background = {
+          light: "#f5f4f0",
+          dark: "#191b1f",
+          paper: "#f5e9d3",
+          dim: "#120d09",
+          sage: "#dce8dc",
+        }[resolved];
         document.documentElement.dataset.theme = resolved;
-        document.documentElement.style.colorScheme = resolved;
+        document.documentElement.style.colorScheme = dark ? "dark" : "light";
         document.documentElement.style.backgroundColor = background;
         document.querySelector('meta[name="theme-color"]').content = background;
         document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]').content = dark
