@@ -56,6 +56,8 @@ export function createRecorder(options = {}) {
   };
   /** @type {import('./types.js').BankGameMeta | null} */
   let meta = null;
+  /** When this attempt started (its start event time); stays fixed across resumes. */
+  let startedAt = 0;
   /** Last successfully read/written checkpoint; compare under the lock. */
   let expected = null;
   let effectiveMs = 0;
@@ -378,6 +380,7 @@ export function createRecorder(options = {}) {
         }
         meta = freezeSnapshot(structuredClone(next ?? value.meta));
         const attempt = projectRecords(log).find((a) => a.attemptId === meta.attemptId);
+        startedAt = next ? Math.max(1, now()) : attempt.startedAt;
         effectiveMs = next ? 0 : attempt.effectiveMs;
         offset = next ? 0 : effectiveMs - value.elapsed * 1000;
         settings = next ? meta.settings.candidateMode : attempt.settings.candidateMode;
@@ -436,6 +439,9 @@ export function createRecorder(options = {}) {
   return {
     get meta() {
       return meta;
+    },
+    get startedAt() {
+      return startedAt;
     },
     open,
     /** @param {string} attemptId */

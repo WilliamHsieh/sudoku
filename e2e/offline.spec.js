@@ -109,7 +109,7 @@ test("bank slots resume and new personalized puzzles start fully offline", async
   await page.reload();
   await resumeFromHome(page);
   await expect(page.locator(`.cell[data-i="${id}"]`)).toHaveAttribute("data-value", "1");
-  await expect(page.locator(".header .t1")).toHaveText("Easy");
+  await expect(page.locator(".header .t2")).toHaveText("Easy");
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await page.locator(".bank-pages .back").click();
   await page.getByRole("button", { name: /^Easy / }).click();

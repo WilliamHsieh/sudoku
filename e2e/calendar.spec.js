@@ -5,7 +5,8 @@ test("personalized modes start new games and keep all previous saves", async ({ 
   await page.goto("./");
   for (const mode of ["Easy", "Medium", "Hard"]) {
     await page.getByRole("button", { name: new RegExp(`^${mode}`) }).click();
-    await expect(page.locator(".header .t1")).toHaveText(mode);
+    await expect(page.locator(".header .t2")).toHaveText(mode);
+    await expect(page.locator(".header")).not.toContainText(/L[1-8]/);
     await page.keyboard.press("j");
     await expect(page.locator(".board")).toBeVisible();
     await page.getByRole("button", { name: "Back", exact: true }).click();

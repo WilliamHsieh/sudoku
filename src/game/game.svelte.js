@@ -233,6 +233,10 @@ export function createGame(bankOptions) {
     get bankMeta() {
       return bank?.meta ?? null;
     },
+    /** Start time of the open bank attempt (not of this session). */
+    get bankStartedAt() {
+      return bank?.startedAt || null;
+    },
     /** Start a bank game. null resumes the selected saved attempt after reload.
      * @param {import('../bank/types.js').BankGameMeta | null} [bankMeta]
      * @param {string} [attemptId]
