@@ -4,6 +4,9 @@
   import { playUi } from "./play/session.svelte.js";
   import { formatTime, timer } from "./store.js";
   import { modeName, levelName } from "./bank/ui-copy.js";
+  import { formatDay } from "./game/daily.js";
+  import { longDate, shortDate } from "./journal/format.js";
+  import DiffLabel from "./journal/DiffLabel.svelte";
   import Icon from "./journal/Icon.svelte";
   import Timer from "./Timer.svelte";
   import NotesMode from "./NotesMode.svelte";
@@ -19,6 +22,21 @@
     subtitle = "",
   } = $props();
   const name = $derived(playUi.paused ? "Resume" : "Pause");
+  // Easy/Medium/Hard keep the puzzle level hidden: the header shows the day this
+  // attempt started and the mode. The solved panel's "puzzle level" cell reveals it.
+  const dated = $derived(
+    !title &&
+      !subtitle &&
+      game.bankMeta &&
+      ["easy", "medium", "hard"].includes(game.bankMeta.mode) &&
+      game.bankStartedAt
+      ? {
+          diff: /** @type {'easy'|'medium'|'hard'} */ (game.bankMeta.mode),
+          day: formatDay(new Date(game.bankStartedAt)),
+        }
+      : null
+  );
+  const short = $derived(dated ? shortDate(dated.day).split(", ") : []);
 </script>
 
 <header {inert} class="header" class:reduced={playUi.reduced} class:solved={game.solved}>
@@ -30,15 +48,19 @@
       aria-label="Back"
       onclick={ondate}
       ><span class="tile"><Icon name="chevron-left" /></span><span class="stk"
-        ><span class="t1"
-          >{title ||
-            (game.bankMeta
-              ? modeName(game.bankMeta.mode, game.bankMeta.level)
-              : game.customTitle)}</span
-        >{#if subtitle || game.bankMeta}<span class="t2"
-            >{subtitle ||
-              `${game.bankMeta.mode === "manual" ? "" : `L${game.bankMeta.level} · `}${levelName(game.bankMeta.level)}`}</span
-          >{/if}</span
+        >{#if dated}<span class="t1"
+            ><span class="full-date">{longDate(dated.day)}</span><span class="short-date"
+              ><span class="wk">{short[0] + ", "}</span>{short[1]}</span
+            ></span
+          ><span class="t2"><DiffLabel diff={dated.diff} size={12} /></span>{:else}<span class="t1"
+            >{title ||
+              (game.bankMeta
+                ? modeName(game.bankMeta.mode, game.bankMeta.level)
+                : game.customTitle)}</span
+          >{#if subtitle || game.bankMeta}<span class="t2"
+              >{subtitle ||
+                `${game.bankMeta.mode === "manual" ? "" : `L${game.bankMeta.level} · `}${levelName(game.bankMeta.level)}`}</span
+            >{/if}{/if}</span
       ></button
     >
   </div>
@@ -200,6 +222,9 @@
   .t2 :global(.diff) {
     gap: 6px;
     font-weight: 500;
+  }
+  .short-date {
+    display: none;
   }
   .dbtn:active {
     background: var(--neutral);
@@ -389,6 +414,12 @@
     }
   }
   @media (max-width: 719px) {
+    .full-date {
+      display: none;
+    }
+    .short-date {
+      display: inline;
+    }
   }
   @media (max-width: 599px) {
     .header {
@@ -417,6 +448,9 @@
     }
   }
   @media (max-width: 359px) {
+    .wk {
+      display: none;
+    }
   }
   .reduced .g {
     transition: none;

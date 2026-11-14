@@ -227,3 +227,24 @@ it("resume records the restored Notes mode when the log is ahead of the checkpoi
     projectRecords(log(storage))[0].settingsHistory.map((s) => s.settings.candidateMode)
   ).toEqual(["auto", "tidy", "auto"]);
 });
+it("startedAt is the attempt's first start, even when resumed on a later day", async () => {
+  const storage = memoryStorage();
+  const data = await meta("a");
+  const day1 = Date.parse("2026-11-11T12:00:00Z");
+  let clock = day1;
+  const a = createRecorder({ storage, locks: null, now: () => clock++, onError: vi.fn() });
+  await a.open(data);
+  const startedAt = a.startedAt;
+  expect(startedAt).toBeGreaterThanOrEqual(day1);
+  a.begin();
+  a.time(5);
+  a.save(toSnapshot(newGame(data.puzzle.digits)), 5);
+  a.lifecycle("pause", 5);
+  await a.flush(true);
+  clock = day1 + 2 * 86400000;
+  const b = createRecorder({ storage, locks: null, now: () => clock++, onError: vi.fn() });
+  expect(await b.resume("a")).not.toBe(null);
+  const attempt = projectRecords(log(storage)).find((x) => x.attemptId === "a");
+  expect(attempt.startedAt).toBeLessThan(day1 + 1000);
+  expect(b.startedAt).toBe(attempt.startedAt);
+});
