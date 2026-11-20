@@ -236,9 +236,7 @@
     border-radius: 7px;
     display: grid;
     place-items: center;
-    font:
-      700 13px/1 "Atkinson Hyperlegible",
-      var(--ui-font);
+    font: 600 13px/1 var(--ui-font);
     font-variant-numeric: tabular-nums;
     background: var(--card);
     box-shadow: inset 0 0 0 1px var(--hair);
