@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { solved } from "./bank-fixture.js";
+import { NOW, seed, solved } from "./bank-fixture.js";
 for (const theme of ["light", "dark", "paper", "dim", "sage"])
   for (const width of [390, 1280]) {
     test(`solved theme ${theme}, ${width}: retained More and readable token colors`, async ({
@@ -28,7 +28,23 @@ for (const [count, priorTime, expected] of [
   [0, 490, false],
 ])
   test(`New best follows prior record (${count},${priorTime})`, async ({ page }) => {
-    await solved(page, { count, priorTime });
+    // The game timer counts play with performance.now(), which seed()'s fixed
+    // Date leaves running. Pause the page clock from Resume to the last digit so
+    // a slow run can't add a real second to the saved 6:42.
+    await page.clock.install({ time: NOW });
+    const data = await seed(page, { count, priorTime });
+    await page.getByRole("button", { name: /Unfinished/ }).click();
+    await expect(page.getByRole("heading", { name: "Unfinished" })).toBeVisible();
+    await page.clock.pauseAt(NOW + 3_600_000);
+    await page
+      .getByRole("button", { name: /Resume .* · L3/ })
+      .last()
+      .click();
+    await expect(page.locator(".board > .cell")).toHaveCount(81);
+    await page.locator(`.board > .cell[data-i="${data.last}"]`).click();
+    await page.keyboard.press(String(data.digit));
+    await page.clock.resume();
+    await expect(page.locator(".sv-panel")).toBeVisible();
     await expect(page.locator(".sv-best")).toHaveCount(expected ? 1 : 0);
     if (priorTime === 200) await expect(page.locator(".sv-panel dd").first()).toHaveText("+3:22");
   });
