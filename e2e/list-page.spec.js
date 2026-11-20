@@ -48,8 +48,8 @@ for (const width of [390, 1280])
       await expect(page.getByRole("region", { name: "#3" })).toContainText("Last played");
       await page.getByRole("button", { name: "Close" }).click();
       await expect(page.locator(".pv")).toHaveCount(0);
-      await page.getByRole("button", { name: "#2, Unsolved", exact: true }).click();
-      const unsolved = page.getByRole("region", { name: "#2" });
+      await page.getByRole("button", { name: "#4, Unsolved", exact: true }).click();
+      const unsolved = page.getByRole("region", { name: "#4" });
       await expect(unsolved).toContainText("Not started");
       await expect(unsolved.getByRole("button", { name: "Start", exact: true })).toBeVisible();
       await page.getByRole("button", { name: /^#3, In progress/ }).click();

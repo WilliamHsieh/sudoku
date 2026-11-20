@@ -187,6 +187,39 @@ describe("customPuzzles", () => {
     expect(items[2]).toMatchObject({ source: "NYT Hard", solvedAt: 41, active: null });
     expect(items[0]).toMatchObject({ solves: [], active: { attemptId: "start" } });
   });
+  it.each([
+    ["faster", 402],
+    ["slower", 505],
+  ])("saves the time from a %s finished replay and keeps the first completion date", (_, time) => {
+    const [item] = customPuzzles([
+      slot("replay", p1, 40, 70, time, true),
+      slot("first", p1, 10, 30, 490, true),
+    ]);
+    expect(item).toMatchObject({
+      name: "Custom #1",
+      state: "solved",
+      solvedAt: 30,
+      solveMs: time * 1000,
+    });
+    expect(item.solves.map((s) => s.attemptId)).toEqual(["first", "replay"]);
+  });
+  it("uses the latest of several completions for Previous while a replay is in progress", () => {
+    const [item] = customPuzzles([
+      slot("active", p1, 80, 90, 125, false),
+      slot("first", p1, 10, 20, 490, true),
+      slot("second-replay", p1, 60, 70, 362, true),
+      slot("first-replay", p1, 30, 50, 300, true),
+    ]);
+    expect(item).toMatchObject({
+      name: "Custom #1",
+      state: "replaying",
+      solvedAt: 20,
+      solveMs: 362000,
+      bestMs: 362000,
+      active: { attemptId: "active", effectiveMs: 125000 },
+    });
+    expect(item.solves.map((s) => s.elapsed)).toEqual([490, 300, 362]);
+  });
 });
 describe("Custom #N numbering", () => {
   it("gives each board one number that replays never change, and leaves other boards' numbers alone", async () => {

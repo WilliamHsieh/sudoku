@@ -2,14 +2,15 @@
   import { onMount } from "svelte";
   import Icon from "../journal/Icon.svelte";
   import { formatTime } from "../store.js";
-  /** `attempt` is the latest completion (its time is saved); `solvedAt` is the first.
-   * @type {{attempt: Pick<import('./types.js').Attempt, 'endedAt'|'effectiveMs'>, solvedAt?: number, name: string, listName: string, delta: number | null, replay: {effectiveMs:number,attemptId:string} | null, onback: () => void, onreplay: () => void, onresume: () => void}} */
-  let { attempt, solvedAt, name, listName, delta, replay, onback, onreplay, onresume } = $props();
-  const stamp = $derived(new Date(solvedAt ?? attempt.endedAt));
+  /** @type {{solvedAt: number, effectiveMs: number, name: string, listName: string, delta: number | null, replay: {effectiveMs:number,attemptId:string} | null, onback: () => void, onreplay: () => void, onresume: () => void}} */
+  let { solvedAt, effectiveMs, name, listName, delta, replay, onback, onreplay, onresume } =
+    $props();
+  const stamp = $derived(new Date(solvedAt));
   const date = $derived(stamp.toLocaleDateString("en-US", { month: "short", day: "numeric" }));
   const time = $derived(
     stamp.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
   );
+  const savedTime = $derived(formatTime(Math.floor(effectiveMs / 1000)));
   onMount(() => document.getElementById("sv-h")?.focus({ preventScroll: true }));
 </script>
 
@@ -19,9 +20,7 @@
       <Icon name="circle-check" /><span>Solved {date} at {time}</span>
     </h2>
     <div class="result-row">
-      <p class="hero" aria-label={`Time ${formatTime(Math.floor(attempt.effectiveMs / 1000))}`}>
-        {formatTime(Math.floor(attempt.effectiveMs / 1000))}
-      </p>
+      <p class="hero" aria-label={`Time ${savedTime}`}>{savedTime}</p>
       <span class="summary"
         >{name}{#if delta !== null}
           · {formatTime(Math.abs(delta))} {delta > 0 ? "slower" : "faster"} than average{/if}</span
@@ -40,8 +39,7 @@
     </div>
     <p id="sv-rn" class="note">
       <Icon name="history" /><span
-        >Your <b>{formatTime(Math.floor(attempt.effectiveMs / 1000))}</b> stays saved until you
-        finish {replay ? "the" : "a"} replay.</span
+        >Your <b>{savedTime}</b> stays saved until you finish {replay ? "the" : "a"} replay.</span
       >
     </p>
   </div>

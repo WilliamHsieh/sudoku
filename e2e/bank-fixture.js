@@ -27,6 +27,7 @@ export async function fixture({
   custom = false,
   time = 402,
   priorTime = 490,
+  customPriorTimes = [priorTime],
   extra = false,
   complete = false,
   customBoards = [],
@@ -89,16 +90,23 @@ export async function fixture({
   board = clearCell(board, last).state;
   if (replay && !custom) await record(puzzle, "original", priorTime, true);
   if (custom) {
-    if (replay) {
-      const original = createCustomRecorder({ storage, locks: null });
-      await original.open("original");
-      original.save(toSnapshot(solvedState(puzzle.digits)), priorTime, true);
-      await original.flush(true);
-    }
     const recorder = createCustomRecorder({ storage, locks: null });
+    if (replay) {
+      for (const [i, elapsed] of customPriorTimes.entries()) {
+        await recorder.open(i === 0 ? "original" : `original-${i}`);
+        recorder.save(toSnapshot(solvedState(puzzle.digits)), elapsed, true);
+        await recorder.flush(true);
+      }
+    }
     await recorder.open("target");
     recorder.save(toSnapshot(board), time, complete);
     await recorder.flush(true);
+    // Recorder writes use the host clock. Place seeded saves before the page's fixed clock.
+    const saves = JSON.parse(storage.getItem(CUSTOM_SAVES_KEY));
+    const slots = Object.values(saves.slots);
+    for (const [i, slot] of slots.entries())
+      slot.createdAt = slot.updatedAt = clock - (slots.length - i) * 60000;
+    storage.setItem(CUSTOM_SAVES_KEY, JSON.stringify(saves));
   } else await record(puzzle, "target", time, complete, hinted, toSnapshot(board));
   if (extra) {
     clock = NOW - 2000;

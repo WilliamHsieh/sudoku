@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { seed, solved } from "./bank-fixture.js";
+import { finish, seed, solved } from "./bank-fixture.js";
 
 test.use({ viewport: { width: 390, height: 844 }, reducedMotion: "reduce" });
 
@@ -22,13 +22,40 @@ test("first custom solve returns to Custom puzzles without a comparison line", a
   await expect(page.getByRole("button", { name: /^Custom #1, Solved · / })).toBeVisible();
 });
 
-for (const [time, line] of [
-  [402, "1:28 faster than last time"],
-  [505, "0:15 slower than last time"],
+for (const [time, shown, line] of [
+  [402, "6:42", "1:28 faster than last time"],
+  [505, "8:25", "0:15 slower than last time"],
 ])
   test(`a custom replay solve compares with the last solve: ${line}`, async ({ page }) => {
-    await solved(page, { custom: true, replay: true, time, priorTime: 490 });
+    const data = await seed(page, {
+      custom: true,
+      replay: true,
+      time,
+      customPriorTimes: [442, 490],
+    });
+    await page.getByRole("button", { name: "Custom puzzle", exact: true }).click();
+    const replaying = page.getByRole("button", { name: /^Custom #1, Replaying · / });
+    await expect(replaying).toContainText("Previous 8:10");
+    await replaying.click();
+    const savedHeading = page.getByRole("heading", { name: /^Solved / });
+    const firstSolvedOn = await savedHeading.innerText();
+    await expect(page.locator(".sv-view-panel .hero")).toHaveText("8:10");
+    await expect(page.locator("#sv-rn")).toHaveText(
+      "Your 8:10 stays saved until you finish the replay."
+    );
+    await page.getByRole("button", { name: "Resume replay" }).click();
+    await finish(page, data);
     await expect(page.locator(".sv-last")).toHaveText(line);
+    await page.getByRole("button", { name: "Custom puzzles" }).click();
+    await page.getByRole("button", { name: `Custom #1, Solved · ${shown}`, exact: true }).click();
+    await expect(savedHeading).toHaveText(firstSolvedOn);
+    await expect(page.locator(".sv-view-panel .hero")).toHaveText(shown);
+    await page.getByRole("button", { name: "Replay", exact: true }).click();
+    const confirm = page.getByRole("alertdialog");
+    await expect(confirm).toContainText(`When you finish, your new time replaces ${shown}`);
+    await confirm.getByRole("button", { name: "Replay", exact: true }).click();
+    await page.getByRole("button", { name: "Back", exact: true }).click();
+    await expect(replaying).toContainText(`Previous ${shown}`);
   });
 
 test("pasting an unfinished custom board resumes that game", async ({ page }) => {

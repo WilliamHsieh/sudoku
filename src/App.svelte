@@ -409,7 +409,7 @@
   function viewCustomSolve(item) {
     savedItem = null;
     savedCustom = item;
-    game.viewBankSolve(item.puzzle.digits, item.solves[0].elapsed);
+    game.viewBankSolve(item.puzzle.digits, item.solveMs / 1000);
     returnRoute = "custom";
     handleLoadPuzzle();
   }
@@ -582,11 +582,11 @@
       } else {
         await game.flushProgress(true);
         await bank.refresh();
-        const before = customItem?.solves.filter((s) => s.attemptId !== game.customAttemptId);
-        resultModel = customSolvedModel(
-          get(timer),
-          before?.length ? get(timer) - before.at(-1).elapsed : null
-        );
+        const solves = customItem?.solves ?? [];
+        const index = solves.findIndex((s) => s.attemptId === game.customAttemptId);
+        const previous = solves[index - 1];
+        const time = get(timer);
+        resultModel = customSolvedModel(time, previous ? time - previous.elapsed : null);
       }
     } catch (e) {
       showToast(e.message, false, 3500);
@@ -1348,10 +1348,8 @@
         inert={hints.isOpen}
       >
         {#if game.journalView && savedCustom}<SavedSolve
-            attempt={{
-              endedAt: savedCustom.solves[0].updatedAt,
-              effectiveMs: savedCustom.solves[0].elapsed * 1000,
-            }}
+            solvedAt={savedCustom.solvedAt}
+            effectiveMs={savedCustom.solveMs}
             name={savedCustom.name}
             listName="Custom puzzles"
             delta={null}
@@ -1360,8 +1358,8 @@
             onresume={resumeReplay}
             onreplay={() => (replayConfirm = true)}
           />{:else if game.journalView && savedAttempt}<SavedSolve
-            attempt={savedAttempt}
             solvedAt={savedSolvedAt ?? savedAttempt.endedAt}
+            effectiveMs={savedAttempt.effectiveMs}
             name={`L${chosenLevel}`}
             listName={`L${chosenLevel} puzzles`}
             delta={bankSolvedModel(bank.attempts, savedAttempt.attemptId, bank.unlock).delta}
@@ -1609,7 +1607,7 @@
     bank
     unlockNote={!savedCustom}
     time={savedCustom
-      ? savedCustom.solves[0].elapsed
+      ? savedCustom.solveMs / 1000
       : savedAttempt
         ? Math.floor(savedAttempt.effectiveMs / 1000)
         : get(timer)}
