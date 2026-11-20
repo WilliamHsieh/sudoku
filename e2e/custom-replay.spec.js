@@ -1,0 +1,115 @@
+import { test, expect } from "@playwright/test";
+import { finish, seed, solved } from "./bank-fixture.js";
+
+test.use({ viewport: { width: 390, height: 844 }, reducedMotion: "reduce" });
+
+/** With saved custom boards the home card opens the Custom list; its dock opens the editor. */
+async function paste(page, digits) {
+  const card = page.getByRole("button", { name: "Custom puzzle", exact: true });
+  if (await card.isVisible()) await card.click();
+  await page.getByRole("button", { name: "New custom puzzle" }).click();
+  await page.getByRole("button", { name: "Paste puzzle", exact: true }).click();
+  await page.getByRole("textbox", { name: "Puzzle link or 81 digits" }).fill(digits);
+  await page.getByRole("button", { name: "Start puzzle" }).click();
+}
+
+test("first custom solve returns to Custom puzzles without a comparison line", async ({ page }) => {
+  await solved(page, { custom: true });
+  await expect(page.locator(".header .t1")).toHaveText("Custom #1");
+  await expect(page.locator(".sv-last")).toHaveCount(0);
+  await page.getByRole("button", { name: "Custom puzzles" }).click();
+  await expect(page.getByRole("heading", { name: "Custom puzzles" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Custom #1, Solved · / })).toBeVisible();
+});
+
+for (const [time, shown, line] of [
+  [402, "6:42", "1:28 faster than last time"],
+  [505, "8:25", "0:15 slower than last time"],
+  [490, "8:10", "Same time as last time"],
+])
+  test(`a custom replay solve compares with the last solve: ${line}`, async ({ page }) => {
+    const data = await seed(page, {
+      custom: true,
+      replay: true,
+      time,
+      customPriorTimes: [442, 490],
+    });
+    await page.getByRole("button", { name: "Custom puzzle", exact: true }).click();
+    const replaying = page.getByRole("button", { name: /^Custom #1, Replaying · / });
+    await expect(replaying).toContainText("Previous 8:10");
+    await replaying.click();
+    const savedHeading = page.getByRole("heading", { name: /^Solved / });
+    const firstSolvedOn = await savedHeading.innerText();
+    await expect(page.locator(".sv-view-panel .hero")).toHaveText("8:10");
+    await expect(page.locator("#sv-rn")).toHaveText(
+      "Your 8:10 stays saved until you finish the replay."
+    );
+    await page.getByRole("button", { name: "Resume replay" }).click();
+    await finish(page, data);
+    await expect(page.locator(".sv-last")).toHaveText(line);
+    if (time === 490) await expect(page.locator(".sv-last.slower")).toHaveCount(0);
+    await expect
+      .poll(() =>
+        page.locator(".sv-next > span").evaluate((span) => span.scrollHeight - span.clientHeight)
+      )
+      .toBeLessThanOrEqual(0);
+    await page.getByRole("button", { name: "Custom puzzles" }).click();
+    await page.getByRole("button", { name: `Custom #1, Solved · ${shown}`, exact: true }).click();
+    await expect(savedHeading).toHaveText(firstSolvedOn);
+    await expect(page.locator(".sv-view-panel .hero")).toHaveText(shown);
+    await page.getByRole("button", { name: "Replay", exact: true }).click();
+    const confirm = page.getByRole("alertdialog");
+    await expect(confirm).toContainText(`When you finish, your new time replaces ${shown}`);
+    await confirm.getByRole("button", { name: "Replay", exact: true }).click();
+    await page.getByRole("button", { name: "Back", exact: true }).click();
+    await expect(replaying).toContainText(`Previous ${shown}`);
+  });
+
+test("pasting an unfinished custom board resumes that game", async ({ page }) => {
+  const data = await seed(page, { custom: true, time: 125 });
+  await paste(page, data.puzzle.digits);
+  await expect(page.locator(".toast")).toHaveText(
+    "You've played this one. Picking up where you left off."
+  );
+  await expect(page.locator(".header .t1")).toHaveText("Custom #1");
+  await expect(page.locator("#header-time")).toHaveText("2:05");
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Custom puzzles" })).toBeVisible();
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await page.getByRole("button", { name: /Unfinished/ }).click();
+  await expect(page.getByRole("button", { name: /Resume .* · Custom/ })).toHaveCount(1);
+});
+
+test("pasting a solved custom board opens its saved solve and replays it", async ({ page }) => {
+  const data = await seed(page, { custom: true, complete: true, time: 442, extra: true });
+  await paste(page, data.puzzle.digits);
+  await expect(page.locator(".toast")).toHaveText("You've already solved this one.");
+  await expect(page.locator(".header .t1")).toHaveText("Custom #1");
+  await expect(page.locator(".sv-view-panel .summary")).toHaveText("Custom #1");
+  await expect(page.getByRole("button", { name: "Custom puzzles" })).toBeVisible();
+  await page.getByRole("button", { name: "Replay", exact: true }).click();
+  await expect(page.getByRole("alertdialog")).toContainText("7:22");
+  await expect(page.getByRole("alertdialog")).not.toContainText(
+    "Replays don't count toward unlocking."
+  );
+  await page.getByRole("alertdialog").getByRole("button", { name: "Replay" }).click();
+  await expect(page.locator(".board > .cell")).toHaveCount(81);
+  await expect(page.locator(".header .t1")).toHaveText("Custom #1");
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await paste(page, data.puzzle.digits);
+  await expect(page.locator(".toast")).toHaveText(
+    "You've played this one. Picking up where you left off."
+  );
+  await expect(page.locator(".sv-view-panel")).toHaveCount(0);
+});
+
+test("pasting a board mid-replay resumes the replay", async ({ page }) => {
+  const data = await seed(page, { custom: true, replay: true, priorTime: 490, time: 125 });
+  await paste(page, data.puzzle.digits);
+  await expect(page.locator(".toast")).toHaveText(
+    "You've played this one. Picking up where you left off."
+  );
+  await expect(page.locator(".sv-view-panel")).toHaveCount(0);
+  await expect(page.locator(".header .t1")).toHaveText("Custom #1");
+  await expect(page.locator("#header-time")).toHaveText("2:05");
+});

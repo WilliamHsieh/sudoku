@@ -130,8 +130,10 @@ test.describe("native shell", () => {
     await page.goto("./");
     await page.getByRole("button", { name: "Choose L1–L8" }).click();
     await page.getByRole("button", { name: /^L3 / }).click();
-    await expect(page.locator(".puzzles li").last()).toBeAttached();
-    await page.locator(".puzzles li").last().scrollIntoViewIfNeeded();
+    await expect(page.getByRole("heading", { name: "Level 3", exact: true })).toBeVisible();
+    await expect(page.locator(".t").last()).toBeAttached();
+    await expect(page.locator(".t").last()).toHaveAccessibleName("#500, Unsolved");
+    await page.locator(".t").last().scrollIntoViewIfNeeded();
     await expectNoPageOverflow(page);
   });
 

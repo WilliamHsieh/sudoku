@@ -57,7 +57,8 @@ export function bankSolvedModel(attempts, attemptId, previous) {
     label: `Next: ${emh ? modeName(attempt.mode, result.level) : `L${nextLevel}`}`,
   };
 }
-export function customSolvedModel(time) {
+/** @param {number} time @param {number | null} [lastDelta] seconds vs the previous solve of this board */
+export function customSolvedModel(time, lastDelta = null) {
   return {
     result: null,
     attemptId: null,
@@ -69,8 +70,9 @@ export function customSolvedModel(time) {
     streak: 0,
     feeling: false,
     feedback: undefined,
+    lastDelta,
     nextMode: "manual",
     nextLevel: 3,
-    label: "Next: L3",
+    label: "Custom puzzles",
   };
 }
