@@ -196,13 +196,13 @@ export async function solved(page, options = {}) {
 export async function openList(page, level = 3) {
   await page.getByRole("button", { name: "Choose L1–L8" }).click();
   await page.getByRole("button", { name: new RegExp(`^L${level} `) }).click();
-  await expect(page.getByRole("tablist", { name: "篩選" })).toBeVisible();
+  await expect(page.getByRole("tablist", { name: "Filter" })).toBeVisible();
 }
 /** Wall tiles open the info bar; its button performs the row action. */
 export async function openTile(page, name) {
   await page.getByRole("button", { name }).click();
   await page
     .locator(".pv")
-    .getByRole("button", { name: /看已解盤面|開始|繼續/ })
+    .getByRole("button", { name: /^(View solved board|Start|Resume)$/ })
     .click();
 }

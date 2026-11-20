@@ -46,7 +46,7 @@
     {:else}You'll start from a fresh board at 0:00. Your <b>{formatTime(time)}</b> stays saved, and is
       replaced only if you finish.{/if}
   </p>
-  {#if unlockNote}<p class="bank-note">重玩不計入解鎖進度。</p>{/if}
+  {#if unlockNote}<p class="bank-note">Replays don't count toward unlocking.</p>{/if}
   <div class="actions">
     <button class="quiet" onclick={oncancel}>Cancel</button>
     <button class="primary" onclick={onconfirm}

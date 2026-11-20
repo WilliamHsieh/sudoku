@@ -111,7 +111,7 @@ export function createBankUI() {
         const slot = attempt && slots.find((s) => s.attemptId === attempt.attemptId);
         return {
           ...item,
-          name: `第 ${item.index} 題`,
+          name: `#${item.index}`,
           active: attempt
             ? {
                 attemptId: attempt.attemptId,

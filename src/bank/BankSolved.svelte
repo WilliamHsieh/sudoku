@@ -41,12 +41,12 @@
     <div class="sv-time" aria-label={`Time ${formatTime(model.time)}`}>
       {formatTime(model.time)}
     </div>
-    {#if "lastDelta" in model && model.lastDelta !== null}<div
+    {#if "lastDelta" in model && model.lastDelta}<div
         class="sv-last"
         class:slower={model.lastDelta > 0}
       >
-        比上次{model.lastDelta > 0 ? "慢" : "快"}
         {formatTime(Math.abs(model.lastDelta))}
+        {model.lastDelta > 0 ? "slower" : "faster"} than last time
       </div>{/if}
     {#if model.third}<dl>
         {#if model.delta !== null}<div>

@@ -6,8 +6,8 @@ import { CUSTOM_SAVES_KEY } from "../src/bank/custom-recorder.js";
 test.use({ viewport: { width: 390, height: 844 }, reducedMotion: "reduce" });
 
 for (const [complete, toast] of [
-  [false, "這題之前玩過，已幫你接著玩"],
-  [true, "這題之前解過"],
+  [false, "You've played this one. Picking up where you left off."],
+  [true, "You've already solved this one."],
 ])
   test(`Start before the saves load reopens a known ${complete ? "solved" : "unfinished"} link`, async ({
     page,

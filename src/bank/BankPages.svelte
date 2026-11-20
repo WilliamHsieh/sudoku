@@ -24,7 +24,7 @@
   }
 </script>
 
-<div lang="zh-Hant" class="bank-pages">
+<div lang={custom || route === "list" ? "en" : "zh-Hant"} class="bank-pages">
   <header class="bar">
     {#if route !== "home"}<button
         class="back"

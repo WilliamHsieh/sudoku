@@ -23,11 +23,11 @@ for (const width of [390, 1280])
       await expect(page.locator(".t.prog")).toHaveText("4");
       await expect(page.locator(".t.next")).toHaveCount(1);
       await page.getByRole("tab", { name: "Solved 2" }).click();
-      await expect(cards(page)).toHaveText(["第 2 題", "第 1 題"]);
+      await expect(cards(page)).toHaveText(["#2", "#1"]);
       await page.getByRole("tab", { name: "In progress 2" }).click();
-      await expect(cards(page)).toHaveText(["第 3 題", "第 4 題"]);
-      await expect(page.locator(".cd").first()).toContainText("最佳 8:10");
-      await page.getByRole("button", { name: /^第 3 題，重玩中/ }).click();
+      await expect(cards(page)).toHaveText(["#3", "#4"]);
+      await expect(page.locator(".cd").first()).toContainText("Previous 8:10");
+      await page.getByRole("button", { name: /^#3, Replaying/ }).click();
       await expect(page.getByRole("button", { name: "Resume replay" })).toBeVisible();
     });
 
@@ -36,19 +36,24 @@ for (const width of [390, 1280])
     }) => {
       await seed(page, { count: 1, extra: true });
       await openList(page);
-      const bar = page.getByRole("region", { name: "第 1 題" });
-      await page.getByRole("button", { name: /^第 1 題，已解/ }).click();
-      await expect(bar).toContainText("已解 · 8:10");
-      await expect(bar).toContainText("解於");
+      const bar = page.getByRole("region", { name: "#1" });
+      await page.getByRole("button", { name: /^#1, Solved/ }).click();
+      await expect(bar).toContainText("Solved · 8:10");
+      await expect(bar).toContainText("Solved Nov 9");
+      await expect(bar.getByRole("button", { name: "View solved board" })).toBeVisible();
       await expect(bar.locator("svg.thumb")).toBeVisible();
       await expect(page.locator(".t.picked")).toHaveText("1");
-      await page.getByRole("button", { name: /^第 3 題，進行中/ }).click();
+      await page.getByRole("button", { name: /^#3, In progress/ }).click();
       await expect(bar).toHaveCount(0);
-      await expect(page.getByRole("region", { name: "第 3 題" })).toContainText("上次玩");
-      await page.getByRole("button", { name: "關閉" }).click();
+      await expect(page.getByRole("region", { name: "#3" })).toContainText("Last played");
+      await page.getByRole("button", { name: "Close" }).click();
       await expect(page.locator(".pv")).toHaveCount(0);
-      await page.getByRole("button", { name: /^第 3 題，進行中/ }).click();
-      await page.getByRole("button", { name: "繼續" }).click();
+      await page.getByRole("button", { name: "#2, Unsolved", exact: true }).click();
+      const unsolved = page.getByRole("region", { name: "#2" });
+      await expect(unsolved).toContainText("Not started");
+      await expect(unsolved.getByRole("button", { name: "Start", exact: true })).toBeVisible();
+      await page.getByRole("button", { name: /^#3, In progress/ }).click();
+      await page.getByRole("button", { name: "Resume", exact: true }).click();
       await expect(page.locator("[data-time]").first()).toContainText("2:03");
     });
 
@@ -57,10 +62,16 @@ for (const width of [390, 1280])
       await openList(page, 4);
       await expect(page.getByRole("tab", { name: "Solved 0" })).toBeVisible();
       await page.getByRole("tab", { name: "In progress 0" }).click();
-      await expect(page.locator(".empty")).toContainText("這一級還沒有進行中的題");
+      await expect(page.locator(".empty")).toContainText("No puzzles in progress");
+      await expect(page.locator(".empty")).toContainText(
+        "Start a puzzle and leave midway, and it shows up here."
+      );
       await page.getByRole("tab", { name: "Solved 0" }).click();
-      await expect(page.locator(".empty")).toContainText("這一級還沒有解完的題");
-      await expect(page.getByRole("button", { name: "Next: 第 1 題" })).toBeVisible();
+      await expect(page.locator(".empty")).toContainText("No solved puzzles yet");
+      await expect(page.locator(".empty")).toContainText(
+        "Puzzles you solve show up here, ready to replay."
+      );
+      await expect(page.getByRole("button", { name: "Next: #1" })).toBeVisible();
     });
 
     test("Custom page: home card, tabs, recent-first cards and tap rules", async ({ page }) => {
@@ -79,14 +90,14 @@ for (const width of [390, 1280])
       await expect(page.getByRole("heading", { name: "Custom puzzles" })).toBeVisible();
       await expect(page.getByRole("tab")).toHaveText(["All 4", "Solved 2", "In progress 2"]);
       await expect(cards(page)).toHaveText(["Custom 4", "Custom 3", "Custom 2", "Custom 1"]);
-      await expect(page.getByRole("button", { name: "Custom 1，已解 · 7:22" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Custom 1, Solved · 7:22" })).toBeVisible();
       await expect(page.locator(".cd").first()).toContainText("NYT Hard");
       await page.getByRole("tab", { name: "In progress 2" }).click();
       await expect(cards(page)).toHaveText(["Custom 3", "Custom 2"]);
-      await page.getByRole("button", { name: /^Custom 2，進行中/ }).click();
+      await page.getByRole("button", { name: /^Custom 2, In progress/ }).click();
       await expect(page.locator(".header .t1")).toHaveText("Custom 2");
       await page.getByRole("button", { name: "Back", exact: true }).click();
-      await page.getByRole("button", { name: "Custom 1，已解 · 7:22" }).click();
+      await page.getByRole("button", { name: "Custom 1, Solved · 7:22" }).click();
       await expect(page.locator(".sv-view-panel .summary")).toHaveText("Custom 1");
       await page.getByRole("button", { name: "Custom puzzles" }).click();
       await page.getByRole("button", { name: "New custom puzzle" }).click();
@@ -97,6 +108,6 @@ for (const width of [390, 1280])
       await solved(page, { custom: true });
       await page.getByRole("button", { name: "Custom puzzles" }).click();
       await page.getByRole("tab", { name: "Solved 1" }).click();
-      await expect(page.getByRole("button", { name: /^Custom 1，已解 · / })).toBeVisible();
+      await expect(page.getByRole("button", { name: /^Custom 1, Solved · / })).toBeVisible();
     });
   });

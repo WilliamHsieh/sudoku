@@ -17,7 +17,7 @@ for (const width of [390, 1280]) {
     await page.getByRole("button", { name: "Choose L1–L8" }).click();
     await page.getByRole("button", { name: /^L4 / }).click({ force: true });
     await expect(page.locator(".toast")).toHaveText("再解 3 題 L3，解鎖 L4");
-    await expect(page.getByRole("tablist", { name: "篩選" })).toHaveCount(0);
+    await expect(page.getByRole("tablist", { name: "Filter" })).toHaveCount(0);
     await page.getByRole("button", { name: /^L6 / }).click({ force: true });
     await expect(page.locator(".toast")).toHaveText("先解鎖 L4 和 L5，才能玩 L6");
   });
@@ -25,12 +25,12 @@ for (const width of [390, 1280]) {
     await page.setViewportSize({ width, height: 844 });
     await seed(page, { count: 2 });
     await openList(page);
-    await expect(page.getByRole("button", { name: "Next: 第 4 題" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Next: #4" })).toBeVisible();
     await page.getByRole("tab", { name: "Solved 2" }).click();
     await expect(page.locator(".cd")).toHaveCount(2);
     await page.getByRole("tab", { name: "In progress 1" }).click();
     await expect(page.locator(".cd")).toHaveCount(1);
-    await expect(page.locator(".cd")).toContainText("進行中 · 6:42");
+    await expect(page.locator(".cd")).toContainText("In progress · 6:42");
     await page.getByRole("tab", { name: /^Unsolved / }).click();
     await expect(page.locator(".t").first()).toHaveText("4");
     await expect(page.locator(".t.done, .t.prog")).toHaveCount(0);
@@ -73,11 +73,11 @@ test("home has no NYT daily puzzles entry", async ({ page }) => {
 test("a fresh level shows the signed empty states on Solved and In progress", async ({ page }) => {
   await seed(page, { highest: 4 });
   await openList(page, 4);
-  await expect(page.getByRole("button", { name: "Next: 第 1 題" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Next: #1" })).toBeVisible();
   await expect(page.locator(".empty")).toHaveCount(0);
   await page.getByRole("tab", { name: "Solved 0" }).click();
-  await expect(page.locator(".empty")).toContainText("這一級還沒有解完的題");
+  await expect(page.locator(".empty")).toContainText("No solved puzzles yet");
   await page.getByRole("tab", { name: "In progress 0" }).click();
   await expect(page.locator(".cd")).toHaveCount(0);
-  await expect(page.locator(".empty")).toContainText("這一級還沒有進行中的題");
+  await expect(page.locator(".empty")).toContainText("No puzzles in progress");
 });

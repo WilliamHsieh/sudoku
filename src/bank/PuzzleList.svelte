@@ -25,14 +25,14 @@
   const time = (ms) => formatTime(Math.floor((ms ?? 0) / 1000));
   const status = (item) =>
     ({
-      unsolved: "未解",
-      solved: `已解 · ${time(item.solveMs)}`,
-      in_progress: `進行中 · ${time(item.active?.effectiveMs)}`,
-      replaying: `重玩中 · ${time(item.active?.effectiveMs)}`,
+      unsolved: "Unsolved",
+      solved: `Solved · ${time(item.solveMs)}`,
+      in_progress: `In progress · ${time(item.active?.effectiveMs)}`,
+      replaying: `Replaying · ${time(item.active?.effectiveMs)}`,
     })[item.state];
   const sub = (item) =>
     item.state === "replaying"
-      ? `最佳 ${time(item.bestMs)}`
+      ? `Previous ${time(item.bestMs)}`
       : custom
         ? `${date(item.openedAt)}${item.source ? ` · ${item.source}` : ""}`
         : date(item.solvedAt ?? item.active.updatedAt);
@@ -61,7 +61,7 @@
 </script>
 
 <div class="d-top">
-  <div class="tabs" role="tablist" aria-label="篩選">
+  <div class="tabs" role="tablist" aria-label="Filter">
     {#each listTabs(custom) as name (name)}<button
         role="tab"
         aria-selected={tab === name}
@@ -84,7 +84,7 @@
               class:next={item.index === list.nextIndex}
               class:picked={item.index === picked?.index}
               data-index={item.index}
-              aria-label={`${item.name}，${status(item)}`}
+              aria-label={`${item.name}, ${status(item)}`}
               aria-pressed={item.index === picked?.index}
               onclick={() => pick(item)}>{item.index}</button
             >{/each}
@@ -99,7 +99,7 @@
             class:s-done={item.state === "solved"}
             class:s-prog={item.state === "in_progress"}
             class:s-redo={item.state === "replaying"}
-            aria-label={`${item.name}，${status(item)}`}
+            aria-label={`${item.name}, ${status(item)}`}
             onclick={() => onpuzzle(item)}
             ><BoardPreview
               givens={item.puzzle.digits}
@@ -115,11 +115,11 @@
             ></button
           >{/each}
       </div>{:else if tab === "In progress"}<p class="empty">
-        <b>{custom ? "還沒有進行中的自訂題" : "這一級還沒有進行中的題"}</b
-        >開始一題、玩到一半離開，就會出現在這裡。
+        <b>{custom ? "No custom puzzles in progress" : "No puzzles in progress"}</b>Start a puzzle
+        and leave midway, and it shows up here.
       </p>{:else if tab === "Solved"}<p class="empty">
-        <b>{custom ? "還沒有解完的自訂題" : "這一級還沒有解完的題"}</b
-        >解完的題會出現在這裡，之後可以重玩。
+        <b>{custom ? "No solved custom puzzles yet" : "No solved puzzles yet"}</b>Puzzles you solve
+        show up here, ready to replay.
       </p>{/if}
   </div>
 {/if}
@@ -133,22 +133,22 @@
       />
       <div class="tx">
         <b>{item.name}</b><span class="d"
-          >{#if item.state === "unsolved"}未解{:else}<em class:ok={item.state === "solved"}
+          >{#if item.state === "unsolved"}Unsolved{:else}<em class:ok={item.state === "solved"}
               >{status(item)}</em
             >{#if item.state === "replaying"}
-              · 最佳 {time(item.bestMs)}{/if}{/if}</span
+              · {sub(item)}{/if}{/if}</span
         ><span class="d"
           >{item.state === "unsolved"
-            ? "還沒開始"
+            ? "Not started"
             : item.state === "in_progress"
-              ? `上次玩 ${date(item.active.updatedAt)}`
-              : `解於 ${date(item.solvedAt)}`}</span
+              ? `Last played ${date(item.active.updatedAt)}`
+              : `Solved ${date(item.solvedAt)}`}</span
         >{#if item.state === "solved" || item.state === "replaying"}<button
             class="pk-btn"
-            onclick={() => onpuzzle(item)}>看已解盤面</button
+            onclick={() => onpuzzle(item)}>View solved board</button
           >{:else}<button class="pk-btn pri" onclick={() => onpuzzle(item)}
-            ><Icon name="play" />{item.state === "unsolved" ? "開始" : "繼續"}</button
-          >{/if}<button class="pk-x" aria-label="關閉" onclick={() => (picked = null)}
+            ><Icon name="play" />{item.state === "unsolved" ? "Start" : "Resume"}</button
+          >{/if}<button class="pk-x" aria-label="Close" onclick={() => (picked = null)}
           ><Icon name="x" /></button
         >
       </div>
@@ -157,7 +157,7 @@
     >{:else if list.nextIndex}<button
       class="go"
       onclick={() => onpuzzle(list.items[list.nextIndex - 1])}
-      ><Icon name="play" />Next: 第 {list.nextIndex} 題</button
+      ><Icon name="play" />Next: #{list.nextIndex}</button
     >{/if}
 </div>
 

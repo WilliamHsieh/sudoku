@@ -292,7 +292,7 @@ test("on a phone list, the update notice also clears the taller dock of an open 
     const dockBox = await dock.boundingBox();
     expect(noticeBox.y + noticeBox.height).toBeLessThanOrEqual(dockBox.y);
   }).toPass();
-  await dock.getByRole("button", { name: "看已解盤面" }).tap();
+  await dock.getByRole("button", { name: "View solved board" }).tap();
   await expect(page.locator(".sv-view-panel")).toBeVisible();
 });
 

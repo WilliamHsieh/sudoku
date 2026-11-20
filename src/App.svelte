@@ -422,7 +422,13 @@
     if (solved) viewCustomSolve(item);
     else await resumeBank(item.active.attemptId);
     await tick();
-    showToast(solved ? "這題之前解過" : "這題之前玩過，已幫你接著玩", false, 2600);
+    showToast(
+      solved
+        ? "You've already solved this one."
+        : "You've played this one. Picking up where you left off.",
+      false,
+      2600
+    );
     return true;
   }
   async function startCustomPuzzle() {
