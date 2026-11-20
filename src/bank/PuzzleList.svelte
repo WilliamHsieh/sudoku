@@ -34,7 +34,7 @@
     item.state === "replaying"
       ? `Previous ${time(item.bestMs)}`
       : custom
-        ? `${date(item.openedAt)}${item.source ? ` · ${item.source}` : ""}`
+        ? date(item.openedAt)
         : date(item.solvedAt ?? item.active.updatedAt);
   /** Keep a tile clear of the dock (the info bar, or Next on open). @param {number} index */
   async function reveal(index) {
@@ -94,12 +94,13 @@
 {:else}
   <div class="cards">
     {#if shown.length}<div class="gal">
-        {#each shown as item (item.index)}<button
+        {#each shown as item (item.index)}{@const title =
+            (custom && item.source) || item.name}<button
             class="cd"
             class:s-done={item.state === "solved"}
             class:s-prog={item.state === "in_progress"}
             class:s-redo={item.state === "replaying"}
-            aria-label={`${item.name}, ${status(item)}`}
+            aria-label={`${title}, ${status(item)}`}
             onclick={() => onpuzzle(item)}
             ><BoardPreview
               givens={item.puzzle.digits}
@@ -107,8 +108,7 @@
               solved={item.state === "solved"}
             /><span class="meta"
               ><span
-                ><b>{item.name}</b><span class="s">{status(item)}</span><span>{sub(item)}</span
-                ></span
+                ><b>{title}</b><span class="s">{status(item)}</span><span>{sub(item)}</span></span
               ><span class="st"
                 ><Icon name={item.state === "in_progress" ? "circle-play" : "circle-check"} /></span
               ></span

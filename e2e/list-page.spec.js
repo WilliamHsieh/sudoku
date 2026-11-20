@@ -75,13 +75,14 @@ for (const width of [390, 1280])
     });
 
     test("Custom page: home card, tabs, recent-first cards and tap rules", async ({ page }) => {
+      const nytLabel = "NYT 2026-11-10 · Hard";
       await seed(page, {
         extra: true,
         customBoards: [
           { state: "solved", solved: 442 },
           { state: "in_progress", time: 125 },
           { state: "replaying" },
-          { state: "solved", label: "NYT 2026-11-10 · Hard" },
+          { state: "solved", label: nytLabel },
         ],
       });
       const card = page.getByRole("button", { name: "Custom puzzle", exact: true });
@@ -89,17 +90,13 @@ for (const width of [390, 1280])
       await card.click();
       await expect(page.getByRole("heading", { name: "Custom puzzles" })).toBeVisible();
       await expect(page.getByRole("tab")).toHaveText(["All 4", "Solved 2", "In progress 2"]);
-      await expect(cards(page)).toHaveText([
-        "NYT 2026-11-10 · Hard",
-        "Custom #3",
-        "Custom #2",
-        "Custom #1",
-      ]);
+      await expect(cards(page)).toHaveText(["NYT Hard", "Custom #3", "Custom #2", "Custom #1"]);
       await expect(page.getByRole("button", { name: "Custom #1, Solved · 7:22" })).toBeVisible();
-      await expect(page.locator(".cd").first()).toContainText("NYT Hard");
-      await page.getByRole("button", { name: "NYT 2026-11-10 · Hard, Solved · 7:22" }).click();
-      await expect(page.locator(".header .t1")).toHaveText("NYT 2026-11-10 · Hard");
-      await expect(page.locator(".sv-view-panel .summary")).toHaveText("NYT 2026-11-10 · Hard");
+      const nytCard = page.getByRole("button", { name: "NYT Hard, Solved · 7:22", exact: true });
+      await expect(nytCard.locator(".meta .s + span")).toHaveText("Nov 10");
+      await nytCard.click();
+      await expect(page.locator(".header .t1")).toHaveText(nytLabel);
+      await expect(page.locator(".sv-view-panel .summary")).toHaveText(nytLabel);
       await page.getByRole("button", { name: "Custom puzzles" }).click();
       await page.getByRole("tab", { name: "In progress 2" }).click();
       await expect(cards(page)).toHaveText(["Custom #3", "Custom #2"]);
@@ -109,6 +106,17 @@ for (const width of [390, 1280])
       await page.getByRole("button", { name: "Custom #1, Solved · 7:22" }).click();
       await expect(page.locator(".sv-view-panel .summary")).toHaveText("Custom #1");
       await page.getByRole("button", { name: "Custom puzzles" }).click();
+      await nytCard.click();
+      await page.getByRole("button", { name: "Replay", exact: true }).click();
+      await page
+        .getByRole("alertdialog")
+        .getByRole("button", { name: "Replay", exact: true })
+        .click();
+      await expect(page.locator(".sv-view-panel")).toHaveCount(0);
+      await expect(page.locator(".header .t1")).toHaveText(nytLabel);
+      await page.getByRole("button", { name: "Back", exact: true }).click();
+      const nytReplay = page.getByRole("button", { name: /^NYT Hard, Replaying · / });
+      await expect(nytReplay.locator(".meta .s + span")).toHaveText("Previous 7:22");
       await page.getByRole("button", { name: "New custom puzzle" }).click();
       await expect(page.locator(".input-cell")).toHaveCount(81);
     });
