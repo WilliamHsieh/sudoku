@@ -41,7 +41,7 @@
     <div class="sv-time" aria-label={`Time ${formatTime(model.time)}`}>
       {formatTime(model.time)}
     </div>
-    {#if "lastDelta" in model && model.lastDelta}<div
+    {#if "lastDelta" in model && model.lastDelta !== null}<div
         class="sv-last"
         class:slower={model.lastDelta > 0}
       >
