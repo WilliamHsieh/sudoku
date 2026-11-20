@@ -139,9 +139,8 @@ export function customPuzzles(slots) {
     return {
       puzzle: { digits: group[0].puzzle },
       index: i + 1,
-      name: `Custom ${i + 1}`,
+      name: label === CUSTOM_LABEL ? `Custom #${i + 1}` : label,
       label,
-      title: label === CUSTOM_LABEL ? `Custom ${i + 1}` : label,
       source: label === CUSTOM_LABEL ? null : label.replace(/ \d{4}-\d{2}-\d{2} ·/, ""),
       openedAt: opened(group[0]),
       playedAt: Math.max(...group.map((s) => s.updatedAt)),

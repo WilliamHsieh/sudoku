@@ -50,6 +50,7 @@ for (const [count, priorTime, expected] of [
   });
 test("custom solved panel has no stats, feelings or More custom row", async ({ page }) => {
   await solved(page, { custom: true });
+  await expect(page.locator(".header .t1")).toHaveText("Custom #1");
   await expect(page.locator(".sv-panel dl")).toHaveCount(0);
   await expect(page.locator(".sv-feel")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Custom puzzles" })).toBeVisible();

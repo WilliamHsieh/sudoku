@@ -135,8 +135,8 @@ describe("custom multi-slot saves", () => {
     const numbered = async () =>
       customPuzzles(await recorder(storage).all()).map((i) => [i.name, i.openedAt]);
     expect(await numbered()).toEqual([
-      ["Custom 1", 1000],
-      ["Custom 2", 2000],
+      ["Custom #1", 1000],
+      ["Custom #2", 2000],
     ]);
     const now = vi.spyOn(Date, "now").mockReturnValue(9000);
     const a = recorder(storage);
@@ -146,8 +146,8 @@ describe("custom multi-slot saves", () => {
     now.mockRestore();
     expect(await recorder(storage).open("a")).toMatchObject({ createdAt: 2000, updatedAt: 9000 });
     expect(await numbered()).toEqual([
-      ["Custom 1", 1000],
-      ["Custom 2", 2000],
+      ["Custom #1", 1000],
+      ["Custom #2", 2000],
     ]);
   });
 });
@@ -170,10 +170,10 @@ describe("customPuzzles", () => {
       slot("nyt", p3, 40, 41, 300, true, "NYT 2026-11-10 · Hard"),
       slot("start", p1, 10, 11, 12, false),
     ]);
-    expect(items.map((i) => [i.name, i.title])).toEqual([
-      ["Custom 1", "Custom 1"],
-      ["Custom 2", "Custom 2"],
-      ["Custom 3", "NYT 2026-11-10 · Hard"],
+    expect(items.map((i) => [i.index, i.name])).toEqual([
+      [1, "Custom #1"],
+      [2, "Custom #2"],
+      [3, "NYT 2026-11-10 · Hard"],
     ]);
     expect(items.map((i) => i.state)).toEqual(["in_progress", "replaying", "solved"]);
     expect(items[1].solves.map((s) => s.attemptId)).toEqual(["first"]);
@@ -188,7 +188,7 @@ describe("customPuzzles", () => {
     expect(items[0]).toMatchObject({ solves: [], active: { attemptId: "start" } });
   });
 });
-describe("Custom N numbering", () => {
+describe("Custom #N numbering", () => {
   it("gives each board one number that replays never change, and leaves other boards' numbers alone", async () => {
     const storage = memoryStorage();
     const [p1, p2, p3, p4] = [1, 2, 3, 4].map((n) => puzzle(n).digits);
@@ -208,7 +208,7 @@ describe("Custom N numbering", () => {
     await play("b1", p2, true);
     await play("a1", p1, true);
     await play("c1", p3, false);
-    const before = { [p2]: "Custom 1", [p1]: "Custom 2", [p3]: "Custom 3" };
+    const before = { [p2]: "Custom #1", [p1]: "Custom #2", [p3]: "Custom #3" };
     expect(await numbers()).toEqual(before);
     for (const [i, completed] of [true, true, false].entries()) {
       await play(`a-replay-${i}`, p1, completed);
@@ -218,13 +218,13 @@ describe("Custom N numbering", () => {
     await play("c1", p3, true);
     expect(await numbers()).toEqual(before);
     await play("d1", p4, false);
-    expect(await numbers()).toEqual({ ...before, [p4]: "Custom 4" });
+    expect(await numbers()).toEqual({ ...before, [p4]: "Custom #4" });
     const slots = await recorder(storage).all();
     expect(slots).toHaveLength(8);
     const items = customPuzzles(slots);
     expect(items).toHaveLength(4);
     expect(items[1]).toMatchObject({
-      name: "Custom 2",
+      name: "Custom #2",
       state: "replaying",
       solvedAt: 3000,
       active: { attemptId: "a-replay-2" },

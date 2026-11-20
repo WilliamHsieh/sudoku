@@ -1215,7 +1215,7 @@
     <PlayHeader
       title={game.journalView && savedItem
         ? `L${chosenLevel} · 第 ${savedItem.index} 題`
-        : (customItem?.title ?? "")}
+        : (customItem?.name ?? "")}
       subtitle={game.journalView && savedItem ? levelName(chosenLevel) : ""}
       inert={replayConfirm}
       narrow={isNarrow}

@@ -15,11 +15,11 @@ async function paste(page, digits) {
 
 test("first custom solve returns to Custom puzzles without a comparison line", async ({ page }) => {
   await solved(page, { custom: true });
-  await expect(page.locator(".header .t1")).toHaveText("Custom 1");
+  await expect(page.locator(".header .t1")).toHaveText("Custom #1");
   await expect(page.locator(".sv-last")).toHaveCount(0);
   await page.getByRole("button", { name: "Custom puzzles" }).click();
   await expect(page.getByRole("heading", { name: "Custom puzzles" })).toBeVisible();
-  await expect(page.getByRole("button", { name: /^Custom 1, Solved · / })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Custom #1, Solved · / })).toBeVisible();
 });
 
 for (const [time, line] of [
@@ -37,7 +37,7 @@ test("pasting an unfinished custom board resumes that game", async ({ page }) =>
   await expect(page.locator(".toast")).toHaveText(
     "You've played this one. Picking up where you left off."
   );
-  await expect(page.locator(".header .t1")).toHaveText("Custom 1");
+  await expect(page.locator(".header .t1")).toHaveText("Custom #1");
   await expect(page.locator("#header-time")).toHaveText("2:05");
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Custom puzzles" })).toBeVisible();
@@ -50,8 +50,8 @@ test("pasting a solved custom board opens its saved solve and replays it", async
   const data = await seed(page, { custom: true, complete: true, time: 442, extra: true });
   await paste(page, data.puzzle.digits);
   await expect(page.locator(".toast")).toHaveText("You've already solved this one.");
-  await expect(page.locator(".header .t1")).toHaveText("Custom 1");
-  await expect(page.locator(".sv-view-panel .summary")).toHaveText("Custom 1");
+  await expect(page.locator(".header .t1")).toHaveText("Custom #1");
+  await expect(page.locator(".sv-view-panel .summary")).toHaveText("Custom #1");
   await expect(page.getByRole("button", { name: "Custom puzzles" })).toBeVisible();
   await page.getByRole("button", { name: "Replay", exact: true }).click();
   await expect(page.getByRole("alertdialog")).toContainText("7:22");
@@ -60,7 +60,7 @@ test("pasting a solved custom board opens its saved solve and replays it", async
   );
   await page.getByRole("alertdialog").getByRole("button", { name: "Replay" }).click();
   await expect(page.locator(".board > .cell")).toHaveCount(81);
-  await expect(page.locator(".header .t1")).toHaveText("Custom 1");
+  await expect(page.locator(".header .t1")).toHaveText("Custom #1");
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await paste(page, data.puzzle.digits);
   await expect(page.locator(".toast")).toHaveText(
@@ -76,6 +76,6 @@ test("pasting a board mid-replay resumes the replay", async ({ page }) => {
     "You've played this one. Picking up where you left off."
   );
   await expect(page.locator(".sv-view-panel")).toHaveCount(0);
-  await expect(page.locator(".header .t1")).toHaveText("Custom 1");
+  await expect(page.locator(".header .t1")).toHaveText("Custom #1");
   await expect(page.locator("#header-time")).toHaveText("2:05");
 });

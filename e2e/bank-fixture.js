@@ -104,7 +104,7 @@ export async function fixture({
     clock = NOW - 2000;
     await record(order[count + 1], "other", 123, false);
   }
-  // Custom N is the Nth entry: opened N days before NOW, played on later. Each uses its own
+  // Custom #N is the Nth entry: opened N days before NOW, played on later. Each uses its own
   // level board after the ones above. state: "solved" | "in_progress" | "replaying".
   if (customBoards.length) {
     const slots = JSON.parse(storage.getItem(CUSTOM_SAVES_KEY) ?? '{"slots":{}}').slots;
@@ -172,7 +172,7 @@ export async function resumeTarget(page, options = {}) {
   await page.getByRole("button", { name: /Unfinished/ }).click();
   await expect(page.getByRole("heading", { name: "Unfinished" })).toBeVisible();
   const mode = options.custom
-    ? "Custom 1"
+    ? "Custom #1"
     : ["easy", "medium", "hard"].includes(options.mode)
       ? options.mode[0].toUpperCase() + options.mode.slice(1)
       : `L${options.level ?? 3}`;

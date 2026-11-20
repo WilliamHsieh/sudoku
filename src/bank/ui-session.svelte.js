@@ -62,7 +62,7 @@ export function createBankUI() {
             attemptId: s.attemptId,
             updatedAt: s.updatedAt,
             mode: "custom",
-            label: customItems.find((i) => i.puzzle.digits === s.puzzle)?.title,
+            label: customItems.find((i) => i.puzzle.digits === s.puzzle)?.name,
             level: 0,
             effectiveMs: s.elapsed * 1000,
           })),

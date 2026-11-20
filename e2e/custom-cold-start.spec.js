@@ -28,7 +28,7 @@ for (const [complete, toast] of [
     await page.getByRole("button", { name: "Start puzzle", exact: true }).click();
     await page.evaluate(() => window["releaseSaves"]());
     await expect(page.locator(".toast")).toHaveText(toast);
-    await expect(page.locator(".header .t1")).toHaveText("Custom 1");
+    await expect(page.locator(".header .t1")).toHaveText("Custom #1");
     await expect(page.locator(".sv-view-panel")).toHaveCount(complete ? 1 : 0);
     expect(
       await page.evaluate(
