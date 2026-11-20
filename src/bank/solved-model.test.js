@@ -69,6 +69,7 @@ describe("signed solved variants", () => {
       label: "Custom puzzles",
     });
     expect(customSolvedModel(402, -42).lastDelta).toBe(-42);
+    expect(customSolvedModel(490, 0).lastDelta).toBe(0);
   });
   it("a replay leaves the displayed frontier counter unchanged", () => {
     const earlier = [win(1), win(2)];

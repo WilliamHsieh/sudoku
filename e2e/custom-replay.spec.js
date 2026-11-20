@@ -25,6 +25,7 @@ test("first custom solve returns to Custom puzzles without a comparison line", a
 for (const [time, shown, line] of [
   [402, "6:42", "1:28 faster than last time"],
   [505, "8:25", "0:15 slower than last time"],
+  [490, "8:10", "Same time as last time"],
 ])
   test(`a custom replay solve compares with the last solve: ${line}`, async ({ page }) => {
     const data = await seed(page, {
@@ -46,6 +47,7 @@ for (const [time, shown, line] of [
     await page.getByRole("button", { name: "Resume replay" }).click();
     await finish(page, data);
     await expect(page.locator(".sv-last")).toHaveText(line);
+    if (time === 490) await expect(page.locator(".sv-last.slower")).toHaveCount(0);
     await page.getByRole("button", { name: "Custom puzzles" }).click();
     await page.getByRole("button", { name: `Custom #1, Solved · ${shown}`, exact: true }).click();
     await expect(savedHeading).toHaveText(firstSolvedOn);

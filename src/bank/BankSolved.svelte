@@ -45,8 +45,12 @@
         class="sv-last"
         class:slower={model.lastDelta > 0}
       >
-        {formatTime(Math.abs(model.lastDelta))}
-        {model.lastDelta > 0 ? "slower" : "faster"} than last time
+        {#if model.lastDelta === 0}
+          Same time as last time
+        {:else}
+          {formatTime(Math.abs(model.lastDelta))}
+          {model.lastDelta > 0 ? "slower" : "faster"} than last time
+        {/if}
       </div>{/if}
     {#if model.third}<dl>
         {#if model.delta !== null}<div>
