@@ -1,6 +1,11 @@
 import { test, expect } from "@playwright/test";
 import { DEMO_PUZZLE } from "./helpers.js";
 
+async function openPlay(page) {
+  await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).click();
+  await expect(page.locator(".play:not(.is-paused)")).toHaveAttribute("data-resume-phase", "idle");
+}
+
 // These regressions use real browser timers and CSS animations. A virtual
 // clock cannot reproduce a blocked main thread or observe animation completion.
 for (const busyMs of [250, 650]) {
@@ -84,7 +89,7 @@ async function startAutoReturn(page) {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto(`./?q=${DEMO_PUZZLE}`);
-  await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).click();
+  await openPlay(page);
   await visibility(page, true);
   await page.waitForTimeout(1_100);
   await visibility(page, false);
@@ -174,7 +179,7 @@ for (const awayMs of [500, 999]) {
     // This pins the 999ms boundary even when the test runner is busy.
     await page.clock.setFixedTime(hiddenAt);
     await page.goto(`./?q=${DEMO_PUZZLE}`);
-    await page.getByRole("button", { name: /^(?:Play|Start puzzle)$/, exact: true }).click();
+    await openPlay(page);
     await visibility(page, true);
     await page.waitForTimeout(awayMs);
     await page.clock.setFixedTime(new Date(hiddenAt.getTime() + awayMs));
