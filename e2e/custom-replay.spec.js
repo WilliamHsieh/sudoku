@@ -48,6 +48,11 @@ for (const [time, shown, line] of [
     await finish(page, data);
     await expect(page.locator(".sv-last")).toHaveText(line);
     if (time === 490) await expect(page.locator(".sv-last.slower")).toHaveCount(0);
+    await expect
+      .poll(() =>
+        page.locator(".sv-next > span").evaluate((span) => span.scrollHeight - span.clientHeight)
+      )
+      .toBeLessThanOrEqual(0);
     await page.getByRole("button", { name: "Custom puzzles" }).click();
     await page.getByRole("button", { name: `Custom #1, Solved · ${shown}`, exact: true }).click();
     await expect(savedHeading).toHaveText(firstSolvedOn);

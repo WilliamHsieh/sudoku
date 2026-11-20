@@ -235,6 +235,7 @@
     padding: 0 8px;
   }
   .sv-next > span {
+    line-height: 1.5;
     white-space: nowrap;
     min-width: 0;
     overflow: hidden;
