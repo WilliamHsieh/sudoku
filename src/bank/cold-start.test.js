@@ -58,39 +58,77 @@ describe("per-mode cold-start defaults", () => {
     expect(result.selectedRatingBucket).toBeLessThanOrEqual(69);
   });
 
-  it("stops applying defaults after any ability evidence, even before a promotion", () => {
-    const records = [attempt(100, { puzzle: puzzle(100, 35) })];
-    const ability = deriveAbility({ ...base, records });
-    expect(ability.evidenceCount).toBe(1);
-    expect(ability.provisional).toBe(true);
-    for (const mode of modes) {
-      const result = selectPuzzle({ ...base, records, mode });
-      expect(result.candidateRange).toEqual(ability.bands[mode]);
-      expect(result).toEqual(
-        selectPuzzle({
-          ...base,
-          records,
-          mode,
-          coldStart: setColdStart({ kind: "level", level: 1 }),
-        })
-      );
-    }
+  /** @param {import('./types.js').Mode} mode @param {number[]} ratings @param {number} offset
+   * @param {import('./types.js').Feedback} [feedback] */
+  const solves = (mode, ratings, offset, feedback) =>
+    ratings.map((rating, i) =>
+      attempt(offset + i, { mode, puzzle: puzzle(offset + i, rating) }, "complete", feedback)
+    );
+  // Several L1 solves in every mode, including Hard finishes that the L1 rules would promote.
+  const l1History = [
+    ...solves("easy", [10, 11, 12, 10, 11], 100, "light"),
+    ...solves("medium", [11, 12, 13], 110, "some_effort"),
+    ...solves("hard", [14, 15, 16, 15, 16], 120),
+  ];
+
+  it.each([
+    { mode: "easy", level: 1, min: 10, max: 12 },
+    { mode: "medium", level: 2, min: 26, max: 29 },
+    { mode: "hard", level: 3, min: 35, max: 38 },
+  ])("still starts $mode at L$level after several L1 solves", ({ mode, level, min, max }) => {
+    const m = /** @type {import('./types.js').Mode} */ (mode);
+    expect(deriveAbility({ ...base, records: l1History }).evidenceCount).toBe(13);
+    const result = selectPuzzle({ ...base, records: l1History, mode: m });
+    expect(result.status).toBe("selected");
+    expect(result.context.coldStart).toEqual({ kind: "level", level });
+    expect(result.candidateRange).toEqual({ min, max });
+    expect(result.selectedRatingBucket).toBeGreaterThanOrEqual(min);
+    expect(result.selectedRatingBucket).toBeLessThanOrEqual(max);
+    if (result.status === "selected") expect(result.puzzle.level).toBe(level);
+    // Same as asking for that mode's anchor explicitly.
+    expect(result).toEqual(
+      selectPuzzle({
+        ...base,
+        records: l1History,
+        mode: m,
+        coldStart: setColdStart({
+          kind: "level",
+          level: /** @type {import('./types.js').Level} */ (level),
+        }),
+      })
+    );
   });
 
-  it("leaves learned bands and selections unchanged after promotion", () => {
+  it("moves Hard up from its L3 start after strong Hard results", () => {
+    const records = [...l1History, ...solves("hard", [36, 37, 38, 36, 37], 140)];
+    const result = selectPuzzle({ ...base, records, mode: "hard" });
+    expect(result.status).toBe("selected");
+    expect(result.context.coldStart).toEqual({ kind: "level", level: 3 });
+    expect(result.reason.codes).toContain("personalized_range");
+    expect(result.candidateRange).toEqual({ min: 36, max: 39 });
+    expect(result.selectedRatingBucket).toBeGreaterThanOrEqual(36);
+  });
+
+  it("moves Medium up from its L2 start after light Medium results", () => {
+    const records = [...l1History, ...solves("medium", [27, 28, 29, 27, 28], 140, "light")];
+    const result = selectPuzzle({ ...base, records, mode: "medium" });
+    expect(result.status).toBe("selected");
+    expect(result.context.coldStart).toEqual({ kind: "level", level: 2 });
+    expect(result.reason.codes).toContain("personalized_range");
+    expect(result.candidateRange).toEqual({ min: 26, max: 30 });
+  });
+
+  it("keeps explicit cold starts and their learned bands unchanged after promotion", () => {
     const records = Array.from({ length: 5 }, (_, i) =>
       attempt(100 + i, { mode: "hard", puzzle: puzzle(100 + i, 15) })
     );
-    expect(deriveAbility({ ...base, records }).provisional).toBe(false);
+    const coldStart = setColdStart({ kind: "level", level: 1 });
+    const ability = deriveAbility({ ...base, records, coldStart });
+    expect(ability.provisional).toBe(false);
     for (const mode of modes) {
-      expect(selectPuzzle({ ...base, records, mode })).toEqual(
-        selectPuzzle({
-          ...base,
-          records,
-          mode,
-          coldStart: setColdStart({ kind: "level", level: 1 }),
-        })
-      );
+      const result = selectPuzzle({ ...base, records, mode, coldStart });
+      expect(result.candidateRange).toEqual(ability.bands[mode]);
+      expect(result.context.coldStart).toEqual(coldStart);
     }
   });
 
