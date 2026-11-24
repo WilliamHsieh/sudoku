@@ -2,6 +2,42 @@
 import { test, expect } from "@playwright/test";
 import { seed, openList, openTile, finish, resumeTarget } from "./bank-fixture.js";
 import { switchNotesMode, resumeFromHome } from "./helpers.js";
+for (const custom of [false, true]) {
+  test(`leaving a saved ${custom ? "custom" : "level"} board never mounts a pause cover`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seed(page, { custom, count: 1, complete: true, extra: true });
+    if (custom) {
+      await page.getByRole("button", { name: "Custom puzzle", exact: true }).click();
+      await page.getByRole("button", { name: /^Custom #1, Solved/ }).click();
+    } else {
+      await openList(page);
+      await openTile(page, /#1, Solved/);
+    }
+    await expect(page.locator(".sv-view-panel")).toBeVisible();
+    const inspectPauseCover = await page.evaluateHandle(() => {
+      const play = document.querySelector(".play");
+      let addedCover = false;
+      const observer = new MutationObserver((records) => {
+        addedCover ||= records.some(({ addedNodes }) =>
+          [...addedNodes].some((node) => node instanceof Element && node.matches(".paused-cover"))
+        );
+      });
+      observer.observe(play, { childList: true, subtree: true });
+      return () => {
+        observer.disconnect();
+        return addedCover;
+      };
+    });
+    await page.getByRole("button", { name: "Back", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: custom ? "Custom puzzles" : "Level 3" })
+    ).toBeVisible();
+    expect(await inspectPauseCover.evaluate((inspect) => inspect())).toBe(false);
+  });
+}
+
 for (const width of [390, 1280]) {
   test(`saved board is read-only; Replay confirmation cancels and restores focus (${width})`, async ({
     page,

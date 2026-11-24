@@ -401,7 +401,7 @@
           </div>
         </div>
       {/if}
-      <p class="board-error" role="status">{error}</p>
+      <p class="board-error" role="status">{preview || mode === "paste" ? error : ""}</p>
     </div>
 
     <footer class="action-panel">

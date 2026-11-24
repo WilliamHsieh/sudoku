@@ -270,7 +270,7 @@
   async function navigate(next) {
     try {
       game.select(-1);
-      playUi.pause();
+      if (!game.journalView) playUi.pause();
       game.bankLifecycle("pause");
       await game.flushProgress(true);
       await bank.refresh();
@@ -1458,12 +1458,18 @@
                       d="M12 3v17a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1H3"
                     /><path d="m16 19 2 2 4-4" /></svg
                   >
-                  <span class="af-msg">{singlesCount} cells have one candidate</span>
+                  <span class="af-msg"
+                    >{singlesCount === 1
+                      ? "1 cell has one candidate"
+                      : `${singlesCount} cells have one candidate`}</span
+                  >
                   <button
                     type="button"
                     class="af-btn"
                     onmousedown={(event) => event.preventDefault()}
-                    aria-label={`Fill ${singlesCount} cells that have one candidate`}
+                    aria-label={singlesCount === 1
+                      ? "Fill 1 cell that has one candidate"
+                      : `Fill ${singlesCount} cells that have one candidate`}
                     onclick={fillSingles}>Fill</button
                   >
                 </div>

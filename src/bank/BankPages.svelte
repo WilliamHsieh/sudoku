@@ -366,8 +366,10 @@
     padding: 14px 0;
     min-height: 68px;
   }
-  .lv button:hover {
-    background: var(--neutral-2);
+  @media (hover: hover) {
+    .lv:not(.locked) button:hover {
+      background: var(--neutral-2);
+    }
   }
   .lv .n {
     font-size: 28px;

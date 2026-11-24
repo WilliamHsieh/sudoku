@@ -62,6 +62,16 @@ async function expectLegible(page, selector, background) {
   expect((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)).toBeGreaterThanOrEqual(4.5);
 }
 
+test("mobile fill controls use the singular form for one candidate cell", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const puzzle = `0${solve(DEMO_PUZZLE).slice(1)}`;
+  await openBoard(page, `./?q=${puzzle}`);
+  await expect(page.locator(".af-chip.active .af-msg")).toHaveText("1 cell has one candidate");
+  await expect(
+    page.getByRole("button", { name: "Fill 1 cell that has one candidate" })
+  ).toBeVisible();
+});
+
 for (const width of [390, 1280]) {
   test.describe(`${width}px`, () => {
     test.use({ viewport: { width, height: 900 } });

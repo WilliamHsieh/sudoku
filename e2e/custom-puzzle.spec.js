@@ -221,7 +221,9 @@ test("draft keypad refits after resizing, errors and repeated input-mode changes
   await expect.poll(keyHeight).toBeCloseTo(44.8, 1);
   await expect.poll(overflow).toBeLessThanOrEqual(1);
   await page.getByRole("button", { name: "Enter 3", exact: true }).click();
-  await expect(page.locator(".board-error")).toContainText("Repeated numbers");
+  await expect(page.locator(".draft-summary")).toContainText("Check your input");
+  await expect(page.getByText("Repeated numbers in the highlighted cells.")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Start puzzle", exact: true })).toBeDisabled();
   await expect.poll(overflow).toBeLessThanOrEqual(1);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await page.setViewportSize({ width: 1280, height: 900 });
