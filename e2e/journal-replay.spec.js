@@ -7,7 +7,7 @@ for (const custom of [false, true]) {
     page,
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await seed(page, { custom, count: 1, complete: true });
+    await seed(page, { custom, count: 1, complete: true, extra: true });
     if (custom) {
       await page.getByRole("button", { name: "Custom puzzle", exact: true }).click();
       await page.getByRole("button", { name: /^Custom #1, Solved/ }).click();
