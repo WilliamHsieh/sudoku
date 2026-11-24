@@ -85,21 +85,12 @@ test("notice persists for 60 seconds; dismissal dedupes the same version", async
   await expect(build(page)).toHaveAttribute("content", "old");
 });
 
-test("failed Update restores the buttons after three seconds", async ({
-  page,
-  deployment,
-}, testInfo) => {
-  test.skip(
-    testInfo.project.name === "upgrade-webkit",
-    "Flaky on WebKit; tracked in https://github.com/WilliamHsieh/sudoku/issues/118"
-  );
+test("failed Update restores the buttons after three seconds", async ({ page, deployment }) => {
   await open(page, deployment);
   await publish(page, deployment);
   await page.route("**/*", (route) =>
     route.request().isNavigationRequest() ? route.abort("aborted") : route.continue()
   );
-  await page.clock.install();
-  await page.clock.pauseAt(new Date(Date.now() + 65_000));
   const navigationFailed = page.waitForEvent(
     "requestfailed",
     (request) => request.isNavigationRequest() && request.url().includes("_sudoku_update=")
@@ -107,13 +98,12 @@ test("failed Update restores the buttons after three seconds", async ({
   await notice(page).getByRole("button", { name: "Update", exact: true }).tap();
   await expect(notice(page)).toHaveAttribute("aria-busy", "true");
   await expect(notice(page)).toHaveText("Updating…");
-  // A pending reload can interrupt Playwright's clock advance in the current page.
+  // Let the browser finish aborting the navigation on its own clock. The unit
+  // test in auto-update.test.js covers the exact 2999/3000 ms boundary.
   await navigationFailed;
-  // Run the async bank-flush deadline and aborted navigation in timer order.
-  await page.clock.runFor(2999);
-  await expect(notice(page)).toHaveAttribute("aria-busy", "true");
-  await page.clock.runFor(1);
   await expect(notice(page).getByRole("button", { name: "Update", exact: true })).toBeVisible();
+  await expect(notice(page).getByRole("button", { name: "Dismiss", exact: true })).toBeVisible();
+  await expect(build(page)).toHaveAttribute("content", "old");
 });
 
 test("new notice waits until automatic resume reveal finishes", async ({ page, deployment }) => {
