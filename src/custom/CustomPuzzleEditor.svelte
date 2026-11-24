@@ -401,9 +401,7 @@
           </div>
         </div>
       {/if}
-      {#if preview || mode === "paste"}
-        <p class="board-error" role="status">{error}</p>
-      {/if}
+      <p class="board-error" role="status">{preview || mode === "paste" ? error : ""}</p>
     </div>
 
     <footer class="action-panel">
