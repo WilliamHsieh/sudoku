@@ -15,7 +15,10 @@ for (const width of [390, 1280]) {
     await page.setViewportSize({ width, height: 844 });
     await seed(page, { count: 7 });
     await page.getByRole("button", { name: "Choose L1–L8" }).click();
-    await page.getByRole("button", { name: /^L4 / }).click({ force: true });
+    const locked = page.getByRole("button", { name: /^L4 / });
+    await locked.hover();
+    await expect(locked).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    await locked.click({ force: true });
     await expect(page.locator(".toast")).toHaveText("再解 3 題 L3，解鎖 L4");
     await expect(page.getByRole("tablist", { name: "Filter" })).toHaveCount(0);
     await page.getByRole("button", { name: /^L6 / }).click({ force: true });
